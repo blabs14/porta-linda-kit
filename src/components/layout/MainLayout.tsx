@@ -5,10 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { NavigationSidebar } from './NavigationSidebar';
 import { BottomTabBar } from './BottomTabBar';
+import { useAuth } from '../../contexts/AuthContext';
+import LogoutButton from '../auth/LogoutButton';
 
 export function MainLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const location = useLocation();
+  const { user } = useAuth();
 
   const getPageTitle = () => {
     switch (location.pathname) {
@@ -50,8 +53,12 @@ export function MainLayout() {
             {getPageTitle()}
           </h1>
 
-          {/* Espaço para ações futuras */}
-          <div className="w-10" />
+          {/* Botão de logout */}
+          <div className="flex items-center gap-2">
+            {user && (
+              <LogoutButton />
+            )}
+          </div>
         </div>
       </header>
 
