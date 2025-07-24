@@ -1,13 +1,16 @@
-// TODO: Implement account service functions
+import { supabase } from '../lib/supabaseClient';
 
-export const getAccounts = () => {
-  // TODO: Fetch accounts from database
-};
+export const getAccounts = () =>
+  supabase.from('accounts').select('*').order('created_at', { ascending: false });
 
-export const createAccount = () => {
-  // TODO: Create new account
-};
+export const createAccount = (data: {
+  nome: string;
+  tipo: string;
+  saldo_inicial: number;
+}) => supabase.from('accounts').insert(data);
 
-export const updateAccount = () => {
-  // TODO: Update existing account
-};
+export const updateAccount = (id: string, data: {
+  nome?: string;
+  tipo?: string;
+  saldo_inicial?: number;
+}) => supabase.from('accounts').update(data).eq('id', id);

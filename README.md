@@ -92,3 +92,73 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## 🛠️ Setup do Projeto
+
+### Pré-requisitos
+- Node.js v22.14.0
+- npm v11.4.1
+
+### Instalação
+
+1. Instala as dependências:
+   ```sh
+   npm install
+   ```
+
+2. Cria um ficheiro `.env.local` na raiz do projeto com o seguinte conteúdo:
+   ```env
+   VITE_SUPABASE_URL=https://ebitcwrrcumsvqjgrapw.supabase.co
+   VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY
+   ```
+
+3. Inicia o servidor de desenvolvimento:
+   ```sh
+   npm run dev
+   ```
+
+---
+
+## 📥 Importação da Base de Dados e Configuração do Supabase
+
+1. **Importar o dump SQL para o Supabase**
+   - Acede ao painel do Supabase (https://app.supabase.com/).
+   - Seleciona o teu projeto.
+   - Vai a **Database** > **SQL Editor**.
+   - Carrega o ficheiro de dump SQL (ex: `dump.sql`) e executa o script para criar as tabelas e dados necessários.
+   - Confirma que a tabela `accounts` foi criada.
+
+2. **Configurar variáveis de ambiente**
+   - No ficheiro `.env.local`, garante que tens:
+     ```env
+     VITE_SUPABASE_URL=https://ebitcwrrcumsvqjgrapw.supabase.co
+     VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY
+     ```
+   - Se usares ambientes de teste, replica as variáveis em `.env.test`.
+
+---
+
+## 🔐 Autenticação de Utilizadores
+
+### Fluxo de autenticação
+- O registo e login são feitos nas páginas `/register` e `/login`.
+- Apenas utilizadores autenticados podem aceder às rotas privadas (`/`, `/transacoes`, `/objetivos`, `/familia`, `/insights`).
+- Utilizadores não autenticados são redirecionados automaticamente para `/login`.
+
+### Como funciona
+- O estado do utilizador é gerido pelo hook `useAuth` (`src/hooks/useAuth.ts`).
+- O wrapper `<RequireAuth>` protege as rotas privadas.
+- O formulário de registo pede nome, email e password. O login pede email e password.
+- Mensagens de erro detalhadas são apresentadas no formulário.
+
+### Exemplo de uso do hook
+```tsx
+import { useAuth } from '../hooks/useAuth';
+const { user, signup, login, logout } = useAuth();
+```
+
+### Personalização
+- Para alterar os campos de registo/validação, edita `src/models/authSchema.ts`.
+- Para adicionar campos extra ao utilizador, usa o campo `options.data` no signup.
+
+---
