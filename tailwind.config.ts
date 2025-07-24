@@ -12,7 +12,13 @@ export default {
 	theme: {
 		container: {
 			center: true,
-			padding: '2rem',
+			padding: {
+				DEFAULT: '1rem',
+				sm: '2rem',
+				lg: '4rem',
+				xl: '5rem',
+				'2xl': '6rem',
+			},
 			screens: {
 				'2xl': '1400px'
 			}
@@ -29,6 +35,24 @@ export default {
 					foreground: 'hsl(var(--primary-foreground))',
 					light: 'hsl(var(--primary-light))',
 					dark: 'hsl(var(--primary-dark))'
+				},
+				finance: {
+					DEFAULT: 'hsl(142, 76%, 36%)',
+					foreground: 'hsl(0, 0%, 98%)',
+					light: 'hsl(142, 76%, 46%)',
+					dark: 'hsl(142, 76%, 26%)'
+				},
+				expense: {
+					DEFAULT: 'hsl(0, 84%, 60%)',
+					foreground: 'hsl(0, 0%, 98%)',
+					light: 'hsl(0, 84%, 70%)',
+					dark: 'hsl(0, 84%, 50%)'
+				},
+				income: {
+					DEFAULT: 'hsl(142, 76%, 36%)',
+					foreground: 'hsl(0, 0%, 98%)',
+					light: 'hsl(142, 76%, 46%)',
+					dark: 'hsl(142, 76%, 26%)'
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',

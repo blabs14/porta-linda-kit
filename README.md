@@ -60,6 +60,27 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Scaffolding
+
+Este projeto inclui o seguinte scaffolding de ficheiros:
+
+### Services (`src/services/`)
+- `accounts.ts` - Funções para gestão de contas
+- `transactions.ts` - Funções para gestão de transações
+- `budgets.ts` - Funções para gestão de orçamentos
+- `reports.ts` - Funções para relatórios e analytics
+
+### Components (`src/components/`)
+- `AccountList.tsx` - Lista de contas
+- `AccountForm.tsx` - Formulário de conta
+- `TransactionList.tsx` - Lista de transações
+- `TransactionForm.tsx` - Formulário de transação
+- `BudgetCard.tsx` - Card de orçamento
+- `BudgetTable.tsx` - Tabela de orçamentos
+- `ReportChart.tsx` - Gráfico de relatórios
+
+Todos os ficheiros contêm stubs funcionais marcados com `// TODO` para posterior implementação.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/169fc6f4-e48d-465f-82e9-6c25572b5184) and click on Share -> Publish.
