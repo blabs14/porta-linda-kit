@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getBudgets, createBudget, updateBudget, deleteBudget } from '../services/budgets';
+import { useAuth } from '../contexts/AuthContext';
 import BudgetTable from '../components/BudgetTable';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Button } from '../components/ui/button';
@@ -17,6 +18,7 @@ const categorias = [
 ];
 
 const BudgetsPage = () => {
+  const { user } = useAuth();
   const [budgets, setBudgets] = useState<any[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editBudget, setEditBudget] = useState<any | null>(null);
@@ -49,7 +51,7 @@ const BudgetsPage = () => {
 
   const handleRemove = async (id: string) => {
     if (!window.confirm('Tem a certeza que deseja remover este orçamento?')) return;
-    await deleteBudget(id);
+    await deleteBudget(id, user?.id || '');
     fetchBudgets();
   };
 
@@ -81,14 +83,14 @@ const BudgetsPage = () => {
           categoria_id: form.categoria_id,
           valor: Number(form.valor),
           mes: form.mes,
-        });
+        }, user?.id || '');
         if (error) throw error;
       } else {
         const { error } = await createBudget({
           categoria_id: form.categoria_id,
           valor: Number(form.valor),
           mes: form.mes,
-        });
+        }, user?.id || '');
         if (error) throw error;
       }
       setLoading(false);

@@ -1,5 +1,6 @@
 import { useTransactions } from '../hooks/useTransactions';
 import { useEffect, useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { getAccounts } from '../services/accounts';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from './ui/table';
 import { Button } from './ui/button';
@@ -23,6 +24,7 @@ const categorias = [
 
 const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
   const { transactions, remove, filters, setFilters } = useTransactions();
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState<any[]>([]);
   const [accountsMap, setAccountsMap] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<string | null>(null);
@@ -56,7 +58,7 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
   const handleRemove = async (id: string) => {
     if (!window.confirm('Tem a certeza que deseja remover esta transação?')) return;
     setRemoving(id);
-    await remove(id);
+    await remove(id, user?.id || '');
     setRemoving(null);
   };
 

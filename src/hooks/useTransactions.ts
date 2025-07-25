@@ -22,20 +22,20 @@ export const useTransactions = () => {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  const create = async (payload: Parameters<typeof svc.createTransaction>[0]) => {
-    const res = await svc.createTransaction(payload);
+  const create = async (payload: Parameters<typeof svc.createTransaction>[0], userId: string) => {
+    const res = await svc.createTransaction(payload, userId);
     if (!res.error) fetch();
     return res;
   };
 
-  const update = async (id: string, data: any) => {
-    const res = await svc.updateTransaction(id, data);
+  const update = async (id: string, data: any, userId: string) => {
+    const res = await svc.updateTransaction(id, data, userId);
     if (!res.error) fetch();
     return res;
   };
 
-  const remove = async (id: string) => {
-    const res = await svc.deleteTransaction(id);
+  const remove = async (id: string, userId: string) => {
+    const res = await svc.deleteTransaction(id, userId);
     if (!res.error) fetch();
     return res;
   };

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createAccount, updateAccount } from '../services/accounts';
+import { useAuth } from '../contexts/AuthContext';
 import { accountSchema } from '../validation/accountSchema';
 import { showError } from '../lib/utils';
 import { Input } from './ui/input';
@@ -31,6 +32,7 @@ interface AccountFormProps {
 }
 
 const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => {
+  const { user } = useAuth();
   const [form, setForm] = useState<AccountFormData>(
     initialData || { nome: '', tipo: '' }
   );
@@ -68,10 +70,10 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
         tipo: form.tipo,
       };
       if (initialData && initialData.id) {
-        const { error } = await updateAccount(initialData.id, payload);
+        const { error } = await updateAccount(initialData.id, payload, user?.id || '');
         if (error) throw error;
       } else {
-        const { error } = await createAccount(payload);
+        const { error } = await createAccount(payload, user?.id || '');
         if (error) throw error;
       }
       setLoading(false);

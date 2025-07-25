@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTransactions } from '../hooks/useTransactions';
+import { useAuth } from '../contexts/AuthContext';
 import { getAccounts } from '../services/accounts';
 import { getCategories } from '../services/categories';
 import { transactionSchema } from '../validation/transactionSchema';
@@ -31,6 +32,7 @@ interface TransactionFormProps {
 
 const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormProps) => {
   const { create, update } = useTransactions();
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [form, setForm] = useState({
@@ -111,9 +113,9 @@ const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormPr
       };
       let res;
       if (form.id) {
-        res = await update(form.id, payload);
+        res = await update(form.id, payload, user?.id || '');
       } else {
-        res = await create(payload);
+        res = await create(payload, user?.id || '');
       }
       setLoading(false);
       if (res.error) {

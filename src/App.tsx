@@ -13,7 +13,7 @@ import RequireAuth from './components/RequireAuth';
 import Login from './pages/login';
 import Register from './pages/register';
 import AccountsPage from './pages/accounts';
-import TransactionsPage from './pages/transactions';
+import TransactionsPage from './pages/Transactions';
 import BudgetsPage from './pages/budgets';
 import ReportsPage from './pages/reports';
 import AuthTest from './pages/AuthTest';
