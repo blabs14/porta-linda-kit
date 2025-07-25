@@ -1,24 +1,27 @@
 import { useEffect, useState } from 'react';
-import { getSpendingByCategory } from '../services/reports';
+import { getExpensesByCategory } from '../services/reports';
 import ReportChart from '../components/ReportChart';
 import { Input } from '../components/ui/input';
+import { useAuth } from '../contexts/AuthContext';
 
 const ReportsPage = () => {
+  const { user } = useAuth();
   const [data, setData] = useState<{ categoria: string; total: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mes, setMes] = useState('');
 
   const fetchData = async () => {
+    if (!user) return;
     setLoading(true);
     setError(null);
-    const { data, error } = await getSpendingByCategory(mes);
+    const { data, error } = await getExpensesByCategory(user.id, mes || undefined);
     if (error) setError(error.message);
     setData(data || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [mes]);
+  useEffect(() => { fetchData(); }, [mes, user]);
 
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
