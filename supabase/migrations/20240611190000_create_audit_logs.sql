@@ -15,7 +15,13 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 -- Ativar RLS
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Policy: apenas admins podem consultar
-CREATE POLICY "Admins only" ON public.audit_logs
+-- Policy: apenas owners/admins podem consultar
+CREATE POLICY "Owners/Admins only" ON public.audit_logs
   FOR SELECT
-  USING (EXISTS (SELECT 1 FROM profiles WHERE user_id = auth.uid() AND role = 'admin')); 
+  USING (
+    EXISTS (
+      SELECT 1 FROM family_members
+      WHERE user_id = auth.uid()
+        AND role IN ('owner', 'admin')
+    )
+  ); 

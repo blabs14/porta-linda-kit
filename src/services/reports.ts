@@ -1,9 +1,20 @@
 import { supabase } from '../lib/supabaseClient';
 
-export const getSpendingByCategory = async (mes?: string) => {
-  // Exemplo: chamada a uma função RPC definida no Supabase
-  // Ajusta o nome e parâmetros conforme o teu projeto antigo
-  let query = supabase.rpc('spending_by_category', mes ? { mes } : {});
-  const { data, error } = await query;
-  return { data, error };
+// Relatório: Total de despesas por categoria
+export const getExpensesByCategory = async (user_id: string) => {
+  return supabase
+    .from('transactions')
+    .select('categoria_id, valor')
+    .eq('user_id', user_id);
 };
+
+// Relatório: Total de receitas por mês
+export const getIncomeByMonth = async (user_id: string) => {
+  return supabase
+    .from('transactions')
+    .select('data, valor, tipo')
+    .eq('user_id', user_id)
+    .eq('tipo', 'receita');
+};
+
+// Podes adicionar mais funções de agregação conforme necessário

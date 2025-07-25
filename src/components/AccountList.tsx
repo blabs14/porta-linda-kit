@@ -7,7 +7,6 @@ export type Account = {
   id: string;
   nome: string;
   tipo: string;
-  saldo_inicial: number;
   created_at: string;
 };
 
@@ -37,7 +36,6 @@ const AccountList = ({ onEdit }: AccountListProps) => {
           <TableRow>
             <TableHead>Nome</TableHead>
             <TableHead>Tipo</TableHead>
-            <TableHead>Saldo Inicial</TableHead>
             <TableHead>Ações</TableHead>
           </TableRow>
         </TableHeader>
@@ -46,7 +44,6 @@ const AccountList = ({ onEdit }: AccountListProps) => {
             <TableRow key={acc.id}>
               <TableCell>{acc.nome}</TableCell>
               <TableCell>{acc.tipo}</TableCell>
-              <TableCell>{acc.saldo_inicial}</TableCell>
               <TableCell>
                 <Button size="sm" variant="outline" onClick={() => onEdit(acc)}>
                   Editar

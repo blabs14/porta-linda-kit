@@ -21,8 +21,14 @@ const navigationItems = [
     description: 'Visão geral das suas finanças'
   },
   {
+    title: 'Contas',
+    href: '/accounts',
+    icon: CreditCard,
+    description: 'Gestão de contas bancárias'
+  },
+  {
     title: 'Transações',
-    href: '/transacoes',
+    href: '/transactions',
     icon: CreditCard,
     description: 'Histórico e gestão de movimentos'
   },

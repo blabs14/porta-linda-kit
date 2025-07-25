@@ -42,7 +42,7 @@ const AccountsPage = () => {
             <DialogTitle>{editAccount ? 'Editar Conta' : 'Nova Conta'}</DialogTitle>
           </DialogHeader>
           <AccountForm
-            initialData={editAccount || undefined}
+            initialData={editAccount ? { ...editAccount } : undefined}
             onSuccess={handleSuccess}
             onCancel={() => setModalOpen(false)}
           />

@@ -475,6 +475,10 @@ END;
 $function$;
 
 -- 12. update_updated_at_column
+-- Remover triggers dependentes
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
+DROP TRIGGER IF EXISTS update_goals_updated_at ON goals;
+
 DROP FUNCTION IF EXISTS public.update_updated_at_column();
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS trigger
@@ -486,6 +490,17 @@ BEGIN
   RETURN NEW;
 END;
 $function$;
+
+-- Recriar triggers dependentes
+CREATE TRIGGER update_profiles_updated_at
+  BEFORE UPDATE ON profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_goals_updated_at
+  BEFORE UPDATE ON goals
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
 
 -- 13. accept_family_invite
 DROP FUNCTION IF EXISTS public.accept_family_invite(text);

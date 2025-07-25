@@ -19,6 +19,7 @@ import ReportsPage from './pages/reports';
 import AuthTest from './pages/AuthTest';
 import ForgotPassword from './pages/forgot-password';
 import { AuthProvider } from './contexts/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const queryClient = new QueryClient();
 
@@ -27,28 +28,30 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/" element={<RequireAuth><MainLayout /></RequireAuth>}>
-              <Route index element={<Dashboard />} />
-              <Route path="accounts" element={<AccountsPage />} />
-              <Route path="transactions" element={<TransactionsPage />} />
-              <Route path="budgets" element={<BudgetsPage />} />
-              <Route path="reports" element={<ReportsPage />} />
-              <Route path="objetivos" element={<Goals />} />
-              <Route path="familia" element={<Family />} />
-              <Route path="insights" element={<Insights />} />
-            </Route>
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="/auth-test" element={<AuthTest />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/" element={<RequireAuth><MainLayout /></RequireAuth>}>
+                <Route index element={<Dashboard />} />
+                <Route path="accounts" element={<AccountsPage />} />
+                <Route path="transactions" element={<TransactionsPage />} />
+                <Route path="budgets" element={<BudgetsPage />} />
+                <Route path="reports" element={<ReportsPage />} />
+                <Route path="objetivos" element={<Goals />} />
+                <Route path="familia" element={<Family />} />
+                <Route path="insights" element={<Insights />} />
+              </Route>
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="/auth-test" element={<AuthTest />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </ErrorBoundary>
     </TooltipProvider>
   </QueryClientProvider>
 );

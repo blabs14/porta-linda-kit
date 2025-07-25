@@ -4,6 +4,8 @@ import BudgetTable from '../components/BudgetTable';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { budgetSchema } from '../validation/budgetSchema';
+import { showError } from '../lib/utils';
 
 const categorias = [
   'Alimentação',
@@ -18,9 +20,9 @@ const BudgetsPage = () => {
   const [budgets, setBudgets] = useState<any[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editBudget, setEditBudget] = useState<any | null>(null);
-  const [form, setForm] = useState({ categoria: '', valor: '', mes: '' });
+  const [form, setForm] = useState({ categoria_id: '', valor: '', mes: '' });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const fetchBudgets = async () => {
     const { data } = await getBudgets();
@@ -31,19 +33,18 @@ const BudgetsPage = () => {
 
   const handleNew = () => {
     setEditBudget(null);
-    setForm({ categoria: '', valor: '', mes: '' });
+    setForm({ categoria_id: '', valor: '', mes: '' });
     setModalOpen(true);
   };
   const handleEdit = (b: any) => {
     setEditBudget(b);
-    setForm({ categoria: b.categoria, valor: b.valor.toString(), mes: b.mes });
+    setForm({ categoria_id: b.categoria_id, valor: b.valor.toString(), mes: b.mes });
     setModalOpen(true);
   };
   const handleClose = () => {
     setModalOpen(false);
     setEditBudget(null);
-    setForm({ categoria: '', valor: '', mes: '' });
-    setError(null);
+    setForm({ categoria_id: '', valor: '', mes: '' });
   };
 
   const handleRemove = async (id: string) => {
@@ -58,19 +59,33 @@ const BudgetsPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setValidationErrors({});
     setLoading(true);
+    const result = budgetSchema.safeParse({
+      categoria_id: form.categoria_id,
+      valor: form.valor,
+      mes: form.mes,
+    });
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      result.error.errors.forEach(err => {
+        if (err.path[0]) fieldErrors[err.path[0]] = err.message;
+      });
+      setValidationErrors(fieldErrors);
+      setLoading(false);
+      return;
+    }
     try {
       if (editBudget) {
         const { error } = await updateBudget(editBudget.id, {
-          categoria: form.categoria,
+          categoria_id: form.categoria_id,
           valor: Number(form.valor),
           mes: form.mes,
         });
         if (error) throw error;
       } else {
         const { error } = await createBudget({
-          categoria: form.categoria,
+          categoria_id: form.categoria_id,
           valor: Number(form.valor),
           mes: form.mes,
         });
@@ -80,7 +95,7 @@ const BudgetsPage = () => {
       handleClose();
       fetchBudgets();
     } catch (err: any) {
-      setError(err.message || 'Erro ao guardar orçamento');
+      showError(err.message || 'Erro ao guardar orçamento');
       setLoading(false);
     }
   };
@@ -100,15 +115,23 @@ const BudgetsPage = () => {
             <DialogTitle>{editBudget ? 'Editar Orçamento' : 'Novo Orçamento'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 p-2">
-            <select name="categoria" value={form.categoria} onChange={handleChange} required className="w-full border rounded p-2">
+            <select name="categoria_id" value={form.categoria_id} onChange={handleChange} required className="w-full border rounded p-2">
               <option value="">Categoria</option>
               {categorias.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
-            <Input name="valor" type="number" placeholder="Valor" value={form.valor} onChange={handleChange} required min={0} />
-            <Input name="mes" type="month" placeholder="Mês" value={form.mes} onChange={handleChange} required />
-            {error && <div className="text-red-600 text-sm">{error}</div>}
+            {validationErrors.categoria_id && <div className="text-red-600 text-sm">{validationErrors.categoria_id}</div>}
+            <Input name="valor" type="number" placeholder="Valor" value={form.valor} onChange={handleChange} required min={0}
+              aria-invalid={!!validationErrors.valor}
+              aria-describedby={validationErrors.valor ? 'valor-error' : undefined}
+            />
+            {validationErrors.valor && <div id="valor-error" className="text-red-600 text-sm">{validationErrors.valor}</div>}
+            <Input name="mes" type="month" placeholder="Mês" value={form.mes} onChange={handleChange} required
+              aria-invalid={!!validationErrors.mes}
+              aria-describedby={validationErrors.mes ? 'mes-error' : undefined}
+            />
+            {validationErrors.mes && <div id="mes-error" className="text-red-600 text-sm">{validationErrors.mes}</div>}
             <div className="flex gap-2">
               <Button type="submit" disabled={loading} className="w-full">{loading ? 'A guardar...' : 'Guardar'}</Button>
               <Button type="button" variant="outline" onClick={handleClose} className="w-full">Cancelar</Button>

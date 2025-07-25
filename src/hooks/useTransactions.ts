@@ -3,15 +3,18 @@ import * as svc from '../services/transactions';
 
 export const useTransactions = () => {
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [filters, setFilters] = useState({ conta_id: '', categoria: '', dataInicio: '', dataFim: '' });
+  const [filters, setFilters] = useState({ account_id: '', categoria_id: '', dataInicio: '', dataFim: '' });
 
   const fetch = useCallback(async () => {
     let query = svc.getTransactions();
     // Filtros locais após fetch (poderia ser query Supabase se necessário)
     const { data } = await query;
     let filtered = data || [];
-    if (filters.conta_id) filtered = filtered.filter((t: any) => t.conta_id === filters.conta_id);
-    if (filters.categoria) filtered = filtered.filter((t: any) => t.categoria === filters.categoria);
+    // Só aplicar filtro de conta se houver contas disponíveis e filtro definido
+    if (filters.account_id && filtered.some((t: any) => t.account_id === filters.account_id)) {
+      filtered = filtered.filter((t: any) => t.account_id === filters.account_id);
+    }
+    if (filters.categoria_id) filtered = filtered.filter((t: any) => t.categoria_id === filters.categoria_id);
     if (filters.dataInicio) filtered = filtered.filter((t: any) => t.data >= filters.dataInicio);
     if (filters.dataFim) filtered = filtered.filter((t: any) => t.data <= filters.dataFim);
     setTransactions(filtered);

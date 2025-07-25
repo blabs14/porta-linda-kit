@@ -1,26 +1,33 @@
 import { supabase } from '../lib/supabaseClient';
+import { logAuditChange } from './audit_logs';
 
-export const getTransactions = () =>
-  supabase
+export const getTransactions = async () => {
+  const res = await supabase
     .from('transactions')
     .select('*')
-    .order('date', { ascending: false });
+    .order('data', { ascending: false });
+  console.log('[DEBUG] getTransactions result:', res);
+  return res;
+};
 
-export const createTransaction = (data: {
-  conta_id: string;
-  valor: number;
-  categoria: string;
-  data: string;
-  descricao?: string;
-}) => supabase.from('transactions').insert(data);
+export const createTransaction = async (data: { account_id: string; valor: number; categoria_id: string; data: string; descricao?: string; }, userId: string) => {
+  const res = await supabase.from('transactions').insert(data).select('id').single();
+  if (res.data?.id) {
+    await logAuditChange(userId, 'transactions', 'CREATE', res.data.id, {}, data);
+  }
+  return res;
+};
 
-export const updateTransaction = (id: string, data: {
-  conta_id?: string;
-  valor?: number;
-  categoria?: string;
-  data?: string;
-  descricao?: string;
-}) => supabase.from('transactions').update(data).eq('id', id);
+export const updateTransaction = async (id: string, data: { account_id?: string; valor?: number; categoria_id?: string; data?: string; descricao?: string; }, userId: string) => {
+  const oldRes = await supabase.from('transactions').select('*').eq('id', id).single();
+  const res = await supabase.from('transactions').update(data).eq('id', id);
+  await logAuditChange(userId, 'transactions', 'UPDATE', id, oldRes.data || {}, data);
+  return res;
+};
 
-export const deleteTransaction = (id: string) =>
-  supabase.from('transactions').delete().eq('id', id);
+export const deleteTransaction = async (id: string, userId: string) => {
+  const oldRes = await supabase.from('transactions').select('*').eq('id', id).single();
+  const res = await supabase.from('transactions').delete().eq('id', id);
+  await logAuditChange(userId, 'transactions', 'DELETE', id, oldRes.data || {}, {});
+  return res;
+};

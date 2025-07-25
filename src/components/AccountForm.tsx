@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createAccount, updateAccount } from '../services/accounts';
+import { accountSchema } from '../validation/accountSchema';
+import { showError } from '../lib/utils';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import {
@@ -20,7 +22,6 @@ export type AccountFormData = {
   id?: string;
   nome: string;
   tipo: string;
-  saldo_inicial: number;
 };
 
 interface AccountFormProps {
@@ -31,10 +32,10 @@ interface AccountFormProps {
 
 const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => {
   const [form, setForm] = useState<AccountFormData>(
-    initialData || { nome: '', tipo: '', saldo_inicial: 0 }
+    initialData || { nome: '', tipo: '' }
   );
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (initialData) setForm(initialData);
@@ -50,28 +51,33 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setValidationErrors({});
+    const result = accountSchema.safeParse(form);
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      result.error.errors.forEach(err => {
+        if (err.path[0]) fieldErrors[err.path[0]] = err.message;
+      });
+      setValidationErrors(fieldErrors);
+      return;
+    }
     setLoading(true);
     try {
-      if (form.id) {
-        const { error } = await updateAccount(form.id, {
-          nome: form.nome,
-          tipo: form.tipo,
-          saldo_inicial: Number(form.saldo_inicial),
-        });
+      const payload = {
+        nome: form.nome,
+        tipo: form.tipo,
+      };
+      if (initialData && initialData.id) {
+        const { error } = await updateAccount(initialData.id, payload);
         if (error) throw error;
       } else {
-        const { error } = await createAccount({
-          nome: form.nome,
-          tipo: form.tipo,
-          saldo_inicial: Number(form.saldo_inicial),
-        });
+        const { error } = await createAccount(payload);
         if (error) throw error;
       }
       setLoading(false);
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Erro ao guardar conta');
+      showError(err.message || 'Erro ao guardar conta');
       setLoading(false);
     }
   };
@@ -85,7 +91,10 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
         onChange={handleChange}
         required
         className="w-full"
+        aria-invalid={!!validationErrors.nome}
+        aria-describedby={validationErrors.nome ? 'nome-error' : undefined}
       />
+      {validationErrors.nome && <div id="nome-error" className="text-red-600 text-sm">{validationErrors.nome}</div>}
       <Select value={form.tipo} onValueChange={handleTipoChange}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Tipo de Conta" />
@@ -96,17 +105,7 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
           ))}
         </SelectContent>
       </Select>
-      <Input
-        name="saldo_inicial"
-        type="number"
-        placeholder="Saldo Inicial"
-        value={form.saldo_inicial}
-        onChange={handleChange}
-        required
-        min={0}
-        className="w-full"
-      />
-      {error && <div className="text-red-600 text-sm">{error}</div>}
+      {validationErrors.tipo && <div className="text-red-600 text-sm">{validationErrors.tipo}</div>}
       <div className="flex flex-col sm:flex-row gap-2">
         <Button type="submit" disabled={loading} className="w-full">{loading ? 'A guardar...' : 'Guardar'}</Button>
         <Button type="button" variant="outline" onClick={onCancel} className="w-full">Cancelar</Button>

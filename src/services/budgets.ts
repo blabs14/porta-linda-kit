@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { logAuditChange } from './audit_logs';
 
 export const getBudgets = () =>
   supabase
@@ -6,17 +7,24 @@ export const getBudgets = () =>
     .select('*')
     .order('created_at', { ascending: false });
 
-export const createBudget = (data: {
-  categoria: string;
-  valor: number;
-  mes: string; // formato YYYY-MM
-}) => supabase.from('budgets').insert(data);
+export const createBudget = async (data: { categoria_id: string; valor: number; mes: string; }, userId: string) => {
+  const res = await supabase.from('budgets').insert(data).select('id').single();
+  if (res.data?.id) {
+    await logAuditChange(userId, 'budgets', 'CREATE', res.data.id, {}, data);
+  }
+  return res;
+};
 
-export const updateBudget = (id: string, data: {
-  categoria?: string;
-  valor?: number;
-  mes?: string;
-}) => supabase.from('budgets').update(data).eq('id', id);
+export const updateBudget = async (id: string, data: { categoria_id?: string; valor?: number; mes?: string; }, userId: string) => {
+  const oldRes = await supabase.from('budgets').select('*').eq('id', id).single();
+  const res = await supabase.from('budgets').update(data).eq('id', id);
+  await logAuditChange(userId, 'budgets', 'UPDATE', id, oldRes.data || {}, data);
+  return res;
+};
 
-export const deleteBudget = (id: string) =>
-  supabase.from('budgets').delete().eq('id', id);
+export const deleteBudget = async (id: string, userId: string) => {
+  const oldRes = await supabase.from('budgets').select('*').eq('id', id).single();
+  const res = await supabase.from('budgets').delete().eq('id', id);
+  await logAuditChange(userId, 'budgets', 'DELETE', id, oldRes.data || {}, {});
+  return res;
+};
