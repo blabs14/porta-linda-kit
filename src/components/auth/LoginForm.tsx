@@ -1,7 +1,14 @@
+
 import { useState, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { signInWithGoogle, signInWithApple, signInWithFacebook } from '../../services/authProviders';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Mail, Lock, Loader2 } from 'lucide-react';
+import { showError } from '@/lib/utils';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
@@ -17,8 +24,11 @@ export default function LoginForm() {
     const { error } = await login(email, password) || {};
     if (error) {
       setError(error.message);
+      showError('Erro ao iniciar sessão: ' + error.message);
       emailRef.current?.focus();
-    } else navigate('/accounts');
+    } else {
+      navigate('/accounts');
+    }
   };
 
   const handleOAuth = async (provider: 'google' | 'apple' | 'facebook') => {
@@ -28,7 +38,9 @@ export default function LoginForm() {
       if (provider === 'apple') await signInWithApple();
       if (provider === 'facebook') await signInWithFacebook();
     } catch (err: any) {
-      setError('Erro ao autenticar com ' + provider);
+      const errorMessage = 'Erro ao autenticar com ' + provider;
+      setError(errorMessage);
+      showError(errorMessage);
     }
   };
 
@@ -38,49 +50,120 @@ export default function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleLogin} style={{ maxWidth: 400, margin: 'auto', padding: 20 }}>
-      <h2>Iniciar Sessão</h2>
-      <div style={{ marginBottom: 12 }}>
-        <label htmlFor="email">Email</label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          placeholder="exemplo@email.com"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          required
-          ref={emailRef}
-          autoFocus
-          aria-invalid={!!error}
-          aria-describedby={error ? 'email-error' : undefined}
-          style={{ width: '100%', marginBottom: 4, outline: '2px solid #1976d2' }}
-        />
-        <small>O teu email de acesso.</small>
+    <div className="space-y-6">
+      <form onSubmit={handleLogin} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="email" className="text-sm font-medium">
+            Email
+          </Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="exemplo@email.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              ref={emailRef}
+              autoFocus
+              className="pl-10"
+              aria-invalid={!!error}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">O seu email de acesso.</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="password" className="text-sm font-medium">
+            Password
+          </Label>
+          <div className="relative">
+            <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              className="pl-10"
+              aria-invalid={!!error}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">Deve ter pelo menos 6 caracteres.</p>
+        </div>
+
         {error && (
-          <span id="email-error" style={{ color: 'red', display: 'block' }} aria-live="polite">{error}</span>
+          <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+            {error}
+          </div>
         )}
+
+        <Button 
+          type="submit" 
+          disabled={loading} 
+          className="w-full"
+          variant="default"
+        >
+          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {loading ? 'A entrar...' : 'Entrar'}
+        </Button>
+      </form>
+
+      <div className="space-y-4">
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <Separator />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-card px-2 text-muted-foreground">ou</span>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Button 
+            type="button" 
+            onClick={() => handleOAuth('google')} 
+            disabled={loading} 
+            variant="outline"
+            className="w-full"
+          >
+            <div className="w-4 h-4 mr-2 bg-[#4285f4] rounded-sm flex items-center justify-center">
+              <span className="text-white text-xs font-bold">G</span>
+            </div>
+            Entrar com Google
+          </Button>
+
+          <Button 
+            type="button" 
+            onClick={() => handleOAuth('apple')} 
+            disabled={loading} 
+            variant="outline"
+            className="w-full"
+          >
+            <div className="w-4 h-4 mr-2 bg-black rounded-sm flex items-center justify-center">
+              <span className="text-white text-xs">🍎</span>
+            </div>
+            Entrar com Apple
+          </Button>
+
+          <Button 
+            type="button" 
+            onClick={() => handleOAuth('facebook')} 
+            disabled={loading} 
+            variant="outline"
+            className="w-full"
+          >
+            <div className="w-4 h-4 mr-2 bg-[#1877f2] rounded-sm flex items-center justify-center">
+              <span className="text-white text-xs font-bold">f</span>
+            </div>
+            Entrar com Facebook
+          </Button>
+        </div>
       </div>
-      <div style={{ marginBottom: 12 }}>
-        <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          required
-          aria-invalid={!!error}
-          style={{ width: '100%', marginBottom: 4, outline: '2px solid #1976d2' }}
-        />
-        <small>Deve ter pelo menos 6 caracteres.</small>
-      </div>
-      <button type="submit" disabled={loading} style={{ width: '100%', marginBottom: 8 }}>{loading ? 'A entrar...' : 'Entrar'}</button>
-      <div style={{ textAlign: 'center', margin: '16px 0', color: '#888' }}>ou</div>
-      <button type="button" onClick={() => handleOAuth('google')} disabled={loading} style={{ width: '100%', marginBottom: 8, background: '#fff', border: '1px solid #ccc', color: '#222', padding: 8, borderRadius: 4 }}>Entrar com Google</button>
-      <button type="button" onClick={() => handleOAuth('apple')} disabled={loading} style={{ width: '100%', marginBottom: 8, background: '#000', color: '#fff', padding: 8, borderRadius: 4 }}>Entrar com Apple</button>
-      <button type="button" onClick={() => handleOAuth('facebook')} disabled={loading} style={{ width: '100%', marginBottom: 8, background: '#1877f3', color: '#fff', padding: 8, borderRadius: 4 }}>Entrar com Facebook</button>
-    </form>
+    </div>
   );
-} 
+}
