@@ -1,25 +1,24 @@
 
 import { useState, useRef } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { useAuth } from '../../contexts/AuthContext';
 import { showSuccess, showError } from '../../lib/utils';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 import { Mail, Lock, Loader2 } from 'lucide-react';
 
 export default function RegisterForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const { register, loading } = useAuth();
   const emailRef = useRef<HTMLInputElement>(null);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
     
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await register(email, password) || {};
     
     if (error) {
       setError(error.message);
@@ -28,8 +27,6 @@ export default function RegisterForm() {
     } else {
       showSuccess('Registo efetuado! Verifica o teu email para confirmar a conta.');
     }
-    
-    setLoading(false);
   };
 
   return (

@@ -1,9 +1,8 @@
-import { useTransactions } from '../hooks/useTransactions';
-import { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getAccounts } from '../services/accounts';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from './ui/table';
 import { Button } from './ui/button';
+import { LoadingSpinner } from './ui/loading-states';
 import {
   Select,
   SelectTrigger,
@@ -12,132 +11,238 @@ import {
   SelectValue,
 } from './ui/select';
 import { Input } from './ui/input';
-
-const categorias = [
-  'Alimentação',
-  'Transporte',
-  'Lazer',
-  'Saúde',
-  'Educação',
-  'Outros',
-];
+import { useTransactions, useDeleteTransaction } from '../hooks/useTransactionsQuery';
+import { useReferenceData } from '../hooks/useCache';
 
 const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
-  const { transactions, remove, filters, setFilters } = useTransactions();
   const { user } = useAuth();
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [accountsMap, setAccountsMap] = useState<Record<string, string>>({});
-  const [removing, setRemoving] = useState<string | null>(null);
+  const [filters, setFilters] = useState({
+    account_id: 'all',
+    categoria_id: 'all',
+    dataInicio: '',
+    dataFim: '',
+    tipo: 'all', // Novo filtro por tipo
+  });
+  
+  // Usar TanStack Query hooks
+  const { data: transactions = [], isLoading: transactionsLoading } = useTransactions();
+  const { accounts, categories } = useReferenceData();
+  const deleteTransactionMutation = useDeleteTransaction();
+  
+  const loading = transactionsLoading || accounts.isLoading || categories.isLoading;
 
-  useEffect(() => {
-    getAccounts().then(({ data }) => {
-      if (data) {
-        setAccounts(data);
-        const map: Record<string, string> = {};
-        data.forEach((acc: any) => { map[acc.id] = acc.nome; });
-        setAccountsMap(map);
-      }
-    });
-  }, []);
+  // Criar mapa de contas para exibição
+  const accountsMap = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    accounts.data?.forEach((acc: any) => { map[acc.id] = acc.nome; });
+    return map;
+  }, [accounts.data]);
 
-  useEffect(() => {
-    console.log('[DEBUG] transactions:', transactions);
-    transactions.forEach(tx => {
-      if (!tx.account_id) console.warn('[DEBUG] Transação sem account_id:', tx);
-      if (!tx.categoria_id) console.warn('[DEBUG] Transação sem categoria_id:', tx);
-    });
-  }, [transactions]);
+  // Criar mapa de categorias para exibição
+  const categoriesMap = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    categories.data?.forEach((cat: any) => { map[cat.id] = cat.nome; });
+    return map;
+  }, [categories.data]);
 
   // Filtros handlers
   const handleContaChange = (value: string) => setFilters(f => ({ ...f, account_id: value }));
   const handleCategoriaChange = (value: string) => setFilters(f => ({ ...f, categoria_id: value }));
   const handleDataInicio = (e: React.ChangeEvent<HTMLInputElement>) => setFilters(f => ({ ...f, dataInicio: e.target.value }));
   const handleDataFim = (e: React.ChangeEvent<HTMLInputElement>) => setFilters(f => ({ ...f, dataFim: e.target.value }));
+  const handleTipoChange = (value: string) => {
+    setFilters(prev => ({ ...prev, tipo: value }));
+  };
+
+  // Aplicar filtros localmente
+  const filteredTransactions = React.useMemo(() => {
+    let filtered = transactions;
+    
+    if (filters.account_id && filters.account_id !== 'all') {
+      filtered = filtered.filter(tx => tx.account_id === filters.account_id);
+    }
+    if (filters.categoria_id && filters.categoria_id !== 'all') {
+      filtered = filtered.filter(tx => tx.categoria_id === filters.categoria_id);
+    }
+    if (filters.tipo && filters.tipo !== 'all') {
+      filtered = filtered.filter(tx => tx.tipo === filters.tipo);
+    }
+    if (filters.dataInicio) {
+      filtered = filtered.filter(tx => tx.data >= filters.dataInicio);
+    }
+    if (filters.dataFim) {
+      filtered = filtered.filter(tx => tx.data <= filters.dataFim);
+    }
+    
+    return filtered;
+  }, [transactions, filters]);
 
   // Remover transação
   const handleRemove = async (id: string) => {
     if (!window.confirm('Tem a certeza que deseja remover esta transação?')) return;
-    setRemoving(id);
-    await remove(id, user?.id || '');
-    setRemoving(null);
+    try {
+      await deleteTransactionMutation.mutateAsync(id);
+    } catch (error) {
+      console.error('Erro ao remover transação:', error);
+    }
   };
 
-  // Garantir que os filtros são sempre strings
-  const validAccountIds = accounts.filter(acc => !!acc.id).map(acc => String(acc.id));
-  let accountIdValue = typeof filters.account_id === 'string' ? filters.account_id : '';
-  if (!validAccountIds.includes(accountIdValue)) accountIdValue = '';
-  const categoriaIdValue = typeof filters.categoria_id === 'string' ? filters.categoria_id : '';
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
-  // Debug logs
-  console.log('[DEBUG] filters.account_id:', filters.account_id);
-  console.log('[DEBUG] validAccountIds:', validAccountIds);
-  console.log('[DEBUG] accountIdValue:', accountIdValue);
-  console.log('[DEBUG] accounts:', accounts);
+  const formatCurrency = (value: number, tipo: string) => {
+    const absValue = Math.abs(value);
+    const formatted = new Intl.NumberFormat('pt-PT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(absValue);
+    
+    // Adicionar sinal baseado no tipo
+    if (tipo === 'despesa') {
+      return `-${formatted}`;
+    } else {
+      return `+${formatted}`;
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-PT');
+  };
 
   return (
-    <div className="overflow-x-auto">
-      {/* Filtros */}
-      <div className="flex flex-wrap gap-2 mb-4 items-end">
-        {accounts.length > 0 && (
-          <Select value={accountIdValue} onValueChange={value => setFilters(f => ({ ...f, account_id: value }))}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Conta" /></SelectTrigger>
+    <div className="h-full flex flex-col">
+      {/* Filtros Fixos - Sempre visíveis */}
+      <div className="flex-shrink-0 bg-background border-b p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <Select value={filters.account_id} onValueChange={handleContaChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Todas as contas" />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todas</SelectItem>
-              {accounts.filter(acc => !!acc.id).map((acc) => (
-                <SelectItem key={acc.id} value={String(acc.id)}>{acc.nome}</SelectItem>
+              <SelectItem value="all">Todas as contas</SelectItem>
+              {accounts.data?.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {account.nome}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        )}
-        <Select value={categoriaIdValue} onValueChange={value => setFilters(f => ({ ...f, categoria_id: value }))}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Categoria" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">Todas</SelectItem>
-            {categorias.filter(cat => typeof cat === 'string' && cat !== '').map((cat) => (
-              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input type="date" value={filters.dataInicio} onChange={handleDataInicio} className="w-36" placeholder="Data início" />
-        <Input type="date" value={filters.dataFim} onChange={handleDataFim} className="w-36" placeholder="Data fim" />
-      </div>
-      {accounts.length === 0 && (
-        <div className="text-center text-sm text-muted-foreground mb-4">
-          Crie pelo menos uma conta para poder filtrar e registar transações.
+
+          <Select value={filters.categoria_id} onValueChange={handleCategoriaChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Todas as categorias" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as categorias</SelectItem>
+              {categories.data?.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filters.tipo} onValueChange={handleTipoChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Todos os tipos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os tipos</SelectItem>
+              <SelectItem value="receita">Receitas</SelectItem>
+              <SelectItem value="despesa">Despesas</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Input
+            type="date"
+            placeholder="Data início"
+            value={filters.dataInicio}
+            onChange={handleDataInicio}
+          />
+
+          <Input
+            type="date"
+            placeholder="Data fim"
+            value={filters.dataFim}
+            onChange={handleDataFim}
+          />
         </div>
-      )}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Conta</TableHead>
-            <TableHead>Valor</TableHead>
-            <TableHead>Categoria</TableHead>
-            <TableHead>Data</TableHead>
-            <TableHead>Descrição</TableHead>
-            <TableHead>Ações</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {transactions.map((tx) => (
-            <TableRow key={tx.id}>
-              <TableCell>{accountsMap[tx.account_id] || '(Conta desconhecida)'}</TableCell>
-              <TableCell>{tx.valor}</TableCell>
-              <TableCell>{tx.categoria_id}</TableCell>
-              <TableCell>{tx.data}</TableCell>
-              <TableCell>{tx.descricao || '-'}</TableCell>
-              <TableCell>
-                {onEdit && <Button size="sm" variant="outline" onClick={() => onEdit(tx)}>Editar</Button>}
-                <Button size="sm" variant="destructive" className="ml-2" onClick={() => handleRemove(tx.id)} disabled={removing === tx.id}>{removing === tx.id ? 'A remover...' : 'Remover'}</Button>
-              </TableCell>
-            </TableRow>
-          ))}
-          {transactions.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={6} className="text-center">Nenhuma transação encontrada.</TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+      </div>
+
+      {/* Tabela com Scroll apenas nos dados */}
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full flex flex-col">
+          {/* Cabeçalhos da Tabela Fixos */}
+          <div className="flex-shrink-0 bg-card border-b">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead>Conta</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="text-center">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+            </Table>
+          </div>
+
+          {/* Corpo da Tabela com Scroll */}
+          <div className="flex-1 overflow-auto">
+            <Table>
+              <TableBody>
+                {filteredTransactions.length > 0 ? (
+                  filteredTransactions.map((transaction) => (
+                    <TableRow key={transaction.id}>
+                      <TableCell>{formatDate(transaction.data)}</TableCell>
+                      <TableCell>{transaction.descricao || '-'}</TableCell>
+                      <TableCell>{categoriesMap[transaction.categoria_id] || '-'}</TableCell>
+                      <TableCell>{accountsMap[transaction.account_id] || '-'}</TableCell>
+                      <TableCell className={`text-right font-medium ${
+                        transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {formatCurrency(Number(transaction.valor), transaction.tipo)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onEdit?.(transaction)}
+                          >
+                            Editar
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRemove(transaction.id)}
+                            className="text-red-600 hover:text-red-700"
+                            disabled={deleteTransactionMutation.isPending}
+                          >
+                            {deleteTransactionMutation.isPending ? 'A remover...' : 'Remover'}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      Nenhuma transação encontrada
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

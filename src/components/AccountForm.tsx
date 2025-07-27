@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { createAccount, updateAccount } from '../services/accounts';
 import { useAuth } from '../contexts/AuthContext';
 import { accountSchema } from '../validation/accountSchema';
-import { showError } from '../lib/utils';
+import { showError, showSuccess } from '../lib/utils';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import {
@@ -12,17 +11,20 @@ import {
   SelectItem,
   SelectValue,
 } from './ui/select';
+import { useCreateAccount, useUpdateAccount } from '../hooks/useAccountsQuery';
 
 const tiposConta = [
   { value: 'corrente', label: 'Conta Corrente' },
-  { value: 'poupanca', label: 'Poupança' },
+  { value: 'poupança', label: 'Poupança' },
   { value: 'investimento', label: 'Investimento' },
+  { value: 'outro', label: 'Outro' },
 ];
 
 export type AccountFormData = {
   id?: string;
   nome: string;
   tipo: string;
+  saldo?: number;
 };
 
 interface AccountFormProps {
@@ -34,26 +36,62 @@ interface AccountFormProps {
 const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => {
   const { user } = useAuth();
   const [form, setForm] = useState<AccountFormData>(
-    initialData || { nome: '', tipo: '' }
+    initialData || { nome: '', tipo: '', saldo: 0 }
   );
-  const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  
+  const createAccountMutation = useCreateAccount();
+  const updateAccountMutation = useUpdateAccount();
+  
+  const loading = createAccountMutation.isPending || updateAccountMutation.isPending;
 
   useEffect(() => {
     if (initialData) setForm(initialData);
   }, [initialData]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === 'saldo') {
+      // Permitir apenas números e vírgula/ponto
+      const numericValue = value.replace(/[^\d.,]/g, '').replace(',', '.');
+      setForm({ ...form, [name]: numericValue ? parseFloat(numericValue) || 0 : 0 });
+    } else {
+      setForm({ ...form, [name]: value });
+    }
   };
 
   const handleTipoChange = (value: string) => {
     setForm((prev) => ({ ...prev, tipo: value }));
   };
 
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-PT', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(value);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationErrors({});
+    
+    // Validação manual para campos obrigatórios
+    const errors: Record<string, string> = {};
+    
+    if (!form.nome.trim()) {
+      errors.nome = 'Nome obrigatório';
+    }
+    
+    if (!form.tipo) {
+      errors.tipo = 'Tipo obrigatório';
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+    
+    // Validação client-side com Zod
     const result = accountSchema.safeParse(form);
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
@@ -63,24 +101,26 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
       setValidationErrors(fieldErrors);
       return;
     }
-    setLoading(true);
+    
     try {
       const payload = {
         nome: form.nome,
         tipo: form.tipo,
+        saldo: form.saldo || 0,
       };
+      
       if (initialData && initialData.id) {
-        const { error } = await updateAccount(initialData.id, payload, user?.id || '');
-        if (error) throw error;
+        await updateAccountMutation.mutateAsync({ id: initialData.id, data: payload });
+        showSuccess('Conta atualizada com sucesso!');
       } else {
-        const { error } = await createAccount(payload, user?.id || '');
-        if (error) throw error;
+        await createAccountMutation.mutateAsync(payload);
+        showSuccess('Conta criada com sucesso!');
       }
-      setLoading(false);
+      
       onSuccess();
     } catch (err: any) {
+      console.error('Erro ao guardar conta:', err);
       showError(err.message || 'Erro ao guardar conta');
-      setLoading(false);
     }
   };
 
@@ -97,6 +137,7 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
         aria-describedby={validationErrors.nome ? 'nome-error' : undefined}
       />
       {validationErrors.nome && <div id="nome-error" className="text-red-600 text-sm">{validationErrors.nome}</div>}
+      
       <Select value={form.tipo} onValueChange={handleTipoChange}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Tipo de Conta" />
@@ -108,6 +149,19 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
         </SelectContent>
       </Select>
       {validationErrors.tipo && <div className="text-red-600 text-sm">{validationErrors.tipo}</div>}
+      
+      <Input
+        name="saldo"
+        type="text"
+        placeholder="Saldo Inicial (€) - Opcional"
+        value={form.saldo?.toString() || '0'}
+        onChange={handleChange}
+        className="w-full"
+        aria-invalid={!!validationErrors.saldo}
+        aria-describedby={validationErrors.saldo ? 'saldo-error' : undefined}
+      />
+      {validationErrors.saldo && <div id="saldo-error" className="text-red-600 text-sm">{validationErrors.saldo}</div>}
+      
       <div className="flex flex-col sm:flex-row gap-2">
         <Button type="submit" disabled={loading} className="w-full">{loading ? 'A guardar...' : 'Guardar'}</Button>
         <Button type="button" variant="outline" onClick={onCancel} className="w-full">Cancelar</Button>

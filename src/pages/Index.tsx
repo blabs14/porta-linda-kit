@@ -1,24 +1,45 @@
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-// Update this page (the content is just a fallback if you fail to update the page)
 
 const Index = () => {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
   useEffect(() => {
-    const fetchAccounts = async () => {
-      const { data, error } = await supabase.from('accounts').select();
-      if (error) {
-        console.error('Erro ao buscar contas:', error);
+    if (!loading) {
+      if (user) {
+        // Se o utilizador estiver autenticado, redirecionar para a aplicação
+        navigate('/app');
       } else {
-        console.log('Dados da tabela accounts:', data);
+        // Se não estiver autenticado, redirecionar para login
+        navigate('/login');
       }
-    };
-    fetchAccounts();
-  }, []);
+    }
+  }, [user, loading, navigate]);
+
+  // Mostrar loading enquanto verifica autenticação
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-lg text-muted-foreground">A carregar...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback enquanto redireciona
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+        <h1 className="text-4xl font-bold mb-4">Porta Linda Kit</h1>
+        <p className="text-xl text-muted-foreground">Gestão Financeira Familiar</p>
+        <div className="mt-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+        </div>
       </div>
     </div>
   );

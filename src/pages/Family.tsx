@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { getFamilyMembers } from '../services/family_members';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
+import { Badge } from '../components/ui/badge';
+import { LoadingSpinner } from '../components/ui/loading-states';
+import { useFamilyMembers } from '../hooks/useFamilyMembersQuery';
 import {
   Users,
   Plus,
@@ -34,18 +34,7 @@ const roleColors = {
 };
 
 export default function Family() {
-  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchMembers = async () => {
-      setLoading(true);
-      const { data } = await getFamilyMembers();
-      setFamilyMembers(data || []);
-      setLoading(false);
-    };
-    fetchMembers();
-  }, []);
+  const { data: familyMembers = [], isLoading: loading } = useFamilyMembers();
 
   const totalFamilySpent = familyMembers.reduce((sum, member) => sum + (member.totalSpent || 0), 0);
   const totalFamilySaved = familyMembers.reduce((sum, member) => sum + (member.totalSaved || 0), 0);

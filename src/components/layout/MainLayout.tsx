@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Menu } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Button } from '../ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '../ui/sheet';
 import { NavigationSidebar } from './NavigationSidebar';
 import { BottomTabBar } from './BottomTabBar';
 import { useAuth } from '../../contexts/AuthContext';
 import LogoutButton from '../auth/LogoutButton';
+import { RealTimeNotifications } from '../RealTimeNotifications';
 
 export function MainLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -15,16 +16,22 @@ export function MainLayout() {
 
   const getPageTitle = () => {
     switch (location.pathname) {
-      case '/':
+      case '/app':
         return 'Dashboard';
-      case '/transacoes':
+      case '/app/transactions':
         return 'Transações';
-      case '/objetivos':
+      case '/app/goals':
         return 'Objetivos';
-      case '/familia':
+      case '/app/family':
         return 'Família';
-      case '/insights':
+      case '/app/insights':
         return 'Insights';
+      case '/app/accounts':
+        return 'Contas';
+      case '/app/budgets':
+        return 'Orçamentos';
+      case '/app/reports':
+        return 'Relatórios';
       default:
         return 'Dashboard';
     }
@@ -53,10 +60,13 @@ export function MainLayout() {
             {getPageTitle()}
           </h1>
 
-          {/* Botão de logout */}
+          {/* Botão de logout e notificações */}
           <div className="flex items-center gap-2">
             {user && (
-              <LogoutButton />
+              <>
+                <RealTimeNotifications />
+                <LogoutButton />
+              </>
             )}
           </div>
         </div>

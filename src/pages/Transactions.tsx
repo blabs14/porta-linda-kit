@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import TransactionList from '../components/TransactionList';
 import TransactionForm from '../components/TransactionForm';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { Button } from '../components/ui/button';
+import { ButtonLoading } from '../components/ui/loading-states';
 
 const TransactionsPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
@@ -22,18 +23,33 @@ const TransactionsPage = () => {
   };
 
   return (
-    <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold">Transações</h1>
-        <Button onClick={handleNew} className="w-full sm:w-auto">Nova Transação</Button>
+    <div className="h-screen flex flex-col">
+      {/* Cabeçalho Fixo - Sempre visível */}
+      <div className="flex-shrink-0 bg-background border-b p-4">
+        <div className="container mx-auto">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <h1 className="text-2xl sm:text-3xl font-bold">Transações</h1>
+            <Button onClick={handleNew} className="w-full sm:w-auto">
+              Nova Transação
+            </Button>
+          </div>
+        </div>
       </div>
-      <div className="grid grid-cols-1 gap-4">
-        <TransactionList onEdit={handleEdit} />
+      
+      {/* Conteúdo com Scroll apenas nos dados */}
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full flex flex-col">
+          <TransactionList onEdit={handleEdit} />
+        </div>
       </div>
+      
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editTx ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
+            <DialogDescription>
+              {editTx ? 'Editar dados da transação' : 'Criar nova transação'}
+            </DialogDescription>
           </DialogHeader>
           <TransactionForm initialData={editTx || undefined} onSuccess={handleClose} onCancel={handleClose} />
         </DialogContent>

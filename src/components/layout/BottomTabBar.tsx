@@ -6,33 +6,33 @@ import {
   Users, 
   TrendingUp
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '../../lib/utils';
 
 const tabItems = [
   {
     title: 'Início',
-    href: '/',
+    href: '/app',
     icon: Home
   },
   {
     title: 'Transações',
-    href: '/transacoes',
+    href: '/app/transactions',
+    icon: CreditCard
+  },
+  {
+    title: 'Contas',
+    href: '/app/accounts',
     icon: CreditCard
   },
   {
     title: 'Objetivos',
-    href: '/objetivos',
+    href: '/app/goals',
     icon: Target
   },
   {
     title: 'Família',
-    href: '/familia',
+    href: '/app/family',
     icon: Users
-  },
-  {
-    title: 'Insights',
-    href: '/insights',
-    icon: TrendingUp
   }
 ];
 

@@ -1,144 +1,434 @@
-import { useEffect, useState } from 'react';
-import { getBudgets, createBudget, updateBudget, deleteBudget } from '../services/budgets';
-import { useAuth } from '../contexts/AuthContext';
-import BudgetTable from '../components/BudgetTable';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Progress } from '../components/ui/progress';
 import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Target, Plus, Edit, Trash2, Loader2 } from 'lucide-react';
+import { useBudgets } from '../hooks/useBudgets';
+import { useCategories } from '../hooks/useCategories';
+import { useTransactions } from '../hooks/useTransactionsQuery';
+import { useAuth } from '../contexts/AuthContext';
 import { budgetSchema } from '../validation/budgetSchema';
-import { showError } from '../lib/utils';
+import { useToast } from '../hooks/use-toast';
 
-const categorias = [
-  'Alimentação',
-  'Transporte',
-  'Lazer',
-  'Saúde',
-  'Educação',
-  'Outros',
-];
+interface BudgetFormData {
+  categoria_id: string;
+  valor: string;
+  mes: string;
+}
 
 const BudgetsPage = () => {
-  const { user } = useAuth();
-  const [budgets, setBudgets] = useState<any[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editBudget, setEditBudget] = useState<any | null>(null);
-  const [form, setForm] = useState({ categoria_id: '', valor: '', mes: '' });
-  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState<BudgetFormData>({
+    categoria_id: '',
+    valor: '',
+    mes: '',
+  });
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchBudgets = async () => {
-    const { data } = await getBudgets();
-    if (data) setBudgets(data);
-  };
-
-  useEffect(() => { fetchBudgets(); }, []);
+  const { budgets, loading, create, update, remove } = useBudgets();
+  const { categories = [] } = useCategories();
+  const { data: transactions = [] } = useTransactions();
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   const handleNew = () => {
     setEditBudget(null);
     setForm({ categoria_id: '', valor: '', mes: '' });
+    setValidationErrors({});
     setModalOpen(true);
   };
-  const handleEdit = (b: any) => {
-    setEditBudget(b);
-    setForm({ categoria_id: b.categoria_id, valor: b.valor.toString(), mes: b.mes });
+
+  const handleEdit = (budget: any) => {
+    setEditBudget(budget);
+    setForm({
+      categoria_id: budget.categoria_id || '',
+      valor: budget.valor?.toString() || '',
+      mes: budget.mes || '',
+    });
+    setValidationErrors({});
     setModalOpen(true);
   };
+
   const handleClose = () => {
     setModalOpen(false);
     setEditBudget(null);
     setForm({ categoria_id: '', valor: '', mes: '' });
-  };
-
-  const handleRemove = async (id: string) => {
-    if (!window.confirm('Tem a certeza que deseja remover este orçamento?')) return;
-    await deleteBudget(id, user?.id || '');
-    fetchBudgets();
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
     setValidationErrors({});
-    setLoading(true);
-    const result = budgetSchema.safeParse({
-      categoria_id: form.categoria_id,
-      valor: form.valor,
-      mes: form.mes,
-    });
-    if (!result.success) {
-      const fieldErrors: Record<string, string> = {};
-      result.error.errors.forEach(err => {
-        if (err.path[0]) fieldErrors[err.path[0]] = err.message;
+    setIsSubmitting(false);
+  };
+
+  const handleChange = (field: keyof BudgetFormData, value: string) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    if (validationErrors[field]) {
+      setValidationErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const validateForm = () => {
+    try {
+      budgetSchema.parse({
+        ...form,
+        valor: parseFloat(form.valor) || 0,
       });
-      setValidationErrors(fieldErrors);
-      setLoading(false);
+      setValidationErrors({});
+      return true;
+    } catch (error: any) {
+      const errors: Record<string, string> = {};
+      error.errors?.forEach((err: any) => {
+        if (err.path) {
+          errors[err.path[0]] = err.message;
+        }
+      });
+      setValidationErrors(errors);
+      return false;
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Utilizador não autenticado",
+        variant: "destructive",
+      });
       return;
     }
-    try {
-      if (editBudget) {
-        const { error } = await updateBudget(editBudget.id, {
-          categoria_id: form.categoria_id,
-          valor: Number(form.valor),
-          mes: form.mes,
-        }, user?.id || '');
-        if (error) throw error;
-      } else {
-        const { error } = await createBudget({
-          categoria_id: form.categoria_id,
-          valor: Number(form.valor),
-          mes: form.mes,
-        }, user?.id || '');
-        if (error) throw error;
-      }
-      setLoading(false);
-      handleClose();
-      fetchBudgets();
-    } catch (err: any) {
-      showError(err.message || 'Erro ao guardar orçamento');
-      setLoading(false);
+
+    if (!validateForm()) {
+      return;
     }
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        categoria_id: form.categoria_id,
+        valor: parseFloat(form.valor),
+        mes: form.mes,
+      };
+
+      if (editBudget) {
+        const result = await update(editBudget.id, payload, user.id);
+        if (result.error) {
+          toast({
+            title: "Erro",
+            description: "Erro ao atualizar orçamento",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Sucesso",
+            description: "Orçamento atualizado com sucesso",
+          });
+          handleClose();
+        }
+      } else {
+        const result = await create(payload, user.id);
+        if (result.error) {
+          toast({
+            title: "Erro",
+            description: "Erro ao criar orçamento",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Sucesso",
+            description: "Orçamento criado com sucesso",
+          });
+          handleClose();
+        }
+      }
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro inesperado",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Utilizador não autenticado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (window.confirm('Tem a certeza que deseja remover este orçamento?')) {
+      const result = await remove(id, user.id);
+      if (result.error) {
+        toast({
+          title: "Erro",
+          description: "Erro ao remover orçamento",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Sucesso",
+          description: "Orçamento removido com sucesso",
+        });
+      }
+    }
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-PT', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(value);
+  };
+
+  const getProgressPercentage = (gasto: number, valor: number) => {
+    return Math.min((gasto / valor) * 100, 100);
+  };
+
+  const getProgressColor = (percentage: number) => {
+    if (percentage === 0) return 'bg-gray-300'; // Sem gastos
+    if (percentage >= 100) return 'bg-red-500'; // Ultrapassado
+    if (percentage >= 80) return 'bg-yellow-500'; // Quase a ultrapassar
+    return 'bg-green-500'; // Dentro do orçamento
+  };
+
+  const getCategoryName = (categoriaId: string) => {
+    const category = categories.find(cat => cat.id === categoriaId);
+    return category?.nome || 'Categoria não encontrada';
+  };
+
+  const formatMonth = (monthString: string) => {
+    if (!monthString) return 'Período não definido';
+    
+    try {
+      const [year, month] = monthString.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      return date.toLocaleDateString('pt-PT', { 
+        month: 'long', 
+        year: 'numeric' 
+      });
+    } catch (error) {
+      return monthString;
+    }
+  };
+
+  // Calcular gastos reais baseados nas transações
+  const getGastoForBudget = (budget: any) => {
+    if (!transactions || transactions.length === 0) {
+      return 0;
+    }
+
+    // Filtrar transações que são despesas, da mesma categoria e do mesmo mês
+    const budgetTransactions = transactions.filter((transaction: any) => {
+      const transactionDate = new Date(transaction.data);
+      const transactionMonth = `${transactionDate.getFullYear()}-${String(transactionDate.getMonth() + 1).padStart(2, '0')}`;
+      
+      return (
+        transaction.tipo === 'despesa' &&
+        transaction.categoria_id === budget.categoria_id &&
+        transactionMonth === budget.mes
+      );
+    });
+
+    // Somar todos os valores das transações filtradas
+    const totalGasto = budgetTransactions.reduce((sum: number, transaction: any) => {
+      return sum + (Number(transaction.valor) || 0);
+    }, 0);
+
+    return totalGasto;
   };
 
   return (
-    <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold">Orçamentos</h1>
-        <Button onClick={handleNew} className="w-full sm:w-auto">Novo Orçamento</Button>
+    <div className="h-full flex flex-col">
+      {/* Cabeçalho Fixo - Sempre visível */}
+      <div className="flex-shrink-0 bg-background border-b p-4 mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+          <h1 className="text-2xl sm:text-3xl font-bold">Orçamentos</h1>
+          <Button onClick={handleNew} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Orçamento
+          </Button>
+        </div>
       </div>
-      <div className="grid grid-cols-1 gap-4">
-        <BudgetTable budgets={budgets} onEdit={handleEdit} onRemove={handleRemove} />
+      
+      {/* Conteúdo com Scroll apenas nos dados */}
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full flex flex-col">
+          {loading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span>A carregar orçamentos...</span>
+              </div>
+            </div>
+          ) : budgets.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center text-muted-foreground">
+                <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhum orçamento encontrado</p>
+                <p className="text-sm">Clica em "Novo Orçamento" para começar</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-auto p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {budgets.map((budget) => {
+                  const gasto = getGastoForBudget(budget);
+                  const percentage = getProgressPercentage(gasto, budget.valor);
+                  const progressColor = getProgressColor(percentage);
+                  
+                  return (
+                    <Card key={budget.id} className="hover:shadow-md transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">
+                          {getCategoryName(budget.categoria_id)}
+                        </CardTitle>
+                        <Target className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Período</span>
+                            <span className="text-sm font-medium text-blue-600">
+                              {formatMonth(budget.mes)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Orçamento</span>
+                            <span className="font-medium">{formatCurrency(budget.valor)}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Gasto</span>
+                            <span className={`font-medium ${
+                              gasto === 0 ? 'text-gray-600' : 
+                              gasto > budget.valor ? 'text-red-600' : 'text-green-600'
+                            }`}>
+                              {formatCurrency(gasto)}
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span>Progresso</span>
+                              <span>{percentage.toFixed(1)}%</span>
+                            </div>
+                            <Progress 
+                              value={percentage} 
+                              className={`h-2 ${progressColor}`}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEdit(budget)}
+                            >
+                              <Edit className="h-3 w-3 mr-1" />
+                              Editar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDelete(budget.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              Remover
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editBudget ? 'Editar Orçamento' : 'Novo Orçamento'}</DialogTitle>
+            <DialogDescription>
+              {editBudget ? 'Editar dados do orçamento' : 'Criar novo orçamento'}
+            </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 p-2">
-            <select name="categoria_id" value={form.categoria_id} onChange={handleChange} required className="w-full border rounded p-2">
-              <option value="">Categoria</option>
-              {categorias.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-            {validationErrors.categoria_id && <div className="text-red-600 text-sm">{validationErrors.categoria_id}</div>}
-            <Input name="valor" type="number" placeholder="Valor" value={form.valor} onChange={handleChange} required min={0}
-              aria-invalid={!!validationErrors.valor}
-              aria-describedby={validationErrors.valor ? 'valor-error' : undefined}
-            />
-            {validationErrors.valor && <div id="valor-error" className="text-red-600 text-sm">{validationErrors.valor}</div>}
-            <Input name="mes" type="month" placeholder="Mês" value={form.mes} onChange={handleChange} required
-              aria-invalid={!!validationErrors.mes}
-              aria-describedby={validationErrors.mes ? 'mes-error' : undefined}
-            />
-            {validationErrors.mes && <div id="mes-error" className="text-red-600 text-sm">{validationErrors.mes}</div>}
-            <div className="flex gap-2">
-              <Button type="submit" disabled={loading} className="w-full">{loading ? 'A guardar...' : 'Guardar'}</Button>
-              <Button type="button" variant="outline" onClick={handleClose} className="w-full">Cancelar</Button>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="categoria">Categoria</Label>
+              <Select value={form.categoria_id} onValueChange={(value) => handleChange('categoria_id', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {validationErrors.categoria_id && (
+                <div className="text-red-600 text-sm">{validationErrors.categoria_id}</div>
+              )}
             </div>
-          </form>
+
+            <div className="space-y-2">
+              <Label htmlFor="valor">Valor (€)</Label>
+              <Input
+                id="valor"
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={form.valor}
+                onChange={(e) => handleChange('valor', e.target.value)}
+              />
+              {validationErrors.valor && (
+                <div className="text-red-600 text-sm">{validationErrors.valor}</div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mes">Mês</Label>
+              <Input
+                id="mes"
+                type="month"
+                value={form.mes}
+                onChange={(e) => handleChange('mes', e.target.value)}
+              />
+              {validationErrors.mes && (
+                <div className="text-red-600 text-sm">{validationErrors.mes}</div>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button 
+                onClick={handleSubmit} 
+                disabled={isSubmitting}
+                className="flex-1"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {editBudget ? 'A guardar...' : 'A criar...'}
+                  </>
+                ) : (
+                  editBudget ? 'Guardar' : 'Criar'
+                )}
+              </Button>
+              <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

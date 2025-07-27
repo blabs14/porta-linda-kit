@@ -19,21 +19,27 @@ export const useGoals = () => {
   }, [fetch]);
 
   const create = async (payload: any, userId: string) => {
-    const res = await createGoal(payload, userId);
-    if (!res.error) fetch();
-    return res;
+    const { data, error } = await createGoal(payload, userId);
+    if (!error && data) {
+      await fetch();
+    }
+    return { data, error };
   };
 
   const update = async (id: string, data: any, userId: string) => {
-    const res = await updateGoal(id, data, userId);
-    if (!res.error) fetch();
-    return res;
+    const { data: result, error } = await updateGoal(id, data, userId);
+    if (!error && result) {
+      await fetch();
+    }
+    return { data: result, error };
   };
 
   const remove = async (id: string, userId: string) => {
-    const res = await deleteGoal(id, userId);
-    if (!res.error) fetch();
-    return res;
+    const { data, error } = await deleteGoal(id, userId);
+    if (!error && data) {
+      await fetch();
+    }
+    return { data, error };
   };
 
   return {

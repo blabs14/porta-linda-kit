@@ -8,6 +8,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<{ error: any } | void>;
   register: (email: string, password: string) => Promise<{ error: any } | void>;
+  resetPassword: (email: string) => Promise<{ error: any } | void>;
   logout: () => Promise<void>;
 }
 
@@ -47,6 +48,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error };
   };
 
+  const resetPassword = async (email: string) => {
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    setLoading(false);
+    return { error };
+  };
+
   const logout = async () => {
     setLoading(true);
     await supabase.auth.signOut();
@@ -54,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, session, loading, login, register, resetPassword, logout }}>
       {children}
     </AuthContext.Provider>
   );

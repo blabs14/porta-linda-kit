@@ -8,9 +8,15 @@ export const getCategories = () =>
     .order('nome', { ascending: true });
 
 export const createCategory = async (data: { nome: string; tipo: string; cor?: string }, userId: string) => {
-  const res = await supabase.from('categories').insert(data).select('id').single();
+  // Incluir user_id no payload para satisfazer as políticas RLS
+  const payload = {
+    ...data,
+    user_id: userId,
+  };
+  
+  const res = await supabase.from('categories').insert(payload).select('id').single();
   if (res.data?.id) {
-    await logAuditChange(userId, 'categories', 'CREATE', res.data.id, {}, data);
+    await logAuditChange(userId, 'categories', 'CREATE', res.data.id, {}, payload);
   }
   return res;
 };

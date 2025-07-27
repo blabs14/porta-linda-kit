@@ -1,7 +1,7 @@
 
 import ForgotPasswordForm from '../components/auth/ForgotPasswordForm';
 import { Link } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { ArrowLeft } from 'lucide-react';
 
 export default function ForgotPassword() {

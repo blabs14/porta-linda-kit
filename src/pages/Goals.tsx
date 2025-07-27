@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
-import { useGoals } from '../hooks/useGoals';
+import { useGoals, useCreateGoal, useUpdateGoal, useDeleteGoal } from '../hooks/useGoalsQuery';
 import { useAuth } from '../contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from '@/hooks/use-toast';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Progress } from '../components/ui/progress';
+import { Badge } from '../components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { toast } from '../hooks/use-toast';
 import {
   Target,
   Plus,
@@ -40,16 +40,17 @@ const priorityColors = {
 };
 
 export default function Goals() {
-  const { goals, loading, create, update } = useGoals();
+  const { data: goals = [], isLoading: loading } = useGoals();
+  const createGoalMutation = useCreateGoal();
+  const updateGoalMutation = useUpdateGoal();
+  const deleteGoalMutation = useDeleteGoal();
   const { user } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
   const [editGoal, setEditGoal] = useState<any | null>(null);
   const [form, setForm] = useState({
     nome: '',
-    descricao: '',
     valor_objetivo: '',
-    prazo: '',
-    categoria: 'Poupança'
+    prazo: ''
   });
   const [saving, setSaving] = useState(false);
 
@@ -58,19 +59,15 @@ export default function Goals() {
       setEditGoal(goal);
       setForm({
         nome: goal.nome || '',
-        descricao: goal.descricao || '',
         valor_objetivo: goal.valor_objetivo?.toString() || '',
         prazo: goal.prazo || '',
-        categoria: goal.categoria || 'Poupança'
       });
     } else {
       setEditGoal(null);
       setForm({
         nome: '',
-        descricao: '',
         valor_objetivo: '',
         prazo: '',
-        categoria: 'Poupança'
       });
     }
     setModalOpen(true);
@@ -90,22 +87,20 @@ export default function Goals() {
     try {
       const payload = {
         nome: form.nome,
-        descricao: form.descricao,
         valor_objetivo: Number(form.valor_objetivo),
         valor_atual: editGoal?.valor_atual || 0,
         prazo: form.prazo,
-        categoria: form.categoria,
         user_id: user?.id
       };
 
       if (editGoal) {
-        await update(editGoal.id, payload, user?.id || '');
+        await updateGoalMutation.mutateAsync({ id: editGoal.id, data: payload });
         toast({
           title: "Sucesso",
           description: "Objetivo atualizado com sucesso"
         });
       } else {
-        await create(payload, user?.id || '');
+        await createGoalMutation.mutateAsync(payload);
         toast({
           title: "Sucesso", 
           description: "Objetivo criado com sucesso"
@@ -125,7 +120,10 @@ export default function Goals() {
   const handleAddValue = async (goalId: string, currentValue: number) => {
     const newValue = prompt("Quanto deseja adicionar?");
     if (newValue && !isNaN(Number(newValue))) {
-      await update(goalId, { valor_atual: currentValue + Number(newValue) }, user?.id || '');
+      await updateGoalMutation.mutateAsync({ 
+        id: goalId, 
+        data: { valor_atual: currentValue + Number(newValue) } 
+      });
       toast({
         title: "Sucesso",
         description: "Valor adicionado com sucesso"
@@ -235,13 +233,7 @@ export default function Goals() {
                       <CardTitle className="text-lg font-semibold text-foreground mb-1">
                         {goal.nome}
                       </CardTitle>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        {goal.descricao}
-                      </p>
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs">
-                          {goal.categoria || 'Sem categoria'}
-                        </Badge>
                         <Badge className={`text-xs ${priorityColors[goal.status as keyof typeof priorityColors] || ''}`}>
                           {goal.status || 'Sem prioridade'}
                         </Badge>
@@ -323,6 +315,9 @@ export default function Goals() {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{editGoal ? 'Editar Objetivo' : 'Novo Objetivo'}</DialogTitle>
+            <DialogDescription>
+              {editGoal ? 'Editar dados do objetivo' : 'Criar novo objetivo financeiro'}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -332,15 +327,6 @@ export default function Goals() {
                 value={form.nome}
                 onChange={(e) => setForm(prev => ({ ...prev, nome: e.target.value }))}
                 placeholder="Nome do objetivo"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="descricao">Descrição</Label>
-              <Textarea
-                id="descricao"
-                value={form.descricao}
-                onChange={(e) => setForm(prev => ({ ...prev, descricao: e.target.value }))}
-                placeholder="Descrição do objetivo"
               />
             </div>
             <div className="space-y-2">
@@ -361,22 +347,6 @@ export default function Goals() {
                 value={form.prazo}
                 onChange={(e) => setForm(prev => ({ ...prev, prazo: e.target.value }))}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="categoria">Categoria</Label>
-              <Select value={form.categoria} onValueChange={(value) => setForm(prev => ({ ...prev, categoria: value }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione uma categoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Poupança">Poupança</SelectItem>
-                  <SelectItem value="Emergência">Emergência</SelectItem>
-                  <SelectItem value="Habitação">Habitação</SelectItem>
-                  <SelectItem value="Transporte">Transporte</SelectItem>
-                  <SelectItem value="Viagem">Viagem</SelectItem>
-                  <SelectItem value="Educação">Educação</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
           <div className="flex justify-end gap-2">

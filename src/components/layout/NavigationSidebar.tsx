@@ -7,7 +7,7 @@ import {
   TrendingUp,
   ChevronRight
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '../../lib/utils';
 
 interface NavigationSidebarProps {
   onNavigate?: () => void;
@@ -16,37 +16,43 @@ interface NavigationSidebarProps {
 const navigationItems = [
   {
     title: 'Dashboard',
-    href: '/',
+    href: '/app',
     icon: Home,
     description: 'Visão geral das suas finanças'
   },
   {
     title: 'Contas',
-    href: '/accounts',
+    href: '/app/accounts',
     icon: CreditCard,
     description: 'Gestão de contas bancárias'
   },
   {
     title: 'Transações',
-    href: '/transactions',
+    href: '/app/transactions',
     icon: CreditCard,
     description: 'Histórico e gestão de movimentos'
   },
   {
+    title: 'Orçamentos',
+    href: '/app/budgets',
+    icon: Target,
+    description: 'Gestão de orçamentos'
+  },
+  {
     title: 'Objetivos',
-    href: '/objetivos',
+    href: '/app/goals',
     icon: Target,
     description: 'Metas financeiras e poupanças'
   },
   {
     title: 'Família',
-    href: '/familia',
+    href: '/app/family',
     icon: Users,
     description: 'Membros e partilha de contas'
   },
   {
     title: 'Insights',
-    href: '/insights',
+    href: '/app/insights',
     icon: TrendingUp,
     description: 'Análises e relatórios'
   }

@@ -1,11 +1,13 @@
 import { LogOut } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { supabase } from '../../lib/supabaseClient';
-import { cn } from '@/lib/utils';
+import { Button } from '../ui/button';
+import { useAuth } from '../../contexts/AuthContext';
+import { cn } from '../../lib/utils';
 
 export default function LogoutButton() {
+  const { logout } = useAuth();
+  
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await logout();
     window.location.reload();
   };
 

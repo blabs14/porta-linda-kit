@@ -8,17 +8,25 @@ export const getBudgets = () =>
     .order('created_at', { ascending: false });
 
 export const createBudget = async (data: { categoria_id: string; valor: number; mes: string; }, userId: string) => {
-  const res = await supabase.from('budgets').insert(data).select('id').single();
+  const payload = {
+    ...data,
+    user_id: userId
+  };
+  const res = await supabase.from('budgets').insert(payload).select('id').single();
   if (res.data?.id) {
-    await logAuditChange(userId, 'budgets', 'CREATE', res.data.id, {}, data);
+    await logAuditChange(userId, 'budgets', 'CREATE', res.data.id, {}, payload);
   }
   return res;
 };
 
 export const updateBudget = async (id: string, data: { categoria_id?: string; valor?: number; mes?: string; }, userId: string) => {
   const oldRes = await supabase.from('budgets').select('*').eq('id', id).single();
-  const res = await supabase.from('budgets').update(data).eq('id', id);
-  await logAuditChange(userId, 'budgets', 'UPDATE', id, oldRes.data || {}, data);
+  const payload = {
+    ...data,
+    user_id: userId
+  };
+  const res = await supabase.from('budgets').update(payload).eq('id', id);
+  await logAuditChange(userId, 'budgets', 'UPDATE', id, oldRes.data || {}, payload);
   return res;
 };
 

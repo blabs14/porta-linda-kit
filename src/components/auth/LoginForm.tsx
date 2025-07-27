@@ -3,12 +3,12 @@ import { useState, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { signInWithGoogle, signInWithApple, signInWithFacebook } from '../../services/authProviders';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Separator } from '../ui/separator';
 import { Mail, Lock, Loader2 } from 'lucide-react';
-import { showError } from '@/lib/utils';
+import { showError } from '../../lib/utils';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
@@ -27,7 +27,7 @@ export default function LoginForm() {
       showError('Erro ao iniciar sessão: ' + error.message);
       emailRef.current?.focus();
     } else {
-      navigate('/accounts');
+      navigate('/app');
     }
   };
 
@@ -45,7 +45,7 @@ export default function LoginForm() {
   };
 
   if (user) {
-    navigate('/accounts');
+    navigate('/app');
     return null;
   }
 

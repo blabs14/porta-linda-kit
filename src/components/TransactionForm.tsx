@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useTransactions } from '../hooks/useTransactions';
 import { useAuth } from '../contexts/AuthContext';
-import { getAccounts } from '../services/accounts';
-import { getCategories } from '../services/categories';
+import { useReferenceData } from '../hooks/useCache';
+import { useCreateTransaction, useUpdateTransaction } from '../hooks/useTransactionsQuery';
 import { transactionSchema } from '../validation/transactionSchema';
-import { showError } from '../lib/utils';
+import { showError, showSuccess } from '../lib/utils';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
+import { LoadingSpinner } from './ui/loading-states';
 import {
   Select,
   SelectTrigger,
@@ -15,15 +15,6 @@ import {
   SelectValue,
 } from './ui/select';
 
-const categorias = [
-  'Alimentação',
-  'Transporte',
-  'Lazer',
-  'Saúde',
-  'Educação',
-  'Outros',
-];
-
 interface TransactionFormProps {
   initialData?: any;
   onSuccess?: () => void;
@@ -31,10 +22,7 @@ interface TransactionFormProps {
 }
 
 const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormProps) => {
-  const { create, update } = useTransactions();
   const { user } = useAuth();
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
   const [form, setForm] = useState({
     id: '',
     account_id: '',
@@ -42,19 +30,17 @@ const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormPr
     categoria_id: '',
     data: '',
     descricao: '',
+    tipo: '',
   });
-  const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    getAccounts().then(({ data }) => {
-      if (data) setAccounts(data);
-    });
-    getCategories().then(({ data }) => {
-      if (data) setCategories(data);
-    });
-  }, []);
+  // Usar React Query mutations
+  const createTransactionMutation = useCreateTransaction();
+  const updateTransactionMutation = useUpdateTransaction();
+
+  // Usar dados de referência do cache
+  const { accounts, categories } = useReferenceData();
 
   useEffect(() => {
     if (initialData) {
@@ -65,9 +51,10 @@ const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormPr
         categoria_id: initialData.categoria_id || '',
         data: initialData.data || '',
         descricao: initialData.descricao || '',
+        tipo: initialData.tipo || '',
       });
     } else {
-      setForm({ id: '', account_id: '', valor: '', categoria_id: '', data: '', descricao: '' });
+      setForm({ id: '', account_id: '', valor: '', categoria_id: '', data: '', descricao: '', tipo: '' });
     }
   }, [initialData]);
 
@@ -83,17 +70,25 @@ const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormPr
     setForm((prev) => ({ ...prev, categoria_id: value }));
   };
 
+  const handleTipoChange = (value: string) => {
+    setForm((prev) => ({ ...prev, tipo: value }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSuccess(false);
     setValidationErrors({});
+    
+    // Validação client-side
     const result = transactionSchema.safeParse({
       account_id: form.account_id,
       valor: form.valor,
       categoria_id: form.categoria_id,
       data: form.data,
       descricao: form.descricao,
+      tipo: form.tipo,
     });
+    
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
       result.error.errors.forEach(err => {
@@ -102,7 +97,7 @@ const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormPr
       setValidationErrors(fieldErrors);
       return;
     }
-    setLoading(true);
+    
     try {
       const payload = {
         account_id: form.account_id,
@@ -110,26 +105,38 @@ const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormPr
         categoria_id: form.categoria_id,
         data: form.data,
         descricao: form.descricao,
+        tipo: form.tipo,
       };
-      let res;
+      
       if (form.id) {
-        res = await update(form.id, payload, user?.id || '');
+        // Atualizar transação existente
+        await updateTransactionMutation.mutateAsync({ id: form.id, data: payload });
+        showSuccess('Transação atualizada com sucesso!');
       } else {
-        res = await create(payload, user?.id || '');
+        // Criar nova transação
+        await createTransactionMutation.mutateAsync(payload);
+        showSuccess('Transação criada com sucesso!');
       }
-      setLoading(false);
-      if (res.error) {
-        showError(res.error.message);
-      } else {
-        setSuccess(true);
-        if (onSuccess) onSuccess();
-        if (!form.id) setForm({ id: '', account_id: '', valor: '', categoria_id: '', data: '', descricao: '' });
-      }
+      
+      setSuccess(true);
+      if (onSuccess) onSuccess();
+      if (!form.id) setForm({ id: '', account_id: '', valor: '', categoria_id: '', data: '', descricao: '', tipo: '' });
     } catch (err: any) {
-      showError('Erro ao guardar transação');
-      setLoading(false);
+      console.error('Erro ao guardar transação:', err);
+      showError(err.message || 'Erro ao guardar transação');
     }
   };
+
+  const isLoading = createTransactionMutation.isPending || updateTransactionMutation.isPending;
+  const dataLoading = accounts.isLoading || categories.isLoading;
+
+  if (dataLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-2 sm:p-4">
@@ -138,12 +145,24 @@ const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormPr
           <SelectValue placeholder="Conta" />
         </SelectTrigger>
         <SelectContent>
-          {accounts.map((acc) => (
+          {accounts.data?.map((acc) => (
             <SelectItem key={acc.id} value={acc.id}>{acc.nome}</SelectItem>
           ))}
         </SelectContent>
       </Select>
       {validationErrors.account_id && <div className="text-red-600 text-sm">{validationErrors.account_id}</div>}
+      
+      <Select value={form.tipo} onValueChange={handleTipoChange}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Tipo de Transação" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="receita">Receita</SelectItem>
+          <SelectItem value="despesa">Despesa</SelectItem>
+        </SelectContent>
+      </Select>
+      {validationErrors.tipo && <div className="text-red-600 text-sm">{validationErrors.tipo}</div>}
+      
       <Input
         name="valor"
         type="number"
@@ -151,23 +170,25 @@ const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormPr
         value={form.valor}
         onChange={handleChange}
         required
-        min={0}
+        step="0.01"
         className="w-full"
         aria-invalid={!!validationErrors.valor}
         aria-describedby={validationErrors.valor ? 'valor-error' : undefined}
       />
       {validationErrors.valor && <div id="valor-error" className="text-red-600 text-sm">{validationErrors.valor}</div>}
+      
       <Select value={form.categoria_id} onValueChange={handleCategoriaChange}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Categoria" />
         </SelectTrigger>
         <SelectContent>
-          {categories.map((cat) => (
+          {categories.data?.map((cat) => (
             <SelectItem key={cat.id} value={cat.id}>{cat.nome}</SelectItem>
           ))}
         </SelectContent>
       </Select>
       {validationErrors.categoria_id && <div className="text-red-600 text-sm">{validationErrors.categoria_id}</div>}
+      
       <Input
         name="data"
         type="date"
@@ -180,9 +201,10 @@ const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormPr
         aria-describedby={validationErrors.data ? 'data-error' : undefined}
       />
       {validationErrors.data && <div id="data-error" className="text-red-600 text-sm">{validationErrors.data}</div>}
+      
       <Input
         name="descricao"
-        placeholder="Descrição"
+        placeholder="Descrição (opcional)"
         value={form.descricao}
         onChange={handleChange}
         className="w-full"
@@ -190,9 +212,20 @@ const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormPr
         aria-describedby={validationErrors.descricao ? 'descricao-error' : undefined}
       />
       {validationErrors.descricao && <div id="descricao-error" className="text-red-600 text-sm">{validationErrors.descricao}</div>}
+      
       {success && <div className="text-green-600 text-sm">Transação guardada com sucesso!</div>}
+      
       <div className="flex flex-col sm:flex-row gap-2">
-        <Button type="submit" disabled={loading} className="w-full">{loading ? 'A guardar...' : 'Guardar'}</Button>
+        <Button type="submit" disabled={isLoading} className="w-full">
+          {isLoading ? (
+            <>
+              <LoadingSpinner size="sm" className="mr-2" />
+              A guardar...
+            </>
+          ) : (
+            'Guardar'
+          )}
+        </Button>
         {onCancel && <Button type="button" variant="outline" onClick={onCancel} className="w-full">Cancelar</Button>}
       </div>
     </form>

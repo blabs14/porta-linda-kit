@@ -1,24 +1,23 @@
 
 import { useState, useRef } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { useAuth } from '../../contexts/AuthContext';
 import { showSuccess, showError } from '../../lib/utils';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 import { Mail, Loader2 } from 'lucide-react';
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const { resetPassword, loading } = useAuth();
   const emailRef = useRef<HTMLInputElement>(null);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
     
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await resetPassword(email) || {};
     
     if (error) {
       setError(error.message);
@@ -27,8 +26,6 @@ export default function ForgotPasswordForm() {
     } else {
       showSuccess('Email de recuperação enviado!');
     }
-    
-    setLoading(false);
   };
 
   return (

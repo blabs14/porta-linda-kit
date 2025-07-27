@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { categorySchema } from '../validation/categorySchema';
+import { validateCategoryServerSide } from '../services/validation';
 import { showError } from '../lib/utils';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -31,6 +32,8 @@ export default function CategoryForm({ initialData, onSuccess, onCancel, onSubmi
     e.preventDefault();
     setValidationErrors({});
     setLoading(true);
+    
+    // Validação client-side primeiro
     const result = categorySchema.safeParse({
       nome: form.nome,
       descricao: form.descricao,
@@ -45,12 +48,34 @@ export default function CategoryForm({ initialData, onSuccess, onCancel, onSubmi
       if (fieldErrors.nome) nomeRef.current?.focus();
       return;
     }
+    
     try {
       const payload = {
         nome: form.nome,
         descricao: form.descricao,
       };
-      const { error } = await onSubmitCategory(payload);
+      
+      // Validação server-side
+      const serverValidation = await validateCategoryServerSide(payload);
+      
+      if (!serverValidation.success) {
+        const fieldErrors: Record<string, string> = {};
+        serverValidation.errors?.forEach(err => {
+          // Assumir que o erro é uma string que pode ser mapeada para um campo
+          if (err.includes('nome')) fieldErrors.nome = err;
+          else if (err.includes('descrição')) fieldErrors.descricao = err;
+          else fieldErrors.general = err;
+        });
+        setValidationErrors(fieldErrors);
+        setLoading(false);
+        if (fieldErrors.nome) nomeRef.current?.focus();
+        return;
+      }
+      
+      // Usar dados sanitizados do servidor se disponíveis
+      const finalPayload = serverValidation.data || payload;
+      
+      const { error } = await onSubmitCategory(finalPayload);
       setLoading(false);
       if (error) {
         showError(error.message);

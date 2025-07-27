@@ -19,21 +19,27 @@ export const useCategories = () => {
   }, [fetch]);
 
   const create = async (payload: { nome: string; tipo: string; cor?: string }, userId: string) => {
-    const res = await createCategory(payload, userId);
-    if (!res.error) fetch();
-    return res;
+    const { data, error } = await createCategory(payload, userId);
+    if (!error && data) {
+      await fetch();
+    }
+    return { data, error };
   };
 
   const update = async (id: string, data: any, userId: string) => {
-    const res = await updateCategory(id, data, userId);
-    if (!res.error) fetch();
-    return res;
+    const { data: result, error } = await updateCategory(id, data, userId);
+    if (!error && result) {
+      await fetch();
+    }
+    return { data: result, error };
   };
 
   const remove = async (id: string, userId: string) => {
-    const res = await deleteCategory(id, userId);
-    if (!res.error) fetch();
-    return res;
+    const { data, error } = await deleteCategory(id, userId);
+    if (!error && data) {
+      await fetch();
+    }
+    return { data, error };
   };
 
   return {
