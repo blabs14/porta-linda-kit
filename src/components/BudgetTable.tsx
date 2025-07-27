@@ -1,4 +1,5 @@
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell, TableFooter } from './ui/table';
+import { Button } from './ui/button';
 
 interface Budget {
   id: string;
@@ -44,8 +45,18 @@ const BudgetTable = ({ budgets, onEdit, onRemove }: BudgetTableProps) => {
               <TableCell className="px-2 sm:px-4">€{b.valor.toFixed(2)}</TableCell>
               <TableCell className="px-2 sm:px-4">{b.mes}</TableCell>
               <TableCell className="px-2 sm:px-4">
-                {onEdit && <button className="text-blue-600 underline mr-2" onClick={() => onEdit(b)}>Editar</button>}
-                {onRemove && <button className="text-red-600 underline" onClick={() => onRemove(b.id)}>Remover</button>}
+                <div className="flex gap-2">
+                  {onEdit && (
+                    <Button size="sm" variant="outline" onClick={() => onEdit(b)}>
+                      Editar
+                    </Button>
+                  )}
+                  {onRemove && (
+                    <Button size="sm" variant="destructive" onClick={() => onRemove(b.id)}>
+                      Remover
+                    </Button>
+                  )}
+                </div>
               </TableCell>
             </TableRow>
           ))}

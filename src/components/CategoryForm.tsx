@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
 import { categorySchema } from '../validation/categorySchema';
 import { showError } from '../lib/utils';
-// Supondo que existam funções createCategory e updateCategory
-// import { createCategory, updateCategory } from '../services/categories';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 
 interface CategoryFormProps {
   initialData?: any;
@@ -65,9 +66,9 @@ export default function CategoryForm({ initialData, onSuccess, onCancel, onSubmi
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-2 sm:p-4">
-      <div>
-        <label htmlFor="nome">Nome</label>
-        <input
+      <div className="space-y-2">
+        <Label htmlFor="nome">Nome</Label>
+        <Input
           id="nome"
           name="nome"
           placeholder="Nome da categoria"
@@ -76,33 +77,35 @@ export default function CategoryForm({ initialData, onSuccess, onCancel, onSubmi
           required
           ref={nomeRef}
           autoFocus
-          className="w-full border rounded p-2"
           aria-invalid={!!validationErrors.nome}
           aria-describedby={validationErrors.nome ? 'nome-error' : undefined}
         />
-        <small>Exemplo: Alimentação, Lazer, etc.</small>
-        {validationErrors.nome && <div id="nome-error" className="text-red-600 text-sm" aria-live="polite">{validationErrors.nome}</div>}
+        <p className="text-xs text-muted-foreground">Exemplo: Alimentação, Lazer, etc.</p>
+        {validationErrors.nome && <div id="nome-error" className="text-destructive text-sm" aria-live="polite">{validationErrors.nome}</div>}
       </div>
-      <div>
-        <label htmlFor="descricao">Descrição</label>
-        <input
+      <div className="space-y-2">
+        <Label htmlFor="descricao">Descrição</Label>
+        <Input
           id="descricao"
           name="descricao"
           placeholder="Descrição (opcional)"
           value={form.descricao}
           onChange={handleChange}
-          className="w-full border rounded p-2"
           aria-invalid={!!validationErrors.descricao}
           aria-describedby={validationErrors.descricao ? 'descricao-error' : undefined}
         />
-        <small>Breve descrição da categoria.</small>
-        {validationErrors.descricao && <div id="descricao-error" className="text-red-600 text-sm" aria-live="polite">{validationErrors.descricao}</div>}
+        <p className="text-xs text-muted-foreground">Breve descrição da categoria.</p>
+        {validationErrors.descricao && <div id="descricao-error" className="text-destructive text-sm" aria-live="polite">{validationErrors.descricao}</div>}
       </div>
       <div className="flex flex-col sm:flex-row gap-2">
-        <button type="submit" disabled={loading} className="w-full bg-primary text-white rounded p-2">
+        <Button type="submit" disabled={loading} className="w-full">
           {loading ? 'A guardar...' : 'Guardar'}
-        </button>
-        {onCancel && <button type="button" onClick={onCancel} className="w-full border rounded p-2">Cancelar</button>}
+        </Button>
+        {onCancel && (
+          <Button type="button" variant="outline" onClick={onCancel} className="w-full">
+            Cancelar
+          </Button>
+        )}
       </div>
     </form>
   );

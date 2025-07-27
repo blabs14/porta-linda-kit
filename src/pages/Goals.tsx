@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
-import { getGoals } from '../services/goals';
+import { useGoals } from '../hooks/useGoals';
+import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from '@/hooks/use-toast';
 import {
   Target,
   Plus,
@@ -33,18 +40,98 @@ const priorityColors = {
 };
 
 export default function Goals() {
-  const [goals, setGoals] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { goals, loading, create, update } = useGoals();
+  const { user } = useAuth();
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editGoal, setEditGoal] = useState<any | null>(null);
+  const [form, setForm] = useState({
+    nome: '',
+    descricao: '',
+    valor_objetivo: '',
+    prazo: '',
+    categoria: 'Poupança'
+  });
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    const fetchGoals = async () => {
-      setLoading(true);
-      const { data } = await getGoals();
-      setGoals(data || []);
-      setLoading(false);
-    };
-    fetchGoals();
-  }, []);
+  const handleOpenModal = (goal?: any) => {
+    if (goal) {
+      setEditGoal(goal);
+      setForm({
+        nome: goal.nome || '',
+        descricao: goal.descricao || '',
+        valor_objetivo: goal.valor_objetivo?.toString() || '',
+        prazo: goal.prazo || '',
+        categoria: goal.categoria || 'Poupança'
+      });
+    } else {
+      setEditGoal(null);
+      setForm({
+        nome: '',
+        descricao: '',
+        valor_objetivo: '',
+        prazo: '',
+        categoria: 'Poupança'
+      });
+    }
+    setModalOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!form.nome || !form.valor_objetivo) {
+      toast({
+        title: "Erro",
+        description: "Nome e valor objetivo são obrigatórios",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        nome: form.nome,
+        descricao: form.descricao,
+        valor_objetivo: Number(form.valor_objetivo),
+        valor_atual: editGoal?.valor_atual || 0,
+        prazo: form.prazo,
+        categoria: form.categoria,
+        user_id: user?.id
+      };
+
+      if (editGoal) {
+        await update(editGoal.id, payload, user?.id || '');
+        toast({
+          title: "Sucesso",
+          description: "Objetivo atualizado com sucesso"
+        });
+      } else {
+        await create(payload, user?.id || '');
+        toast({
+          title: "Sucesso", 
+          description: "Objetivo criado com sucesso"
+        });
+      }
+      setModalOpen(false);
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao salvar objetivo",
+        variant: "destructive"
+      });
+    }
+    setSaving(false);
+  };
+
+  const handleAddValue = async (goalId: string, currentValue: number) => {
+    const newValue = prompt("Quanto deseja adicionar?");
+    if (newValue && !isNaN(Number(newValue))) {
+      await update(goalId, { valor_atual: currentValue + Number(newValue) }, user?.id || '');
+      toast({
+        title: "Sucesso",
+        description: "Valor adicionado com sucesso"
+      });
+    }
+  };
 
   const totalSaved = goals.reduce((sum, goal) => sum + (goal.valor_atual || 0), 0);
   const totalTarget = goals.reduce((sum, goal) => sum + (goal.valor_objetivo || 0), 0);
@@ -58,7 +145,7 @@ export default function Goals() {
           <h1 className="text-2xl font-bold text-foreground">Objetivos</h1>
           <p className="text-muted-foreground">Acompanhe o progresso das suas metas financeiras</p>
         </div>
-        <Button className="bg-primary hover:bg-primary-dark shadow-primary">
+        <Button onClick={() => handleOpenModal()} className="bg-primary hover:bg-primary-dark shadow-primary">
           <Plus className="h-4 w-4 mr-2" />
           Novo Objetivo
         </Button>
@@ -123,7 +210,7 @@ export default function Goals() {
               <p className="text-muted-foreground mb-6">
                 Defina metas financeiras para organizar melhor as suas poupanças
               </p>
-              <Button className="bg-primary hover:bg-primary-dark">
+              <Button onClick={() => handleOpenModal()} className="bg-primary hover:bg-primary-dark">
                 <Plus className="h-4 w-4 mr-2" />
                 Criar Primeiro Objetivo
               </Button>
@@ -161,7 +248,12 @@ export default function Goals() {
                       </div>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground">
+                  <Button 
+                    onClick={() => handleOpenModal(goal)}
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-muted-foreground"
+                  >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </div>
@@ -203,11 +295,20 @@ export default function Goals() {
 
                 {/* Ações */}
                 <div className="flex gap-2 pt-2">
-                  <Button size="sm" className="flex-1 bg-primary hover:bg-primary-dark">
+                  <Button 
+                    onClick={() => handleAddValue(goal.id, goal.valor_atual || 0)}
+                    size="sm" 
+                    className="flex-1 bg-primary hover:bg-primary-dark"
+                  >
                     <Plus className="h-3 w-3 mr-1" />
                     Adicionar
                   </Button>
-                  <Button variant="outline" size="sm" className="border-border">
+                  <Button 
+                    onClick={() => handleOpenModal(goal)}
+                    variant="outline" 
+                    size="sm" 
+                    className="border-border"
+                  >
                     <Edit className="h-3 w-3" />
                   </Button>
                 </div>
@@ -216,6 +317,78 @@ export default function Goals() {
           );
         })}
       </div>
+
+      {/* Modal para criar/editar objetivos */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{editGoal ? 'Editar Objetivo' : 'Novo Objetivo'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="nome">Nome</Label>
+              <Input
+                id="nome"
+                value={form.nome}
+                onChange={(e) => setForm(prev => ({ ...prev, nome: e.target.value }))}
+                placeholder="Nome do objetivo"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="descricao">Descrição</Label>
+              <Textarea
+                id="descricao"
+                value={form.descricao}
+                onChange={(e) => setForm(prev => ({ ...prev, descricao: e.target.value }))}
+                placeholder="Descrição do objetivo"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="valor">Valor Objetivo (€)</Label>
+              <Input
+                id="valor"
+                type="number"
+                value={form.valor_objetivo}
+                onChange={(e) => setForm(prev => ({ ...prev, valor_objetivo: e.target.value }))}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="prazo">Prazo</Label>
+              <Input
+                id="prazo"
+                type="date"
+                value={form.prazo}
+                onChange={(e) => setForm(prev => ({ ...prev, prazo: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="categoria">Categoria</Label>
+              <Select value={form.categoria} onValueChange={(value) => setForm(prev => ({ ...prev, categoria: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Poupança">Poupança</SelectItem>
+                  <SelectItem value="Emergência">Emergência</SelectItem>
+                  <SelectItem value="Habitação">Habitação</SelectItem>
+                  <SelectItem value="Transporte">Transporte</SelectItem>
+                  <SelectItem value="Viagem">Viagem</SelectItem>
+                  <SelectItem value="Educação">Educação</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'A guardar...' : 'Guardar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

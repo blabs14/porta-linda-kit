@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { familyInviteSchema } from '../validation/familyInviteSchema';
 import { createFamilyInvite, updateFamilyInvite } from '../services/family_invites';
 import { showError } from '../lib/utils';
+import { Button } from './ui/button';
 
 interface FamilyInviteFormProps {
   initialData?: any;
@@ -208,10 +209,10 @@ export default function FamilyInviteForm({ initialData, onSuccess, onCancel }: F
         {validationErrors.accepted_at && <div id="accepted-at-error" className="text-red-600 text-sm" aria-live="polite">{validationErrors.accepted_at}</div>}
       </div>
       <div className="flex flex-col sm:flex-row gap-2">
-        <button type="submit" disabled={loading} className="w-full bg-primary text-white rounded p-2">
+        <Button type="submit" disabled={loading} className="w-full">
           {loading ? 'A guardar...' : 'Guardar'}
-        </button>
-        {onCancel && <button type="button" onClick={onCancel} className="w-full border rounded p-2">Cancelar</button>}
+        </Button>
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel} className="w-full">Cancelar</Button>}
       </div>
     </form>
   );

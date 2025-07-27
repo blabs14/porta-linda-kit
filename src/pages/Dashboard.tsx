@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 import { 
   Wallet, 
   TrendingUp, 
@@ -13,6 +14,8 @@ import {
 } from 'lucide-react';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+
   return (
     <div className="space-y-6">
       {/* Cartões de resumo - stack em mobile, grid em md+ */}
@@ -90,19 +93,34 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Button className="flex flex-col items-center gap-2 h-auto py-4 bg-primary hover:bg-primary-dark transition-colors">
+            <Button 
+              onClick={() => navigate('/transacoes')}
+              className="flex flex-col items-center gap-2 h-auto py-4 bg-primary hover:bg-primary-dark transition-colors"
+            >
               <Plus className="h-5 w-5" />
               <span className="text-sm">Nova Transação</span>
             </Button>
-            <Button variant="outline" className="flex flex-col items-center gap-2 h-auto py-4 border-border hover:bg-accent">
+            <Button 
+              onClick={() => navigate('/objetivos')}
+              variant="outline" 
+              className="flex flex-col items-center gap-2 h-auto py-4 border-border hover:bg-accent"
+            >
               <Target className="h-5 w-5 text-secondary" />
               <span className="text-sm">Novo Objetivo</span>
             </Button>
-            <Button variant="outline" className="flex flex-col items-center gap-2 h-auto py-4 border-border hover:bg-accent">
+            <Button 
+              onClick={() => navigate('/relatorios')}
+              variant="outline" 
+              className="flex flex-col items-center gap-2 h-auto py-4 border-border hover:bg-accent"
+            >
               <Eye className="h-5 w-5 text-primary" />
               <span className="text-sm">Ver Relatório</span>
             </Button>
-            <Button variant="outline" className="flex flex-col items-center gap-2 h-auto py-4 border-border hover:bg-accent">
+            <Button 
+              onClick={() => navigate('/familia')}
+              variant="outline" 
+              className="flex flex-col items-center gap-2 h-auto py-4 border-border hover:bg-accent"
+            >
               <Users className="h-5 w-5 text-muted-foreground" />
               <span className="text-sm">Gerir Família</span>
             </Button>
@@ -118,7 +136,12 @@ export default function Dashboard() {
             <CardTitle className="text-lg font-semibold text-foreground">
               Transações Recentes
             </CardTitle>
-            <Button variant="ghost" size="sm" className="text-primary hover:text-primary-dark">
+            <Button 
+              onClick={() => navigate('/transacoes')}
+              variant="ghost" 
+              size="sm" 
+              className="text-primary hover:text-primary-dark"
+            >
               Ver todas
             </Button>
           </CardHeader>

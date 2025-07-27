@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { webhookSchema } from '../validation/webhookSchema';
 import { createWebhook, updateWebhook } from '../services/webhooks';
 import { showError } from '../lib/utils';
+import { Button } from './ui/button';
 
 interface WebhookFormProps {
   initialData?: any;
@@ -104,10 +105,10 @@ export default function WebhookForm({ initialData, onSuccess, onCancel }: Webhoo
         Ativo
       </label>
       <div className="flex flex-col sm:flex-row gap-2">
-        <button type="submit" disabled={loading} className="w-full bg-primary text-white rounded p-2">
+        <Button type="submit" disabled={loading} className="w-full">
           {loading ? 'A guardar...' : 'Guardar'}
-        </button>
-        {onCancel && <button type="button" onClick={onCancel} className="w-full border rounded p-2">Cancelar</button>}
+        </Button>
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel} className="w-full">Cancelar</Button>}
       </div>
     </form>
   );

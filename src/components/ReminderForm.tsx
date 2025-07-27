@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { reminderSchema } from '../validation/reminderSchema';
 import { createReminder, updateReminder } from '../services/reminders';
 import { showError } from '../lib/utils';
+import { Button } from './ui/button';
 
 interface ReminderFormProps {
   user_id: string;
@@ -125,10 +126,10 @@ export default function ReminderForm({ user_id, family_id, initialData, onSucces
         Recorrente
       </label>
       <div className="flex flex-col sm:flex-row gap-2">
-        <button type="submit" disabled={loading} className="w-full bg-primary text-white rounded p-2">
+        <Button type="submit" disabled={loading} className="w-full">
           {loading ? 'A guardar...' : 'Guardar'}
-        </button>
-        {onCancel && <button type="button" onClick={onCancel} className="w-full border rounded p-2">Cancelar</button>}
+        </Button>
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel} className="w-full">Cancelar</Button>}
       </div>
     </form>
   );

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { profileSchema } from '../validation/profileSchema';
 import { updateProfile } from '../services/profiles';
 import { showError } from '../lib/utils';
+import { Button } from './ui/button';
 
 interface ProfileFormProps {
   initialData: any;
@@ -137,10 +138,10 @@ export default function ProfileForm({ initialData, onSuccess, onCancel }: Profil
         {validationErrors.poupanca_mensal && <div id="poupanca-mensal-error" className="text-red-600 text-sm" aria-live="polite">{validationErrors.poupanca_mensal}</div>}
       </div>
       <div className="flex flex-col sm:flex-row gap-2">
-        <button type="submit" disabled={loading} className="w-full bg-primary text-white rounded p-2">
+        <Button type="submit" disabled={loading} className="w-full">
           {loading ? 'A guardar...' : 'Guardar'}
-        </button>
-        {onCancel && <button type="button" onClick={onCancel} className="w-full border rounded p-2">Cancelar</button>}
+        </Button>
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel} className="w-full">Cancelar</Button>}
       </div>
     </form>
   );
