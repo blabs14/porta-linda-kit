@@ -210,11 +210,12 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
                         {formatCurrency(Number(transaction.valor), transaction.tipo)}
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-1">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => onEdit?.(transaction)}
+                            className="h-8 px-2 text-xs"
                           >
                             Editar
                           </Button>
@@ -222,7 +223,7 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
                             variant="outline"
                             size="sm"
                             onClick={() => handleRemove(transaction.id)}
-                            className="text-red-600 hover:text-red-700"
+                            className="text-red-600 hover:text-red-700 h-8 px-2 text-xs"
                             disabled={deleteTransactionMutation.isPending}
                           >
                             {deleteTransactionMutation.isPending ? 'A remover...' : 'Remover'}

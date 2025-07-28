@@ -3,39 +3,22 @@ import { useAuth } from '../contexts/AuthContext';
 import * as transactionService from '../services/transactions';
 
 // Hook para buscar transações
-export const useTransactions = (filters?: {
-  account_id?: string;
-  categoria_id?: string;
-  dataInicio?: string;
-  dataFim?: string;
-}) => {
+export const useTransactions = () => {
   const { user } = useAuth();
-
+  
   return useQuery({
-    queryKey: ['transactions', filters],
+    queryKey: ['transactions'],
     queryFn: async () => {
       const { data, error } = await transactionService.getTransactions();
       if (error) throw error;
-      
-      // Aplicar filtros localmente
-      let filtered = data || [];
-      if (filters?.account_id && filters.account_id !== 'all') {
-        filtered = filtered.filter(tx => tx.account_id === filters.account_id);
-      }
-      if (filters?.categoria_id && filters.categoria_id !== 'all') {
-        filtered = filtered.filter(tx => tx.categoria_id === filters.categoria_id);
-      }
-      if (filters?.dataInicio) {
-        filtered = filtered.filter(tx => tx.data >= filters.dataInicio);
-      }
-      if (filters?.dataFim) {
-        filtered = filtered.filter(tx => tx.data <= filters.dataFim);
-      }
-      
-      return filtered;
+      return data || [];
     },
     enabled: !!user,
-    staleTime: 2 * 60 * 1000, // 2 minutos
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0, // Dados sempre considerados stale para forçar refetch
+    gcTime: 5 * 60 * 1000, // 5 minutos de cache
   });
 };
 

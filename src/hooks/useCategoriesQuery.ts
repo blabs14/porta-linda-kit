@@ -13,6 +13,11 @@ export const useCategories = () => {
       return data || [];
     },
     enabled: !!user,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0, // Dados sempre considerados stale para forçar refetch
+    gcTime: 5 * 60 * 1000, // 5 minutos de cache
   });
 };
 
@@ -21,15 +26,15 @@ export const useCreateCategory = () => {
   const { user } = useAuth();
   
   return useMutation({
-    mutationFn: async (payload: { nome: string; descricao?: string }) => {
-      // Converter para o formato esperado pelo serviço
-      const servicePayload = {
-        nome: payload.nome,
-        tipo: 'outro', // Valor padrão
-        cor: '#6B7280', // Cor padrão
-        descricao: payload.descricao
-      };
-      const { data, error } = await createCategory(servicePayload, user?.id || '');
+    mutationFn: async (payload: { nome: string; cor: string; descricao?: string }) => {
+      console.log('🔍 useCreateCategory: payload recebido:', payload);
+      console.log('🔍 useCreateCategory: user ID:', user?.id);
+      
+      if (!user?.id) {
+        throw new Error('Utilizador não autenticado');
+      }
+      
+      const { data, error } = await createCategory(payload, user.id);
       if (error) throw error;
       return data;
     },

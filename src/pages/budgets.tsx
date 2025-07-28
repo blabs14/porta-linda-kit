@@ -278,22 +278,22 @@ const BudgetsPage = () => {
             </div>
           ) : (
             <div className="flex-1 overflow-auto p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-auto">
                 {budgets.map((budget) => {
                   const gasto = getGastoForBudget(budget);
                   const percentage = getProgressPercentage(gasto, budget.valor);
                   const progressColor = getProgressColor(percentage);
                   
                   return (
-                    <Card key={budget.id} className="hover:shadow-md transition-shadow">
+                    <Card key={budget.id} className="hover:shadow-md transition-shadow h-fit">
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
+                        <CardTitle className="text-sm font-medium truncate flex-1 mr-2">
                           {getCategoryName(budget.categoria_id)}
                         </CardTitle>
-                        <Target className="h-4 w-4 text-muted-foreground" />
+                        <Target className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
+                      <CardContent className="space-y-3">
+                        <div className="space-y-2">
                           <div className="flex justify-between items-center">
                             <span className="text-sm text-muted-foreground">Período</span>
                             <span className="text-sm font-medium text-blue-600">
@@ -313,35 +313,38 @@ const BudgetsPage = () => {
                               {formatCurrency(gasto)}
                             </span>
                           </div>
-                          <div className="space-y-2">
-                            <div className="flex justify-between text-sm">
-                              <span>Progresso</span>
-                              <span>{percentage.toFixed(1)}%</span>
-                            </div>
-                            <Progress 
-                              value={percentage} 
-                              className={`h-2 ${progressColor}`}
-                            />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Progresso</span>
+                            <span>{percentage.toFixed(1)}%</span>
                           </div>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEdit(budget)}
-                            >
-                              <Edit className="h-3 w-3 mr-1" />
-                              Editar
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleDelete(budget.id)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="h-3 w-3 mr-1" />
-                              Remover
-                            </Button>
-                          </div>
+                          <Progress 
+                            value={percentage} 
+                            className={`h-2 ${progressColor}`}
+                          />
+                        </div>
+                        
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEdit(budget)}
+                            className="flex-1"
+                          >
+                            <Edit className="h-3 w-3 mr-1" />
+                            Editar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDelete(budget.id)}
+                            className="text-red-600 hover:text-red-700 flex-1"
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Remover
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>

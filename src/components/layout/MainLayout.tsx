@@ -8,11 +8,15 @@ import { BottomTabBar } from './BottomTabBar';
 import { useAuth } from '../../contexts/AuthContext';
 import LogoutButton from '../auth/LogoutButton';
 import { RealTimeNotifications } from '../RealTimeNotifications';
+import { useRouteChange } from '../../hooks/useRouteChange';
 
 export function MainLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const location = useLocation();
   const { user } = useAuth();
+
+  // Hook para atualizar dados automaticamente quando a rota muda
+  useRouteChange();
 
   const getPageTitle = () => {
     switch (location.pathname) {

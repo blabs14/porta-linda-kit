@@ -7,6 +7,7 @@ import { showError, showSuccess } from '../lib/utils';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { LoadingSpinner } from './ui/loading-states';
+import { CategorySelect } from './CategorySelect';
 import {
   Select,
   SelectTrigger,
@@ -177,16 +178,11 @@ const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormPr
       />
       {validationErrors.valor && <div id="valor-error" className="text-red-600 text-sm">{validationErrors.valor}</div>}
       
-      <Select value={form.categoria_id} onValueChange={handleCategoriaChange}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Categoria" />
-        </SelectTrigger>
-        <SelectContent>
-          {categories.data?.map((cat) => (
-            <SelectItem key={cat.id} value={cat.id}>{cat.nome}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <CategorySelect
+        value={form.categoria_id}
+        onValueChange={handleCategoriaChange}
+        placeholder="Selecionar categoria..."
+      />
       {validationErrors.categoria_id && <div className="text-red-600 text-sm">{validationErrors.categoria_id}</div>}
       
       <Input

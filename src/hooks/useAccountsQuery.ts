@@ -13,6 +13,11 @@ export const useAccounts = () => {
       return data || [];
     },
     enabled: !!user,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0, // Dados sempre considerados stale para forçar refetch
+    gcTime: 5 * 60 * 1000, // 5 minutos de cache
   });
 };
 
@@ -21,7 +26,7 @@ export const useCreateAccount = () => {
   const { user } = useAuth();
   
   return useMutation({
-    mutationFn: async (payload: { nome: string; tipo: string }) => {
+    mutationFn: async (payload: { nome: string; tipo: string; saldo?: number }) => {
       const { data, error } = await createAccount(payload, user?.id || '');
       if (error) throw error;
       return data;

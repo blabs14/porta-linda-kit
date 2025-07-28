@@ -11,6 +11,7 @@ export const getNotifications = (user_id: string) =>
 export const createNotification = (data: {
   user_id: string;
   family_id?: string;
+  title: string;
   type: string;
   message: string;
   read?: boolean;
