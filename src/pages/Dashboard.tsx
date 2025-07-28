@@ -44,19 +44,27 @@ export default function Dashboard() {
     return new Intl.NumberFormat('pt-PT', {
       style: 'currency',
       currency: 'EUR'
-    }).format(value);
+    }).format(value || 0);
   };
 
   const getBalanceChange = () => {
-    const change = dashboardData?.monthlyIncome - dashboardData?.monthlyExpenses;
+    const change = (dashboardData?.monthlyIncome || 0) - (dashboardData?.monthlyExpenses || 0);
     return {
       value: Math.abs(change),
       isPositive: change >= 0,
-      percentage: dashboardData?.monthlyIncome > 0 ? (change / dashboardData?.monthlyIncome) * 100 : 0
+      percentage: (dashboardData?.monthlyIncome || 0) > 0 ? (change / (dashboardData?.monthlyIncome || 1)) * 100 : 0
     };
   };
 
   const balanceChange = getBalanceChange();
+
+  // Verificar se há dados para mostrar
+  const hasData = dashboardData && (
+    dashboardData.totalBalance > 0 || 
+    dashboardData.monthlyIncome > 0 || 
+    dashboardData.monthlyExpenses > 0 || 
+    dashboardData.totalGoals > 0
+  );
 
   return (
     <div className="space-y-6">
@@ -67,12 +75,6 @@ export default function Dashboard() {
           <p className="text-muted-foreground">
             Bem-vindo de volta, {user?.email}
           </p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => navigate('/app/transactions')}>
-            <ArrowUpRight className="h-4 w-4 mr-2" />
-            Nova Transação
-          </Button>
         </div>
       </div>
 
@@ -139,6 +141,31 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Mensagem quando não há dados */}
+      {!hasData && (
+        <Card className="h-fit">
+          <CardContent className="p-8 text-center">
+            <div className="space-y-4">
+              <Wallet className="h-12 w-12 text-muted-foreground mx-auto" />
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Bem-vindo ao seu Dashboard!</h3>
+                <p className="text-muted-foreground mt-2">
+                  Comece a gerir as suas finanças criando contas, adicionando transações e definindo objetivos.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                <Button onClick={() => navigate('/app/accounts')} variant="outline">
+                  Criar Conta
+                </Button>
+                <Button onClick={() => navigate('/app/transactions')}>
+                  Adicionar Transação
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Seção de Ações Rápidas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-auto">
         <Card className="cursor-pointer hover:shadow-md transition-shadow h-fit" onClick={() => navigate('/app/transactions')}>
@@ -190,14 +217,21 @@ export default function Dashboard() {
           <CardTitle>Categorias Mais Usadas</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {dashboardData?.topCategories?.map((category, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <span className="font-medium">{String(category.category)}</span>
-                <span className="text-sm text-muted-foreground">{category.count} transações</span>
-              </div>
-            ))}
-          </div>
+          {dashboardData?.topCategories && dashboardData.topCategories.length > 0 ? (
+            <div className="space-y-4">
+              {dashboardData.topCategories.map((category, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <span className="font-medium">{category.category}</span>
+                  <span className="text-sm text-muted-foreground">{category.count} transações</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Nenhuma transação encontrada</p>
+              <p className="text-sm text-muted-foreground">Adicione transações para ver as categorias mais usadas</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

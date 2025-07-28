@@ -1,57 +1,89 @@
 import { supabase } from '../lib/supabaseClient';
-import { logAuditChange } from './audit_logs';
+import { 
+  Category, 
+  CategoryInsert, 
+  CategoryUpdate 
+} from '../integrations/supabase/types';
 
-export const getCategories = () =>
-  supabase
-    .from('categories')
-    .select('*')
-    .order('nome', { ascending: true });
+export const getCategories = async (): Promise<{ data: Category[] | null; error: any }> => {
+  try {
+    console.log('[getCategories] Fetching categories...');
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order('nome');
 
-export const createCategory = async (data: { nome: string; cor?: string; descricao?: string }, userId: string) => {
-  console.log('🔍 Tentando criar categoria:', { data, userId });
-  
-  if (!userId) {
-    throw new Error('Utilizador não autenticado');
-  }
+    console.log('[getCategories] Supabase response - data:', data);
+    console.log('[getCategories] Supabase response - error:', error);
 
-  // Incluir user_id no payload para satisfazer as políticas RLS
-  const payload = {
-    ...data,
-    user_id: userId,
-  };
-  
-  console.log('📦 Payload para criação:', payload);
-  
-  const res = await supabase.from('categories').insert(payload).select('id').single();
-  
-  if (res.error) {
-    console.error('❌ Erro ao criar categoria:', res.error);
-    throw res.error;
+    return { data, error };
+  } catch (error) {
+    console.error('[getCategories] Exception:', error);
+    return { data: null, error };
   }
-  
-  console.log('✅ Categoria criada com sucesso:', res.data);
-  
-  if (res.data?.id) {
-    try {
-      await logAuditChange(userId, 'categories', 'CREATE', res.data.id, {}, payload);
-    } catch (auditError) {
-      console.warn('⚠️ Erro no log de auditoria (não crítico):', auditError);
-    }
-  }
-  
-  return res;
 };
 
-export const updateCategory = async (id: string, data: { nome?: string; cor?: string; descricao?: string }, userId: string) => {
-  const oldRes = await supabase.from('categories').select('*').eq('id', id).single();
-  const res = await supabase.from('categories').update(data).eq('id', id);
-  await logAuditChange(userId, 'categories', 'UPDATE', id, oldRes.data || {}, data);
-  return res;
+export const getCategory = async (id: string): Promise<{ data: Category | null; error: any }> => {
+  try {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
 };
 
-export const deleteCategory = async (id: string, userId: string) => {
-  const oldRes = await supabase.from('categories').select('*').eq('id', id).single();
-  const res = await supabase.from('categories').delete().eq('id', id);
-  await logAuditChange(userId, 'categories', 'DELETE', id, oldRes.data || {}, {});
-  return res;
+export const createCategory = async (categoryData: CategoryInsert, userId: string): Promise<{ data: Category | null; error: any }> => {
+  try {
+    console.log('[createCategory] categoryData:', categoryData);
+    console.log('[createCategory] userId:', userId);
+    
+    const { data, error } = await supabase
+      .from('categories')
+      .insert([{ ...categoryData, user_id: userId }])
+      .select()
+      .single();
+
+    console.log('[createCategory] Supabase response - data:', data);
+    console.log('[createCategory] Supabase response - error:', error);
+
+    return { data, error };
+  } catch (error) {
+    console.error('[createCategory] Exception:', error);
+    return { data: null, error };
+  }
+};
+
+export const updateCategory = async (id: string, updates: CategoryUpdate, userId: string): Promise<{ data: Category | null; error: any }> => {
+  try {
+    const { data, error } = await supabase
+      .from('categories')
+      .update(updates)
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+export const deleteCategory = async (id: string, userId: string): Promise<{ data: boolean | null; error: any }> => {
+  try {
+    const { error } = await supabase
+      .from('categories')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    return { data: !error, error };
+  } catch (error) {
+    return { data: null, error };
+  }
 };

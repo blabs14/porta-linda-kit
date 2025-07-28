@@ -8,6 +8,7 @@ import {
   getGoalAllocationsTotal,
   getAccountAllocationsTotal
 } from '../services/goalAllocations';
+import { allocateToGoal } from '../services/goals';
 import { useAuth } from '../contexts/AuthContext';
 
 export const useGoalAllocations = (goalId?: string) => {
@@ -15,15 +16,19 @@ export const useGoalAllocations = (goalId?: string) => {
   const queryClient = useQueryClient();
 
   const {
-    data: allocations = [],
+    data: allocationsData,
     isLoading,
     error,
     refetch
   } = useQuery({
     queryKey: goalId ? ['goalAllocations', goalId] : ['goalAllocations'],
-    queryFn: () => goalId 
-      ? getGoalAllocations(goalId, user?.id || '')
-      : getAllGoalAllocations(user?.id || ''),
+    queryFn: async () => {
+      const { data, error } = goalId 
+        ? await getGoalAllocations(goalId, user?.id || '')
+        : await getAllGoalAllocations(user?.id || '');
+      if (error) throw error;
+      return data || [];
+    },
     enabled: !!user?.id
   });
 
@@ -47,6 +52,22 @@ export const useGoalAllocations = (goalId?: string) => {
     }
   });
 
+  const allocateToGoalMutation = useMutation({
+    mutationFn: ({ goalId, accountId, amount, description }: {
+      goalId: string;
+      accountId: string;
+      amount: number;
+      description?: string;
+    }) => allocateToGoal(goalId, accountId, amount, user?.id || '', description),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goalAllocations'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['accountsWithAllocations'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    }
+  });
+
   const updateAllocationMutation = useMutation({
     mutationFn: ({ id, data }: {
       id: string;
@@ -56,6 +77,7 @@ export const useGoalAllocations = (goalId?: string) => {
       queryClient.invalidateQueries({ queryKey: ['goalAllocations'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['accountsWithAllocations'] });
     }
   });
 
@@ -65,6 +87,7 @@ export const useGoalAllocations = (goalId?: string) => {
       queryClient.invalidateQueries({ queryKey: ['goalAllocations'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['accountsWithAllocations'] });
     }
   });
 
@@ -77,16 +100,18 @@ export const useGoalAllocations = (goalId?: string) => {
   };
 
   return {
-    allocations,
+    allocations: allocationsData || [],
     isLoading,
     error,
     refetch,
     createAllocation: createAllocationMutation.mutateAsync,
+    allocateToGoal: allocateToGoalMutation.mutateAsync,
     updateAllocation: updateAllocationMutation.mutateAsync,
     deleteAllocation: deleteAllocationMutation.mutateAsync,
     getTotalAllocated,
     getAccountTotalAllocated,
     isCreating: createAllocationMutation.isPending,
+    isAllocating: allocateToGoalMutation.isPending,
     isUpdating: updateAllocationMutation.isPending,
     isDeleting: deleteAllocationMutation.isPending
   };

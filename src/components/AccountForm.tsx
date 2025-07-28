@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useCreateAccount, useUpdateAccount } from '../hooks/useAccountsQuery';
 import { accountSchema } from '../validation/accountSchema';
-import { showError, showSuccess } from '../lib/utils';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
+import { FormSubmitButton } from './ui/loading-button';
 import {
   Select,
   SelectTrigger,
@@ -11,27 +12,26 @@ import {
   SelectItem,
   SelectValue,
 } from './ui/select';
-import { useCreateAccount, useUpdateAccount } from '../hooks/useAccountsQuery';
 
-const tiposConta = [
-  { value: 'corrente', label: 'Conta Corrente' },
-  { value: 'poupança', label: 'Poupança' },
-  { value: 'investimento', label: 'Investimento' },
-  { value: 'outro', label: 'Outro' },
-];
-
-export type AccountFormData = {
+interface AccountFormData {
   id?: string;
   nome: string;
   tipo: string;
-  saldo?: number;
-};
+  saldo: number;
+}
 
 interface AccountFormProps {
   initialData?: AccountFormData;
-  onSuccess: () => void;
-  onCancel: () => void;
+  onSuccess?: () => void;
+  onCancel?: () => void;
 }
+
+const tiposConta = [
+  { value: 'corrente', label: 'Conta Corrente' },
+  { value: 'poupança', label: 'Conta Poupança' },
+  { value: 'investimento', label: 'Conta Investimento' },
+  { value: 'cartão', label: 'Cartão de Crédito' },
+];
 
 const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => {
   const { user } = useAuth();
@@ -43,7 +43,11 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
   const createAccountMutation = useCreateAccount();
   const updateAccountMutation = useUpdateAccount();
   
-  const loading = createAccountMutation.isPending || updateAccountMutation.isPending;
+  const isSubmitting = createAccountMutation.isPending || updateAccountMutation.isPending;
+
+  console.log('[AccountForm] initialData:', initialData);
+  console.log('[AccountForm] form state:', form);
+  console.log('[AccountForm] isSubmitting:', isSubmitting);
 
   useEffect(() => {
     if (initialData) setForm(initialData);
@@ -62,13 +66,6 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
 
   const handleTipoChange = (value: string) => {
     setForm((prev) => ({ ...prev, tipo: value }));
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-PT', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(value);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,16 +108,14 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
       
       if (initialData && initialData.id) {
         await updateAccountMutation.mutateAsync({ id: initialData.id, data: payload });
-        showSuccess('Conta atualizada com sucesso!');
       } else {
         await createAccountMutation.mutateAsync(payload);
-        showSuccess('Conta criada com sucesso!');
       }
       
       onSuccess();
     } catch (err: any) {
       console.error('Erro ao guardar conta:', err);
-      showError(err.message || 'Erro ao guardar conta');
+      // O erro já é tratado pelo hook useCrudMutation
     }
   };
 
@@ -163,7 +158,12 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
       {validationErrors.saldo && <div id="saldo-error" className="text-red-600 text-sm">{validationErrors.saldo}</div>}
       
       <div className="flex flex-col sm:flex-row gap-2">
-        <Button type="submit" disabled={loading} className="w-full">{loading ? 'A guardar...' : 'Guardar'}</Button>
+        <FormSubmitButton 
+          isSubmitting={isSubmitting}
+          submitText={initialData?.id ? 'Atualizar' : 'Criar'}
+          submittingText={initialData?.id ? 'A atualizar...' : 'A criar...'}
+          className="w-full"
+        />
         <Button type="button" variant="outline" onClick={onCancel} className="w-full">Cancelar</Button>
       </div>
     </form>

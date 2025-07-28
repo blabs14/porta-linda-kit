@@ -1,149 +1,136 @@
 import { supabase } from '../lib/supabaseClient';
-import { logAuditChange } from './audit_logs';
+import { 
+  Transaction, 
+  TransactionInsert, 
+  TransactionUpdate 
+} from '../integrations/supabase/types';
 
-export interface CreateTransactionData {
-  account_id: string;
-  valor: number;
-  categoria_id: string;
-  data: string;
-  descricao?: string;
-  tipo: string;
-  goal_id?: string;
-}
+export const getTransactions = async (): Promise<{ data: Transaction[] | null; error: any }> => {
+  try {
+    console.log('[getTransactions] Fetching transactions...');
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-export interface UpdateTransactionData {
-  account_id?: string;
-  valor?: number;
-  categoria_id?: string;
-  data?: string;
-  descricao?: string;
-  tipo?: string;
-  goal_id?: string;
-}
-
-export const getTransactions = async () => {
-  const res = await supabase
-    .from('transactions')
-    .select('*')
-    .order('data', { ascending: false });
-  console.log('[DEBUG] getTransactions result:', res);
-  return res;
-};
-
-// Função para calcular e atualizar o saldo de uma conta
-const updateAccountBalance = async (accountId: string, userId: string) => {
-  console.log('🔄 Atualizando saldo da conta:', accountId);
-  
-  // Calcular o saldo total das transações
-  const { data: transactions, error: transactionsError } = await supabase
-    .from('transactions')
-    .select('valor, tipo')
-    .eq('account_id', accountId);
-
-  if (transactionsError) {
-    console.error('❌ Erro ao buscar transações para cálculo de saldo:', transactionsError);
-    return;
-  }
-
-  // Calcular saldo: receitas (+) - despesas (-)
-  const balance = transactions?.reduce((total, transaction) => {
-    const valor = Number(transaction.valor) || 0;
-    return transaction.tipo === 'receita' ? total + valor : total - valor;
-  }, 0) || 0;
-
-  console.log('💰 Saldo calculado:', balance);
-
-  // Atualizar o saldo na conta
-  const { error: updateError } = await supabase
-    .from('accounts')
-    .update({ saldo: balance })
-    .eq('id', accountId)
-    .eq('user_id', userId);
-
-  if (updateError) {
-    console.error('❌ Erro ao atualizar saldo da conta:', updateError);
-  } else {
-    console.log('✅ Saldo da conta atualizado com sucesso');
-  }
-};
-
-export const createTransaction = async (data: CreateTransactionData, userId: string) => {
-  console.log('🔍 createTransaction: dados recebidos:', data);
-  console.log('🔍 createTransaction: user ID:', userId);
-
-  if (!userId) {
-    throw new Error('Utilizador não autenticado');
-  }
-
-  const payload = {
-    ...data,
-    user_id: userId,
-  };
-
-  console.log('📦 Payload para criação:', payload);
-
-  const res = await supabase.from('transactions').insert(payload).select('*').single();
-
-  if (res.error) {
-    console.error('❌ Erro ao criar transação:', res.error);
-    throw res.error;
-  }
-
-  console.log('✅ Transação criada com sucesso:', res.data);
-
-  // Atualizar o saldo da conta automaticamente
-  if (res.data?.account_id) {
-    try {
-      await updateAccountBalance(res.data.account_id, userId);
-    } catch (balanceError) {
-      console.warn('⚠️ Erro ao atualizar saldo da conta (não crítico):', balanceError);
+    console.log('[getTransactions] Supabase response - data:', data);
+    console.log('[getTransactions] Supabase response - error:', error);
+    console.log('[getTransactions] Number of transactions:', data?.length || 0);
+    
+    // Mostrar as primeiras 3 transações para verificar ordenação
+    if (data && data.length > 0) {
+      console.log('[getTransactions] First 3 transactions:');
+      data.slice(0, 3).forEach((tx, index) => {
+        console.log(`[getTransactions] ${index + 1}. ID: ${tx.id}, Created: ${tx.created_at}, Data: ${tx.data}, Descrição: ${tx.descricao}`);
+      });
     }
-  }
 
-  if (res.data?.id) {
-    try {
-      await logAuditChange(userId, 'transactions', 'CREATE', res.data.id, {}, payload);
-    } catch (auditError) {
-      console.warn('⚠️ Erro no log de auditoria (não crítico):', auditError);
-    }
+    return { data, error };
+  } catch (error) {
+    console.error('[getTransactions] Exception:', error);
+    return { data: null, error };
   }
-
-  return res;
 };
 
-export const updateTransaction = async (id: string, data: UpdateTransactionData, userId: string) => {
-  const oldRes = await supabase.from('transactions').select('*').eq('id', id).single();
-  const res = await supabase.from('transactions').update(data).eq('id', id);
-  
-  // Atualizar saldo da conta se a transação foi modificada
-  if (res.data && (oldRes.data?.account_id || data.account_id)) {
-    try {
-      const accountId = data.account_id || oldRes.data?.account_id;
-      if (accountId) {
-        await updateAccountBalance(accountId, userId);
+export const getTransaction = async (id: string): Promise<{ data: Transaction | null; error: any }> => {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+export const createTransaction = async (transactionData: TransactionInsert, userId: string): Promise<{ data: Transaction | null; error: any }> => {
+  try {
+    console.log('[createTransaction] transactionData:', transactionData);
+    console.log('[createTransaction] userId:', userId);
+    
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert([{ ...transactionData, user_id: userId }])
+      .select()
+      .single();
+
+    console.log('[createTransaction] Supabase response - data:', data);
+    console.log('[createTransaction] Supabase response - error:', error);
+
+    if (!error && data) {
+      try {
+        // Atualizar saldo da conta
+        await supabase.rpc('update_account_balance', {
+          account_id_param: data.account_id
+        });
+      } catch (balanceError) {
+        console.warn('Erro ao atualizar saldo da conta:', balanceError);
       }
-    } catch (balanceError) {
-      console.warn('⚠️ Erro ao atualizar saldo da conta (não crítico):', balanceError);
     }
+
+    return { data, error };
+  } catch (error) {
+    console.error('[createTransaction] Exception:', error);
+    return { data: null, error };
   }
-  
-  await logAuditChange(userId, 'transactions', 'UPDATE', id, oldRes.data || {}, data);
-  return res;
 };
 
-export const deleteTransaction = async (id: string, userId: string) => {
-  const oldRes = await supabase.from('transactions').select('*').eq('id', id).single();
-  const res = await supabase.from('transactions').delete().eq('id', id);
-  
-  // Atualizar saldo da conta se a transação foi eliminada
-  if (oldRes.data?.account_id) {
-    try {
-      await updateAccountBalance(oldRes.data.account_id, userId);
-    } catch (balanceError) {
-      console.warn('⚠️ Erro ao atualizar saldo da conta (não crítico):', balanceError);
+export const updateTransaction = async (id: string, updates: TransactionUpdate, userId: string): Promise<{ data: Transaction | null; error: any }> => {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (!error && data) {
+      try {
+        // Atualizar saldo da conta
+        await supabase.rpc('update_account_balance', {
+          account_id_param: data.account_id
+        });
+      } catch (balanceError) {
+        console.warn('Erro ao atualizar saldo da conta:', balanceError);
+      }
     }
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
   }
-  
-  await logAuditChange(userId, 'transactions', 'DELETE', id, oldRes.data || {}, {});
-  return res;
+};
+
+export const deleteTransaction = async (id: string, userId: string): Promise<{ data: boolean | null; error: any }> => {
+  try {
+    // Buscar a transação antes de apagar para obter account_id
+    const { data: transaction } = await supabase
+      .from('transactions')
+      .select('account_id')
+      .eq('id', id)
+      .single();
+
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id);
+
+    if (!error && transaction) {
+      try {
+        // Atualizar saldo da conta
+        await supabase.rpc('update_account_balance', {
+          account_id_param: transaction.account_id
+        });
+      } catch (balanceError) {
+        console.warn('Erro ao atualizar saldo da conta:', balanceError);
+      }
+    }
+
+    return { data: !error, error };
+  } catch (error) {
+    return { data: null, error };
+  }
 };

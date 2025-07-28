@@ -1,195 +1,267 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
-import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Wallet, Plus, Edit, Trash2, ArrowRightLeft } from 'lucide-react';
-import { useAccounts, useDeleteAccount } from '../hooks/useAccountsQuery';
+import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Wallet, Plus, Edit, Trash2, ArrowRightLeft, Target } from 'lucide-react';
+import { useAccountsWithBalances, useDeleteAccount } from '../hooks/useAccountsQuery';
+import { useToast } from '../hooks/use-toast';
+import { formatCurrency } from '../lib/utils';
 import AccountForm from '../components/AccountForm';
 import { TransferModal } from '../components/TransferModal';
-import { showError, showSuccess } from '../lib/utils';
-import { LoadingSpinner } from '../components/ui/loading-states';
+import { AccountWithBalances } from '../integrations/supabase/types';
+import { useConfirmation } from '../components/ui/confirmation-dialog';
 
-const AccountsPage = () => {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [transferModalOpen, setTransferModalOpen] = useState(false);
-  const [editAccount, setEditAccount] = useState<any | null>(null);
+export default function AccountsPage() {
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<{
+    id: string;
+    nome: string;
+    tipo: string;
+    saldo: number;
+  } | null>(null);
   
-  // Usar TanStack Query hooks
-  const { data: accounts = [], isLoading, error, refetch } = useAccounts();
+  const { data: accounts = [], isLoading, error, refetch } = useAccountsWithBalances();
   const deleteAccountMutation = useDeleteAccount();
+  const { toast } = useToast();
+  const { confirm } = useConfirmation();
 
   const handleNew = () => {
-    setEditAccount(null);
-    setModalOpen(true);
+    setEditingAccount(null);
+    setShowCreateModal(true);
   };
 
   const handleTransfer = () => {
-    setTransferModalOpen(true);
+    setShowTransferModal(true);
   };
 
   const handleTransferSuccess = () => {
-    setTransferModalOpen(false);
-    // Atualizar a lista de contas após transferência
+    setShowTransferModal(false);
     refetch();
-    showSuccess('Transferência realizada com sucesso!');
   };
 
-  const handleEdit = (account: any) => {
-    setEditAccount(account);
-    setModalOpen(true);
+  const handleEdit = (account: AccountWithBalances) => {
+    const editData = {
+      id: account.account_id,
+      nome: account.nome,
+      tipo: account.tipo,
+      saldo: account.saldo_atual || 0,
+    };
+    setEditingAccount(editData);
+    setShowCreateModal(true);
   };
 
   const handleSuccess = () => {
-    setModalOpen(false);
-    setEditAccount(null);
-    showSuccess('Conta guardada com sucesso!');
+    setShowCreateModal(false);
+    setEditingAccount(null);
+    refetch();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Tem a certeza que deseja remover esta conta?')) return;
+  const handleDeleteAccount = async (id: string) => {
+    const account = accounts.find(acc => acc.account_id === id);
+    const accountName = account?.nome || 'esta conta';
     
-    try {
-      await deleteAccountMutation.mutateAsync(id);
-      showSuccess('Conta removida com sucesso!');
-    } catch (error: any) {
-      showError(error.message || 'Erro ao remover conta');
-    }
+    confirm(
+      'Eliminar Conta',
+      `Tem a certeza que deseja eliminar "${accountName}"? Esta ação não pode ser desfeita e eliminará todas as transações associadas.`,
+      async () => {
+        try {
+          await deleteAccountMutation.mutateAsync(id);
+          toast({
+            title: 'Conta eliminada',
+            description: `A conta "${accountName}" foi eliminada com sucesso.`,
+          });
+        } catch (error: any) {
+          toast({
+            title: 'Erro ao eliminar conta',
+            description: error.message || 'Ocorreu um erro ao eliminar a conta.',
+            variant: 'destructive',
+          });
+        }
+      },
+      {
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+        variant: 'destructive',
+      }
+    );
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-PT', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(value);
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">A carregar contas...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (error) {
     return (
-      <div className="h-full flex flex-col">
-        <div className="flex-shrink-0 bg-background border-b p-4 mb-6">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <h1 className="text-2xl sm:text-3xl font-bold">Contas</h1>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <Button onClick={handleTransfer} variant="outline" className="flex-1 sm:flex-none">
-                <ArrowRightLeft className="h-4 w-4 mr-2" />
-                Transferir
-              </Button>
-              <Button onClick={handleNew} className="flex-1 sm:flex-none">
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Conta
-              </Button>
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-red-600">
-            Erro ao carregar contas: {error.message}
-          </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-destructive mb-4">Erro ao carregar contas</p>
+          <Button onClick={() => refetch()} variant="outline">
+            Tentar novamente
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Cabeçalho Fixo - Sempre visível */}
-      <div className="flex-shrink-0 bg-background border-b p-4 mb-6">
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-          <h1 className="text-2xl sm:text-3xl font-bold">Contas</h1>
-          <div className="flex gap-2 w-full sm:w-auto">
-            <Button onClick={handleTransfer} variant="outline" className="flex-1 sm:flex-none">
-              <ArrowRightLeft className="h-4 w-4 mr-2" />
-              Transferir
-            </Button>
-            <Button onClick={handleNew} className="flex-1 sm:flex-none">
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Conta
-            </Button>
-          </div>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Contas</h1>
+          <p className="text-muted-foreground">
+            Gerencie suas contas bancárias e acompanhe seus saldos
+          </p>
         </div>
-      </div>
-      
-      {/* Conteúdo com Scroll apenas nos dados */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full flex flex-col">
-          {isLoading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <LoadingSpinner size="lg" />
-            </div>
-          ) : accounts.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center text-muted-foreground">
-                <Wallet className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhuma conta encontrada</p>
-                <p className="text-sm">Clica em "Nova Conta" para começar</p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 overflow-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-auto">
-                {accounts.map((account) => (
-                  <Card key={account.id} className="hover:shadow-md transition-shadow h-fit">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium truncate flex-1 mr-2">{account.nome}</CardTitle>
-                      <Wallet className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="text-2xl font-bold">
-                        {account.saldo ? formatCurrency(account.saldo) : '€0,00'}
-                      </div>
-                      <p className="text-xs text-muted-foreground capitalize">{account.tipo}</p>
-                      <div className="flex gap-2 pt-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEdit(account)}
-                          className="flex-1"
-                        >
-                          <Edit className="h-3 w-3 mr-1" />
-                          Editar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDelete(account.id)}
-                          className="text-red-600 hover:text-red-700 flex-1"
-                          disabled={deleteAccountMutation.isPending}
-                        >
-                          <Trash2 className="h-3 w-3 mr-1" />
-                          {deleteAccountMutation.isPending ? 'A remover...' : 'Remover'}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="flex gap-2">
+          <Button onClick={handleTransfer} variant="outline">
+            <ArrowRightLeft className="h-4 w-4 mr-2" />
+            Transferir
+          </Button>
+          <Button onClick={handleNew}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Conta
+          </Button>
         </div>
       </div>
 
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+      {accounts.length === 0 ? (
+        <div className="text-center py-12">
+          <Wallet className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Nenhuma conta encontrada</h3>
+          <p className="text-muted-foreground mb-4">
+            Comece criando sua primeira conta para começar a gerir suas finanças.
+          </p>
+          <Button onClick={handleNew}>
+            <Plus className="h-4 w-4 mr-2" />
+            Criar Primeira Conta
+          </Button>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {accounts.map((account) => (
+            <Card key={account.account_id} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">{account.nome}</CardTitle>
+                  <Badge variant="outline" className="capitalize">
+                    {account.tipo}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Saldo Total */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Saldo Total</span>
+                    <span className="text-lg font-semibold">
+                      {formatCurrency(account.saldo_atual || 0)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground capitalize">{account.tipo}</p>
+                </div>
+
+                {/* Saldo Reservado */}
+                {account.total_reservado > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground flex items-center gap-1">
+                        <Target className="h-3 w-3" />
+                        Reservado
+                      </span>
+                      <Badge variant="secondary" className="text-xs">
+                        {formatCurrency(account.total_reservado)}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+
+                {/* Saldo Disponível */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Disponível</span>
+                    <span className={`text-sm font-medium ${
+                      account.saldo_disponivel < 0 ? 'text-red-600' : 'text-green-600'
+                    }`}>
+                      {formatCurrency(account.saldo_disponivel)}
+                    </span>
+                  </div>
+                  {account.total_reservado > 0 && (
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div
+                        className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, (account.total_reservado / (account.saldo_atual || 1)) * 100)}%`
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Botões de ação */}
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowTransferModal(true);
+                    }}
+                    className="flex-1"
+                  >
+                    <ArrowRightLeft className="h-4 w-4 mr-1" />
+                    Transferir
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEdit(account)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDeleteAccount(account.account_id)}
+                    className="text-red-600 hover:text-red-700"
+                    disabled={deleteAccountMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editAccount ? 'Editar Conta' : 'Nova Conta'}</DialogTitle>
+            <DialogTitle>{editingAccount ? 'Editar Conta' : 'Nova Conta'}</DialogTitle>
             <DialogDescription>
-              {editAccount ? 'Editar dados da conta' : 'Criar nova conta'}
+              {editingAccount ? 'Editar dados da conta' : 'Criar nova conta'}
             </DialogDescription>
           </DialogHeader>
           <AccountForm
-            initialData={editAccount}
+            initialData={editingAccount}
             onSuccess={handleSuccess}
-            onCancel={() => setModalOpen(false)}
+            onCancel={() => setShowCreateModal(false)}
           />
         </DialogContent>
       </Dialog>
 
       <TransferModal
-        isOpen={transferModalOpen}
+        isOpen={showTransferModal}
         onClose={handleTransferSuccess}
       />
     </div>
   );
-};
-
-export default AccountsPage; 
+} 

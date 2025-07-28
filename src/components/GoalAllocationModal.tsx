@@ -1,209 +1,206 @@
-import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Textarea } from './ui/textarea';
-import { useAccounts } from '../hooks/useAccountsQuery';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { useGoals } from '../hooks/useGoalsQuery';
-import { useToast } from '../hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
+import { FormSubmitButton } from './ui/loading-button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from './ui/select';
 
 interface GoalAllocationModalProps {
   isOpen: boolean;
   onClose: () => void;
   goalId: string;
   goalName: string;
+  currentProgress: number;
+  targetAmount: number;
 }
 
-export const GoalAllocationModal: React.FC<GoalAllocationModalProps> = ({
-  isOpen,
-  onClose,
-  goalId,
-  goalName
-}) => {
-  const accountsQuery = useAccounts();
-  const accounts = accountsQuery.data || [];
+const GoalAllocationModal = ({ 
+  isOpen, 
+  onClose, 
+  goalId, 
+  goalName, 
+  currentProgress, 
+  targetAmount 
+}: GoalAllocationModalProps) => {
+  const { user } = useAuth();
   const { allocateToGoal, isAllocating } = useGoals();
-  const { toast } = useToast();
+  const { data: accounts = [] } = useAccountsWithBalances();
+  
+  console.log('[GoalAllocationModal] Props:', { isOpen, goalId, goalName, currentProgress, targetAmount });
+  console.log('[GoalAllocationModal] Accounts:', accounts);
+  
+  const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [validationError, setValidationError] = useState('');
 
-  const [form, setForm] = useState({
-    accountId: '',
-    amount: '',
-    description: ''
-  });
+  const selectedAccount = accounts.find(acc => acc.account_id === selectedAccountId);
+  const remainingAmount = targetAmount - currentProgress;
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const handleChange = (field: string, value: string) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedAccountId('');
+      setAmount('');
+      setDescription('');
+      setValidationError('');
     }
-  };
-
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!form.accountId) {
-      newErrors.accountId = 'Conta obrigatória';
-    }
-
-    if (!form.amount) {
-      newErrors.amount = 'Valor obrigatório';
-    } else {
-      const amount = parseFloat(form.amount);
-      if (isNaN(amount) || amount <= 0) {
-        newErrors.amount = 'Valor deve ser maior que zero';
-      }
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('🔍 GoalAllocationModal: handleSubmit chamado');
+    console.log('[GoalAllocationModal] handleSubmit called');
+    console.log('[GoalAllocationModal] Selected account ID:', selectedAccountId);
+    console.log('[GoalAllocationModal] Selected account data:', selectedAccount);
+    console.log('[GoalAllocationModal] Amount:', amount);
+    console.log('[GoalAllocationModal] Description:', description);
+    setValidationError('');
 
-    if (!validateForm()) {
-      console.log('❌ Validação falhou');
+    if (!selectedAccountId) {
+      setValidationError('Selecione uma conta');
       return;
     }
 
-    console.log('✅ Validação passou, dados do formulário:', form);
+    const numericAmount = parseFloat(amount.replace(',', '.'));
+    if (!numericAmount || numericAmount <= 0) {
+      setValidationError('Insira um valor válido');
+      return;
+    }
+
+    if (selectedAccount && numericAmount > selectedAccount.saldo_disponivel) {
+      setValidationError('Saldo insuficiente na conta selecionada');
+      return;
+    }
+
+    console.log('[GoalAllocationModal] Submitting allocation:', {
+      goalId,
+      accountId: selectedAccountId,
+      amount: numericAmount,
+      description: description || `Alocação para ${goalName}`
+    });
 
     try {
-      console.log('🔍 Chamando allocateToGoal...');
       await allocateToGoal({
         goalId,
-        accountId: form.accountId,
-        amount: parseFloat(form.amount),
-        description: form.description || undefined
+        accountId: selectedAccountId,
+        amount: numericAmount,
+        description: description || `Alocação para ${goalName}`
       });
 
-      toast({
-        title: 'Alocação criada',
-        description: `Valor de ${parseFloat(form.amount).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })} alocado ao objetivo "${goalName}"`,
-      });
-
-      // Reset form
-      setForm({
-        accountId: '',
-        amount: '',
-        description: ''
-      });
-
+      console.log('[GoalAllocationModal] Allocation successful');
       onClose();
-    } catch (error: any) {
-      console.error('Erro ao alocar valor:', error);
-      
-      // Verificar se é erro de objetivo completo
-      if (error.message && error.message.includes('já foi atingido')) {
-        toast({
-          title: 'Objetivo já atingido!',
-          description: error.message,
-          variant: 'destructive'
-        });
-      } else {
-        toast({
-          title: 'Erro ao alocar valor',
-          description: error.message || 'Ocorreu um erro ao alocar o valor. Tente novamente.',
-          variant: 'destructive'
-        });
-      }
+    } catch (error) {
+      console.error('[GoalAllocationModal] Error allocating to goal:', error);
+      setValidationError('Erro ao processar alocação');
     }
   };
 
-  const handleClose = () => {
-    setForm({
-      accountId: '',
-      amount: '',
-      description: ''
-    });
-    setErrors({});
-    onClose();
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Permitir apenas números e vírgula/ponto
+    const numericValue = value.replace(/[^\d.,]/g, '').replace(',', '.');
+    setAmount(numericValue);
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Alocar Valor ao Objetivo</DialogTitle>
-          <DialogDescription>
-            Alocar valor de uma conta ao objetivo "{goalName}"
-          </DialogDescription>
+          <DialogTitle>Alocar para {goalName}</DialogTitle>
         </DialogHeader>
-
+        
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="account">Conta de Origem</Label>
-            <Select
-              value={form.accountId}
-              onValueChange={(value) => handleChange('accountId', value)}
-            >
-              <SelectTrigger className={errors.accountId ? 'border-red-500' : ''}>
-                <SelectValue placeholder="Selecionar conta" />
-              </SelectTrigger>
-              <SelectContent>
-                {accounts.map((account) => (
-                  <SelectItem key={account.id} value={account.id}>
-                    {account.nome} - {account.saldo?.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }) || '0,00 €'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.accountId && (
-              <p className="text-sm text-red-500">{errors.accountId}</p>
+            <div className="space-y-2">
+              <label htmlFor="account" className="text-sm font-medium">
+                Conta de Origem
+              </label>
+              <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar conta" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts
+                    .filter(account => account.saldo_disponivel > 0)
+                    .map(account => (
+                      <SelectItem key={account.account_id} value={account.account_id}>
+                        {account.nome} - €{account.saldo_disponivel.toFixed(2)} disponível
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="amount" className="text-sm font-medium">
+                Valor a Alocar (€)
+              </label>
+              <Input
+                id="amount"
+                type="text"
+                placeholder="0,00"
+                value={amount}
+                onChange={handleAmountChange}
+                required
+                className="w-full"
+              />
+              <p className="text-xs text-gray-500">
+                Restam €{remainingAmount.toFixed(2)} para atingir o objetivo
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="description" className="text-sm font-medium">
+                Descrição (Opcional)
+              </label>
+              <Input
+                id="description"
+                type="text"
+                placeholder="Descrição da alocação"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full"
+              />
+            </div>
+
+            {validationError && (
+              <div className="text-red-600 text-sm">{validationError}</div>
             )}
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="amount">Valor a Alocar</Label>
-            <Input
-              id="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={form.amount}
-              onChange={(e) => handleChange('amount', e.target.value)}
-              placeholder="0,00"
-              className={errors.amount ? 'border-red-500' : ''}
-            />
-            {errors.amount && (
-              <p className="text-sm text-red-500">{errors.amount}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Descrição (Opcional)</Label>
-            <Textarea
-              id="description"
-              value={form.description}
-              onChange={(e) => handleChange('description', e.target.value)}
-              placeholder="Descrição da alocação..."
-              rows={3}
-            />
-          </div>
-
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button type="button" variant="outline" onClick={handleClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isAllocating}>
-              {isAllocating ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  A alocar...
-                </>
-              ) : (
-                'Alocar Valor'
-              )}
-            </Button>
-          </div>
-        </form>
+            <div className="flex gap-2">
+              <FormSubmitButton 
+                isSubmitting={isAllocating}
+                submitText="Alocar"
+                submittingText="A alocar..."
+                className="flex-1"
+              />
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={onClose}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+            </div>
+          </form>
       </DialogContent>
     </Dialog>
   );
-}; 
+};
+
+export default GoalAllocationModal;
+
+export { GoalAllocationModal }; 

@@ -1,6 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getAccounts, createAccount, updateAccount, deleteAccount } from '../services/accounts';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
+import { 
+  getAccounts, 
+  createAccount, 
+  updateAccount, 
+  deleteAccount, 
+  getAccountsWithBalances 
+} from '../services/accounts';
+import { AccountWithBalances } from '../integrations/supabase/types';
+import { useCrudMutation } from './useMutationWithFeedback';
 
 export const useAccounts = () => {
   const { user } = useAuth();
@@ -12,61 +20,80 @@ export const useAccounts = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!user?.id
+  });
+};
+
+export const useAccountsWithBalances = () => {
+  const { user } = useAuth();
+  
+  return useQuery({
+    queryKey: ['accountsWithBalances'],
+    queryFn: async () => {
+      const { data, error } = await getAccountsWithBalances();
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
-    staleTime: 0, // Dados sempre considerados stale para forçar refetch
-    gcTime: 5 * 60 * 1000, // 5 minutos de cache
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
   });
 };
 
 export const useCreateAccount = () => {
-  const queryClient = useQueryClient();
   const { user } = useAuth();
-  
-  return useMutation({
-    mutationFn: async (payload: { nome: string; tipo: string; saldo?: number }) => {
-      const { data, error } = await createAccount(payload, user?.id || '');
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-    },
-  });
+  const queryClient = useQueryClient();
+
+  return useCrudMutation(
+    (data: { nome: string; tipo: string; saldo?: number }) => 
+      createAccount({ ...data, user_id: user?.id || '' }, user?.id || ''),
+    {
+      operation: 'create',
+      entityName: 'Conta',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['accountsWithBalances'] });
+      }
+    }
+  );
 };
 
 export const useUpdateAccount = () => {
-  const queryClient = useQueryClient();
   const { user } = useAuth();
-  
-  return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { data: result, error } = await updateAccount(id, data, user?.id || '');
-      if (error) throw error;
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-    },
-  });
+  const queryClient = useQueryClient();
+
+  return useCrudMutation(
+    ({ id, data }: { id: string; data: { nome?: string; tipo?: string; saldo?: number } }) => 
+      updateAccount(id, data, user?.id || ''),
+    {
+      operation: 'update',
+      entityName: 'Conta',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['accountsWithBalances'] });
+      }
+    }
+  );
 };
 
 export const useDeleteAccount = () => {
-  const queryClient = useQueryClient();
   const { user } = useAuth();
-  
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { data, error } = await deleteAccount(id, user?.id || '');
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-    },
-  });
+  const queryClient = useQueryClient();
+
+  return useCrudMutation(
+    (id: string) => deleteAccount(id, user?.id || ''),
+    {
+      operation: 'delete',
+      entityName: 'Conta',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['accountsWithBalances'] });
+      }
+    }
+  );
 };
 
  

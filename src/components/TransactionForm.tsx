@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useReferenceData } from '../hooks/useCache';
 import { useCreateTransaction, useUpdateTransaction } from '../hooks/useTransactionsQuery';
+import { useReferenceData } from '../hooks/useCache';
+import { useCreateCategory } from '../hooks/useCategoriesQuery';
 import { transactionSchema } from '../validation/transactionSchema';
-import { showError, showSuccess } from '../lib/utils';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
+import { FormSubmitButton } from './ui/loading-button';
 import { LoadingSpinner } from './ui/loading-states';
-import { CategorySelect } from './CategorySelect';
 import {
   Select,
   SelectTrigger,
@@ -15,214 +15,373 @@ import {
   SelectItem,
   SelectValue,
 } from './ui/select';
+import { Checkbox } from './ui/checkbox';
+import { Label } from './ui/label';
+
+interface TransactionFormData {
+  id?: string;
+  account_id: string;
+  categoria_id: string;
+  tipo: string;
+  valor: number;
+  descricao: string;
+  data: string;
+}
 
 interface TransactionFormProps {
-  initialData?: any;
+  initialData?: TransactionFormData;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
 
 const TransactionForm = ({ initialData, onSuccess, onCancel }: TransactionFormProps) => {
   const { user } = useAuth();
-  const [form, setForm] = useState({
-    id: '',
+  const { accounts, categories } = useReferenceData();
+  const [form, setForm] = useState<TransactionFormData>({
     account_id: '',
-    valor: '',
     categoria_id: '',
-    data: '',
+    tipo: 'despesa',
+    valor: 0,
     descricao: '',
-    tipo: '',
+    data: new Date().toISOString().split('T')[0],
+    ...initialData
   });
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const [success, setSuccess] = useState(false);
-
-  // Usar React Query mutations
+  
+  // Estado para nova categoria
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isCreatingNewCategory, setIsCreatingNewCategory] = useState(false);
+  const [newCategoryColor, setNewCategoryColor] = useState('#3B82F6'); // Azul padrão
+  
   const createTransactionMutation = useCreateTransaction();
   const updateTransactionMutation = useUpdateTransaction();
+  const createCategoryMutation = useCreateCategory();
+  const isSubmitting = createTransactionMutation.isPending || updateTransactionMutation.isPending || createCategoryMutation.isPending;
 
-  // Usar dados de referência do cache
-  const { accounts, categories } = useReferenceData();
+  const dataLoading = accounts.isLoading || categories.isLoading;
+  const accountsList = Array.isArray(accounts.data) ? accounts.data : [];
+  const categoriesList = Array.isArray(categories.data) ? categories.data : [];
 
-  useEffect(() => {
-    if (initialData) {
-      setForm({
-        id: initialData.id || '',
-        account_id: initialData.account_id || '',
-        valor: initialData.valor?.toString() || '',
-        categoria_id: initialData.categoria_id || '',
-        data: initialData.data || '',
-        descricao: initialData.descricao || '',
-        tipo: initialData.tipo || '',
-      });
-    } else {
-      setForm({ id: '', account_id: '', valor: '', categoria_id: '', data: '', descricao: '', tipo: '' });
-    }
-  }, [initialData]);
+  // Verificar se a categoria já existe
+  const existingCategory = categoriesList.find(cat => 
+    cat.nome.toLowerCase() === newCategoryName.toLowerCase()
+  );
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleContaChange = (value: string) => {
-    setForm((prev) => ({ ...prev, account_id: value }));
-  };
-
-  const handleCategoriaChange = (value: string) => {
-    setForm((prev) => ({ ...prev, categoria_id: value }));
-  };
-
-  const handleTipoChange = (value: string) => {
-    setForm((prev) => ({ ...prev, tipo: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSuccess(false);
-    setValidationErrors({});
-    
-    // Validação client-side
-    const result = transactionSchema.safeParse({
-      account_id: form.account_id,
-      valor: form.valor,
-      categoria_id: form.categoria_id,
-      data: form.data,
-      descricao: form.descricao,
-      tipo: form.tipo,
-    });
-    
-    if (!result.success) {
-      const fieldErrors: Record<string, string> = {};
-      result.error.errors.forEach(err => {
-        if (err.path[0]) fieldErrors[err.path[0]] = err.message;
-      });
-      setValidationErrors(fieldErrors);
+  // Função para criar nova categoria
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim() || existingCategory) {
       return;
     }
     
     try {
-      const payload = {
-        account_id: form.account_id,
-        valor: Number(form.valor),
-        categoria_id: form.categoria_id,
-        data: form.data,
-        descricao: form.descricao,
-        tipo: form.tipo,
-      };
+      const newCategory = await createCategoryMutation.mutateAsync({
+        nome: newCategoryName.trim(),
+        cor: newCategoryColor
+        // Removido descricao - não existe na tabela categories
+      });
       
-      if (form.id) {
-        // Atualizar transação existente
-        await updateTransactionMutation.mutateAsync({ id: form.id, data: payload });
-        showSuccess('Transação atualizada com sucesso!');
-      } else {
-        // Criar nova transação
-        await createTransactionMutation.mutateAsync(payload);
-        showSuccess('Transação criada com sucesso!');
-      }
-      
-      setSuccess(true);
-      if (onSuccess) onSuccess();
-      if (!form.id) setForm({ id: '', account_id: '', valor: '', categoria_id: '', data: '', descricao: '', tipo: '' });
-    } catch (err: any) {
-      console.error('Erro ao guardar transação:', err);
-      showError(err.message || 'Erro ao guardar transação');
+      // Selecionar a nova categoria criada
+      setForm(prev => ({ ...prev, categoria_id: newCategory.id }));
+      setNewCategoryName('');
+      setIsCreatingNewCategory(false);
+    } catch (error) {
+      console.error('Erro ao criar categoria:', error);
     }
   };
 
-  const isLoading = createTransactionMutation.isPending || updateTransactionMutation.isPending;
-  const dataLoading = accounts.isLoading || categories.isLoading;
+  useEffect(() => {
+    if (initialData) {
+      setForm(initialData);
+    }
+  }, [initialData]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    if (name === 'valor') {
+      // Permitir apenas números e vírgula/ponto
+      const numericValue = value.replace(/[^\d.,]/g, '').replace(',', '.');
+      setForm(prev => ({ ...prev, [name]: numericValue ? parseFloat(numericValue) || 0 : 0 }));
+    } else {
+      setForm(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleSelectChange = (field: string, value: string) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    setValidationErrors({});
+    
+    // Validação do formulário
+    const validationErrors: Record<string, string> = {};
+    
+    if (!form.account_id) {
+      validationErrors.account_id = 'Conta obrigatória';
+    }
+    
+    // Só validar categoria se não estiver a criar uma nova
+    if (!isCreatingNewCategory && !form.categoria_id) {
+      validationErrors.categoria_id = 'Categoria obrigatória';
+    }
+    
+    // Se estiver a criar nova categoria, validar o nome
+    if (isCreatingNewCategory && !newCategoryName.trim()) {
+      validationErrors.newCategoryName = 'Nome da categoria obrigatório';
+    }
+    
+    if (!form.valor || form.valor <= 0) {
+      validationErrors.valor = 'Valor obrigatório';
+    }
+    
+    if (!form.data) {
+      validationErrors.data = 'Data obrigatória';
+    }
+    
+    if (!form.tipo) {
+      validationErrors.tipo = 'Tipo obrigatório';
+    }
+    
+    // Se há erros de validação, não prosseguir
+    if (Object.keys(validationErrors).length > 0) {
+      setValidationErrors(validationErrors);
+      return;
+    }
+
+    try {
+      let categoriaId = form.categoria_id;
+      
+      // Se está a criar uma nova categoria, criar primeiro
+      if (isCreatingNewCategory && newCategoryName.trim()) {
+        const newCategory = await createCategoryMutation.mutateAsync({
+          nome: newCategoryName.trim(),
+          cor: newCategoryColor
+        });
+        
+        if (newCategory?.id) {
+          categoriaId = newCategory.id;
+        } else {
+          throw new Error('Falha ao criar categoria');
+        }
+      }
+      
+      // Preparar payload da transação
+      const payload = {
+        account_id: form.account_id,
+        categoria_id: categoriaId,
+        valor: form.valor,
+        tipo: form.tipo,
+        data: form.data,
+        descricao: form.descricao || null,
+        user_id: user?.id || ''
+      };
+      
+      if (initialData?.id) {
+        await updateTransactionMutation.mutateAsync({ id: initialData.id, ...payload });
+      } else {
+        await createTransactionMutation.mutateAsync(payload);
+      }
+      
+      onSuccess?.();
+    } catch (err) {
+      console.error('Erro ao salvar transação:', err);
+      setValidationErrors({ submit: 'Erro ao salvar transação' });
+    }
+  };
 
   if (dataLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
+      <div className="flex items-center justify-center p-8">
         <LoadingSpinner size="lg" />
+        <span className="ml-2">A carregar dados...</span>
       </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-2 sm:p-4">
-      <Select value={form.account_id} onValueChange={handleContaChange}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Conta" />
-        </SelectTrigger>
-        <SelectContent>
-          {accounts.data?.map((acc) => (
-            <SelectItem key={acc.id} value={acc.id}>{acc.nome}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {validationErrors.account_id && <div className="text-red-600 text-sm">{validationErrors.account_id}</div>}
       
-      <Select value={form.tipo} onValueChange={handleTipoChange}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Tipo de Transação" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="receita">Receita</SelectItem>
-          <SelectItem value="despesa">Despesa</SelectItem>
-        </SelectContent>
-      </Select>
-      {validationErrors.tipo && <div className="text-red-600 text-sm">{validationErrors.tipo}</div>}
-      
-      <Input
-        name="valor"
-        type="number"
-        placeholder="Valor"
-        value={form.valor}
-        onChange={handleChange}
-        required
-        step="0.01"
-        className="w-full"
-        aria-invalid={!!validationErrors.valor}
-        aria-describedby={validationErrors.valor ? 'valor-error' : undefined}
-      />
-      {validationErrors.valor && <div id="valor-error" className="text-red-600 text-sm">{validationErrors.valor}</div>}
-      
-      <CategorySelect
-        value={form.categoria_id}
-        onValueChange={handleCategoriaChange}
-        placeholder="Selecionar categoria..."
-      />
-      {validationErrors.categoria_id && <div className="text-red-600 text-sm">{validationErrors.categoria_id}</div>}
-      
-      <Input
-        name="data"
-        type="date"
-        placeholder="Data"
-        value={form.data}
-        onChange={handleChange}
-        required
-        className="w-full"
-        aria-invalid={!!validationErrors.data}
-        aria-describedby={validationErrors.data ? 'data-error' : undefined}
-      />
-      {validationErrors.data && <div id="data-error" className="text-red-600 text-sm">{validationErrors.data}</div>}
-      
-      <Input
-        name="descricao"
-        placeholder="Descrição (opcional)"
-        value={form.descricao}
-        onChange={handleChange}
-        className="w-full"
-        aria-invalid={!!validationErrors.descricao}
-        aria-describedby={validationErrors.descricao ? 'descricao-error' : undefined}
-      />
-      {validationErrors.descricao && <div id="descricao-error" className="text-red-600 text-sm">{validationErrors.descricao}</div>}
-      
-      {success && <div className="text-green-600 text-sm">Transação guardada com sucesso!</div>}
-      
+      <div className="space-y-2">
+        <label htmlFor="account_id">Conta</label>
+        <Select value={form.account_id} onValueChange={(value) => handleSelectChange('account_id', value)}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Selecionar conta" />
+          </SelectTrigger>
+          <SelectContent>
+            {accountsList.map((account) => (
+              <SelectItem key={account.account_id} value={account.account_id}>
+                {account.nome}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {validationErrors.account_id && <div className="text-red-600 text-sm">{validationErrors.account_id}</div>}
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="categoria_id">Categoria</label>
+        
+        {!isCreatingNewCategory ? (
+          <div className="space-y-2">
+            <Select value={form.categoria_id} onValueChange={(value) => handleSelectChange('categoria_id', value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecionar categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                {categoriesList.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCreatingNewCategory(true)}
+              className="w-full"
+            >
+              + Criar nova categoria
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Input
+                placeholder="Nome da nova categoria"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                className="flex-1"
+                aria-invalid={!!validationErrors.newCategoryName}
+                aria-describedby={validationErrors.newCategoryName ? 'newCategoryName-error' : undefined}
+              />
+              <input
+                type="color"
+                value={newCategoryColor}
+                onChange={(e) => setNewCategoryColor(e.target.value)}
+                className="w-12 h-10 rounded border"
+                title="Cor da categoria"
+              />
+            </div>
+            
+            {validationErrors.newCategoryName && (
+              <div id="newCategoryName-error" className="text-red-600 text-sm">
+                {validationErrors.newCategoryName}
+              </div>
+            )}
+            
+            {existingCategory && (
+              <div className="text-sm text-amber-600">
+                Categoria "{existingCategory.nome}" já existe
+              </div>
+            )}
+            
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleCreateCategory}
+                disabled={!newCategoryName.trim() || Boolean(existingCategory) || createCategoryMutation.isPending}
+                className="flex-1"
+              >
+                {createCategoryMutation.isPending ? 'A criar...' : 'Criar Categoria'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsCreatingNewCategory(false);
+                  setNewCategoryName('');
+                }}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
+        
+        {validationErrors.categoria_id && <div className="text-red-600 text-sm">{validationErrors.categoria_id}</div>}
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="tipo">Tipo</label>
+        <Select value={form.tipo} onValueChange={(value) => handleSelectChange('tipo', value)}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Selecionar tipo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="despesa">Despesa</SelectItem>
+            <SelectItem value="receita">Receita</SelectItem>
+            <SelectItem value="transferencia">Transferência</SelectItem>
+          </SelectContent>
+        </Select>
+        {validationErrors.tipo && <div className="text-red-600 text-sm">{validationErrors.tipo}</div>}
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="valor">Valor (€)</label>
+        <Input
+          id="valor"
+          name="valor"
+          type="text"
+          placeholder="0,00"
+          value={form.valor?.toString() || '0'}
+          onChange={handleChange}
+          required
+          className="w-full"
+          aria-invalid={!!validationErrors.valor}
+          aria-describedby={validationErrors.valor ? 'valor-error' : undefined}
+        />
+        {validationErrors.valor && <div id="valor-error" className="text-red-600 text-sm">{validationErrors.valor}</div>}
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="descricao">Descrição (Opcional)</label>
+        <Input
+          id="descricao"
+          name="descricao"
+          placeholder="Descrição da transação"
+          value={form.descricao}
+          onChange={handleChange}
+          className="w-full"
+          aria-invalid={!!validationErrors.descricao}
+          aria-describedby={validationErrors.descricao ? 'descricao-error' : undefined}
+        />
+        {validationErrors.descricao && <div id="descricao-error" className="text-red-600 text-sm">{validationErrors.descricao}</div>}
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="data">Data</label>
+        <Input
+          id="data"
+          name="data"
+          type="date"
+          value={form.data}
+          onChange={handleChange}
+          required
+          className="w-full"
+          aria-invalid={!!validationErrors.data}
+          aria-describedby={validationErrors.data ? 'data-error' : undefined}
+        />
+        {validationErrors.data && <div id="data-error" className="text-red-600 text-sm">{validationErrors.data}</div>}
+      </div>
+
       <div className="flex flex-col sm:flex-row gap-2">
-        <Button type="submit" disabled={isLoading} className="w-full">
-          {isLoading ? (
-            <>
-              <LoadingSpinner size="sm" className="mr-2" />
-              A guardar...
-            </>
-          ) : (
-            'Guardar'
-          )}
-        </Button>
-        {onCancel && <Button type="button" variant="outline" onClick={onCancel} className="w-full">Cancelar</Button>}
+        <FormSubmitButton 
+          isSubmitting={isSubmitting}
+          submitText={initialData?.id ? 'Atualizar' : 'Criar'}
+          submittingText={initialData?.id ? 'A atualizar...' : 'A criar...'}
+          className="w-full"
+        />
+        {onCancel && (
+          <Button type="button" variant="outline" onClick={onCancel} className="w-full">
+            Cancelar
+          </Button>
+        )}
       </div>
     </form>
   );

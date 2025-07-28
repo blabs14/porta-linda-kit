@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -14,71 +16,19 @@ import {
   Target,
   Lightbulb,
   ArrowUpRight,
-  ArrowDownLeft
+  ArrowDownLeft,
+  Loader2
 } from 'lucide-react';
-
-const insights = [
-  {
-    id: 1,
-    title: 'Poupanças em Alta',
-    description: 'Conseguiu poupar 15% mais este mês comparado ao anterior',
-    type: 'success',
-    impact: 'positive',
-    icon: TrendingUp,
-    value: '+€320',
-    trend: '+15%',
-    action: 'Manter este ritmo para atingir objetivos mais rapidamente'
-  },
-  {
-    id: 2,
-    title: 'Gastos em Alimentação',
-    description: 'Despesas alimentares subiram 22% comparado à média dos últimos 3 meses',
-    type: 'warning',
-    impact: 'negative',
-    icon: TrendingDown,
-    value: '€580',
-    trend: '+22%',
-    action: 'Considere planear refeições para reduzir custos'
-  },
-  {
-    id: 3,
-    title: 'Objetivo Quase Atingido',
-    description: 'Está a apenas €200 de completar o objetivo "Fundo de Emergência"',
-    type: 'info',
-    impact: 'positive',
-    icon: Target,
-    value: '€200',
-    trend: '98%',
-    action: 'Uma pequena poupança extra este mês completa o objetivo'
-  },
-  {
-    id: 4,
-    title: 'Melhor Mês do Ano',
-    description: 'Este foi o seu melhor mês em termos de balanço receitas vs despesas',
-    type: 'success',
-    impact: 'positive',
-    icon: CheckCircle,
-    value: '+€1.240',
-    trend: 'Recorde',
-    action: 'Excelente trabalho! Continue assim'
-  }
-];
-
-const categories = [
-  { name: 'Alimentação', amount: 580, percentage: 35, trend: '+22%', color: 'bg-destructive' },
-  { name: 'Transporte', amount: 240, percentage: 15, trend: '-5%', color: 'bg-warning' },
-  { name: 'Habitação', amount: 800, percentage: 48, trend: '0%', color: 'bg-primary' },
-  { name: 'Lazer', amount: 120, percentage: 7, trend: '+10%', color: 'bg-secondary' },
-  { name: 'Saúde', amount: 95, percentage: 6, trend: '-15%', color: 'bg-success' }
-];
-
-const monthlyData = [
-  { month: 'Set', income: 2800, expenses: 1950, savings: 850 },
-  { month: 'Out', income: 2900, expenses: 2100, savings: 800 },
-  { month: 'Nov', income: 2750, expenses: 1850, savings: 900 },
-  { month: 'Dez', income: 3200, expenses: 2400, savings: 800 },
-  { month: 'Jan', income: 3100, expenses: 1860, savings: 1240 }
-];
+import { useTransactions } from '../hooks/useTransactionsQuery';
+import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
+import { useGoals } from '../hooks/useGoalsQuery';
+import { useCategories } from '../hooks/useCategoriesQuery';
+import { useAuth } from '../contexts/AuthContext';
+import { useMemo, useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
+import TransactionForm from '../components/TransactionForm';
+import { useToast } from '../hooks/use-toast';
+import { goalSchema } from '../validation/goalSchema';
 
 const typeColors = {
   success: 'border-success bg-success/10 text-success',
@@ -88,6 +38,428 @@ const typeColors = {
 };
 
 export default function Insights() {
+  const { user } = useAuth();
+  const transactionsQuery = useTransactions();
+  const accountsQuery = useAccountsWithBalances();
+  const { goals = [], isLoading: goalsLoading, createGoal, isCreating, refetch: goalsQuery } = useGoals();
+  const categoriesQuery = useCategories();
+  
+  // Extrair dados das queries
+  const transactions = transactionsQuery.data || [];
+  const accounts = accountsQuery.data || [];
+  const categories = categoriesQuery.data || [];
+  
+  const categoriesLoading = categoriesQuery.isLoading;
+  const { toast } = useToast();
+
+  const isLoading = transactionsQuery.isLoading || accountsQuery.isLoading || goalsLoading || categoriesLoading;
+
+  const [showTxModal, setShowTxModal] = useState(false);
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [goalForm, setGoalForm] = useState({ nome: '', valor_objetivo: '', valor_atual: '', prazo: '' });
+  const [goalErrors, setGoalErrors] = useState<Record<string, string>>({});
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Calcular insights baseados nos dados reais
+  const insights = useMemo(() => {
+    if (!transactions.length) return [];
+
+    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const lastMonth = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 7);
+
+    const currentMonthTransactions = transactions.filter(tx => tx.data.startsWith(currentMonth));
+    const lastMonthTransactions = transactions.filter(tx => tx.data.startsWith(lastMonth));
+
+    const currentIncome = currentMonthTransactions
+      .filter(tx => tx.tipo === 'receita')
+      .reduce((sum, tx) => sum + (Number(tx.valor) || 0), 0);
+
+    const currentExpenses = currentMonthTransactions
+      .filter(tx => tx.tipo === 'despesa')
+      .reduce((sum, tx) => sum + (Number(tx.valor) || 0), 0);
+
+    const lastIncome = lastMonthTransactions
+      .filter(tx => tx.tipo === 'receita')
+      .reduce((sum, tx) => sum + (Number(tx.valor) || 0), 0);
+
+    const lastExpenses = lastMonthTransactions
+      .filter(tx => tx.tipo === 'despesa')
+      .reduce((sum, tx) => sum + (Number(tx.valor) || 0), 0);
+
+    const currentSavings = Number(currentIncome) - Number(currentExpenses);
+    const lastSavings = Number(lastIncome) - Number(lastExpenses);
+    const savingsChange = lastSavings > 0 ? ((currentSavings - lastSavings) / lastSavings) * 100 : 0;
+
+    const totalBalance = accounts.reduce((sum, account) => sum + (Number(account.saldo_atual) || 0), 0);
+
+    const activeGoals = goals.filter(goal => goal.ativa);
+    const goalsProgress = activeGoals.map(goal => {
+      const valorAtual = Number(goal.valor_atual) || 0;
+      const valorObjetivo = Number(goal.valor_objetivo) || 1;
+      const progress = (valorAtual / valorObjetivo) * 100;
+      return { ...goal, progress };
+    });
+
+    const insights = [];
+
+    // Insight sobre poupanças
+    if (savingsChange > 0) {
+      insights.push({
+        id: 1,
+        title: 'Poupanças em Alta',
+        description: `Conseguiu poupar ${Math.abs(savingsChange).toFixed(1)}% mais este mês comparado ao anterior`,
+        type: 'success' as const,
+        impact: 'positive',
+        icon: TrendingUp,
+        value: `+€${currentSavings.toFixed(0)}`,
+        trend: `+${savingsChange.toFixed(1)}%`,
+        action: 'Manter este ritmo para atingir objetivos mais rapidamente'
+      });
+    } else if (savingsChange < 0) {
+      insights.push({
+        id: 1,
+        title: 'Poupanças em Baixa',
+        description: `Poupanças diminuíram ${Math.abs(savingsChange).toFixed(1)}% comparado ao mês anterior`,
+        type: 'warning' as const,
+        impact: 'negative',
+        icon: TrendingDown,
+        value: `€${currentSavings.toFixed(0)}`,
+        trend: `${savingsChange.toFixed(1)}%`,
+        action: 'Considere reduzir gastos desnecessários'
+      });
+    }
+
+    // Insight sobre gastos por categoria
+    const categoryExpenses = currentMonthTransactions
+      .filter(tx => tx.tipo === 'despesa')
+      .reduce((acc, tx) => {
+        const category = categories.find((c: any) => c.id === tx.categoria_id);
+        const categoryName = category?.nome || 'Outros';
+        acc[categoryName] = (Number(acc[categoryName]) || 0) + (Number(tx.valor) || 0);
+        return acc;
+      }, {} as Record<string, number>);
+
+    const highestExpenseCategory = Object.entries(categoryExpenses)
+      .sort(([,a], [,b]) => (Number(b) - Number(a)))[0];
+
+    if (highestExpenseCategory) {
+      insights.push({
+        id: 2,
+        title: `Gastos em ${highestExpenseCategory[0]}`,
+        description: `Maior categoria de despesas este mês com €${Number(highestExpenseCategory[1]).toFixed(0)}`,
+        type: 'warning' as const,
+        impact: 'negative',
+        icon: TrendingDown,
+        value: `€${Number(highestExpenseCategory[1]).toFixed(0)}`,
+        trend: 'Alto',
+        action: 'Considere analisar se estes gastos são necessários'
+      });
+    }
+
+    // Insight sobre objetivos
+    const nearCompletionGoal = goalsProgress.find(goal => goal.progress >= 80 && goal.progress < 100);
+    if (nearCompletionGoal) {
+      const remaining = (Number(nearCompletionGoal.valor_objetivo) || 0) - (Number(nearCompletionGoal.valor_atual) || 0);
+      insights.push({
+        id: 3,
+        title: 'Objetivo Quase Atingido',
+        description: `Está a apenas €${Number(remaining).toFixed(0)} de completar o objetivo "${nearCompletionGoal.nome}"`,
+        type: 'info' as const,
+        impact: 'positive',
+        icon: Target,
+        value: `€${Number(remaining).toFixed(0)}`,
+        trend: `${Number(nearCompletionGoal.progress).toFixed(0)}%`,
+        action: 'Uma pequena poupança extra este mês completa o objetivo'
+      });
+    }
+
+    // Insight sobre saldo total
+    if (totalBalance > 0) {
+      insights.push({
+        id: 4,
+        title: 'Saldo Positivo',
+        description: `Saldo total de todas as contas: €${totalBalance.toFixed(0)}`,
+        type: 'success' as const,
+        impact: 'positive',
+        icon: CheckCircle,
+        value: `€${totalBalance.toFixed(0)}`,
+        trend: 'Positivo',
+        action: 'Excelente trabalho! Continue a gerir bem as suas finanças'
+      });
+    }
+
+    return insights;
+  }, [transactions, accounts, goals, categories]);
+
+  // Calcular dados de categorias para o gráfico
+  const categoryData = useMemo(() => {
+    if (!transactions.length || !categories.length) return [];
+
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const currentMonthExpenses = transactions
+      .filter((tx: any) => tx.data.startsWith(currentMonth) && tx.tipo === 'despesa');
+
+    const categoryTotals = currentMonthExpenses.reduce((acc: Record<string, number>, tx: any) => {
+      const category = categories.find((c: any) => c.id === tx.categoria_id);
+      const categoryName = category?.nome || 'Outros';
+      acc[categoryName] = (Number(acc[categoryName]) || 0) + (Number(tx.valor) || 0);
+      return acc;
+    }, {} as Record<string, number>);
+
+    const totalExpenses = Object.values(categoryTotals).reduce((sum: number, val: any) => sum + (Number(val) || 0), 0);
+
+    return Object.entries(categoryTotals)
+      .map(([name, amount]) => ({
+        name,
+        amount: Number(amount),
+        percentage: Number(totalExpenses) > 0 ? Math.round((Number(amount) / Number(totalExpenses)) * 100) : 0,
+        trend: '0%', // Simplificado para esta versão
+        color: 'bg-primary'
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5); // Top 5 categorias
+  }, [transactions, categories]);
+
+  // Calcular dados mensais
+  const monthlyData = useMemo(() => {
+    if (!transactions.length) return [];
+
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const currentYear = new Date().getFullYear();
+    const last6Months = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const month = new Date(currentYear, new Date().getMonth() - i, 1);
+      const monthStr = month.toISOString().slice(0, 7);
+      
+      const monthTransactions = transactions.filter((tx: any) => tx.data.startsWith(monthStr));
+      const income = monthTransactions
+        .filter((tx: any) => tx.tipo === 'receita')
+        .reduce((sum: number, tx: any) => sum + (Number(tx.valor) || 0), 0);
+      const expenses = monthTransactions
+        .filter((tx: any) => tx.tipo === 'despesa')
+        .reduce((sum: number, tx: any) => sum + (Number(tx.valor) || 0), 0);
+      const savings = Number(income) - Number(expenses);
+
+      last6Months.push({
+        month: months[month.getMonth()],
+        income: Number(income),
+        expenses: Number(expenses),
+        savings: Number(savings)
+      });
+    }
+
+    return last6Months;
+  }, [transactions]);
+
+  // Função para atualizar dados
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // Refazer todas as queries
+      await Promise.all([
+        transactionsQuery.refetch(),
+        accountsQuery.refetch(),
+        goalsQuery(),
+        categoriesQuery.refetch()
+      ]);
+      
+      toast({
+        title: "Dados atualizados",
+        description: "Os insights foram atualizados com sucesso!",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao atualizar",
+        description: "Não foi possível atualizar os dados.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Função para exportar relatório
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const currentDate = new Date().toLocaleDateString('pt-PT');
+      const fileName = `relatorio-insights-${currentDate}.csv`;
+      
+      // Preparar dados para exportação
+      const exportData = {
+        dataExportacao: currentDate,
+        insights: insights.map(insight => ({
+          titulo: insight.title,
+          descricao: insight.description,
+          tipo: insight.type,
+          valor: insight.value,
+          tendencia: insight.trend,
+          acao: insight.action
+        })),
+        resumoFinanceiro: {
+          saldoTotal: accounts.reduce((sum, account) => sum + (Number(account.saldo_atual) || 0), 0),
+          totalContas: accounts.length,
+          totalTransacoes: transactions.length,
+          totalObjetivos: goals.length,
+          objetivosAtivos: goals.filter(goal => goal.ativa).length
+        },
+        gastosPorCategoria: categoryData.map(cat => ({
+          categoria: cat.name,
+          valor: cat.amount,
+          percentagem: cat.percentage
+        })),
+        tendenciasMensais: monthlyData.map(month => ({
+          mes: month.month,
+          receitas: month.income,
+          despesas: month.expenses,
+          poupancas: month.savings
+        }))
+      };
+
+      // Converter para CSV
+      let csvContent = 'Data de Exportação,Insights Financeiros\n';
+      csvContent += `${currentDate},\n\n`;
+      
+      // Insights
+      csvContent += 'INSIGHTS\n';
+      csvContent += 'Título,Descrição,Tipo,Valor,Tendência,Ação\n';
+      exportData.insights.forEach(insight => {
+        csvContent += `"${insight.titulo}","${insight.descricao}","${insight.tipo}","${insight.valor}","${insight.tendencia}","${insight.acao}"\n`;
+      });
+      
+      csvContent += '\nRESUMO FINANCEIRO\n';
+      csvContent += 'Métrica,Valor\n';
+      csvContent += `Saldo Total,€${exportData.resumoFinanceiro.saldoTotal.toFixed(2)}\n`;
+      csvContent += `Total de Contas,${exportData.resumoFinanceiro.totalContas}\n`;
+      csvContent += `Total de Transações,${exportData.resumoFinanceiro.totalTransacoes}\n`;
+      csvContent += `Total de Objetivos,${exportData.resumoFinanceiro.totalObjetivos}\n`;
+      csvContent += `Objetivos Ativos,${exportData.resumoFinanceiro.objetivosAtivos}\n`;
+      
+      csvContent += '\nGASTOS POR CATEGORIA\n';
+      csvContent += 'Categoria,Valor,Percentagem\n';
+      exportData.gastosPorCategoria.forEach(cat => {
+        csvContent += `"${cat.categoria}",€${cat.valor.toFixed(2)},${cat.percentagem}%\n`;
+      });
+      
+      csvContent += '\nTENDÊNCIAS MENSAIS (Últimos 6 meses)\n';
+      csvContent += 'Mês,Receitas,Despesas,Poupanças\n';
+      exportData.tendenciasMensais.forEach(month => {
+        csvContent += `${month.mes},€${month.receitas.toFixed(2)},€${month.despesas.toFixed(2)},€${month.poupancas.toFixed(2)}\n`;
+      });
+
+      // Criar e descarregar ficheiro
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Relatório exportado",
+        description: `O relatório foi descarregado como "${fileName}"`,
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao exportar",
+        description: "Não foi possível exportar o relatório.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleGoalChange = (field: string, value: string) => {
+    setGoalForm(prev => ({ ...prev, [field]: value }));
+    if (goalErrors[field]) {
+      setGoalErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const validateGoalForm = () => {
+    try {
+      const validationData: any = {
+        nome: goalForm.nome,
+        valor_objetivo: parseFloat(goalForm.valor_objetivo),
+        prazo: goalForm.prazo
+      };
+      
+      goalSchema.parse(validationData);
+      setGoalErrors({});
+      return true;
+    } catch (error: any) {
+      const newErrors: Record<string, string> = {};
+      error.errors?.forEach((err: any) => {
+        if (err.path) {
+          newErrors[err.path[0]] = err.message;
+        }
+      });
+      setGoalErrors(newErrors);
+      return false;
+    }
+  };
+
+  const handleGoalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateGoalForm()) {
+      toast({
+        title: "Erro de validação",
+        description: "Por favor, corrija os erros no formulário.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const payload = {
+        nome: goalForm.nome,
+        valor_objetivo: Number(goalForm.valor_objetivo),
+        prazo: goalForm.prazo
+      };
+
+      await createGoal(payload);
+      
+      toast({
+        title: "Objetivo criado",
+        description: "O objetivo foi criado com sucesso!",
+      });
+      
+      setShowGoalModal(false);
+      setGoalForm({ nome: '', valor_objetivo: '', valor_atual: '', prazo: '' });
+      setGoalErrors({});
+    } catch (error: any) {
+      toast({
+        title: "Erro ao criar objetivo",
+        description: error.message || "Ocorreu um erro ao criar o objetivo.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleGoalClose = () => {
+    setShowGoalModal(false);
+    setGoalForm({ nome: '', valor_objetivo: '', valor_atual: '', prazo: '' });
+    setGoalErrors({});
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>A carregar insights...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -97,13 +469,13 @@ export default function Insights() {
           <p className="text-muted-foreground">Análises inteligentes das suas finanças</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="border-border">
+          <Button variant="outline" size="sm" className="border-border" onClick={handleRefresh} disabled={isRefreshing}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Atualizar
+            {isRefreshing ? 'Atualizando...' : 'Atualizar'}
           </Button>
-          <Button variant="outline" size="sm" className="border-border">
+          <Button variant="outline" size="sm" className="border-border" onClick={handleExport} disabled={isExporting}>
             <Download className="h-4 w-4 mr-2" />
-            Exportar
+            {isExporting ? 'Exportando...' : 'Exportar'}
           </Button>
         </div>
       </div>
@@ -115,111 +487,123 @@ export default function Insights() {
           Insights Personalizados
         </h2>
         
-        {/* Mobile: carrossel horizontal */}
-        <div className="md:hidden">
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            {insights.map((insight) => (
-              <Card 
-                key={insight.id} 
-                className={`flex-shrink-0 w-72 border-l-4 ${typeColors[insight.type as keyof typeof typeColors]}`}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${
-                        insight.type === 'success' ? 'bg-success/10' :
-                        insight.type === 'warning' ? 'bg-warning/10' :
-                        insight.type === 'info' ? 'bg-primary/10' :
-                        'bg-destructive/10'
-                      }`}>
-                        <insight.icon className={`h-5 w-5 ${
-                          insight.type === 'success' ? 'text-success' :
-                          insight.type === 'warning' ? 'text-warning' :
-                          insight.type === 'info' ? 'text-primary' :
-                          'text-destructive'
-                        }`} />
+        {insights.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-center">
+              <p className="text-muted-foreground">
+                Não há dados suficientes para gerar insights. Adicione algumas transações para começar.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            {/* Mobile: carrossel horizontal */}
+            <div className="md:hidden">
+              <div className="flex gap-4 overflow-x-auto pb-4">
+                {insights.map((insight) => (
+                  <Card 
+                    key={insight.id} 
+                    className={`flex-shrink-0 w-72 border-l-4 ${typeColors[insight.type]}`}
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${
+                            insight.type === 'success' ? 'bg-success/10' :
+                            insight.type === 'warning' ? 'bg-warning/10' :
+                            insight.type === 'info' ? 'bg-primary/10' :
+                            'bg-destructive/10'
+                          }`}>
+                            <insight.icon className={`h-5 w-5 ${
+                              insight.type === 'success' ? 'text-success' :
+                              insight.type === 'warning' ? 'text-warning' :
+                              insight.type === 'info' ? 'text-primary' :
+                              'text-destructive'
+                            }`} />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-foreground">{insight.title}</h3>
+                            <Badge variant="secondary" className="text-xs mt-1">
+                              {insight.trend}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-lg text-foreground">{insight.value}</div>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">{insight.title}</h3>
-                        <Badge variant="secondary" className="text-xs mt-1">
-                          {insight.trend}
-                        </Badge>
+                      
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {insight.description}
+                      </p>
+                      
+                      <div className="p-3 bg-accent rounded-lg">
+                        <p className="text-xs font-medium text-foreground">
+                          💡 {insight.action}
+                        </p>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-lg text-foreground">{insight.value}</div>
-                    </div>
-                  </div>
-                  
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {insight.description}
-                  </p>
-                  
-                  <div className="p-3 bg-accent rounded-lg">
-                    <p className="text-xs font-medium text-foreground">
-                      💡 {insight.action}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
 
-        {/* Desktop: grid layout */}
-        <div className="hidden md:grid md:grid-cols-2 gap-4">
-          {insights.map((insight) => (
-            <Card 
-              key={insight.id} 
-              className={`border-l-4 hover:shadow-lg transition-all duration-300 ${typeColors[insight.type as keyof typeof typeColors]}`}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${
-                      insight.type === 'success' ? 'bg-success/10' :
-                      insight.type === 'warning' ? 'bg-warning/10' :
-                      insight.type === 'info' ? 'bg-primary/10' :
-                      'bg-destructive/10'
-                    }`}>
-                      <insight.icon className={`h-5 w-5 ${
-                        insight.type === 'success' ? 'text-success' :
-                        insight.type === 'warning' ? 'text-warning' :
-                        insight.type === 'info' ? 'text-primary' :
-                        'text-destructive'
-                      }`} />
+            {/* Desktop: grid layout */}
+            <div className="hidden md:grid md:grid-cols-2 gap-4">
+              {insights.map((insight) => (
+                <Card 
+                  key={insight.id} 
+                  className={`border-l-4 hover:shadow-lg transition-all duration-300 ${typeColors[insight.type]}`}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${
+                          insight.type === 'success' ? 'bg-success/10' :
+                          insight.type === 'warning' ? 'bg-warning/10' :
+                          insight.type === 'info' ? 'bg-primary/10' :
+                          'bg-destructive/10'
+                        }`}>
+                          <insight.icon className={`h-5 w-5 ${
+                            insight.type === 'success' ? 'text-success' :
+                            insight.type === 'warning' ? 'text-warning' :
+                            insight.type === 'info' ? 'text-primary' :
+                            'text-destructive'
+                          }`} />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">{insight.title}</h3>
+                          <Badge variant="secondary" className="text-xs mt-1">
+                            {insight.trend}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-lg text-foreground">{insight.value}</div>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground">{insight.title}</h3>
-                      <Badge variant="secondary" className="text-xs mt-1">
-                        {insight.trend}
-                      </Badge>
+                    
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {insight.description}
+                    </p>
+                    
+                    <div className="p-3 bg-accent rounded-lg">
+                      <p className="text-xs font-medium text-foreground">
+                        💡 {insight.action}
+                      </p>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-bold text-lg text-foreground">{insight.value}</div>
-                  </div>
-                </div>
-                
-                <p className="text-sm text-muted-foreground mb-4">
-                  {insight.description}
-                </p>
-                
-                <div className="p-3 bg-accent rounded-lg">
-                  <p className="text-xs font-medium text-foreground">
-                    💡 {insight.action}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Análises detalhadas - layout responsivo */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Tendências mensais */}
-        <Card className="bg-gradient-card shadow-md">
+        <Card className="shadow-md">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-primary" />
@@ -231,35 +615,43 @@ export default function Insights() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            {monthlyData.map((data, index) => (
-              <div key={data.month} className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="font-medium text-foreground">{data.month}</span>
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="text-success">+€{data.income}</span>
-                    <span className="text-destructive">-€{data.expenses}</span>
-                    <span className="font-semibold text-foreground">€{data.savings}</span>
+            {monthlyData.length > 0 ? (
+              monthlyData.map((data, index) => (
+                <div key={data.month} className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-foreground">{data.month}</span>
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="text-success">+€{data.income.toFixed(0)}</span>
+                      <span className="text-destructive">-€{data.expenses.toFixed(0)}</span>
+                      <span className={`font-semibold ${data.savings >= 0 ? 'text-success' : 'text-destructive'}`}>
+                        €{data.savings.toFixed(0)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-full bg-accent rounded-full h-2">
+                    <div className="flex h-2 rounded-full overflow-hidden">
+                      <div 
+                        className="bg-success" 
+                        style={{ width: `${Math.max((data.income / 5000) * 100, 5)}%` }}
+                      />
+                      <div 
+                        className="bg-destructive" 
+                        style={{ width: `${Math.max((data.expenses / 5000) * 100, 5)}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="w-full bg-accent rounded-full h-2">
-                  <div className="flex h-2 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-success" 
-                      style={{ width: `${(data.income / 3500) * 100}%` }}
-                    />
-                    <div 
-                      className="bg-destructive" 
-                      style={{ width: `${(data.expenses / 3500) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-muted-foreground text-center py-4">
+                Não há dados suficientes para mostrar tendências mensais.
+              </p>
+            )}
           </CardContent>
         </Card>
 
         {/* Análise por categorias */}
-        <Card className="bg-gradient-card shadow-md">
+        <Card className="shadow-md">
           <CardHeader>
             <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
               <PieChart className="h-5 w-5 text-primary" />
@@ -267,37 +659,35 @@ export default function Insights() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {categories.map((category, index) => (
-              <div key={category.name} className="flex items-center justify-between p-3 bg-accent rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${category.color}`} />
-                  <div>
-                    <p className="font-medium text-foreground">{category.name}</p>
-                    <p className="text-xs text-muted-foreground">{category.percentage}% do total</p>
+            {categoryData.length > 0 ? (
+              categoryData.map((category, index) => (
+                <div key={category.name} className="flex items-center justify-between p-3 bg-accent rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${category.color}`} />
+                    <div>
+                      <p className="font-medium text-foreground">{category.name}</p>
+                      <p className="text-xs text-muted-foreground">{category.percentage}% do total</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-foreground">€{category.amount.toFixed(0)}</p>
+                    <div className="text-xs text-muted-foreground">
+                      {category.trend}
+                    </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-foreground">€{category.amount}</p>
-                  <div className={`text-xs flex items-center gap-1 ${
-                    category.trend.startsWith('+') ? 'text-destructive' : 
-                    category.trend.startsWith('-') ? 'text-success' : 'text-muted-foreground'
-                  }`}>
-                    {category.trend.startsWith('+') ? (
-                      <ArrowUpRight className="h-3 w-3" />
-                    ) : category.trend.startsWith('-') ? (
-                      <ArrowDownLeft className="h-3 w-3" />
-                    ) : null}
-                    {category.trend}
-                  </div>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-muted-foreground text-center py-4">
+                Não há dados suficientes para mostrar gastos por categoria.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
 
       {/* Recomendações */}
-      <Card className="bg-gradient-card shadow-md">
+      <Card className="shadow-md">
         <CardHeader>
           <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
             <Lightbulb className="h-5 w-5 text-warning" />
@@ -310,12 +700,12 @@ export default function Insights() {
               <div className="flex items-start gap-3">
                 <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
                 <div>
-                  <h4 className="font-semibold text-foreground mb-1">Optimizar Poupanças</h4>
+                  <h4 className="font-semibold text-foreground mb-1">Adicionar Transações</h4>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Com base no seu padrão atual, pode poupar mais €150/mês reduzindo gastos em alimentação.
+                    Para obter insights mais precisos, adicione mais transações ao longo do tempo.
                   </p>
-                  <Button size="sm" variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
-                    Ver Detalhes
+                  <Button size="sm" variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground" onClick={() => setShowTxModal(true)}>
+                    Adicionar Transação
                   </Button>
                 </div>
               </div>
@@ -325,12 +715,12 @@ export default function Insights() {
               <div className="flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-warning mt-0.5" />
                 <div>
-                  <h4 className="font-semibold text-foreground mb-1">Controlar Gastos</h4>
+                  <h4 className="font-semibold text-foreground mb-1">Definir Objetivos</h4>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Os gastos em lazer aumentaram 30% nos últimos 2 meses. Considere definir um limite mensal.
+                    Crie objetivos financeiros para receber insights personalizados sobre o seu progresso.
                   </p>
-                  <Button size="sm" variant="outline" className="border-warning text-warning hover:bg-warning hover:text-warning-foreground">
-                    Definir Limite
+                  <Button size="sm" variant="outline" className="border-warning text-warning hover:bg-warning hover:text-warning-foreground" onClick={() => setShowGoalModal(true)}>
+                    Criar Objetivo
                   </Button>
                 </div>
               </div>
@@ -338,6 +728,84 @@ export default function Insights() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal Nova Transação */}
+      <Dialog open={showTxModal} onOpenChange={setShowTxModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova Transação</DialogTitle>
+            <DialogDescription>Adicione uma nova transação à sua conta.</DialogDescription>
+          </DialogHeader>
+          <TransactionForm onSuccess={() => setShowTxModal(false)} onCancel={() => setShowTxModal(false)} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Novo Objetivo */}
+      <Dialog open={showGoalModal} onOpenChange={setShowGoalModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Novo Objetivo</DialogTitle>
+            <DialogDescription>Crie um novo objetivo financeiro.</DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleGoalSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="nome">Nome do Objetivo</Label>
+              <Input
+                id="nome"
+                value={goalForm.nome}
+                onChange={(e) => handleGoalChange('nome', e.target.value)}
+                placeholder="Ex: Viagem à Europa"
+                className={goalErrors.nome ? 'border-red-500' : ''}
+              />
+              {goalErrors.nome && <p className="text-sm text-red-500">{goalErrors.nome}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="valor_objetivo">Valor Objetivo</Label>
+              <Input
+                id="valor_objetivo"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={goalForm.valor_objetivo}
+                onChange={(e) => handleGoalChange('valor_objetivo', e.target.value)}
+                placeholder="0,00"
+                className={goalErrors.valor_objetivo ? 'border-red-500' : ''}
+              />
+              {goalErrors.valor_objetivo && <p className="text-sm text-red-500">{goalErrors.valor_objetivo}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="prazo">Data Limite</Label>
+              <Input
+                id="prazo"
+                type="date"
+                value={goalForm.prazo}
+                onChange={(e) => handleGoalChange('prazo', e.target.value)}
+                className={goalErrors.prazo ? 'border-red-500' : ''}
+              />
+              {goalErrors.prazo && <p className="text-sm text-red-500">{goalErrors.prazo}</p>}
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button type="button" variant="outline" onClick={handleGoalClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isCreating}>
+                {isCreating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    A guardar...
+                  </>
+                ) : (
+                  'Criar'
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

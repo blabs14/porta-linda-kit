@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import TransactionList from '../components/TransactionList';
 import TransactionForm from '../components/TransactionForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
@@ -8,6 +8,14 @@ import { ButtonLoading } from '../components/ui/loading-states';
 const TransactionsPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editTx, setEditTx] = useState<any | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Forçar atualização quando o modal fecha
+  useEffect(() => {
+    if (!modalOpen) {
+      setRefreshKey(prev => prev + 1);
+    }
+  }, [modalOpen]);
 
   const handleNew = () => {
     setEditTx(null);
@@ -39,11 +47,16 @@ const TransactionsPage = () => {
       {/* Conteúdo com Scroll apenas nos dados */}
       <div className="flex-1 overflow-hidden">
         <div className="h-full flex flex-col">
-          <TransactionList onEdit={handleEdit} />
+          <TransactionList key={refreshKey} onEdit={handleEdit} />
         </div>
       </div>
       
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+      <Dialog 
+        open={modalOpen} 
+        onOpenChange={(open) => {
+          setModalOpen(open);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editTx ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
@@ -51,7 +64,13 @@ const TransactionsPage = () => {
               {editTx ? 'Editar dados da transação' : 'Criar nova transação'}
             </DialogDescription>
           </DialogHeader>
-          <TransactionForm initialData={editTx || undefined} onSuccess={handleClose} onCancel={handleClose} />
+          <TransactionForm 
+            initialData={editTx || undefined} 
+            onSuccess={() => {
+              handleClose();
+            }} 
+            onCancel={handleClose} 
+          />
         </DialogContent>
       </Dialog>
     </div>

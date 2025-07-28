@@ -13,3 +13,10 @@ export function showError(message: string) {
 export function showSuccess(message: string) {
   sonnerToast.success(message, { duration: 4000 });
 }
+
+export function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('pt-PT', {
+    style: 'currency',
+    currency: 'EUR'
+  }).format(value);
+}

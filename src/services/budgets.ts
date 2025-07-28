@@ -1,38 +1,77 @@
 import { supabase } from '../lib/supabaseClient';
-import { logAuditChange } from './audit_logs';
+import { 
+  Budget, 
+  BudgetInsert, 
+  BudgetUpdate 
+} from '../integrations/supabase/types';
 
-export const getBudgets = () =>
-  supabase
-    .from('budgets')
-    .select('*')
-    .order('created_at', { ascending: false });
+export const getBudgets = async (): Promise<{ data: Budget[] | null; error: any }> => {
+  try {
+    const { data, error } = await supabase
+      .from('budgets')
+      .select('*')
+      .order('mes', { ascending: false });
 
-export const createBudget = async (data: { categoria_id: string; valor: number; mes: string; }, userId: string) => {
-  const payload = {
-    ...data,
-    user_id: userId
-  };
-  const res = await supabase.from('budgets').insert(payload).select('id').single();
-  if (res.data?.id) {
-    await logAuditChange(userId, 'budgets', 'CREATE', res.data.id, {}, payload);
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
   }
-  return res;
 };
 
-export const updateBudget = async (id: string, data: { categoria_id?: string; valor?: number; mes?: string; }, userId: string) => {
-  const oldRes = await supabase.from('budgets').select('*').eq('id', id).single();
-  const payload = {
-    ...data,
-    user_id: userId
-  };
-  const res = await supabase.from('budgets').update(payload).eq('id', id);
-  await logAuditChange(userId, 'budgets', 'UPDATE', id, oldRes.data || {}, payload);
-  return res;
+export const getBudget = async (id: string): Promise<{ data: Budget | null; error: any }> => {
+  try {
+    const { data, error } = await supabase
+      .from('budgets')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
 };
 
-export const deleteBudget = async (id: string, userId: string) => {
-  const oldRes = await supabase.from('budgets').select('*').eq('id', id).single();
-  const res = await supabase.from('budgets').delete().eq('id', id);
-  await logAuditChange(userId, 'budgets', 'DELETE', id, oldRes.data || {}, {});
-  return res;
+export const createBudget = async (budgetData: BudgetInsert, userId: string): Promise<{ data: Budget | null; error: any }> => {
+  try {
+    const { data, error } = await supabase
+      .from('budgets')
+      .insert([{ ...budgetData, user_id: userId }])
+      .select()
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+export const updateBudget = async (id: string, updates: BudgetUpdate, userId: string): Promise<{ data: Budget | null; error: any }> => {
+  try {
+    const { data, error } = await supabase
+      .from('budgets')
+      .update(updates)
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+export const deleteBudget = async (id: string, userId: string): Promise<{ data: boolean | null; error: any }> => {
+  try {
+    const { error } = await supabase
+      .from('budgets')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    return { data: !error, error };
+  } catch (error) {
+    return { data: null, error };
+  }
 };

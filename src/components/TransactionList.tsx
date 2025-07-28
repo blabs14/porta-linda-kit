@@ -13,237 +13,362 @@ import {
 import { Input } from './ui/input';
 import { useTransactions, useDeleteTransaction } from '../hooks/useTransactionsQuery';
 import { useReferenceData } from '../hooks/useCache';
+import { useConfirmation } from '../hooks/useConfirmation';
+import { ConfirmationDialog } from './ui/confirmation-dialog';
+import { useToast } from '../hooks/use-toast';
+import { Trash2, Edit, Eye, ChevronLeft, ChevronRight, Search, Filter } from 'lucide-react';
 
 const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
-  const { user } = useAuth();
-  const [filters, setFilters] = useState({
-    account_id: 'all',
-    categoria_id: 'all',
-    dataInicio: '',
-    dataFim: '',
-    tipo: 'all', // Novo filtro por tipo
-  });
-  
-  // Usar TanStack Query hooks
   const { data: transactions = [], isLoading: transactionsLoading } = useTransactions();
   const { accounts, categories } = useReferenceData();
   const deleteTransactionMutation = useDeleteTransaction();
+  const confirmation = useConfirmation();
+  const { toast } = useToast();
   
+  console.log('[TransactionList] Component rendered');
+  console.log('[TransactionList] Transactions data:', transactions);
+  console.log('[TransactionList] Transactions count:', transactions.length);
+  console.log('[TransactionList] Loading state:', transactionsLoading);
+  
+  // Estado para paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
+  
+  // Estado para filtros
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedAccount, setSelectedAccount] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedType, setSelectedType] = useState('all');
+
   const loading = transactionsLoading || accounts.isLoading || categories.isLoading;
+  const accountsData = Array.isArray(accounts.data) ? accounts.data : [];
+  const categoriesData = Array.isArray(categories.data) ? categories.data : [];
 
-  // Criar mapa de contas para exibição
-  const accountsMap = React.useMemo(() => {
-    const map: Record<string, string> = {};
-    accounts.data?.forEach((acc: any) => { map[acc.id] = acc.nome; });
-    return map;
-  }, [accounts.data]);
-
-  // Criar mapa de categorias para exibição
-  const categoriesMap = React.useMemo(() => {
-    const map: Record<string, string> = {};
-    categories.data?.forEach((cat: any) => { map[cat.id] = cat.nome; });
-    return map;
-  }, [categories.data]);
-
-  // Filtros handlers
-  const handleContaChange = (value: string) => setFilters(f => ({ ...f, account_id: value }));
-  const handleCategoriaChange = (value: string) => setFilters(f => ({ ...f, categoria_id: value }));
-  const handleDataInicio = (e: React.ChangeEvent<HTMLInputElement>) => setFilters(f => ({ ...f, dataInicio: e.target.value }));
-  const handleDataFim = (e: React.ChangeEvent<HTMLInputElement>) => setFilters(f => ({ ...f, dataFim: e.target.value }));
-  const handleTipoChange = (value: string) => {
-    setFilters(prev => ({ ...prev, tipo: value }));
-  };
-
-  // Aplicar filtros localmente
-  const filteredTransactions = React.useMemo(() => {
-    let filtered = transactions;
+  // Filtrar transações
+  const filteredTransactions = transactions.filter(transaction => {
+    const matchesSearch = !searchTerm || 
+      transaction.descricao.toLowerCase().includes(searchTerm.toLowerCase());
     
-    if (filters.account_id && filters.account_id !== 'all') {
-      filtered = filtered.filter(tx => tx.account_id === filters.account_id);
-    }
-    if (filters.categoria_id && filters.categoria_id !== 'all') {
-      filtered = filtered.filter(tx => tx.categoria_id === filters.categoria_id);
-    }
-    if (filters.tipo && filters.tipo !== 'all') {
-      filtered = filtered.filter(tx => tx.tipo === filters.tipo);
-    }
-    if (filters.dataInicio) {
-      filtered = filtered.filter(tx => tx.data >= filters.dataInicio);
-    }
-    if (filters.dataFim) {
-      filtered = filtered.filter(tx => tx.data <= filters.dataFim);
-    }
+    const matchesAccount = selectedAccount === 'all' || 
+      transaction.account_id === selectedAccount;
     
-    return filtered;
-  }, [transactions, filters]);
-
-  // Remover transação
-  const handleRemove = async (id: string) => {
-    if (!window.confirm('Tem a certeza que deseja remover esta transação?')) return;
-    try {
-      await deleteTransactionMutation.mutateAsync(id);
-    } catch (error) {
-      console.error('Erro ao remover transação:', error);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
-  const formatCurrency = (value: number, tipo: string) => {
-    const absValue = Math.abs(value);
-    const formatted = new Intl.NumberFormat('pt-PT', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(absValue);
+    const matchesCategory = selectedCategory === 'all' || 
+      transaction.categoria_id === selectedCategory;
     
-    // Adicionar sinal baseado no tipo
-    if (tipo === 'despesa') {
-      return `-${formatted}`;
-    } else {
-      return `+${formatted}`;
+    const matchesType = selectedType === 'all' || 
+      transaction.tipo === selectedType;
+    
+    return matchesSearch && matchesAccount && matchesCategory && matchesType;
+  });
+
+  // Calcular paginação
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentTransactions = filteredTransactions.slice(startIndex, endIndex);
+
+  console.log('[TransactionList] Current page:', currentPage);
+  console.log('[TransactionList] Items per page:', itemsPerPage);
+  console.log('[TransactionList] Total pages:', totalPages);
+  console.log('[TransactionList] Current transactions:', currentTransactions.length);
+  console.log('[TransactionList] Filtered transactions:', filteredTransactions.length);
+  console.log('[TransactionList] Should show pagination:', totalPages > 1);
+  console.log('[TransactionList] Start index:', startIndex);
+  console.log('[TransactionList] End index:', endIndex);
+
+  // Resetar página quando filtros mudam
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedAccount, selectedCategory, selectedType]);
+
+  // Resetar página quando o número de transações muda (nova transação criada)
+  React.useEffect(() => {
+    console.log('[TransactionList] Number of transactions changed from', transactions.length - 1, 'to', transactions.length);
+    console.log('[TransactionList] Resetting to page 1');
+    setCurrentPage(1);
+    
+    // Mostrar toast se estamos numa página diferente da primeira
+    if (currentPage > 1) {
+      console.log('[TransactionList] Showing toast for new transaction');
+      toast({
+        title: "Nova transação criada!",
+        description: "A transação foi adicionada à primeira página da lista.",
+        action: (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setCurrentPage(1)}
+          >
+            Ver
+          </Button>
+        ),
+      });
     }
+  }, [transactions.length, currentPage, toast]);
+
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
   };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-PT');
   };
 
+  const handleDelete = (transactionId: string) => {
+    confirmation.confirm(
+      {
+        title: 'Eliminar Transação',
+        message: 'Tem a certeza que deseja eliminar esta transação? Esta ação não pode ser desfeita.',
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+        variant: 'destructive',
+      },
+      () => {
+        deleteTransactionMutation.mutate(transactionId);
+      }
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2">A carregar transações...</span>
+      </div>
+    );
+  }
+
+  if (!transactions || transactions.length === 0) {
+    return (
+      <div className="text-center p-8">
+        <p className="text-gray-500">Nenhuma transação encontrada</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full flex flex-col">
-      {/* Filtros Fixos - Sempre visíveis */}
-      <div className="flex-shrink-0 bg-background border-b p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <Select value={filters.account_id} onValueChange={handleContaChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Todas as contas" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as contas</SelectItem>
-              {accounts.data?.map((account) => (
-                <SelectItem key={account.id} value={account.id}>
-                  {account.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <div className="space-y-4">
+      {/* Filtros */}
+      <div className="bg-white rounded-lg shadow-sm border p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Pesquisa */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Pesquisar</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Descrição..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
 
-          <Select value={filters.categoria_id} onValueChange={handleCategoriaChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Todas as categorias" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as categorias</SelectItem>
-              {categories.data?.map((category) => (
-                <SelectItem key={category.id} value={category.id}>
-                  {category.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Filtro por Conta */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Conta</label>
+            <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+              <SelectTrigger>
+                <SelectValue placeholder="Todas as contas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as contas</SelectItem>
+                {accountsData.map((account) => (
+                  <SelectItem key={account.account_id} value={account.account_id}>
+                    {account.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select value={filters.tipo} onValueChange={handleTipoChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Todos os tipos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os tipos</SelectItem>
-              <SelectItem value="receita">Receitas</SelectItem>
-              <SelectItem value="despesa">Despesas</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Filtro por Categoria */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Categoria</label>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Todas as categorias" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as categorias</SelectItem>
+                {categoriesData.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Input
-            type="date"
-            placeholder="Data início"
-            value={filters.dataInicio}
-            onChange={handleDataInicio}
-          />
+          {/* Filtro por Tipo */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Tipo</label>
+            <Select value={selectedType} onValueChange={setSelectedType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Todos os tipos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                <SelectItem value="receita">Receita</SelectItem>
+                <SelectItem value="despesa">Despesa</SelectItem>
+                <SelectItem value="transferencia">Transferência</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Input
-            type="date"
-            placeholder="Data fim"
-            value={filters.dataFim}
-            onChange={handleDataFim}
-          />
+          {/* Botão Limpar Filtros */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">&nbsp;</label>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedAccount('all');
+                setSelectedCategory('all');
+                setSelectedType('all');
+              }}
+              className="w-full"
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Limpar Filtros
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Tabela com Scroll apenas nos dados */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full flex flex-col">
-          {/* Cabeçalhos da Tabela Fixos */}
-          <div className="flex-shrink-0 bg-card border-b">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Conta</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead className="text-center">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-            </Table>
-          </div>
+      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <div className="max-h-[50vh] sm:max-h-[60vh] lg:max-h-[70vh] overflow-auto">
+          <Table>
+            <TableHeader className="sticky top-0 bg-white z-10 shadow-sm">
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Descrição</TableHead>
+                <TableHead>Categoria</TableHead>
+                <TableHead>Conta</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {currentTransactions.map((transaction) => {
+                const account = accountsData.find(acc => acc.account_id === transaction.account_id);
+                const category = categoriesData.find(cat => cat.id === transaction.categoria_id);
 
-          {/* Corpo da Tabela com Scroll */}
-          <div className="flex-1 overflow-auto">
-            <Table>
-              <TableBody>
-                {filteredTransactions.length > 0 ? (
-                  filteredTransactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell>{formatDate(transaction.data)}</TableCell>
-                      <TableCell>{transaction.descricao || '-'}</TableCell>
-                      <TableCell>{categoriesMap[transaction.categoria_id] || '-'}</TableCell>
-                      <TableCell>{accountsMap[transaction.account_id] || '-'}</TableCell>
-                      <TableCell className={`text-right font-medium ${
+                return (
+                  <TableRow key={transaction.id}>
+                    <TableCell className="font-medium">
+                      {formatDate(transaction.data)}
+                    </TableCell>
+                    <TableCell>{transaction.descricao}</TableCell>
+                    <TableCell>
+                      {category ? (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          {category.nome}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {account ? (
+                        <span className="text-sm text-gray-600">{account.nome}</span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className={`font-semibold ${
                         transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
                       }`}>
-                        {formatCurrency(Number(transaction.valor), transaction.tipo)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onEdit?.(transaction)}
-                            className="h-8 px-2 text-xs"
+                        {transaction.tipo === 'receita' ? '+' : '-'}{formatCurrency(transaction.valor)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end space-x-2">
+                        {onEdit && (
+                          <button
+                            onClick={() => onEdit(transaction)}
+                            className="text-gray-500 hover:text-gray-700 p-1"
+                            title="Editar"
                           >
-                            Editar
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleRemove(transaction.id)}
-                            className="text-red-600 hover:text-red-700 h-8 px-2 text-xs"
-                            disabled={deleteTransactionMutation.isPending}
-                          >
-                            {deleteTransactionMutation.isPending ? 'A remover...' : 'Remover'}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      Nenhuma transação encontrada
+                            <Edit className="h-4 w-4" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDelete(transaction.id)}
+                          className="text-red-500 hover:text-red-700 p-1"
+                          disabled={deleteTransactionMutation.isPending}
+                          title="Eliminar"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       </div>
+
+      {/* Controles de Paginação */}
+      <div className="flex items-center justify-between px-4 py-3 bg-white border-t">
+        <div className="text-sm text-gray-700">
+          Mostrando {startIndex + 1} a {Math.min(endIndex, filteredTransactions.length)} de {filteredTransactions.length} transações
+          {currentPage > 1 && (
+            <span className="ml-2 text-blue-600">
+              (Nova transação criada - <button 
+                onClick={() => setCurrentPage(1)} 
+                className="underline hover:no-underline"
+              >
+                ir para primeira página
+              </button>)
+            </span>
+          )}
+          {filteredTransactions.length > 20 && currentPage === 1 && (
+            <span className="ml-2 text-green-600">
+              (Há {filteredTransactions.length - 20} transações mais recentes)
+            </span>
+          )}
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Anterior
+          </Button>
+          <div className="text-sm text-gray-700">
+            Página {currentPage} de {totalPages}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+            disabled={currentPage === totalPages}
+          >
+            Próxima
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <ConfirmationDialog
+        isOpen={confirmation.isOpen}
+        onClose={confirmation.close}
+        onConfirm={confirmation.onConfirm}
+        onCancel={confirmation.onCancel}
+        title={confirmation.options.title}
+        message={confirmation.options.message}
+        confirmText={confirmation.options.confirmText}
+        cancelText={confirmation.options.cancelText}
+        variant={confirmation.options.variant}
+      />
     </div>
   );
 };

@@ -1,16 +1,18 @@
 import { supabase } from '../lib/supabaseClient';
 
 export const getFamilySettings = async (family_id: string) => {
-  return supabase
+  const { data, error } = await supabase
     .from('families')
     .select('settings')
     .eq('id', family_id)
     .single();
+  return { data, error };
 };
 
 export const updateFamilySettings = async (family_id: string, settings: any) => {
-  return supabase
+  const { data, error } = await supabase
     .from('families')
     .update({ settings })
     .eq('id', family_id);
+  return { data, error };
 }; 

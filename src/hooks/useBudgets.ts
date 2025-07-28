@@ -4,12 +4,17 @@ import { getBudgets, createBudget, updateBudget, deleteBudget } from '../service
 export const useBudgets = () => {
   const [budgets, setBudgets] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<any>(null);
 
   const fetch = useCallback(async () => {
     setLoading(true);
     const { data, error } = await getBudgets();
     if (!error && data) {
       setBudgets(data);
+      setError(null);
+    } else {
+      setBudgets([]);
+      setError(error);
     }
     setLoading(false);
   }, []);
@@ -39,6 +44,7 @@ export const useBudgets = () => {
   return {
     budgets,
     loading,
+    error,
     create,
     update,
     remove,

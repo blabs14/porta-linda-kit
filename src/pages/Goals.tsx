@@ -1,185 +1,78 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { Progress } from '../components/ui/progress';
 import { Badge } from '../components/ui/badge';
-import { useGoals } from '../hooks/useGoalsQuery';
-import { useAuth } from '../contexts/AuthContext';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { useGoals, useGoalProgress } from '../hooks/useGoalsQuery';
 import { useToast } from '../hooks/use-toast';
+import { formatCurrency } from '../lib/utils';
+import { Target, Plus, Edit, Trash2, Calendar, CheckCircle, Trophy } from 'lucide-react';
 import { GoalAllocationModal } from '../components/GoalAllocationModal';
-import { Loader2, Plus, Edit, Trash2, Target, CheckCircle, Trophy } from 'lucide-react';
-import { goalSchema } from '../validation/goalSchema';
+import GoalForm from '../components/GoalForm';
+import { GoalProgress } from '../integrations/supabase/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 
 export default function Goals() {
-  const { 
-    goals, 
-    isLoading: loading, 
-    createGoal, 
-    updateGoal, 
-    deleteGoal,
-    isCreating,
-    isUpdating,
-    isDeleting
-  } = useGoals();
-  const { user } = useAuth();
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showAllocationModal, setShowAllocationModal] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState<GoalProgress | null>(null);
+  const [editingGoal, setEditingGoal] = useState<any>(null);
+  
+  const { goals, isLoading, error, refetch, createGoal, updateGoal, deleteGoal } = useGoals();
+  const { data: goalProgress = [] } = useGoalProgress();
   const { toast } = useToast();
 
-  const [showModal, setShowModal] = useState(false);
-  const [showAllocationModal, setShowAllocationModal] = useState(false);
-  const [selectedGoal, setSelectedGoal] = useState<any>(null);
-  const [editGoal, setEditGoal] = useState<any>(null);
-  const [form, setForm] = useState({
-    nome: '',
-    valor_objetivo: '',
-    valor_atual: '',
-    prazo: ''
-  });
-
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const handleNew = () => {
-    setEditGoal(null);
-    setForm({ nome: '', valor_objetivo: '', valor_atual: '', prazo: '' });
-    setErrors({});
-    setShowModal(true);
+  const handleCreateGoal = () => {
+    setShowCreateModal(true);
   };
 
-  const handleEdit = (goal: any) => {
-    setEditGoal(goal);
-    setForm({
-      nome: goal.nome,
-      valor_objetivo: goal.valor_objetivo.toString(),
-      valor_atual: goal.valor_atual.toString(),
-      prazo: goal.prazo
+  const handleAllocationSuccess = () => {
+    setShowAllocationModal(false);
+    setSelectedGoal(null);
+    toast({
+      title: 'Alocação realizada',
+      description: 'Valor alocado com sucesso ao objetivo!',
     });
-    setErrors({});
-    setShowModal(true);
   };
 
-  const handleAllocate = (goal: any) => {
+  const handleAllocateToGoal = (goal: GoalProgress) => {
     setSelectedGoal(goal);
     setShowAllocationModal(true);
   };
 
-  const handleClose = () => {
-    setShowModal(false);
-    setEditGoal(null);
-    setForm({ nome: '', valor_objetivo: '', valor_atual: '', prazo: '' });
-    setErrors({});
-  };
-
-  const handleChange = (field: string, value: string) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
-
-  const validateForm = () => {
-    try {
-      const validationData: any = {
-        nome: form.nome,
-        valor_objetivo: parseFloat(form.valor_objetivo),
-        prazo: form.prazo
-      };
-      
-      // Se estiver editando, incluir valor_atual na validação
-      if (editGoal) {
-        validationData.valor_atual = parseFloat(form.valor_atual);
-      }
-      
-      goalSchema.parse(validationData);
-      setErrors({});
-      return true;
-    } catch (error: any) {
-      const newErrors: Record<string, string> = {};
-      error.errors?.forEach((err: any) => {
-        newErrors[err.path[0]] = err.message;
-      });
-      setErrors(newErrors);
-      return false;
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log('🔍 Goals: handleSubmit chamado');
-
-    if (!validateForm()) {
-      console.log('❌ Validação falhou');
-      return;
-    }
-
-    console.log('✅ Validação passou, dados do formulário:', form);
-
-    try {
-      const payload = {
-        nome: form.nome,
-        valor_objetivo: Number(form.valor_objetivo),
-        prazo: form.prazo
-      };
-
-      // Se estiver editando, incluir valor_atual no payload
-      if (editGoal) {
-        payload.valor_atual = Number(form.valor_atual);
-      }
-
-      console.log('Payload preparado:', payload);
-
-      if (editGoal) {
-        console.log('🔍 Atualizando objetivo existente...');
-        await updateGoal({ id: editGoal.id, data: payload });
-        console.log('✅ Objetivo atualizado com sucesso');
-        toast({
-          title: 'Objetivo atualizado',
-          description: 'Objetivo atualizado com sucesso!',
-        });
-      } else {
-        console.log('🔍 Criando novo objetivo...');
-        await createGoal(payload);
-        console.log('✅ Objetivo criado com sucesso');
-        toast({
-          title: 'Objetivo criado',
-          description: 'Objetivo criado com sucesso!',
-        });
-      }
-
-      handleClose();
-    } catch (error) {
-      console.error('❌ Erro ao salvar objetivo:', error);
+  const handleEditGoal = (goal: any) => {
+    // Buscar os dados completos do objetivo
+    const fullGoal = goals.find(g => g.id === goal.goal_id);
+    if (fullGoal) {
+      setEditingGoal(fullGoal);
+      setShowEditModal(true);
+    } else {
       toast({
         title: 'Erro',
-        description: 'Erro ao salvar objetivo. Tente novamente.',
-        variant: 'destructive'
+        description: 'Não foi possível carregar os dados do objetivo',
+        variant: 'destructive',
       });
     }
   };
 
-  const handleDelete = async (goalId: string) => {
-    if (window.confirm('Tem certeza que deseja eliminar este objetivo?')) {
-      try {
-        await deleteGoal(goalId);
-        toast({
-          title: 'Objetivo eliminado',
-          description: 'Objetivo eliminado com sucesso!',
-        });
-      } catch (error) {
-        console.error('Erro ao eliminar objetivo:', error);
-        toast({
-          title: 'Erro',
-          description: 'Erro ao eliminar objetivo. Tente novamente.',
-          variant: 'destructive'
-        });
-      }
+  const handleDeleteGoal = async (goalId: string) => {
+    if (!window.confirm('Tem a certeza que deseja remover este objetivo?')) return;
+    
+    try {
+      await deleteGoal(goalId);
+      toast({
+        title: 'Objetivo removido',
+        description: 'O objetivo foi removido com sucesso.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao remover objetivo',
+        description: error.message || 'Erro ao remover objetivo',
+        variant: 'destructive',
+      });
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
   };
 
   const formatDate = (dateString: string) => {
@@ -200,38 +93,59 @@ export default function Goals() {
     return 'A começar';
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="container mx-auto p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-6">
+                <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+                <div className="h-8 bg-gray-200 rounded w-1/2 mb-2"></div>
+                <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto p-4 text-center">
+        <p className="text-red-600">Erro ao carregar objetivos: {error.message}</p>
+        <Button onClick={() => refetch()} className="mt-4">
+          Tentar novamente
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Objetivos</h1>
-          <p className="text-muted-foreground">Gerencie os seus objetivos financeiros</p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={handleNew}>
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Objetivo
-          </Button>
-        </div>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Objetivos</h1>
+        <Button onClick={handleCreateGoal}>
+          <Plus className="h-4 w-4 mr-2" />
+          Novo Objetivo
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-auto items-start">
-        {goals.map((goal: any) => {
-          const progress = goal.valor_objetivo > 0 ? (goal.valor_atual / goal.valor_objetivo) * 100 : 0;
-          const remaining = Math.max(goal.valor_objetivo - goal.valor_atual, 0);
-          const isCompleted = progress >= 100;
+      {/* Goals Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {goalProgress.map((goal) => {
+          const isCompleted = goal.progresso_percentual >= 100;
+          const remaining = Math.max(goal.valor_objetivo - goal.total_alocado, 0);
 
           return (
-            <Card key={goal.id} className={`hover:shadow-lg transition-shadow h-fit w-full ${isCompleted ? 'border-green-200 bg-green-50' : ''}`}>
+            <Card 
+              key={goal.goal_id} 
+              className={`hover:shadow-lg transition-shadow ${
+                isCompleted ? 'border-green-200 bg-green-50' : ''
+              }`}
+            >
               <CardHeader>
                 <div className="space-y-2">
                   <div className="flex justify-between items-start">
@@ -248,7 +162,7 @@ export default function Goals() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleAllocate(goal)}
+                          onClick={() => handleAllocateToGoal(goal)}
                           className="h-8 w-8 p-0"
                         >
                           <Plus className="h-4 w-4" />
@@ -267,7 +181,7 @@ export default function Goals() {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Objetivo já atingido! Edite o valor objetivo ou atual para continuar.</p>
+                              <p>Objetivo já atingido! Edite o valor objetivo ou o valor atual para continuar.</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -275,7 +189,7 @@ export default function Goals() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleEdit(goal)}
+                        onClick={() => handleEditGoal(goal)}
                         className="h-8 w-8 p-0"
                       >
                         <Edit className="h-4 w-4" />
@@ -283,15 +197,10 @@ export default function Goals() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDelete(goal.id)}
+                        onClick={() => handleDeleteGoal(goal.goal_id)}
                         className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        disabled={isDeleting}
                       >
-                        {isDeleting ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -305,27 +214,29 @@ export default function Goals() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Progress */}
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Progresso</span>
                     <span className={`font-medium ${isCompleted ? 'text-green-600' : ''}`}>
-                      {progress.toFixed(1)}%
+                      {goal.progresso_percentual}%
                     </span>
                   </div>
                   <Progress 
-                    value={Math.min(progress, 100)} 
+                    value={Math.min(goal.progresso_percentual, 100)} 
                     className={`h-2 ${isCompleted ? 'bg-green-100' : ''}`}
                   />
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span className={isCompleted ? 'text-green-600 font-medium' : ''}>
-                      {isCompleted ? 'Objetivo Atingido! 🎉' : getProgressText(progress)}
+                      {isCompleted ? 'Objetivo Atingido! 🎉' : getProgressText(goal.progresso_percentual)}
                     </span>
                     <span className="text-right">
-                      {formatCurrency(goal.valor_atual)} / {formatCurrency(goal.valor_objetivo)}
+                      {formatCurrency(goal.total_alocado)} / {formatCurrency(goal.valor_objetivo)}
                     </span>
                   </div>
                 </div>
 
+                {/* Values */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Objetivo</span>
@@ -334,7 +245,7 @@ export default function Goals() {
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Alocado</span>
                     <span className={`font-medium ${isCompleted ? 'text-green-600' : 'text-green-600'}`}>
-                      {formatCurrency(goal.valor_atual)}
+                      {formatCurrency(goal.total_alocado)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
@@ -343,12 +254,6 @@ export default function Goals() {
                       {isCompleted ? '0,00€' : formatCurrency(remaining)}
                     </span>
                   </div>
-                  {goal.prazo && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Prazo</span>
-                      <span className="font-medium text-sm">{formatDate(goal.prazo)}</span>
-                    </div>
-                  )}
                 </div>
 
                 {isCompleted && (
@@ -368,118 +273,73 @@ export default function Goals() {
         })}
       </div>
 
-      {goals.length === 0 && (
+      {/* Empty State */}
+      {goalProgress.length === 0 && (
         <div className="text-center py-12">
-          <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-muted-foreground mb-2">Nenhum objetivo criado</h3>
-          <p className="text-muted-foreground mb-4">Crie o seu primeiro objetivo financeiro para começar a poupar.</p>
-          <Button onClick={handleNew}>
-            <Plus className="mr-2 h-4 w-4" />
-            Criar Primeiro Objetivo
+          <Target className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-lg font-medium mb-2">Nenhum objetivo encontrado</h3>
+          <p className="text-muted-foreground mb-4">
+            Cria o teu primeiro objetivo para começar a poupar
+          </p>
+          <Button onClick={handleCreateGoal}>
+            <Plus className="h-4 w-4 mr-2" />
+            Criar Objetivo
           </Button>
         </div>
       )}
 
-      {/* Modal para criar/editar objetivo */}
-      <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="sm:max-w-md">
+      {/* Create Goal Modal */}
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editGoal ? 'Editar Objetivo' : 'Novo Objetivo'}</DialogTitle>
+            <DialogTitle>Novo Objetivo</DialogTitle>
             <DialogDescription>
-              {editGoal ? 'Edite os detalhes do objetivo.' : 'Crie um novo objetivo financeiro.'}
+              Cria um novo objetivo financeiro
             </DialogDescription>
           </DialogHeader>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="nome">Nome do Objetivo</Label>
-              <Input
-                id="nome"
-                value={form.nome}
-                onChange={(e) => handleChange('nome', e.target.value)}
-                placeholder="Ex: Viagem à Europa"
-                className={errors.nome ? 'border-red-500' : ''}
-              />
-              {errors.nome && <p className="text-sm text-red-500">{errors.nome}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="valor_objetivo">Valor Objetivo</Label>
-              <Input
-                id="valor_objetivo"
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={form.valor_objetivo}
-                onChange={(e) => handleChange('valor_objetivo', e.target.value)}
-                placeholder="0,00"
-                className={errors.valor_objetivo ? 'border-red-500' : ''}
-              />
-              {errors.valor_objetivo && <p className="text-sm text-red-500">{errors.valor_objetivo}</p>}
-            </div>
-
-            {/* Campo valor_atual apenas quando estiver editando */}
-            {editGoal && (
-              <div className="space-y-2">
-                <Label htmlFor="valor_atual">Valor Atual (Alocado)</Label>
-                <Input
-                  id="valor_atual"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.valor_atual}
-                  onChange={(e) => handleChange('valor_atual', e.target.value)}
-                  placeholder="0,00"
-                  className={errors.valor_atual ? 'border-red-500' : ''}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Ajuste o valor já alocado para este objetivo. Isso afetará o progresso mostrado.
-                </p>
-                {errors.valor_atual && <p className="text-sm text-red-500">{errors.valor_atual}</p>}
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="prazo">Data Limite</Label>
-              <Input
-                id="prazo"
-                type="date"
-                value={form.prazo}
-                onChange={(e) => handleChange('prazo', e.target.value)}
-                className={errors.prazo ? 'border-red-500' : ''}
-              />
-              {errors.prazo && <p className="text-sm text-red-500">{errors.prazo}</p>}
-            </div>
-
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button type="button" variant="outline" onClick={handleClose}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={isCreating || isUpdating}>
-                {isCreating || isUpdating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    A guardar...
-                  </>
-                ) : (
-                  editGoal ? 'Atualizar' : 'Criar'
-                )}
-              </Button>
-            </div>
-          </form>
+          <GoalForm
+            onSuccess={() => {
+              setShowCreateModal(false);
+              refetch();
+            }}
+            onCancel={() => setShowCreateModal(false)}
+          />
         </DialogContent>
       </Dialog>
 
-      {/* Modal para alocar valor */}
+      {/* Edit Goal Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Objetivo</DialogTitle>
+            <DialogDescription>
+              Edita os dados do objetivo
+            </DialogDescription>
+          </DialogHeader>
+          <GoalForm
+            initialData={editingGoal}
+            onSuccess={() => {
+              setShowEditModal(false);
+              setEditingGoal(null);
+              refetch();
+            }}
+            onCancel={() => {
+              setShowEditModal(false);
+              setEditingGoal(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Allocation Modal */}
       {selectedGoal && (
         <GoalAllocationModal
           isOpen={showAllocationModal}
-          onClose={() => {
-            setShowAllocationModal(false);
-            setSelectedGoal(null);
-          }}
-          goalId={selectedGoal.id}
+          onClose={handleAllocationSuccess}
+          goalId={selectedGoal.goal_id}
           goalName={selectedGoal.nome}
+          currentProgress={selectedGoal.total_alocado}
+          targetAmount={selectedGoal.valor_objetivo}
         />
       )}
     </div>

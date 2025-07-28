@@ -16,8 +16,8 @@ export const useCategories = () => {
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
-    staleTime: 0, // Dados sempre considerados stale para forçar refetch
-    gcTime: 5 * 60 * 1000, // 5 minutos de cache
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
   });
 };
 
@@ -26,21 +26,26 @@ export const useCreateCategory = () => {
   const { user } = useAuth();
   
   return useMutation({
-    mutationFn: async (payload: { nome: string; cor: string; descricao?: string }) => {
-      console.log('🔍 useCreateCategory: payload recebido:', payload);
-      console.log('🔍 useCreateCategory: user ID:', user?.id);
+    mutationFn: async (payload: { nome: string; cor: string }) => {
+      console.log('[useCreateCategory] Mutation function called with payload:', payload);
+      console.log('[useCreateCategory] user ID:', user?.id);
       
       if (!user?.id) {
         throw new Error('Utilizador não autenticado');
       }
       
-      const { data, error } = await createCategory(payload, user.id);
-      if (error) throw error;
-      return data;
+      const result = await createCategory(payload, user.id);
+      console.log('[useCreateCategory] Service result:', result);
+      if (result.error) throw result.error;
+      return result.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('[useCreateCategory] onSuccess called with data:', data);
       queryClient.invalidateQueries({ queryKey: ['categories'] });
     },
+    onError: (error) => {
+      console.error('[useCreateCategory] onError called with error:', error);
+    }
   });
 };
 

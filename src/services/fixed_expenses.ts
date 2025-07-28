@@ -1,12 +1,14 @@
 import { supabase } from '../lib/supabaseClient';
 
-export const getFixedExpenses = () =>
-  supabase
+export const getFixedExpenses = async () => {
+  const { data, error } = await supabase
     .from('fixed_expenses')
     .select('*')
     .order('dia_vencimento', { ascending: true });
+  return { data, error };
+};
 
-export const createFixedExpense = (data: {
+export const createFixedExpense = async (data: {
   nome: string;
   valor: number;
   dia_vencimento: number;
@@ -14,9 +16,12 @@ export const createFixedExpense = (data: {
   ativa?: boolean;
   user_id?: string;
   family_id?: string;
-}) => supabase.from('fixed_expenses').insert(data);
+}) => {
+  const { data: result, error } = await supabase.from('fixed_expenses').insert(data);
+  return { data: result, error };
+};
 
-export const updateFixedExpense = (id: string, data: {
+export const updateFixedExpense = async (id: string, data: {
   nome?: string;
   valor?: number;
   dia_vencimento?: number;
@@ -24,7 +29,12 @@ export const updateFixedExpense = (id: string, data: {
   ativa?: boolean;
   user_id?: string;
   family_id?: string;
-}) => supabase.from('fixed_expenses').update(data).eq('id', id);
+}) => {
+  const { data: result, error } = await supabase.from('fixed_expenses').update(data).eq('id', id);
+  return { data: result, error };
+};
 
-export const deleteFixedExpense = (id: string) =>
-  supabase.from('fixed_expenses').delete().eq('id', id); 
+export const deleteFixedExpense = async (id: string) => {
+  const { data, error } = await supabase.from('fixed_expenses').delete().eq('id', id);
+  return { data, error };
+}; 

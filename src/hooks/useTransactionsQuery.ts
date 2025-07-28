@@ -6,11 +6,15 @@ import * as transactionService from '../services/transactions';
 export const useTransactions = () => {
   const { user } = useAuth();
   
+  console.log('[useTransactions] Hook called with user:', user?.id);
+  
   return useQuery({
     queryKey: ['transactions'],
     queryFn: async () => {
+      console.log('[useTransactions] Query function called');
       const { data, error } = await transactionService.getTransactions();
       if (error) throw error;
+      console.log('[useTransactions] Query result:', data?.length || 0, 'transactions');
       return data || [];
     },
     enabled: !!user,
@@ -29,13 +33,23 @@ export const useCreateTransaction = () => {
 
   return useMutation({
     mutationFn: async (transactionData: Parameters<typeof transactionService.createTransaction>[0]) => {
+      console.log('[useCreateTransaction] Mutation function called with data:', transactionData);
       const result = await transactionService.createTransaction(transactionData, user?.id || '');
-      if (result.error) throw new Error(result.error.message);
-      return result;
+      console.log('[useCreateTransaction] Service result:', result);
+      if (result.error) throw result.error;
+      return result.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('[useCreateTransaction] onSuccess called with data:', data);
+      console.log('[useCreateTransaction] Invalidating transactions query...');
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      console.log('[useCreateTransaction] Invalidating accountsWithBalances query...');
+      queryClient.invalidateQueries({ queryKey: ['accountsWithBalances'] });
+      console.log('[useCreateTransaction] Invalidation complete');
     },
+    onError: (error) => {
+      console.error('[useCreateTransaction] onError called with error:', error);
+    }
   });
 };
 
@@ -46,13 +60,23 @@ export const useUpdateTransaction = () => {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      console.log('[useUpdateTransaction] Mutation function called with id:', id, 'data:', data);
       const result = await transactionService.updateTransaction(id, data, user?.id || '');
-      if (result.error) throw new Error(result.error.message);
-      return result;
+      console.log('[useUpdateTransaction] Service result:', result);
+      if (result.error) throw result.error;
+      return result.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('[useUpdateTransaction] onSuccess called with data:', data);
+      console.log('[useUpdateTransaction] Invalidating transactions query...');
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      console.log('[useUpdateTransaction] Invalidating accountsWithBalances query...');
+      queryClient.invalidateQueries({ queryKey: ['accountsWithBalances'] });
+      console.log('[useUpdateTransaction] Invalidation complete');
     },
+    onError: (error) => {
+      console.error('[useUpdateTransaction] onError called with error:', error);
+    }
   });
 };
 

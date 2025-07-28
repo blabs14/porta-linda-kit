@@ -1,137 +1,180 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useCreateCategory, useUpdateCategory } from '../hooks/useCategoriesQuery';
 import { categorySchema } from '../validation/categorySchema';
-import { validateCategoryServerSide } from '../services/validation';
-import { showError } from '../lib/utils';
-import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Label } from './ui/label';
+import { Button } from './ui/button';
+import { FormSubmitButton } from './ui/loading-button';
+import { FormTransition } from './ui/transition-wrapper';
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from './ui/select';
 
-interface CategoryFormProps {
-  initialData?: any;
-  onSuccess?: () => void;
-  onCancel?: () => void;
-  onSubmitCategory: (data: { nome: string; descricao?: string }) => Promise<{ error?: any }>;
+interface CategoryFormData {
+  id?: string;
+  nome: string;
+  tipo: string;
+  cor?: string;
+  icone?: string;
 }
 
-export default function CategoryForm({ initialData, onSuccess, onCancel, onSubmitCategory }: CategoryFormProps) {
-  const [form, setForm] = useState({
-    id: initialData?.id || '',
-    nome: initialData?.nome || '',
-    descricao: initialData?.descricao || '',
+interface CategoryFormProps {
+  initialData?: CategoryFormData;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}
+
+const CategoryForm = ({ initialData, onSuccess, onCancel }: CategoryFormProps) => {
+  const { user } = useAuth();
+  const [form, setForm] = useState<CategoryFormData>({
+    nome: '',
+    tipo: 'despesa',
+    cor: '#3B82F6',
+    icone: '📊',
+    ...initialData
   });
-  const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const nomeRef = useRef<HTMLInputElement>(null);
+  
+  const createCategoryMutation = useCreateCategory();
+  const updateCategoryMutation = useUpdateCategory();
+  const isSubmitting = createCategoryMutation.isPending || updateCategoryMutation.isPending;
+
+  useEffect(() => {
+    if (initialData) {
+      setForm(initialData);
+    }
+  }, [initialData]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (field: string, value: string) => {
+    setForm(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationErrors({});
-    setLoading(true);
     
-    // Validação client-side primeiro
-    const result = categorySchema.safeParse({
-      nome: form.nome,
-      descricao: form.descricao,
-    });
+    // Validação client-side com Zod
+    const result = categorySchema.safeParse(form);
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
       result.error.errors.forEach(err => {
         if (err.path[0]) fieldErrors[err.path[0]] = err.message;
       });
       setValidationErrors(fieldErrors);
-      setLoading(false);
-      if (fieldErrors.nome) nomeRef.current?.focus();
       return;
     }
     
     try {
       const payload = {
         nome: form.nome,
-        descricao: form.descricao,
+        tipo: form.tipo,
+        cor: form.cor,
+        icone: form.icone,
       };
       
-      // Validação server-side
-      const serverValidation = await validateCategoryServerSide(payload);
-      
-      if (!serverValidation.success) {
-        const fieldErrors: Record<string, string> = {};
-        serverValidation.errors?.forEach(err => {
-          // Assumir que o erro é uma string que pode ser mapeada para um campo
-          if (err.includes('nome')) fieldErrors.nome = err;
-          else if (err.includes('descrição')) fieldErrors.descricao = err;
-          else fieldErrors.general = err;
-        });
-        setValidationErrors(fieldErrors);
-        setLoading(false);
-        if (fieldErrors.nome) nomeRef.current?.focus();
-        return;
-      }
-      
-      // Usar dados sanitizados do servidor se disponíveis
-      const finalPayload = serverValidation.data || payload;
-      
-      const { error } = await onSubmitCategory(finalPayload);
-      setLoading(false);
-      if (error) {
-        showError(error.message);
+      if (initialData && initialData.id) {
+        await updateCategoryMutation.mutateAsync({ id: initialData.id, data: payload });
       } else {
-        if (onSuccess) onSuccess();
-        if (!form.id) setForm({ id: '', nome: '', descricao: '' });
+        await createCategoryMutation.mutateAsync(payload);
       }
+      
+      if (onSuccess) onSuccess();
     } catch (err: any) {
-      showError('Erro ao guardar categoria');
-      setLoading(false);
+      console.error('Erro ao guardar categoria:', err);
+      // O erro já é tratado pelo hook useCrudMutation
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-2 sm:p-4">
-      <div className="space-y-2">
-        <Label htmlFor="nome">Nome</Label>
-        <Input
-          id="nome"
-          name="nome"
-          placeholder="Nome da categoria"
-          value={form.nome}
-          onChange={handleChange}
-          required
-          ref={nomeRef}
-          autoFocus
-          aria-invalid={!!validationErrors.nome}
-          aria-describedby={validationErrors.nome ? 'nome-error' : undefined}
-        />
-        <p className="text-xs text-muted-foreground">Exemplo: Alimentação, Lazer, etc.</p>
-        {validationErrors.nome && <div id="nome-error" className="text-destructive text-sm" aria-live="polite">{validationErrors.nome}</div>}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="descricao">Descrição</Label>
-        <Input
-          id="descricao"
-          name="descricao"
-          placeholder="Descrição (opcional)"
-          value={form.descricao}
-          onChange={handleChange}
-          aria-invalid={!!validationErrors.descricao}
-          aria-describedby={validationErrors.descricao ? 'descricao-error' : undefined}
-        />
-        <p className="text-xs text-muted-foreground">Breve descrição da categoria.</p>
-        {validationErrors.descricao && <div id="descricao-error" className="text-destructive text-sm" aria-live="polite">{validationErrors.descricao}</div>}
-      </div>
-      <div className="flex flex-col sm:flex-row gap-2">
-        <Button type="submit" disabled={loading} className="w-full">
-          {loading ? 'A guardar...' : 'Guardar'}
-        </Button>
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} className="w-full">
-            Cancelar
-          </Button>
-        )}
-      </div>
-    </form>
+    <FormTransition isVisible={true}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-2 sm:p-4">
+        <div className="space-y-2">
+          <label htmlFor="nome">Nome</label>
+          <Input
+            id="nome"
+            name="nome"
+            placeholder="Nome da categoria"
+            value={form.nome}
+            onChange={handleChange}
+            required
+            autoFocus
+            className="w-full"
+            aria-invalid={!!validationErrors.nome}
+            aria-describedby={validationErrors.nome ? 'nome-error' : undefined}
+          />
+          {validationErrors.nome && <div id="nome-error" className="text-red-600 text-sm">{validationErrors.nome}</div>}
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="tipo">Tipo</label>
+          <Select value={form.tipo} onValueChange={(value) => handleSelectChange('tipo', value)}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Selecionar tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="despesa">Despesa</SelectItem>
+              <SelectItem value="receita">Receita</SelectItem>
+              <SelectItem value="transferencia">Transferência</SelectItem>
+            </SelectContent>
+          </Select>
+          {validationErrors.tipo && <div className="text-red-600 text-sm">{validationErrors.tipo}</div>}
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="cor">Cor</label>
+          <Input
+            id="cor"
+            name="cor"
+            type="color"
+            value={form.cor}
+            onChange={handleChange}
+            className="w-full h-12"
+            aria-invalid={!!validationErrors.cor}
+            aria-describedby={validationErrors.cor ? 'cor-error' : undefined}
+          />
+          {validationErrors.cor && <div id="cor-error" className="text-red-600 text-sm">{validationErrors.cor}</div>}
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="icone">Ícone</label>
+          <Input
+            id="icone"
+            name="icone"
+            placeholder="Emoji ou ícone"
+            value={form.icone}
+            onChange={handleChange}
+            className="w-full"
+            aria-invalid={!!validationErrors.icone}
+            aria-describedby={validationErrors.icone ? 'icone-error' : undefined}
+          />
+          {validationErrors.icone && <div id="icone-error" className="text-red-600 text-sm">{validationErrors.icone}</div>}
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <FormSubmitButton 
+            isSubmitting={isSubmitting}
+            submitText={initialData?.id ? 'Atualizar' : 'Criar'}
+            submittingText={initialData?.id ? 'A atualizar...' : 'A criar...'}
+            className="w-full"
+          />
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel} className="w-full">
+              Cancelar
+            </Button>
+          )}
+        </div>
+      </form>
+    </FormTransition>
   );
-} 
+};
+
+export default CategoryForm; 

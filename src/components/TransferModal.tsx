@@ -1,305 +1,219 @@
-import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Textarea } from './ui/textarea';
-import { useAccounts } from '../hooks/useAccountsQuery';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../hooks/use-toast';
-import { Loader2, ArrowRight } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { useCreateTransaction } from '../hooks/useTransactionsQuery';
+import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
+import { FormSubmitButton } from './ui/loading-button';
+import { ModalTransition } from './ui/transition-wrapper';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from './ui/select';
 
 interface TransferModalProps {
   isOpen: boolean;
   onClose: () => void;
-  sourceAccountId?: string; // Conta de origem (opcional, se não fornecida mostra todas)
 }
 
-export function TransferModal({ isOpen, onClose, sourceAccountId }: TransferModalProps) {
-  const { data: accounts = [] } = useAccounts();
+const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
   const { user } = useAuth();
-  const { toast } = useToast();
-
-  const [form, setForm] = useState({
-    sourceAccountId: sourceAccountId || '',
-    targetAccountId: '',
-    amount: '',
-    description: ''
-  });
-
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Filtrar contas disponíveis (excluir a conta de destino da lista de origem)
-  const availableSourceAccounts = accounts.filter(account => 
-    !sourceAccountId || account.id === sourceAccountId
-  );
+  const { mutateAsync: createTransaction, isPending: isCreating } = useCreateTransaction();
+  const { data: accounts = [] } = useAccountsWithBalances();
   
-  const availableTargetAccounts = accounts.filter(account => 
-    account.id !== form.sourceAccountId
-  );
+  const [fromAccountId, setFromAccountId] = useState('');
+  const [toAccountId, setToAccountId] = useState('');
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [validationError, setValidationError] = useState('');
 
-  const handleChange = (field: string, value: string) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+  const fromAccount = accounts.find(acc => acc.account_id === fromAccountId);
+  const toAccount = accounts.find(acc => acc.account_id === toAccountId);
+
+  useEffect(() => {
+    if (isOpen) {
+      setFromAccountId('');
+      setToAccountId('');
+      setAmount('');
+      setDescription('');
+      setValidationError('');
     }
-  };
-
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!form.sourceAccountId) {
-      newErrors.sourceAccountId = 'Conta de origem obrigatória';
-    }
-
-    if (!form.targetAccountId) {
-      newErrors.targetAccountId = 'Conta de destino obrigatória';
-    }
-
-    if (form.sourceAccountId === form.targetAccountId) {
-      newErrors.targetAccountId = 'Conta de destino deve ser diferente da origem';
-    }
-
-    if (!form.amount || parseFloat(form.amount) <= 0) {
-      newErrors.amount = 'Valor deve ser maior que zero';
-    }
-
-    // Verificar se a conta de origem tem saldo suficiente
-    const sourceAccount = accounts.find(acc => acc.id === form.sourceAccountId);
-    if (sourceAccount && parseFloat(form.amount) > Number(sourceAccount.saldo)) {
-      newErrors.amount = 'Saldo insuficiente na conta de origem';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
+    setValidationError('');
+
+    if (!fromAccountId || !toAccountId) {
+      setValidationError('Selecione as contas de origem e destino');
       return;
     }
 
-    setIsSubmitting(true);
+    if (fromAccountId === toAccountId) {
+      setValidationError('As contas de origem e destino devem ser diferentes');
+      return;
+    }
+
+    const numericAmount = parseFloat(amount.replace(',', '.'));
+    if (!numericAmount || numericAmount <= 0) {
+      setValidationError('Insira um valor válido');
+      return;
+    }
+
+    if (fromAccount && numericAmount > fromAccount.saldo_disponivel) {
+      setValidationError('Saldo insuficiente na conta de origem');
+      return;
+    }
 
     try {
-      const amount = parseFloat(form.amount);
-      const sourceAccount = accounts.find(acc => acc.id === form.sourceAccountId);
-      const targetAccount = accounts.find(acc => acc.id === form.targetAccountId);
-
-      if (!sourceAccount || !targetAccount) {
-        throw new Error('Conta não encontrada');
-      }
-
-      // Criar transação de saída (despesa) na conta de origem
-      const sourceTransaction = {
-        account_id: form.sourceAccountId,
-        valor: amount,
-        categoria_id: await getTransferCategoryId(),
+      // Criar transação de débito na conta de origem
+      await createTransaction({
+        account_id: fromAccountId,
+        categoria_id: '', // Será preenchida automaticamente ou deixada vazia
+        tipo: 'transferencia',
+        valor: numericAmount,
+        descricao: description || `Transferência para ${toAccount?.nome}`,
         data: new Date().toISOString().split('T')[0],
-        descricao: `Transferência para ${targetAccount.nome}${form.description ? ` - ${form.description}` : ''}`,
-        tipo: 'despesa',
-        user_id: user?.id
-      };
-
-      // Criar transação de entrada (receita) na conta de destino
-      const targetTransaction = {
-        account_id: form.targetAccountId,
-        valor: amount,
-        categoria_id: await getTransferCategoryId(),
-        data: new Date().toISOString().split('T')[0],
-        descricao: `Transferência de ${sourceAccount.nome}${form.description ? ` - ${form.description}` : ''}`,
-        tipo: 'receita',
-        user_id: user?.id
-      };
-
-      // Executar as duas transações
-      const { createTransaction } = await import('../services/transactions');
-      
-      await createTransaction(sourceTransaction, user?.id || '');
-      await createTransaction(targetTransaction, user?.id || '');
-
-      toast({
-        title: 'Transferência realizada',
-        description: `Transferência de ${amount.toFixed(2)}€ realizada com sucesso!`,
+        user_id: user?.id || '',
       });
 
-      // Limpar formulário
-      setForm({
-        sourceAccountId: sourceAccountId || '',
-        targetAccountId: '',
-        amount: '',
-        description: ''
+      // Criar transação de crédito na conta de destino
+      await createTransaction({
+        account_id: toAccountId,
+        categoria_id: '', // Será preenchida automaticamente ou deixada vazia
+        tipo: 'transferencia',
+        valor: numericAmount,
+        descricao: description || `Transferência de ${fromAccount?.nome}`,
+        data: new Date().toISOString().split('T')[0],
+        user_id: user?.id || '',
       });
-      setErrors({});
-      
-      // Fechar modal e chamar onClose para atualizar a página
+
       onClose();
-
-    } catch (error: any) {
-      console.error('Erro ao realizar transferência:', error);
-      toast({
-        title: 'Erro',
-        description: error.message || 'Erro ao realizar transferência. Tente novamente.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsSubmitting(false);
+    } catch (error) {
+      console.error('Erro ao processar transferência:', error);
+      setValidationError('Erro ao processar transferência');
     }
   };
 
-  const getTransferCategoryId = async () => {
-    // Buscar categoria "Transferências" ou criar se não existir
-    const { data: transferCategory } = await supabase
-      .from('categories')
-      .select('id')
-      .eq('nome', 'Transferências')
-      .eq('user_id', user?.id)
-      .single();
-
-    if (transferCategory) {
-      return transferCategory.id;
-    }
-
-    // Criar categoria "Transferências" se não existir
-    const { data: newCategory } = await supabase
-      .from('categories')
-      .insert({
-        nome: 'Transferências',
-        cor: '#6B7280',
-        user_id: user?.id
-      })
-      .select('id')
-      .single();
-
-    return newCategory?.id;
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Permitir apenas números e vírgula/ponto
+    const numericValue = value.replace(/[^\d.,]/g, '').replace(',', '.');
+    setAmount(numericValue);
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-PT', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(value);
-  };
+  const availableAccounts = accounts.filter(account => account.saldo_disponivel > 0);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Transferir entre Contas</DialogTitle>
-          <DialogDescription>
-            Transfira dinheiro de uma conta para outra.
-          </DialogDescription>
         </DialogHeader>
+        
+        <ModalTransition isVisible={isOpen}>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="fromAccount" className="text-sm font-medium">
+                Conta de Origem
+              </label>
+              <Select value={fromAccountId} onValueChange={setFromAccountId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar conta de origem" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableAccounts.map(account => (
+                    <SelectItem key={account.account_id} value={account.account_id}>
+                      {account.nome} - €{account.saldo_disponivel.toFixed(2)} disponível
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="sourceAccount">Conta de Origem</Label>
-            <Select
-              value={form.sourceAccountId}
-              onValueChange={(value) => handleChange('sourceAccountId', value)}
-            >
-              <SelectTrigger className={errors.sourceAccountId ? 'border-red-500' : ''}>
-                <SelectValue placeholder="Selecionar conta de origem" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableSourceAccounts.map((account) => (
-                  <SelectItem key={account.id} value={account.id}>
-                    <div className="flex justify-between items-center w-full">
-                      <span>{account.nome}</span>
-                      <span className="text-sm text-muted-foreground ml-2">
-                        {formatCurrency(Number(account.saldo))}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.sourceAccountId && (
-              <p className="text-sm text-red-500">{errors.sourceAccountId}</p>
+            <div className="space-y-2">
+              <label htmlFor="toAccount" className="text-sm font-medium">
+                Conta de Destino
+              </label>
+              <Select value={toAccountId} onValueChange={setToAccountId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar conta de destino" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map(account => (
+                    <SelectItem key={account.account_id} value={account.account_id}>
+                      {account.nome} - €{account.saldo_atual.toFixed(2)} saldo atual
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="amount" className="text-sm font-medium">
+                Valor a Transferir (€)
+              </label>
+              <Input
+                id="amount"
+                type="text"
+                placeholder="0,00"
+                value={amount}
+                onChange={handleAmountChange}
+                required
+                className="w-full"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="description" className="text-sm font-medium">
+                Descrição (Opcional)
+              </label>
+              <Input
+                id="description"
+                type="text"
+                placeholder="Descrição da transferência"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full"
+              />
+            </div>
+
+            {validationError && (
+              <div className="text-red-600 text-sm">{validationError}</div>
             )}
-          </div>
 
-          <div className="flex justify-center">
-            <ArrowRight className="h-6 w-6 text-muted-foreground" />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="targetAccount">Conta de Destino</Label>
-            <Select
-              value={form.targetAccountId}
-              onValueChange={(value) => handleChange('targetAccountId', value)}
-            >
-              <SelectTrigger className={errors.targetAccountId ? 'border-red-500' : ''}>
-                <SelectValue placeholder="Selecionar conta de destino" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableTargetAccounts.map((account) => (
-                  <SelectItem key={account.id} value={account.id}>
-                    <div className="flex justify-between items-center w-full">
-                      <span>{account.nome}</span>
-                      <span className="text-sm text-muted-foreground ml-2">
-                        {formatCurrency(Number(account.saldo))}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.targetAccountId && (
-              <p className="text-sm text-red-500">{errors.targetAccountId}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="amount">Valor</Label>
-            <Input
-              id="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={form.amount}
-              onChange={(e) => handleChange('amount', e.target.value)}
-              placeholder="0,00"
-              className={errors.amount ? 'border-red-500' : ''}
-            />
-            {errors.amount && (
-              <p className="text-sm text-red-500">{errors.amount}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Descrição (opcional)</Label>
-            <Textarea
-              id="description"
-              value={form.description}
-              onChange={(e) => handleChange('description', e.target.value)}
-              placeholder="Descrição da transferência"
-              rows={2}
-            />
-          </div>
-
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Transferindo...
-                </>
-              ) : (
-                'Transferir'
-              )}
-            </Button>
-          </div>
-        </form>
+            <div className="flex gap-2">
+              <FormSubmitButton 
+                isSubmitting={isCreating}
+                submitText="Transferir"
+                submittingText="A transferir..."
+                className="flex-1"
+              />
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={onClose}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </ModalTransition>
       </DialogContent>
     </Dialog>
   );
-} 
+};
+
+export default TransferModal;
+
+export { TransferModal }; 
