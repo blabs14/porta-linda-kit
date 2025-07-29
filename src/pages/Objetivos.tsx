@@ -13,7 +13,7 @@ import GoalForm from '../components/GoalForm';
 import { GoalProgress } from '../integrations/supabase/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 
-export default function Goals() {
+export default function Objetivos() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAllocationModal, setShowAllocationModal] = useState(false);

@@ -5,7 +5,7 @@ import { Input } from '../components/ui/input';
 import { useAuth } from '../contexts/AuthContext';
 import { ReportExport } from '../components/ReportExport';
 
-const ReportsPage = () => {
+const RelatoriosPage = () => {
   const { user } = useAuth();
   const [data, setData] = useState<{ categoria: string; total: number }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,4 +72,4 @@ const ReportsPage = () => {
   );
 };
 
-export default ReportsPage; 
+export default RelatoriosPage; 

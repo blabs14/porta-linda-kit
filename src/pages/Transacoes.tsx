@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import TransactionList from '../components/TransactionList';
-import TransactionForm from '../components/TransactionForm';
+import ListaTransacoes from '../components/ListaTransacoes';
+import FormularioTransacao from '../components/FormularioTransacao';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { Button } from '../components/ui/button';
 import { ButtonLoading } from '../components/ui/loading-states';
 
-const TransactionsPage = () => {
+const TransacoesPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editTx, setEditTx] = useState<any | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -47,7 +47,7 @@ const TransactionsPage = () => {
       {/* Conteúdo com Scroll apenas nos dados */}
       <div className="flex-1 overflow-hidden">
         <div className="h-full flex flex-col">
-          <TransactionList key={refreshKey} onEdit={handleEdit} />
+          <ListaTransacoes key={refreshKey} onEdit={handleEdit} />
         </div>
       </div>
       
@@ -64,7 +64,7 @@ const TransactionsPage = () => {
               {editTx ? 'Editar dados da transação' : 'Criar nova transação'}
             </DialogDescription>
           </DialogHeader>
-          <TransactionForm 
+          <FormularioTransacao 
             initialData={editTx || undefined} 
             onSuccess={() => {
               handleClose();
@@ -77,4 +77,4 @@ const TransactionsPage = () => {
   );
 };
 
-export default TransactionsPage; 
+export default TransacoesPage; 

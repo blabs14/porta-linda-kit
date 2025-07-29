@@ -1,7 +1,7 @@
 import { lazy } from 'react';
 
 // Lazy loading para formulários menos usados
-export const LazyBudgetForm = lazy(() => import('../BudgetForm'));
+export const LazyFormularioOrcamento = lazy(() => import('../FormularioOrcamento'));
 export const LazyFamilyInviteForm = lazy(() => import('../FamilyInviteForm'));
 export const LazyFixedExpensesForm = lazy(() => import('../FixedExpensesForm'));
 export const LazyNotificationForm = lazy(() => import('../NotificationForm'));
@@ -15,7 +15,7 @@ export const LazyGoalAllocationModal = lazy(() => import('../GoalAllocationModal
 export const LazyTransferModal = lazy(() => import('../TransferModal'));
 
 // Lazy loading para componentes de lista
-export const LazyAccountList = lazy(() => import('../AccountList'));
-export const LazyTransactionList = lazy(() => import('../TransactionList'));
-export const LazyBudgetTable = lazy(() => import('../BudgetTable'));
+export const LazyListaContas = lazy(() => import('../ListaContas'));
+export const LazyListaTransacoes = lazy(() => import('../ListaTransacoes'));
+export const LazyTabelaOrcamentos = lazy(() => import('../TabelaOrcamentos'));
 export const LazyFixedExpensesList = lazy(() => import('../FixedExpensesList')); 

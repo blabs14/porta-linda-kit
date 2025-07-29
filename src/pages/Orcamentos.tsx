@@ -20,7 +20,7 @@ interface BudgetFormData {
   mes: string;
 }
 
-const BudgetsPage = () => {
+const OrcamentosPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editBudget, setEditBudget] = useState<any | null>(null);
   const [form, setForm] = useState<BudgetFormData>({
@@ -438,4 +438,4 @@ const BudgetsPage = () => {
   );
 };
 
-export default BudgetsPage; 
+export default OrcamentosPage; 

@@ -35,12 +35,39 @@ Aplicação de gestão financeira familiar colaborativa, com autenticação, par
 
 ## 🗂️ Estrutura do Projeto
 
-- `src/components/` — Componentes React reutilizáveis (forms, listas, UI, etc.)
+- `src/components/` — Componentes React reutilizáveis (formulários, listas, UI, etc.)
 - `src/services/` — Funções de acesso a dados (Supabase, Storage, etc.)
 - `src/validation/` — Schemas Zod para validação robusta
 - `src/pages/` — Páginas principais da aplicação
 - `src/contexts/` — Contextos globais (ex: Auth)
 - `supabase/` — Migrations, configuração e scripts SQL
+
+---
+
+## 📁 Convenções de Naming
+
+### Páginas (PascalCase)
+- `Dashboard.tsx` — Página principal
+- `Transacoes.tsx` — Gestão de transações
+- `Contas.tsx` — Gestão de contas
+- `Orcamentos.tsx` — Gestão de orçamentos
+- `Relatorios.tsx` — Relatórios e análises
+- `Objetivos.tsx` — Gestão de objetivos financeiros
+- `Familia.tsx` — Gestão de membros da família
+- `Analises.tsx` — Análises e insights
+
+### Componentes (PascalCase)
+- `FormularioTransacao.tsx` — Formulário de transação
+- `ListaTransacoes.tsx` — Lista de transações
+- `FormularioConta.tsx` — Formulário de conta
+- `ListaContas.tsx` — Lista de contas
+- `FormularioOrcamento.tsx` — Formulário de orçamento
+- `TabelaOrcamentos.tsx` — Tabela de orçamentos
+
+### Variáveis e Funções (camelCase)
+- `criarTransacao()` — Função para criar transação
+- `listaContas` — Array de contas
+- `formularioDados` — Dados do formulário
 
 ---
 
@@ -98,8 +125,9 @@ Nunca commits o ficheiro `.env.local`!
 - Mantém o `.env.local` fora do repositório (`.gitignore`)
 - Usa MFA no Supabase e GitHub
 - Revê roles e acessos regularmente
-- Segue os padrões de código e validação definidos
-- Documenta sempre alterações relevantes
+- Segue as convenções de naming em português
+- Usa PascalCase para componentes e páginas
+- Usa camelCase para variáveis e funções
 
 ---
 

@@ -12,20 +12,20 @@ import { Toaster } from './components/ui/toaster';
 // Lazy loading de páginas
 import {
   Dashboard,
-  Transactions,
-  Reports,
-  Goals,
-  Family,
-  Insights,
-  AccountsPage,
-  BudgetsPage,
+  Transacoes,
+  Relatorios,
+  Objetivos,
+  Familia,
+  Analises,
+  ContasPage,
+  OrcamentosPage,
 } from './components/lazy';
 
 // Páginas de autenticação (não lazy loading para melhor UX)
 import Index from './pages/Index';
-import Login from './pages/login';
-import Register from './pages/register';
-import ForgotPassword from './pages/forgot-password';
+import Login from './pages/Login';
+import Registro from './pages/Registro';
+import EsqueciSenha from './pages/EsqueciSenha';
 import NotFound from './pages/NotFound';
 import TestPage from './pages/TestPage';
 
@@ -46,8 +46,8 @@ function App() {
             <Route path="/" element={<Index />} />
             <Route path="/test" element={<TestPage />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/register" element={<Registro />} />
+            <Route path="/forgot-password" element={<EsqueciSenha />} />
             
             {/* Páginas protegidas com lazy loading */}
             <Route path="/app" element={<RequireAuth><MainLayout /></RequireAuth>}>
@@ -58,37 +58,37 @@ function App() {
               } />
               <Route path="transactions" element={
                 <Suspense fallback={<PageLoading />}>
-                  <Transactions />
+                  <Transacoes />
                 </Suspense>
               } />
               <Route path="accounts" element={
                 <Suspense fallback={<PageLoading />}>
-                  <AccountsPage />
+                  <ContasPage />
                 </Suspense>
               } />
               <Route path="budgets" element={
                 <Suspense fallback={<PageLoading />}>
-                  <BudgetsPage />
+                  <OrcamentosPage />
                 </Suspense>
               } />
               <Route path="reports" element={
                 <Suspense fallback={<PageLoading />}>
-                  <Reports />
+                  <Relatorios />
                 </Suspense>
               } />
               <Route path="goals" element={
                 <Suspense fallback={<PageLoading />}>
-                  <Goals />
+                  <Objetivos />
                 </Suspense>
               } />
               <Route path="family" element={
                 <Suspense fallback={<PageLoading />}>
-                  <Family />
+                  <Familia />
                 </Suspense>
               } />
               <Route path="insights" element={
                 <Suspense fallback={<PageLoading />}>
-                  <Insights />
+                  <Analises />
                 </Suspense>
               } />
             </Route>

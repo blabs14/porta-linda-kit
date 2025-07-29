@@ -7,12 +7,12 @@ import { Wallet, Plus, Edit, Trash2, ArrowRightLeft, Target } from 'lucide-react
 import { useAccountsWithBalances, useDeleteAccount } from '../hooks/useAccountsQuery';
 import { useToast } from '../hooks/use-toast';
 import { formatCurrency } from '../lib/utils';
-import AccountForm from '../components/AccountForm';
+import FormularioConta from '../components/FormularioConta';
 import { TransferModal } from '../components/TransferModal';
 import { AccountWithBalances } from '../integrations/supabase/types';
 import { useConfirmation } from '../components/ui/confirmation-dialog';
 
-export default function AccountsPage() {
+export default function ContasPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<{
@@ -250,7 +250,7 @@ export default function AccountsPage() {
               {editingAccount ? 'Editar dados da conta' : 'Criar nova conta'}
             </DialogDescription>
           </DialogHeader>
-          <AccountForm
+          <FormularioConta
             initialData={editingAccount}
             onSuccess={handleSuccess}
             onCancel={() => setShowCreateModal(false)}

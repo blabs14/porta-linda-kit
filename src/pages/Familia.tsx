@@ -33,7 +33,7 @@ const roleColors = {
   'viewer': 'text-muted-foreground bg-muted'
 };
 
-export default function Family() {
+export default function Familia() {
   const { data: familyMembers = [], isLoading: loading } = useFamilyMembers();
 
   const totalFamilySpent = familyMembers.reduce((sum, member) => sum + (member.totalSpent || 0), 0);

@@ -26,7 +26,7 @@ import { useCategories } from '../hooks/useCategoriesQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
-import TransactionForm from '../components/TransactionForm';
+import FormularioTransacao from '../components/FormularioTransacao';
 import { useToast } from '../hooks/use-toast';
 import { goalSchema } from '../validation/goalSchema';
 
@@ -37,7 +37,7 @@ const typeColors = {
   error: 'border-destructive bg-destructive/10 text-destructive'
 };
 
-export default function Insights() {
+export default function Analises() {
   const { user } = useAuth();
   const transactionsQuery = useTransactions();
   const accountsQuery = useAccountsWithBalances();
@@ -736,7 +736,7 @@ export default function Insights() {
             <DialogTitle>Nova Transação</DialogTitle>
             <DialogDescription>Adicione uma nova transação à sua conta.</DialogDescription>
           </DialogHeader>
-          <TransactionForm onSuccess={() => setShowTxModal(false)} onCancel={() => setShowTxModal(false)} />
+          <FormularioTransacao onSuccess={() => setShowTxModal(false)} onCancel={() => setShowTxModal(false)} />
         </DialogContent>
       </Dialog>
 
