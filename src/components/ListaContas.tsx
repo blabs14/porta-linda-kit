@@ -33,12 +33,12 @@ const AccountList = ({ onEdit }: AccountListProps) => {
       // Buscar alocações para cada conta
       const allocationsData: Record<string, number> = {};
       for (const account of data) {
-        try {
-          const total = await getAccountAllocationsTotal(account.id, user?.id || '');
-          allocationsData[account.id] = total;
-        } catch (error) {
+        const { data: total, error } = await getAccountAllocationsTotal(account.id, user?.id || '');
+        if (error) {
           console.error(`Erro ao buscar alocações da conta ${account.id}:`, error);
           allocationsData[account.id] = 0;
+        } else {
+          allocationsData[account.id] = total || 0;
         }
       }
       setAllocations(allocationsData);

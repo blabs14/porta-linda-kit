@@ -1,15 +1,9 @@
 import { supabase } from '../lib/supabaseClient';
 
-export interface ValidationResult {
-  success: boolean;
-  data?: any;
-  errors?: string[] | null;
-}
-
 /**
  * Valida dados de transação no servidor usando a Edge Function
  */
-export const validateTransactionServerSide = async (data: any): Promise<ValidationResult> => {
+export const validateTransactionServerSide = async (data: any): Promise<{ data: any | null; error: any }> => {
   try {
     const { data: result, error } = await supabase.functions.invoke('validate-transaction', {
       body: { transaction: data }
@@ -17,32 +11,20 @@ export const validateTransactionServerSide = async (data: any): Promise<Validati
 
     if (error) {
       console.error('Erro na validação server-side:', error);
-      return {
-        success: false,
-        data: data,
-        errors: [error.message]
-      };
+      return { data: null, error };
     }
 
-    return {
-      success: true,
-      data: result?.validatedData || data,
-      errors: result?.errors || null
-    };
+    return { data: result?.validatedData || data, error: null };
   } catch (error) {
     console.error('Erro ao chamar Edge Function:', error);
-    return {
-      success: false,
-      data: data,
-      errors: ['Erro de comunicação com o servidor']
-    };
+    return { data: null, error };
   }
 };
 
 /**
  * Valida dados de conta no servidor
  */
-export const validateAccountServerSide = async (data: any): Promise<ValidationResult> => {
+export const validateAccountServerSide = async (data: any): Promise<{ data: any | null; error: any }> => {
   try {
     const { data: result, error } = await supabase.functions.invoke('validate-account', {
       body: { account: data }
@@ -50,32 +32,20 @@ export const validateAccountServerSide = async (data: any): Promise<ValidationRe
 
     if (error) {
       console.error('Erro na validação de conta server-side:', error);
-      return {
-        success: false,
-        data: data,
-        errors: [error.message]
-      };
+      return { data: null, error };
     }
 
-    return {
-      success: true,
-      data: result?.validatedData || data,
-      errors: result?.errors || null
-    };
+    return { data: result?.validatedData || data, error: null };
   } catch (error) {
     console.error('Erro ao chamar Edge Function de conta:', error);
-    return {
-      success: false,
-      data: data,
-      errors: ['Erro de comunicação com o servidor']
-    };
+    return { data: null, error };
   }
 };
 
 /**
  * Valida dados de categoria no servidor
  */
-export const validateCategoryServerSide = async (data: any): Promise<ValidationResult> => {
+export const validateCategoryServerSide = async (data: any): Promise<{ data: any | null; error: any }> => {
   try {
     const { data: result, error } = await supabase.functions.invoke('validate-category', {
       body: { category: data }
@@ -83,24 +53,12 @@ export const validateCategoryServerSide = async (data: any): Promise<ValidationR
 
     if (error) {
       console.error('Erro na validação de categoria server-side:', error);
-      return {
-        success: false,
-        data: data,
-        errors: [error.message]
-      };
+      return { data: null, error };
     }
 
-    return {
-      success: true,
-      data: result?.validatedData || data,
-      errors: result?.errors || null
-    };
+    return { data: result?.validatedData || data, error: null };
   } catch (error) {
     console.error('Erro ao chamar Edge Function de categoria:', error);
-    return {
-      success: false,
-      data: data,
-      errors: ['Erro de comunicação com o servidor']
-    };
+    return { data: null, error };
   }
 }; 

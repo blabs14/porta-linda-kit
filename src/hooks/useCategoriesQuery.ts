@@ -9,7 +9,10 @@ export const useCategories = () => {
     queryKey: ['categories'],
     queryFn: async () => {
       const { data, error } = await getCategories();
-      if (error) throw error;
+      if (error) {
+        console.error('[useCategories] Error:', error);
+        throw new Error(error.message || 'Erro ao buscar categorias');
+      }
       return data || [];
     },
     enabled: !!user,
@@ -36,7 +39,10 @@ export const useCreateCategory = () => {
       
       const result = await createCategory(payload, user.id);
       console.log('[useCreateCategory] Service result:', result);
-      if (result.error) throw result.error;
+      if (result.error) {
+        console.error('[useCreateCategory] Error:', result.error);
+        throw new Error(result.error.message || 'Erro ao criar categoria');
+      }
       return result.data;
     },
     onSuccess: (data) => {
@@ -56,7 +62,10 @@ export const useUpdateCategory = () => {
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const { data: result, error } = await updateCategory(id, data, user?.id || '');
-      if (error) throw error;
+      if (error) {
+        console.error('[useUpdateCategory] Error:', error);
+        throw new Error(error.message || 'Erro ao atualizar categoria');
+      }
       return result;
     },
     onSuccess: () => {
@@ -72,7 +81,10 @@ export const useDeleteCategory = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       const { data, error } = await deleteCategory(id, user?.id || '');
-      if (error) throw error;
+      if (error) {
+        console.error('[useDeleteCategory] Error:', error);
+        throw new Error(error.message || 'Erro ao eliminar categoria');
+      }
       return data;
     },
     onSuccess: () => {

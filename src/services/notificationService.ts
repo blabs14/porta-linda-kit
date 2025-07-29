@@ -34,7 +34,7 @@ export const sendNotification = async (
   userId: string,
   type: NotificationType,
   data: NotificationData
-): Promise<{ success: boolean; error?: string }> => {
+): Promise<{ data: any | null; error: any }> => {
   try {
     const { data: result, error } = await supabase.functions.invoke('notification-triggers', {
       body: { type, userId, data }
@@ -42,13 +42,13 @@ export const sendNotification = async (
 
     if (error) {
       console.error('Erro ao enviar notificação:', error);
-      return { success: false, error: error.message };
+      return { data: null, error };
     }
 
-    return { success: true };
+    return { data: result, error: null };
   } catch (error) {
     console.error('Erro ao enviar notificação:', error);
-    return { success: false, error: 'Erro de comunicação' };
+    return { data: null, error };
   }
 };
 
@@ -61,20 +61,27 @@ export const checkGoalAchievement = async (
   currentAmount: number,
   goalAmount: number,
   goalName: string
-): Promise<void> => {
-  if (currentAmount >= goalAmount) {
-    await sendNotification(userId, 'goal_achieved', {
-      goalName,
-      goalAmount,
-      currentAmount,
-    });
-  } else if (currentAmount >= goalAmount * 0.8) {
-    // Notificar quando 80% da meta for atingida
-    await sendNotification(userId, 'goal_progress', {
-      goalName,
-      goalAmount,
-      currentAmount,
-    });
+): Promise<{ data: any | null; error: any }> => {
+  try {
+    if (currentAmount >= goalAmount) {
+      const result = await sendNotification(userId, 'goal_achieved', {
+        goalName,
+        goalAmount,
+        currentAmount,
+      });
+      return result;
+    } else if (currentAmount >= goalAmount * 0.8) {
+      // Notificar quando 80% da meta for atingida
+      const result = await sendNotification(userId, 'goal_progress', {
+        goalName,
+        goalAmount,
+        currentAmount,
+      });
+      return result;
+    }
+    return { data: null, error: null };
+  } catch (error) {
+    return { data: null, error };
   }
 };
 
@@ -87,23 +94,30 @@ export const checkBudgetAlerts = async (
   categoryName: string,
   spent: number,
   budget: number
-): Promise<void> => {
-  const percentage = (spent / budget) * 100;
+): Promise<{ data: any | null; error: any }> => {
+  try {
+    const percentage = (spent / budget) * 100;
 
-  if (percentage > 100) {
-    // Orçamento excedido
-    await sendNotification(userId, 'budget_exceeded', {
-      categoryName,
-      spent,
-      budget,
-    });
-  } else if (percentage > 80) {
-    // Alerta de orçamento (80% ou mais)
-    await sendNotification(userId, 'budget_alert', {
-      categoryName,
-      spent,
-      budget,
-    });
+    if (percentage > 100) {
+      // Orçamento excedido
+      const result = await sendNotification(userId, 'budget_exceeded', {
+        categoryName,
+        spent,
+        budget,
+      });
+      return result;
+    } else if (percentage > 80) {
+      // Alerta de orçamento (80% ou mais)
+      const result = await sendNotification(userId, 'budget_alert', {
+        categoryName,
+        spent,
+        budget,
+      });
+      return result;
+    }
+    return { data: null, error: null };
+  } catch (error) {
+    return { data: null, error };
   }
 };
 
@@ -115,12 +129,18 @@ export const checkLargeTransaction = async (
   amount: number,
   description: string,
   threshold: number = 1000
-): Promise<void> => {
-  if (Math.abs(amount) >= threshold) {
-    await sendNotification(userId, 'large_transaction', {
-      description,
-      amount,
-    });
+): Promise<{ data: any | null; error: any }> => {
+  try {
+    if (Math.abs(amount) >= threshold) {
+      const result = await sendNotification(userId, 'large_transaction', {
+        description,
+        amount,
+      });
+      return result;
+    }
+    return { data: null, error: null };
+  } catch (error) {
+    return { data: null, error };
   }
 };
 
@@ -132,12 +152,17 @@ export const sendMonthlySummary = async (
   month: string,
   income: number,
   expenses: number
-): Promise<void> => {
-  await sendNotification(userId, 'monthly_summary', {
-    month,
-    income,
-    expenses,
-  });
+): Promise<{ data: any | null; error: any }> => {
+  try {
+    const result = await sendNotification(userId, 'monthly_summary', {
+      month,
+      income,
+      expenses,
+    });
+    return result;
+  } catch (error) {
+    return { data: null, error };
+  }
 };
 
 /**
@@ -147,11 +172,16 @@ export const sendFamilyInvite = async (
   userId: string,
   inviterName: string,
   familyName: string
-): Promise<void> => {
-  await sendNotification(userId, 'family_invite', {
-    inviterName,
-    familyName,
-  });
+): Promise<{ data: any | null; error: any }> => {
+  try {
+    const result = await sendNotification(userId, 'family_invite', {
+      inviterName,
+      familyName,
+    });
+    return result;
+  } catch (error) {
+    return { data: null, error };
+  }
 };
 
 /**
@@ -160,8 +190,13 @@ export const sendFamilyInvite = async (
 export const sendFamilyJoined = async (
   userId: string,
   memberName: string
-): Promise<void> => {
-  await sendNotification(userId, 'family_joined', {
+): Promise<{ data: any | null; error: any }> => {
+  try {
+    const result = await sendNotification(userId, 'family_joined', {
     memberName,
   });
+    return result;
+  } catch (error) {
+    return { data: null, error };
+  }
 }; 

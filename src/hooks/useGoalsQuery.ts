@@ -19,7 +19,10 @@ export const useGoals = () => {
     queryFn: async () => {
       console.log('[useGoals] Query function called');
       const { data, error } = await getGoals(user?.id || '');
-      if (error) throw error;
+      if (error) {
+        console.error('[useGoals] Error:', error);
+        throw new Error(error.message || 'Erro ao buscar objetivos');
+      }
       return data || [];
     },
     enabled: !!user?.id,
@@ -35,7 +38,10 @@ export const useGoals = () => {
       console.log('[createGoalMutation] Mutation function called with data:', data);
       const result = await createGoal({ ...data, user_id: user?.id || '' }, user?.id || '');
       console.log('[createGoalMutation] createGoal result:', result);
-      if (result.error) throw result.error;
+      if (result.error) {
+        console.error('[createGoalMutation] Error:', result.error);
+        throw new Error(result.error.message || 'Erro ao criar objetivo');
+      }
       return result.data;
     },
     onSuccess: (data) => {
@@ -51,7 +57,10 @@ export const useGoals = () => {
   const updateGoalMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const result = await updateGoal(id, data, user?.id || '');
-      if (result.error) throw result.error;
+      if (result.error) {
+        console.error('[updateGoalMutation] Error:', result.error);
+        throw new Error(result.error.message || 'Erro ao atualizar objetivo');
+      }
       return result.data;
     },
     onSuccess: () => {
@@ -63,7 +72,10 @@ export const useGoals = () => {
   const deleteGoalMutation = useMutation({
     mutationFn: async (id: string) => {
       const result = await deleteGoal(id, user?.id || '');
-      if (result.error) throw result.error;
+      if (result.error) {
+        console.error('[deleteGoalMutation] Error:', result.error);
+        throw new Error(result.error.message || 'Erro ao eliminar objetivo');
+      }
       return result.data;
     },
     onSuccess: () => {

@@ -33,11 +33,13 @@ export default function LoginForm() {
 
   const handleOAuth = async (provider: 'google' | 'apple' | 'facebook') => {
     setError('');
-    try {
-      if (provider === 'google') await signInWithGoogle();
-      if (provider === 'apple') await signInWithApple();
-      if (provider === 'facebook') await signInWithFacebook();
-    } catch (err: any) {
+    let result;
+    
+    if (provider === 'google') result = await signInWithGoogle();
+    if (provider === 'apple') result = await signInWithApple();
+    if (provider === 'facebook') result = await signInWithFacebook();
+    
+    if (result?.error) {
       const errorMessage = 'Erro ao autenticar com ' + provider;
       setError(errorMessage);
       showError(errorMessage);

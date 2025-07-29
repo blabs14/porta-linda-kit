@@ -4,12 +4,20 @@ import { getFixedExpenses } from '../services/fixed_expenses';
 export default function FixedExpensesList() {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchExpenses = async () => {
       setLoading(true);
-      const { data } = await getFixedExpenses();
-      setExpenses(data || []);
+      setError(null);
+      const { data, error } = await getFixedExpenses();
+      if (error) {
+        console.error('[FixedExpensesList] Error:', error);
+        setError(error.message || 'Erro ao buscar despesas fixas');
+        setExpenses([]);
+      } else {
+        setExpenses(data || []);
+      }
       setLoading(false);
     };
     fetchExpenses();
@@ -20,6 +28,8 @@ export default function FixedExpensesList() {
       <h2 className="text-xl font-bold">Despesas Fixas</h2>
       {loading ? (
         <div>A carregar...</div>
+      ) : error ? (
+        <div className="text-red-600">Erro: {error}</div>
       ) : expenses.length === 0 ? (
         <div className="text-muted-foreground">Nenhuma despesa fixa encontrada.</div>
       ) : (

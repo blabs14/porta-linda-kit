@@ -1,16 +1,22 @@
 import { supabase } from '../lib/supabaseClient';
 
 // Exemplo de modelo: id, user_id, table_name, operation, row_id, old_data, new_data, details
-export const getAuditLogs = (table_name?: string) => {
-  let query = supabase
-    .from('audit_logs')
-    .select('*')
-    .order('timestamp', { ascending: false });
-  if (table_name) query = query.eq('table_name', table_name);
-  return query;
+export const getAuditLogs = async (table_name?: string): Promise<{ data: any | null; error: any }> => {
+  try {
+    let query = supabase
+      .from('audit_logs')
+      .select('*')
+      .order('timestamp', { ascending: false });
+    if (table_name) query = query.eq('table_name', table_name);
+    
+    const { data, error } = await query;
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
 };
 
-export const createAuditLog = (data: {
+export const createAuditLog = async (data: {
   user_id: string;
   table_name: string;
   operation: string;
@@ -18,7 +24,14 @@ export const createAuditLog = (data: {
   old_data?: any;
   new_data?: any;
   details?: any;
-}) => supabase.from('audit_logs').insert(data);
+}): Promise<{ data: any | null; error: any }> => {
+  try {
+    const { data: result, error } = await supabase.from('audit_logs').insert(data);
+    return { data: result, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
 
 // Helper padronizado para registo de logs
 export const logAuditChange = async (
@@ -28,7 +41,7 @@ export const logAuditChange = async (
   row_id: string,
   before: any,
   after: any
-) => {
+): Promise<{ data: any | null; error: any }> => {
   try {
     const auditData = {
       user_id,
@@ -47,6 +60,6 @@ export const logAuditChange = async (
   } catch (error) {
     console.error('Erro ao criar log de auditoria:', error);
     // Não falhar a operação principal se o log falhar
-    return { error: null, data: null };
+    return { data: null, error };
   }
 }; 

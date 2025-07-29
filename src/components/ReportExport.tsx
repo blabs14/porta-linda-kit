@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { Download, FileText, FileSpreadsheet, Calendar } from 'lucide-react';
+import { Download, FileText, FileSpreadsheet } from 'lucide-react';
 import {
   Select,
   SelectTrigger,
@@ -11,42 +10,27 @@ import {
 } from './ui/select';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { useToast } from '../hooks/use-toast';
+import { useExportReport } from '../hooks/useExportReport';
 
-interface ReportExportProps {
-  onExport: (format: string, dateRange: { start: string; end: string }) => Promise<void>;
-}
-
-export const ReportExport = ({ onExport }: ReportExportProps) => {
-  const { user } = useAuth();
-  const { toast } = useToast();
+export const ReportExport = () => {
+  const { downloadReport, isExporting } = useExportReport();
   const [isOpen, setIsOpen] = useState(false);
   const [format, setFormat] = useState('pdf');
   const [dateRange, setDateRange] = useState({
     start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0],
   });
-  const [isExporting, setIsExporting] = useState(false);
 
   const handleExport = async () => {
-    if (!user) return;
-
-    setIsExporting(true);
     try {
-      await onExport(format, dateRange);
-      toast({
-        title: 'Relatório exportado',
-        description: `O relatório foi exportado com sucesso em formato ${format.toUpperCase()}`,
+      await downloadReport({
+        format: format as 'pdf' | 'csv' | 'excel',
+        dateRange,
       });
       setIsOpen(false);
     } catch (error) {
-      toast({
-        title: 'Erro ao exportar',
-        description: 'Ocorreu um erro ao exportar o relatório',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsExporting(false);
+      // O erro já é tratado no hook
+      console.error('Erro ao exportar:', error);
     }
   };
 
@@ -92,7 +76,7 @@ export const ReportExport = ({ onExport }: ReportExportProps) => {
     });
   };
 
-  if (!user) return null;
+
 
   return (
     <div className="relative">

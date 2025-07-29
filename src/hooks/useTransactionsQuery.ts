@@ -13,7 +13,10 @@ export const useTransactions = () => {
     queryFn: async () => {
       console.log('[useTransactions] Query function called');
       const { data, error } = await transactionService.getTransactions();
-      if (error) throw error;
+      if (error) {
+        console.error('[useTransactions] Error:', error);
+        throw new Error(error.message || 'Erro ao buscar transações');
+      }
       console.log('[useTransactions] Query result:', data?.length || 0, 'transactions');
       return data || [];
     },
@@ -36,7 +39,10 @@ export const useCreateTransaction = () => {
       console.log('[useCreateTransaction] Mutation function called with data:', transactionData);
       const result = await transactionService.createTransaction(transactionData, user?.id || '');
       console.log('[useCreateTransaction] Service result:', result);
-      if (result.error) throw result.error;
+      if (result.error) {
+        console.error('[useCreateTransaction] Error:', result.error);
+        throw new Error(result.error.message || 'Erro ao criar transação');
+      }
       return result.data;
     },
     onSuccess: (data) => {
@@ -63,7 +69,10 @@ export const useUpdateTransaction = () => {
       console.log('[useUpdateTransaction] Mutation function called with id:', id, 'data:', data);
       const result = await transactionService.updateTransaction(id, data, user?.id || '');
       console.log('[useUpdateTransaction] Service result:', result);
-      if (result.error) throw result.error;
+      if (result.error) {
+        console.error('[useUpdateTransaction] Error:', result.error);
+        throw new Error(result.error.message || 'Erro ao atualizar transação');
+      }
       return result.data;
     },
     onSuccess: (data) => {
@@ -88,7 +97,10 @@ export const useDeleteTransaction = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       const result = await transactionService.deleteTransaction(id, user?.id || '');
-      if (result.error) throw new Error(result.error.message);
+      if (result.error) {
+        console.error('[useDeleteTransaction] Error:', result.error);
+        throw new Error(result.error.message || 'Erro ao eliminar transação');
+      }
       return result;
     },
     onSuccess: () => {

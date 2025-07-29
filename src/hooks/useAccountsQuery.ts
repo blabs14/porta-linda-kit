@@ -17,7 +17,10 @@ export const useAccounts = () => {
     queryKey: ['accounts'],
     queryFn: async () => {
       const { data, error } = await getAccounts();
-      if (error) throw error;
+      if (error) {
+        console.error('[useAccounts] Error:', error);
+        throw new Error(error.message || 'Erro ao buscar contas');
+      }
       return data || [];
     },
     enabled: !!user?.id
@@ -31,7 +34,10 @@ export const useAccountsWithBalances = () => {
     queryKey: ['accountsWithBalances'],
     queryFn: async () => {
       const { data, error } = await getAccountsWithBalances();
-      if (error) throw error;
+      if (error) {
+        console.error('[useAccountsWithBalances] Error:', error);
+        throw new Error(error.message || 'Erro ao buscar contas com saldos');
+      }
       return data || [];
     },
     enabled: !!user?.id,
