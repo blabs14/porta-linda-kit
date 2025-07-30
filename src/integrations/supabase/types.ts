@@ -64,5 +64,11 @@ export type GoalProgressRPC = Database['public']['Functions']['get_user_goal_pro
 // Tipo combinado para contas com saldos (usado nos componentes)
 export type AccountWithBalances = AccountWithBalancesRPC;
 
+// Tipos estendidos para formulários
+export type AccountUpdateExtended = AccountUpdate & {
+  saldoAtual?: number;
+  ajusteSaldo?: number;
+};
+
 // Tipos auxiliares
 export type Json = Database['public']['Tables']['accounts']['Row']['created_at'] extends string ? never : Database['public']['Tables']['accounts']['Row']['created_at'];

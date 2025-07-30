@@ -19,7 +19,8 @@ interface AccountFormData {
   id?: string;
   nome: string;
   tipo: string;
-  saldo: number;
+  saldoAtual?: number;
+  ajusteSaldo?: number;
 }
 
 interface AccountFormProps {
@@ -39,7 +40,7 @@ const tiposConta = [
 const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => {
   const { user } = useAuth();
   const [form, setForm] = useState<AccountFormData>(
-    initialData || { nome: '', tipo: '', saldo: 0 }
+    initialData || { nome: '', tipo: '', saldoAtual: 0, ajusteSaldo: 0 }
   );
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   
@@ -58,10 +59,16 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    if (name === 'saldo') {
-      // Permitir apenas números e vírgula/ponto
-      const numericValue = value.replace(/[^\d.,]/g, '').replace(',', '.');
-      setForm({ ...form, [name]: numericValue ? parseFloat(numericValue) || 0 : 0 });
+    if (name === 'saldoAtual' || name === 'ajusteSaldo') {
+      // Permitir números negativos, positivos e vírgula/ponto
+      // Manter o sinal negativo se presente
+      const numericValue = value.replace(/[^\d.,-]/g, '').replace(',', '.');
+      // Permitir valores vazios para ajusteSaldo
+      if (name === 'ajusteSaldo' && value === '') {
+        setForm({ ...form, [name]: 0 });
+      } else {
+        setForm({ ...form, [name]: numericValue ? parseFloat(numericValue) || 0 : 0 });
+      }
     } else {
       setForm({ ...form, [name]: value });
     }
@@ -106,7 +113,8 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
       const payload = {
         nome: form.nome.trim(),
         tipo: form.tipo,
-        saldo: Number(form.saldo) || 0, // Garantir que seja sempre um número
+        saldoAtual: Number(form.saldoAtual) || 0,
+        ajusteSaldo: Number(form.ajusteSaldo) || 0,
       };
       
       if (initialData && initialData.id) {
@@ -158,17 +166,36 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
         </Alert>
       )}
       
-      <Input
-        name="saldo"
-        type="text"
-        placeholder={form.tipo === 'cartão de crédito' ? 'Saldo Inicial (€) - 0€ por padrão' : 'Saldo Inicial (€) - Opcional'}
-        value={form.saldo?.toString() || '0'}
-        onChange={handleChange}
-        className="w-full"
-        aria-invalid={!!validationErrors.saldo}
-        aria-describedby={validationErrors.saldo ? 'saldo-error' : undefined}
-      />
-      {validationErrors.saldo && <div id="saldo-error" className="text-red-600 text-sm">{validationErrors.saldo}</div>}
+
+      
+      {/* Campos opcionais para edição - apenas visíveis quando editando */}
+      {initialData?.id && (
+        <>
+          <Input
+            name="saldoAtual"
+            type="text"
+            placeholder="Saldo Atual (€) - Opcional"
+            value={form.saldoAtual?.toString() || ''}
+            onChange={handleChange}
+            className="w-full"
+            aria-invalid={!!validationErrors.saldoAtual}
+            aria-describedby={validationErrors.saldoAtual ? 'saldoAtual-error' : undefined}
+          />
+          {validationErrors.saldoAtual && <div id="saldoAtual-error" className="text-red-600 text-sm">{validationErrors.saldoAtual}</div>}
+          
+          <Input
+            name="ajusteSaldo"
+            type="text"
+            placeholder="Ajuste de Saldo (+/- €) - Opcional"
+            value={form.ajusteSaldo?.toString() || ''}
+            onChange={handleChange}
+            className="w-full"
+            aria-invalid={!!validationErrors.ajusteSaldo}
+            aria-describedby={validationErrors.ajusteSaldo ? 'ajusteSaldo-error' : undefined}
+          />
+          {validationErrors.ajusteSaldo && <div id="ajusteSaldo-error" className="text-red-600 text-sm">{validationErrors.ajusteSaldo}</div>}
+        </>
+      )}
       
       <div className="flex flex-col sm:flex-row gap-2">
         <FormSubmitButton 
