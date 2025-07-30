@@ -147,10 +147,27 @@ export const updateAccount = async (id: string, updates: AccountUpdate, userId: 
 
 export const deleteAccount = async (id: string, userId: string): Promise<{ data: boolean | null; error: any }> => {
   try {
+    // Verificar se a conta existe e pertence ao utilizador
+    const { data: account, error: checkError } = await supabase
+      .from('accounts')
+      .select('id, nome')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (checkError || !account) {
+      return { 
+        data: null, 
+        error: { message: 'Conta não encontrada ou não pertence ao utilizador' } 
+      };
+    }
+
+    // Eliminar a conta
     const { error } = await supabase
       .from('accounts')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', userId);
 
     return { data: !error, error };
   } catch (error) {

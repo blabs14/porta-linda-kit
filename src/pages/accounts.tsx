@@ -10,11 +10,13 @@ import { formatCurrency } from '../lib/utils';
 import AccountForm from '../components/AccountForm';
 import { TransferModal } from '../components/TransferModal';
 import { AccountWithBalances } from '../integrations/supabase/types';
-import { useConfirmation } from '../components/ui/confirmation-dialog';
+import { ConfirmationDialog } from '../components/ui/confirmation-dialog';
 
 export default function AccountsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [accountToDelete, setAccountToDelete] = useState<{ id: string; nome: string } | null>(null);
   const [editingAccount, setEditingAccount] = useState<{
     id: string;
     nome: string;
@@ -25,7 +27,6 @@ export default function AccountsPage() {
   const { data: accounts = [], isLoading, error, refetch } = useAccountsWithBalances();
   const deleteAccountMutation = useDeleteAccount();
   const { toast } = useToast();
-  const { confirm } = useConfirmation();
 
   const handleNew = () => {
     setEditingAccount(null);
@@ -58,34 +59,32 @@ export default function AccountsPage() {
     refetch();
   };
 
-  const handleDeleteAccount = async (id: string) => {
-    const account = accounts.find(acc => acc.account_id === id);
-    const accountName = account?.nome || 'esta conta';
-    
-    confirm(
-      'Eliminar Conta',
-      `Tem a certeza que deseja eliminar "${accountName}"? Esta ação não pode ser desfeita e eliminará todas as transações associadas.`,
-      async () => {
-        try {
-          await deleteAccountMutation.mutateAsync(id);
-          toast({
-            title: 'Conta eliminada',
-            description: `A conta "${accountName}" foi eliminada com sucesso.`,
-          });
-        } catch (error: any) {
-          toast({
-            title: 'Erro ao eliminar conta',
-            description: error.message || 'Ocorreu um erro ao eliminar a conta.',
-            variant: 'destructive',
-          });
-        }
-      },
-      {
-        confirmText: 'Eliminar',
-        cancelText: 'Cancelar',
+  const handleDeleteAccount = (account: AccountWithBalances) => {
+    setAccountToDelete({
+      id: account.account_id,
+      nome: account.nome
+    });
+    setShowDeleteConfirmation(true);
+  };
+
+  const confirmDeleteAccount = async () => {
+    if (!accountToDelete) return;
+
+    try {
+      await deleteAccountMutation.mutateAsync(accountToDelete.id);
+      toast({
+        title: 'Conta eliminada',
+        description: `A conta "${accountToDelete.nome}" foi eliminada com sucesso.`,
+      });
+      setShowDeleteConfirmation(false);
+      setAccountToDelete(null);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao eliminar conta',
+        description: error.message || 'Ocorreu um erro ao eliminar a conta.',
         variant: 'destructive',
-      }
-    );
+      });
+    }
   };
 
   if (isLoading) {
@@ -206,31 +205,22 @@ export default function AccountsPage() {
                   )}
                 </div>
 
-                {/* Botões de ação */}
+                {/* Botões de ação - apenas Editar e Eliminar */}
                 <div className="flex gap-2 pt-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      setShowTransferModal(true);
-                    }}
+                    onClick={() => handleEdit(account)}
                     className="flex-1"
                   >
-                    <ArrowRightLeft className="h-4 w-4 mr-1" />
-                    Transferir
+                    <Edit className="h-4 w-4 mr-1" />
+                    Editar
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleEdit(account)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDeleteAccount(account.account_id)}
-                    className="text-red-600 hover:text-red-700"
+                    onClick={() => handleDeleteAccount(account)}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     disabled={deleteAccountMutation.isPending}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -261,6 +251,24 @@ export default function AccountsPage() {
       <TransferModal
         isOpen={showTransferModal}
         onClose={handleTransferSuccess}
+      />
+
+      <ConfirmationDialog
+        isOpen={showDeleteConfirmation}
+        onClose={() => {
+          setShowDeleteConfirmation(false);
+          setAccountToDelete(null);
+        }}
+        onConfirm={confirmDeleteAccount}
+        title="Eliminar Conta"
+        message={
+          accountToDelete 
+            ? `Tem a certeza que deseja eliminar "${accountToDelete.nome}"? Esta ação não pode ser desfeita e eliminará todas as transações associadas.`
+            : 'Tem a certeza que deseja eliminar esta conta?'
+        }
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="destructive"
       />
     </div>
   );
