@@ -98,7 +98,7 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
         return;
       }
 
-      // Usar função RPC para criar transferência com parâmetros corretos
+      // Usar função RPC corrigida para criar APENAS UMA transação de transferência
       const { data: result, error } = await supabase.rpc('create_transfer_transaction', {
         p_from_account_id: fromAccountId,
         p_to_account_id: toAccountId,
@@ -166,6 +166,9 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Transferir entre Contas</DialogTitle>
+          <DialogDescription>
+            Transfere dinheiro de uma conta para outra. A transferência não afeta as estatísticas de receitas e despesas.
+          </DialogDescription>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
