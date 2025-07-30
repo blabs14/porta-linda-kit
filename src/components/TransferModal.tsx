@@ -2,15 +2,17 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCreateTransaction } from '../hooks/useTransactionsQuery';
 import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
+import { useCategories } from '../hooks/useCategoriesQuery';
+import { ensureTransferCategory } from '../services/categories';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { FormSubmitButton } from './ui/loading-button';
-import { ModalTransition } from './ui/transition-wrapper';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from './ui/dialog';
 import {
   Select,
@@ -19,6 +21,9 @@ import {
   SelectItem,
   SelectValue,
 } from './ui/select';
+import { useToast } from '../hooks/use-toast';
+import { formatCurrency } from '../lib/utils';
+import { supabase } from '../lib/supabaseClient';
 
 interface TransferModalProps {
   isOpen: boolean;
@@ -29,6 +34,8 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
   const { user } = useAuth();
   const { mutateAsync: createTransaction, isPending: isCreating } = useCreateTransaction();
   const { data: accounts = [] } = useAccountsWithBalances();
+  const { data: categories = [] } = useCategories();
+  const { toast } = useToast();
   
   const [fromAccountId, setFromAccountId] = useState('');
   const [toAccountId, setToAccountId] = useState('');
@@ -38,6 +45,12 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
 
   const fromAccount = accounts.find(acc => acc.account_id === fromAccountId);
   const toAccount = accounts.find(acc => acc.account_id === toAccountId);
+
+  // Buscar categoria de transferência ou usar a primeira categoria disponível
+  const transferCategory = categories.find(cat => 
+    cat.nome.toLowerCase().includes('transferência') || 
+    cat.nome.toLowerCase().includes('transfer')
+  ) || categories[0];
 
   useEffect(() => {
     if (isOpen) {
@@ -75,32 +88,64 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
     }
 
     try {
-      // Criar transação de débito na conta de origem
-      await createTransaction({
-        account_id: fromAccountId,
-        categoria_id: '', // Será preenchida automaticamente ou deixada vazia
-        tipo: 'transferencia',
-        valor: numericAmount,
-        descricao: description || `Transferência para ${toAccount?.nome}`,
-        data: new Date().toISOString().split('T')[0],
-        user_id: user?.id || '',
+      // Garantir que existe uma categoria de transferências
+      const { data: transferCat, error: catError } = await ensureTransferCategory(user?.id || '');
+      if (catError) {
+        console.error('Erro ao obter categoria de transferência:', catError);
+        setValidationError('Erro ao configurar categoria de transferência');
+        return;
+      }
+
+      // Usar função RPC para criar transferência
+      const { data: result, error } = await supabase.rpc('create_transfer_transaction', {
+        p_from_account_id: fromAccountId,
+        p_to_account_id: toAccountId,
+        p_amount: numericAmount,
+        p_description: description || `Transferência de ${fromAccount?.nome} para ${toAccount?.nome}`,
+        p_user_id: user?.id || '',
+        p_categoria_id: transferCat?.id || categories[0]?.id,
+        p_data: new Date().toISOString().split('T')[0]
       });
 
-      // Criar transação de crédito na conta de destino
-      await createTransaction({
-        account_id: toAccountId,
-        categoria_id: '', // Será preenchida automaticamente ou deixada vazia
-        tipo: 'transferencia',
-        valor: numericAmount,
-        descricao: description || `Transferência de ${fromAccount?.nome}`,
-        data: new Date().toISOString().split('T')[0],
-        user_id: user?.id || '',
+      if (error) {
+        console.error('Erro ao realizar transferência:', error);
+        setValidationError(error.message || 'Erro ao realizar transferência');
+        toast({
+          title: 'Erro na transferência',
+          description: error.message || 'Erro ao realizar transferência',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Verificar se o resultado contém erro
+      if (result && typeof result === 'object' && 'error' in result) {
+        const errorMessage = (result as any).error;
+        console.error('Erro na transferência:', errorMessage);
+        setValidationError(errorMessage);
+        toast({
+          title: 'Erro na transferência',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      toast({
+        title: 'Transferência realizada',
+        description: `Transferência de ${formatCurrency(numericAmount)} de ${fromAccount?.nome} para ${toAccount?.nome} realizada com sucesso.`,
       });
 
       onClose();
-    } catch (error) {
-      console.error('Erro ao processar transferência:', error);
-      setValidationError('Erro ao processar transferência');
+    } catch (error: any) {
+      console.error('Erro ao realizar transferência:', error);
+      setValidationError(error.message || 'Erro ao realizar transferência');
+      
+      toast({
+        title: 'Erro na transferência',
+        description: error.message || 'Erro ao realizar transferência',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -120,8 +165,7 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
           <DialogTitle>Transferir entre Contas</DialogTitle>
         </DialogHeader>
         
-        <ModalTransition isVisible={isOpen}>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="fromAccount" className="text-sm font-medium">
                 Conta de Origem
@@ -208,7 +252,6 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
               </Button>
             </div>
           </form>
-        </ModalTransition>
       </DialogContent>
     </Dialog>
   );

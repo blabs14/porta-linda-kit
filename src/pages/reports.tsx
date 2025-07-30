@@ -1,37 +1,133 @@
 import { useEffect, useState } from 'react';
-import { getExpensesByCategory } from '../services/reports';
-import ReportChart from '../components/ReportChart';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { 
+  BarChart3, 
+  PieChart, 
+  TrendingUp, 
+  Download, 
+  Calendar,
+  Filter,
+  RefreshCw,
+  FileText,
+  DollarSign,
+  Target,
+  Users,
+  Activity
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTransactions } from '../hooks/useTransactionsQuery';
+import { useAccounts } from '../hooks/useAccountsQuery';
+import { useCategories } from '../hooks/useCategoriesQuery';
+import { useGoals } from '../hooks/useGoalsQuery';
 import { ReportExport } from '../components/ReportExport';
+import { formatCurrency } from '../lib/utils';
 
 const ReportsPage = () => {
   const { user } = useAuth();
-  const [data, setData] = useState<{ categoria: string; total: number }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [mes, setMes] = useState('');
+  const { data: transactions = [] } = useTransactions();
+  const { data: accounts = [] } = useAccounts();
+  const { data: categories = [] } = useCategories();
+  const { goals = [] } = useGoals();
+  
+  const [activeTab, setActiveTab] = useState('overview');
+  const [dateRange, setDateRange] = useState({
+    start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0]
+  });
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedAccount, setSelectedAccount] = useState('all');
+  const [reportType, setReportType] = useState('monthly');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const fetchData = async () => {
-    if (!user) return;
-    setLoading(true);
-    setError(null);
-    const { data, error } = await getExpensesByCategory(user.id, mes || undefined);
-    if (error) setError(error.message);
-    setData(data || []);
-    setLoading(false);
-  };
+  // Filtrar transações baseado nos filtros
+  const filteredTransactions = transactions.filter(transaction => {
+    const transactionDate = new Date(transaction.data);
+    const startDate = new Date(dateRange.start);
+    const endDate = new Date(dateRange.end);
+    
+    if (transactionDate < startDate || transactionDate > endDate) return false;
+    if (selectedCategory !== 'all' && transaction.categoria_id !== selectedCategory) return false;
+    if (selectedAccount !== 'all' && transaction.account_id !== selectedAccount) return false;
+    
+    return true;
+  });
 
-  useEffect(() => { fetchData(); }, [mes, user]);
+  // Calcular métricas
+  const totalIncome = filteredTransactions
+    .filter(t => t.tipo === 'receita')
+    .reduce((sum, t) => sum + t.valor, 0);
 
-  const handleExport = async (format: string, dateRange: { start: string; end: string }) => {
+  const totalExpenses = filteredTransactions
+    .filter(t => t.tipo === 'despesa')
+    .reduce((sum, t) => sum + t.valor, 0);
+
+  const netBalance = totalIncome - totalExpenses;
+  const transactionCount = filteredTransactions.length;
+
+  // Despesas por categoria
+  const expensesByCategory = categories.map(category => {
+    const categoryExpenses = filteredTransactions
+      .filter(t => t.tipo === 'despesa' && t.categoria_id === category.id)
+      .reduce((sum, t) => sum + t.valor, 0);
+    
+    return {
+      categoria: category.nome,
+      total: categoryExpenses,
+      percentage: totalExpenses > 0 ? (categoryExpenses / totalExpenses) * 100 : 0
+    };
+  }).filter(item => item.total > 0).sort((a, b) => b.total - a.total);
+
+  // Receitas por categoria
+  const incomeByCategory = categories.map(category => {
+    const categoryIncome = filteredTransactions
+      .filter(t => t.tipo === 'receita' && t.categoria_id === category.id)
+      .reduce((sum, t) => sum + t.valor, 0);
+    
+    return {
+      categoria: category.nome,
+      total: categoryIncome,
+      percentage: totalIncome > 0 ? (categoryIncome / totalIncome) * 100 : 0
+    };
+  }).filter(item => item.total > 0).sort((a, b) => b.total - a.total);
+
+  // Evolução mensal
+  const monthlyEvolution = Array.from({ length: 12 }, (_, i) => {
+    const month = new Date();
+    month.setMonth(month.getMonth() - i);
+    const monthStr = month.toISOString().slice(0, 7);
+    
+    const monthTransactions = transactions.filter(t => t.data.startsWith(monthStr));
+    const monthIncome = monthTransactions
+      .filter(t => t.tipo === 'receita')
+      .reduce((sum, t) => sum + t.valor, 0);
+    const monthExpenses = monthTransactions
+      .filter(t => t.tipo === 'despesa')
+      .reduce((sum, t) => sum + t.valor, 0);
+    
+    return {
+      month: month.toLocaleDateString('pt-PT', { month: 'short', year: 'numeric' }),
+      income: monthIncome,
+      expenses: monthExpenses,
+      balance: monthIncome - monthExpenses
+    };
+  }).reverse();
+
+  const handleExport = async (format: string, customDateRange?: { start: string; end: string }) => {
     if (!user) return;
     
+    setIsLoading(true);
     try {
       const { exportReport } = await import('../services/exportService');
+      const exportDateRange = customDateRange || dateRange;
+      
       const { blob, filename } = await exportReport(user.id, {
         format: format as 'pdf' | 'csv' | 'excel',
-        dateRange,
+        dateRange: exportDateRange
       });
       
       // Criar link para download
@@ -45,29 +141,384 @@ const ReportsPage = () => {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Erro ao exportar relatório:', error);
-      throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const handleRefresh = () => {
+    // Forçar refresh dos dados
+    window.location.reload();
+  };
+
   return (
-    <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold">Relatórios de Despesas por Categoria</h1>
-        <ReportExport onExport={handleExport} />
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Relatórios</h1>
+          <p className="text-muted-foreground">
+            Análise detalhada das suas finanças
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+          <ReportExport onExport={handleExport} />
+        </div>
       </div>
-      <div className="mb-4 flex flex-col sm:flex-row gap-2 items-center">
-        <label htmlFor="mes" className="font-medium">Mês:</label>
-        <Input id="mes" type="month" value={mes} onChange={e => setMes(e.target.value)} className="w-full sm:w-40" />
+
+      {/* Filtros */}
+      <Card className="hover:shadow-md transition-shadow">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filtros
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Período</label>
+              <Select value={reportType} onValueChange={setReportType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="monthly">Mensal</SelectItem>
+                  <SelectItem value="quarterly">Trimestral</SelectItem>
+                  <SelectItem value="yearly">Anual</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Data Início</label>
+              <Input
+                type="date"
+                value={dateRange.start}
+                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Data Fim</label>
+              <Input
+                type="date"
+                value={dateRange.end}
+                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Categoria</label>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas as categorias" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as categorias</SelectItem>
+                  {categories.map(category => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Conta</label>
+              <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas as contas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as contas</SelectItem>
+                  {accounts.map(account => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Resumo dos filtros */}
+          <div className="mt-4 flex items-center gap-2">
+            <Badge variant="secondary">
+              {filteredTransactions.length} transações encontradas
+            </Badge>
+            <Badge variant="outline">
+              {new Date(dateRange.start).toLocaleDateString('pt-PT')} - {new Date(dateRange.end).toLocaleDateString('pt-PT')}
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Métricas Principais */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Receitas</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(totalIncome)}</p>
+              </div>
+              <TrendingUp className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Despesas</p>
+                <p className="text-2xl font-bold text-red-600">{formatCurrency(totalExpenses)}</p>
+              </div>
+              <TrendingUp className="h-8 w-8 text-red-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Saldo Líquido</p>
+                <p className={`text-2xl font-bold ${netBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(netBalance)}
+                </p>
+              </div>
+              <DollarSign className="h-8 w-8 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Transações</p>
+                <p className="text-2xl font-bold">{transactionCount}</p>
+              </div>
+              <Activity className="h-8 w-8 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
-      <div className="grid grid-cols-1 gap-4">
-        {loading ? (
-          <div>A carregar...</div>
-        ) : error ? (
-          <div className="text-red-600">Erro: {error}</div>
-        ) : (
-          <ReportChart data={data} />
-        )}
-      </div>
+
+      {/* Tabs de Relatórios */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Visão Geral
+          </TabsTrigger>
+          <TabsTrigger value="categories" className="flex items-center gap-2">
+            <PieChart className="h-4 w-4" />
+            Categorias
+          </TabsTrigger>
+          <TabsTrigger value="evolution" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Evolução
+          </TabsTrigger>
+          <TabsTrigger value="goals" className="flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Objetivos
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Despesas por Categoria */}
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle>Despesas por Categoria</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {expensesByCategory.length > 0 ? (
+                  <div className="space-y-3">
+                    {expensesByCategory.slice(0, 5).map((item, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                          <span className="text-sm font-medium">{item.categoria}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-semibold">{formatCurrency(item.total)}</div>
+                          <div className="text-xs text-muted-foreground">{item.percentage.toFixed(1)}%</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <PieChart className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhuma despesa encontrada</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Receitas por Categoria */}
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle>Receitas por Categoria</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {incomeByCategory.length > 0 ? (
+                  <div className="space-y-3">
+                    {incomeByCategory.slice(0, 5).map((item, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                          <span className="text-sm font-medium">{item.categoria}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-semibold">{formatCurrency(item.total)}</div>
+                          <div className="text-xs text-muted-foreground">{item.percentage.toFixed(1)}%</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <PieChart className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhuma receita encontrada</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="categories" className="space-y-4">
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle>Análise Detalhada por Categoria</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {categories.map(category => {
+                  const categoryExpenses = filteredTransactions
+                    .filter(t => t.tipo === 'despesa' && t.categoria_id === category.id)
+                    .reduce((sum, t) => sum + t.valor, 0);
+                  
+                  const categoryIncome = filteredTransactions
+                    .filter(t => t.tipo === 'receita' && t.categoria_id === category.id)
+                    .reduce((sum, t) => sum + t.valor, 0);
+                  
+                  const categoryBalance = categoryIncome - categoryExpenses;
+                  
+                  return (
+                    <div key={category.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <span className="font-medium">{category.nome}</span>
+                      </div>
+                      <div className="flex items-center gap-6">
+                        <div className="text-right">
+                          <div className="text-sm text-green-600">+{formatCurrency(categoryIncome)}</div>
+                          <div className="text-xs text-muted-foreground">Receitas</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-red-600">-{formatCurrency(categoryExpenses)}</div>
+                          <div className="text-xs text-muted-foreground">Despesas</div>
+                        </div>
+                        <div className="text-right">
+                          <div className={`text-sm font-semibold ${categoryBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrency(categoryBalance)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Saldo</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="evolution" className="space-y-4">
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle>Evolução Mensal</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {monthlyEvolution.map((month, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="font-medium">{month.month}</div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-right">
+                        <div className="text-sm text-green-600">+{formatCurrency(month.income)}</div>
+                        <div className="text-xs text-muted-foreground">Receitas</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm text-red-600">-{formatCurrency(month.expenses)}</div>
+                        <div className="text-xs text-muted-foreground">Despesas</div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-sm font-semibold ${month.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(month.balance)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Saldo</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="goals" className="space-y-4">
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle>Progresso dos Objetivos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {goals.length > 0 ? (
+                <div className="space-y-4">
+                  {goals.map(goal => {
+                    const progress = ((goal.valor_atual || 0) / (goal.valor_objetivo || 1)) * 100;
+                    return (
+                      <div key={goal.id} className="p-3 border rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium">{goal.nome}</span>
+                          <Badge variant={progress >= 100 ? 'default' : 'secondary'}>
+                            {progress.toFixed(1)}%
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">
+                            {formatCurrency(goal.valor_atual || 0)} / {formatCurrency(goal.valor_objetivo)}
+                          </span>
+                          <span className="text-muted-foreground">
+                            Restante: {formatCurrency((goal.valor_objetivo || 0) - (goal.valor_atual || 0))}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Nenhum objetivo encontrado</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

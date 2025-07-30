@@ -101,9 +101,9 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
     
     try {
       const payload = {
-        nome: form.nome,
+        nome: form.nome.trim(),
         tipo: form.tipo,
-        saldo: form.saldo || 0,
+        saldo: Number(form.saldo) || 0, // Garantir que seja sempre um número
       };
       
       if (initialData && initialData.id) {
@@ -112,7 +112,7 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
         await createAccountMutation.mutateAsync(payload);
       }
       
-      onSuccess();
+      onSuccess?.();
     } catch (err: any) {
       console.error('Erro ao guardar conta:', err);
       // O erro já é tratado pelo hook useCrudMutation

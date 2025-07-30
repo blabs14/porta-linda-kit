@@ -279,9 +279,13 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
                     </TableCell>
                     <TableCell className="text-right">
                       <span className={`font-semibold ${
+                        (transaction.descricao && transaction.descricao.includes('Transferência')) ? 'text-blue-600' :
                         transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
                       }`}>
-                        {transaction.tipo === 'receita' ? '+' : '-'}{formatCurrency(transaction.valor)}
+                        {(transaction.descricao && transaction.descricao.includes('Transferência')) ? 
+                          (transaction.descricao.includes('←') ? '+' : '-') :
+                          (transaction.tipo === 'receita' ? '+' : '-')
+                        }{formatCurrency(transaction.valor)}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
