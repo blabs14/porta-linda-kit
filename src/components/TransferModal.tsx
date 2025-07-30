@@ -43,6 +43,7 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
   const [description, setDescription] = useState('');
   const [validationError, setValidationError] = useState('');
 
+  // Usar as propriedades corretas das contas com saldos
   const fromAccount = accounts.find(acc => acc.account_id === fromAccountId);
   const toAccount = accounts.find(acc => acc.account_id === toAccountId);
 
@@ -82,6 +83,7 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
       return;
     }
 
+    // Verificar saldo disponível usando a propriedade correta
     if (fromAccount && numericAmount > fromAccount.saldo_disponivel) {
       setValidationError('Saldo insuficiente na conta de origem');
       return;
@@ -96,14 +98,14 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
         return;
       }
 
-      // Usar função RPC para criar transferência
+      // Usar função RPC para criar transferência com parâmetros corretos
       const { data: result, error } = await supabase.rpc('create_transfer_transaction', {
         p_from_account_id: fromAccountId,
         p_to_account_id: toAccountId,
         p_amount: numericAmount,
-        p_description: description || `Transferência de ${fromAccount?.nome} para ${toAccount?.nome}`,
         p_user_id: user?.id || '',
         p_categoria_id: transferCat?.id || categories[0]?.id,
+        p_description: description || `Transferência de ${fromAccount?.nome} para ${toAccount?.nome}`,
         p_data: new Date().toISOString().split('T')[0]
       });
 
@@ -156,6 +158,7 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
     setAmount(numericValue);
   };
 
+  // Filtrar contas com saldo disponível
   const availableAccounts = accounts.filter(account => account.saldo_disponivel > 0);
 
   return (
@@ -177,7 +180,7 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
                 <SelectContent>
                   {availableAccounts.map(account => (
                     <SelectItem key={account.account_id} value={account.account_id}>
-                      {account.nome} - €{account.saldo_disponivel.toFixed(2)} disponível
+                      {account.nome} - €{(account.saldo_disponivel || 0).toFixed(2)} disponível
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -195,7 +198,7 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
                 <SelectContent>
                   {accounts.map(account => (
                     <SelectItem key={account.account_id} value={account.account_id}>
-                      {account.nome} - €{account.saldo_atual.toFixed(2)} saldo atual
+                      {account.nome} - €{(account.saldo_atual || 0).toFixed(2)} saldo atual
                     </SelectItem>
                   ))}
                 </SelectContent>
