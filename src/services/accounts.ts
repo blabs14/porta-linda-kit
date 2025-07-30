@@ -147,29 +147,27 @@ export const updateAccount = async (id: string, updates: AccountUpdate, userId: 
 
 export const deleteAccount = async (id: string, userId: string): Promise<{ data: boolean | null; error: any }> => {
   try {
-    // Verificar se a conta existe e pertence ao utilizador
-    const { data: account, error: checkError } = await supabase
-      .from('accounts')
-      .select('id, nome')
-      .eq('id', id)
-      .eq('user_id', userId)
-      .single();
+    // Usar a função RPC que elimina a conta e todos os dados relacionados
+    const { data, error } = await supabase.rpc('delete_account_with_related_data', {
+      p_account_id: id,
+      p_user_id: userId
+    });
 
-    if (checkError || !account) {
-      return { 
-        data: null, 
-        error: { message: 'Conta não encontrada ou não pertence ao utilizador' } 
-      };
+    if (error) {
+      return { data: null, error };
     }
 
-    // Eliminar a conta
-    const { error } = await supabase
-      .from('accounts')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
+    // Verificar se a operação foi bem-sucedida
+    if (data && typeof data === 'object' && 'success' in data) {
+      const result = data as any;
+      if (result.success) {
+        return { data: true, error: null };
+      } else {
+        return { data: null, error: { message: result.error || 'Erro ao eliminar conta' } };
+      }
+    }
 
-    return { data: !error, error };
+    return { data: null, error: { message: 'Resposta inesperada do servidor' } };
   } catch (error) {
     return { data: null, error };
   }
