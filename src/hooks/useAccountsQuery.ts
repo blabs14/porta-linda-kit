@@ -9,6 +9,7 @@ import {
 } from '../services/accounts';
 import { AccountWithBalances } from '../integrations/supabase/types';
 import { useCrudMutation } from './useMutationWithFeedback';
+import { supabase } from '../lib/supabaseClient';
 
 export const useAccounts = () => {
   const { user } = useAuth();
@@ -28,9 +29,9 @@ export const useAccountsWithBalances = () => {
   const { user } = useAuth();
   
   return useQuery({
-    queryKey: ['accountsWithBalances'],
+    queryKey: ['accountsWithBalances', user?.id],
     queryFn: async () => {
-      const { data, error } = await getAccountsWithBalances();
+      const { data, error } = await getAccountsWithBalances(user?.id);
       if (error) throw error;
       return data || [];
     },
@@ -55,7 +56,7 @@ export const useCreateAccount = () => {
       entityName: 'Conta',
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['accounts'] });
-        queryClient.invalidateQueries({ queryKey: ['accountsWithBalances'] });
+        queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] });
       }
     }
   );
@@ -73,7 +74,7 @@ export const useUpdateAccount = () => {
       entityName: 'Conta',
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['accounts'] });
-        queryClient.invalidateQueries({ queryKey: ['accountsWithBalances'] });
+        queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] });
       }
     }
   );
@@ -90,10 +91,32 @@ export const useDeleteAccount = () => {
       entityName: 'Conta',
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['accounts'] });
-        queryClient.invalidateQueries({ queryKey: ['accountsWithBalances'] });
+        queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] });
       }
     }
   );
+};
+
+export const useCreditCardSummary = (accountId: string) => {
+  const { user } = useAuth();
+  
+  return useQuery({
+    queryKey: ['creditCardSummary', accountId, user?.id],
+    queryFn: async () => {
+      if (!user?.id || !accountId) return null;
+      
+      const { data, error } = await supabase.rpc('get_credit_card_summary', {
+        p_user_id: user.id,
+        p_account_id: accountId
+      });
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id && !!accountId,
+    staleTime: 0, // Sempre considerar stale para forçar refetch
+    gcTime: 5 * 60 * 1000, // 5 minutos de cache
+  });
 };
 
  

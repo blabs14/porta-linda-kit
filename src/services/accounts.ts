@@ -37,11 +37,34 @@ export const getAccount = async (id: string): Promise<{ data: Account | null; er
 
 export const createAccount = async (accountData: AccountInsert, userId: string): Promise<{ data: Account | null; error: any }> => {
   try {
+    // Ajustar saldo inicial para cartões de crédito
+    let adjustedData = { ...accountData };
+    if (accountData.tipo === 'cartão de crédito' && (accountData.saldo || 0) > 0) {
+      adjustedData.saldo = 0; // Cartões de crédito começam com saldo 0
+    }
+
     const { data, error } = await supabase
       .from('accounts')
-      .insert([{ ...accountData, user_id: userId }])
+      .insert([{ ...adjustedData, user_id: userId }])
       .select()
       .single();
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    // Aplicar lógica específica para cartões de crédito
+    if (data && data.tipo === 'cartão de crédito') {
+      const { error: creditCardError } = await supabase.rpc('handle_credit_card_account', {
+        p_account_id: data.id,
+        p_user_id: userId,
+        p_operation: 'create'
+      });
+
+      if (creditCardError) {
+        console.warn('Aviso ao aplicar lógica de cartão de crédito:', creditCardError);
+      }
+    }
 
     return { data, error };
   } catch (error) {
@@ -192,12 +215,15 @@ export const getAccountReserved = async (): Promise<{ data: AccountReserved[] | 
   }
 };
 
-export const getAccountsWithBalances = async (): Promise<{ data: AccountWithBalances[] | null; error: any }> => {
+export const getAccountsWithBalances = async (userId?: string): Promise<{ data: AccountWithBalances[] | null; error: any }> => {
   try {
     console.log('[getAccountsWithBalances] Fetching accounts with balances...');
+    console.log('[getAccountsWithBalances] userId:', userId);
     
     // Usar a função RPC que já combina tudo
-    const { data, error } = await supabase.rpc('get_user_accounts_with_balances');
+    const { data, error } = await supabase.rpc('get_user_accounts_with_balances', {
+      p_user_id: userId || null
+    });
 
     if (error) {
       console.error('[getAccountsWithBalances] RPC error:', error);

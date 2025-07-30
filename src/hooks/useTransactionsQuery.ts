@@ -44,7 +44,11 @@ export const useCreateTransaction = () => {
       console.log('[useCreateTransaction] Invalidating transactions query...');
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       console.log('[useCreateTransaction] Invalidating accountsWithBalances query...');
-      queryClient.invalidateQueries({ queryKey: ['accountsWithBalances'] });
+      queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] });
+      // Invalidação mais agressiva
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['creditCardSummary'] });
+      queryClient.invalidateQueries({ queryKey: ['creditCardSummary', user?.id] });
       console.log('[useCreateTransaction] Invalidation complete');
     },
     onError: (error) => {
@@ -71,7 +75,11 @@ export const useUpdateTransaction = () => {
       console.log('[useUpdateTransaction] Invalidating transactions query...');
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       console.log('[useUpdateTransaction] Invalidating accountsWithBalances query...');
-      queryClient.invalidateQueries({ queryKey: ['accountsWithBalances'] });
+      queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] });
+      // Invalidação mais agressiva
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['creditCardSummary'] });
+      queryClient.invalidateQueries({ queryKey: ['creditCardSummary', user?.id] });
       console.log('[useUpdateTransaction] Invalidation complete');
     },
     onError: (error) => {
@@ -93,6 +101,11 @@ export const useDeleteTransaction = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] });
+      // Invalidação mais agressiva
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['creditCardSummary'] });
+      queryClient.invalidateQueries({ queryKey: ['creditCardSummary', user?.id] });
     },
   });
 };

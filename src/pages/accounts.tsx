@@ -3,14 +3,86 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Wallet, Plus, Edit, Trash2, ArrowRightLeft, Target } from 'lucide-react';
-import { useAccountsWithBalances, useDeleteAccount } from '../hooks/useAccountsQuery';
+import { Wallet, Plus, Edit, Trash2, ArrowRightLeft, Target, RefreshCw, CreditCard, AlertTriangle } from 'lucide-react';
+import { useAccountsWithBalances, useDeleteAccount, useCreditCardSummary } from '../hooks/useAccountsQuery';
 import { useToast } from '../hooks/use-toast';
 import { formatCurrency } from '../lib/utils';
 import AccountForm from '../components/AccountForm';
 import { TransferModal } from '../components/TransferModal';
 import { AccountWithBalances } from '../integrations/supabase/types';
 import { ConfirmationDialog } from '../components/ui/confirmation-dialog';
+import { Alert, AlertDescription } from '../components/ui/alert';
+
+
+// Componente para mostrar o saldo de cartão de crédito
+const CreditCardBalance = ({ accountId, fallbackBalance, accountType }: { accountId: string; fallbackBalance: number; accountType: string }) => {
+  const { data: summary } = useCreditCardSummary(accountId);
+  
+  const balance = summary ? summary.total_payments - summary.total_expenses : fallbackBalance;
+  
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">Saldo Total</span>
+        <span className={`text-lg font-semibold ${balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+          {formatCurrency(balance)}
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground capitalize">{accountType}</p>
+    </div>
+  );
+};
+
+// Componente para mostrar informações específicas de cartão de crédito
+const CreditCardInfo = ({ accountId }: { accountId: string }) => {
+  const { data: summary, isLoading, error } = useCreditCardSummary(accountId);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+        <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
+      </div>
+    );
+  }
+
+  if (error || !summary) {
+    return (
+      <div className="text-sm text-red-600">
+        Erro ao carregar dados do cartão
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* Status */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">Status</span>
+        <Badge variant={summary.is_in_debt ? "destructive" : "default"} className="text-xs">
+          {summary.is_in_debt ? 'Em Dívida' : 'Em Dia'}
+        </Badge>
+      </div>
+
+      {/* Total Gastos */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">Total Gastos</span>
+        <span className="text-xs font-medium text-red-600">
+          {formatCurrency(summary.total_expenses)}
+        </span>
+      </div>
+
+      {/* Total Pagamentos */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">Total Pagamentos</span>
+        <span className="text-xs font-medium text-green-600">
+          {formatCurrency(summary.total_payments)}
+        </span>
+      </div>
+    </div>
+  );
+};
+
 
 export default function AccountsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -28,6 +100,11 @@ export default function AccountsPage() {
   const deleteAccountMutation = useDeleteAccount();
   const { toast } = useToast();
 
+  // Debug logs
+  console.log('[AccountsPage] accounts data:', accounts);
+  console.log('[AccountsPage] isLoading:', isLoading);
+  console.log('[AccountsPage] error:', error);
+
   const handleNew = () => {
     setEditingAccount(null);
     setShowCreateModal(true);
@@ -39,6 +116,11 @@ export default function AccountsPage() {
 
   const handleTransferSuccess = () => {
     setShowTransferModal(false);
+    refetch();
+  };
+
+  const handleRefresh = () => {
+    console.log('[AccountsPage] Forcing refresh...');
     refetch();
   };
 
@@ -121,6 +203,10 @@ export default function AccountsPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={handleRefresh} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Atualizar
+          </Button>
           <Button onClick={handleTransfer} variant="outline">
             <ArrowRightLeft className="h-4 w-4 mr-2" />
             Transferir
@@ -157,53 +243,70 @@ export default function AccountsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Saldo Total */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Saldo Total</span>
-                    <span className="text-lg font-semibold">
-                      {formatCurrency(account.saldo_atual || 0)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground capitalize">{account.tipo}</p>
-                </div>
-
-                {/* Saldo Reservado */}
-                {account.total_reservado > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Target className="h-3 w-3" />
-                        Reservado
-                      </span>
-                      <Badge variant="secondary" className="text-xs">
-                        {formatCurrency(account.total_reservado)}
-                      </Badge>
+                {account.tipo === 'cartão de crédito' ? (
+                  // Layout específico para cartões de crédito
+                  <CreditCardBalance accountId={account.account_id} fallbackBalance={account.saldo_atual || 0} accountType={account.tipo} />
+                ) : (
+                  // Layout normal para outras contas
+                  <>
+                    {/* Saldo Total */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Saldo Total</span>
+                        <span className="text-lg font-semibold">
+                          {formatCurrency(account.saldo_atual || 0)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground capitalize">{account.tipo}</p>
                     </div>
+
+                    {/* Saldo Reservado */}
+                    {account.total_reservado > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground flex items-center gap-1">
+                            <Target className="h-3 w-3" />
+                            Reservado
+                          </span>
+                          <Badge variant="secondary" className="text-xs">
+                            {formatCurrency(account.total_reservado)}
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Saldo Disponível */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Disponível</span>
+                        <span className={`text-sm font-medium ${
+                          account.saldo_disponivel < 0 ? 'text-red-600' : 'text-green-600'
+                        }`}>
+                          {formatCurrency(account.saldo_disponivel)}
+                        </span>
+                      </div>
+                      {account.total_reservado > 0 && (
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div
+                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${Math.min(100, (account.total_reservado / (account.saldo_atual || 1)) * 100)}%`
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Informações específicas de cartão de crédito */}
+                {account.tipo === 'cartão de crédito' && (
+                  <div className="pt-2 border-t border-gray-100">
+                    <CreditCardInfo accountId={account.account_id} />
                   </div>
                 )}
 
-                {/* Saldo Disponível */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Disponível</span>
-                    <span className={`text-sm font-medium ${
-                      account.saldo_disponivel < 0 ? 'text-red-600' : 'text-green-600'
-                    }`}>
-                      {formatCurrency(account.saldo_disponivel)}
-                    </span>
-                  </div>
-                  {account.total_reservado > 0 && (
-                    <div className="w-full bg-gray-200 rounded-full h-1.5">
-                      <div
-                        className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                        style={{
-                          width: `${Math.min(100, (account.total_reservado / (account.saldo_atual || 1)) * 100)}%`
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
+
 
                 {/* Botões de ação - apenas Editar e Eliminar */}
                 <div className="flex gap-2 pt-2">
