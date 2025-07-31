@@ -72,16 +72,25 @@ export const updateGoal = async (id: string, updates: GoalUpdate, userId: string
   }
 };
 
-export const deleteGoal = async (id: string, userId: string): Promise<{ data: boolean | null; error: any }> => {
+export const deleteGoal = async (id: string, userId: string): Promise<{ data: any | null; error: any }> => {
   try {
-    const { error } = await supabase
-      .from('goals')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
+    console.log('[deleteGoal] Starting deletion:', { id, userId });
+    
+    // Usar a nova função RPC para eliminação com restituição
+    const { data, error } = await supabase.rpc('delete_goal_with_restoration', {
+      goal_id_param: id,
+      user_id_param: userId
+    });
 
-    return { data: !error, error };
+    if (error) {
+      console.error('[deleteGoal] RPC error:', error);
+      return { data: null, error };
+    }
+
+    console.log('[deleteGoal] Deletion completed successfully:', data);
+    return { data, error: null };
   } catch (error) {
+    console.error('[deleteGoal] Exception:', error);
     return { data: null, error };
   }
 };

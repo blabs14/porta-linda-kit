@@ -61,21 +61,52 @@ export default function Goals() {
   };
 
   const handleDeleteGoal = async (goalId: string) => {
+    // Encontrar o objetivo para mostrar informações específicas
+    const goal = goalProgress.find(g => g.goal_id === goalId);
+    const isCompleted = goal?.progresso_percentual >= 100;
+    
+    let message = 'Tem a certeza que deseja eliminar este objetivo? Esta ação não pode ser desfeita.';
+    
+    if (goal) {
+      if (isCompleted) {
+        message = `O objetivo "${goal.nome}" foi atingido a 100%. Ao eliminar, o valor alocado (${formatCurrency(goal.total_alocado)}) será mantido na conta objetivos e não será restituído à conta original.`;
+      } else {
+        message = `O objetivo "${goal.nome}" está a ${goal.progresso_percentual}%. Ao eliminar, o valor alocado (${formatCurrency(goal.total_alocado)}) será restituído ao saldo disponível da conta original.`;
+      }
+    }
+    
     confirmation.confirm(
       {
         title: 'Eliminar Objetivo',
-        message: 'Tem a certeza que deseja eliminar este objetivo? Esta ação não pode ser desfeita.',
+        message: message,
         confirmText: 'Eliminar',
         cancelText: 'Cancelar',
         variant: 'destructive',
       },
       async () => {
         try {
-          await deleteGoal(goalId);
-          toast({
-            title: 'Objetivo removido',
-            description: 'O objetivo foi removido com sucesso.',
-          });
+          const result = await deleteGoal(goalId);
+          
+          if (result.data) {
+            const { goal_name, total_allocated, goal_progress, restored_to_account } = result.data;
+            
+            if (restored_to_account) {
+              toast({
+                title: 'Objetivo eliminado',
+                description: `O objetivo "${goal_name}" foi eliminado. ${formatCurrency(total_allocated)} foi restituído à conta original.`,
+              });
+            } else {
+              toast({
+                title: 'Objetivo eliminado',
+                description: `O objetivo "${goal_name}" foi eliminado. O valor alocado foi mantido na conta objetivos.`,
+              });
+            }
+          } else {
+            toast({
+              title: 'Objetivo removido',
+              description: 'O objetivo foi removido com sucesso.',
+            });
+          }
         } catch (error: any) {
           toast({
             title: 'Erro ao remover objetivo',
