@@ -27,6 +27,16 @@ export const markNotificationRead = async (id: string) => {
   return { data, error };
 };
 
+export const updateNotification = async (id: string, data: {
+  title?: string;
+  type?: string;
+  message?: string;
+  read?: boolean;
+}) => {
+  const { data: result, error } = await supabase.from('notifications').update(data).eq('id', id);
+  return { data: result, error };
+};
+
 export const deleteNotification = async (id: string) => {
   const { data, error } = await supabase.from('notifications').delete().eq('id', id);
   return { data, error };

@@ -20,11 +20,11 @@ import {
   AccountsPage,
   BudgetsPage,
   ProfilePage,
-} from './components/lazy';
+} from './components/lazy/index';
 
 // Páginas de autenticação (não lazy loading para melhor UX)
 import Index from './pages/Index';
-import Login from './pages/login';
+import Login from './pages/Login';
 import Register from './pages/register';
 import ForgotPassword from './pages/forgot-password';
 import NotFound from './pages/NotFound';
