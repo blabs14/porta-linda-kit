@@ -101,10 +101,6 @@ export default function Dashboard() {
             <Calendar className="h-4 w-4 mr-2" />
             {selectedPeriod === 'month' ? 'Este Mês' : 'Este Ano'}
           </Button>
-          <Button onClick={() => navigate('/app/transactions')} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Transação
-          </Button>
         </div>
       </div>
 

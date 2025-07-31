@@ -8,7 +8,8 @@ import {
   Users, 
   Settings, 
   ChevronRight,
-  User
+  User,
+  BarChart3
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/useProfilesQuery';
@@ -20,7 +21,7 @@ interface NavigationSidebarProps {
 const navigationItems = [
   {
     title: 'Dashboard',
-    href: '/app/dashboard',
+    href: '/app',
     icon: Home,
     description: 'Visão geral das finanças'
   },
@@ -39,7 +40,7 @@ const navigationItems = [
   {
     title: 'Orçamentos',
     href: '/app/budgets',
-    icon: Target,
+    icon: BarChart3,
     description: 'Definir e acompanhar orçamentos'
   },
   {

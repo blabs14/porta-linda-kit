@@ -16,9 +16,20 @@ import { useReferenceData } from '../hooks/useCache';
 import { useConfirmation } from '../hooks/useConfirmation';
 import { ConfirmationDialog } from './ui/confirmation-dialog';
 import { useToast } from '../hooks/use-toast';
-import { Trash2, Edit, Eye, ChevronLeft, ChevronRight, Search, Filter } from 'lucide-react';
+import { Trash2, Edit, Eye, ChevronLeft, ChevronRight, Search, Filter, Calendar, ChevronDown } from 'lucide-react';
 
-const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
+const TransactionList = ({ 
+  onEdit, 
+  onMetricsUpdate 
+}: { 
+  onEdit?: (tx: any) => void;
+  onMetricsUpdate?: (metrics: {
+    totalIncome: number;
+    totalExpenses: number;
+    netBalance: number;
+    transactionCount: number;
+  }) => void;
+}) => {
   const { data: transactions = [], isLoading: transactionsLoading } = useTransactions();
   const { accounts, categories } = useReferenceData();
   const deleteTransactionMutation = useDeleteTransaction();
@@ -39,6 +50,9 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
   const [selectedAccount, setSelectedAccount] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const loading = transactionsLoading || accounts.isLoading || categories.isLoading;
   const accountsData = Array.isArray(accounts.data) ? accounts.data : [];
@@ -59,9 +73,71 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
       const matchesType = selectedType === 'all' || 
         transaction.tipo === selectedType;
       
-      return matchesSearch && matchesAccount && matchesCategory && matchesType;
+      // Filtro por data
+      let matchesDate = true;
+      if (dateFilter !== 'all') {
+        const transactionDate = new Date(transaction.data);
+        const today = new Date();
+        
+        if (dateRange.start && dateRange.end) {
+          // Filtro por intervalo de datas personalizado
+          const startDate = new Date(dateRange.start);
+          const endDate = new Date(dateRange.end);
+          endDate.setHours(23, 59, 59, 999);
+          matchesDate = transactionDate >= startDate && transactionDate <= endDate;
+        } else {
+          // Filtros predefinidos
+          const startOfWeek = new Date(today);
+          startOfWeek.setDate(today.getDate() - today.getDay()); // Domingo
+          startOfWeek.setHours(0, 0, 0, 0);
+          
+          const endOfWeek = new Date(startOfWeek);
+          endOfWeek.setDate(startOfWeek.getDate() + 6); // Sábado
+          endOfWeek.setHours(23, 59, 59, 999);
+          
+          const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+          const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+          
+          const startOfYear = new Date(today.getFullYear(), 0, 1);
+          const endOfYear = new Date(today.getFullYear(), 11, 31, 23, 59, 59, 999);
+          
+          switch (dateFilter) {
+            case 'today':
+              const startOfDay = new Date(today);
+              startOfDay.setHours(0, 0, 0, 0);
+              const endOfDay = new Date(today);
+              endOfDay.setHours(23, 59, 59, 999);
+              matchesDate = transactionDate >= startOfDay && transactionDate <= endOfDay;
+              break;
+            case 'this-week':
+              matchesDate = transactionDate >= startOfWeek && transactionDate <= endOfWeek;
+              break;
+            case 'this-month':
+              matchesDate = transactionDate >= startOfMonth && transactionDate <= endOfMonth;
+              break;
+            case 'this-year':
+              matchesDate = transactionDate >= startOfYear && transactionDate <= endOfYear;
+              break;
+            case 'last-week':
+              const lastWeekStart = new Date(startOfWeek);
+              lastWeekStart.setDate(startOfWeek.getDate() - 7);
+              const lastWeekEnd = new Date(startOfWeek);
+              lastWeekEnd.setDate(startOfWeek.getDate() - 1);
+              lastWeekEnd.setHours(23, 59, 59, 999);
+              matchesDate = transactionDate >= lastWeekStart && transactionDate <= lastWeekEnd;
+              break;
+            case 'last-month':
+              const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+              const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+              matchesDate = transactionDate >= lastMonthStart && transactionDate <= lastMonthEnd;
+              break;
+          }
+        }
+      }
+      
+      return matchesSearch && matchesAccount && matchesCategory && matchesType && matchesDate;
     });
-  }, [transactions, searchTerm, selectedAccount, selectedCategory, selectedType]);
+  }, [transactions, searchTerm, selectedAccount, selectedCategory, selectedType, dateFilter, dateRange]);
 
   // Calcular paginação
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
@@ -81,7 +157,7 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
   // Resetar página quando filtros mudam
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedAccount, selectedCategory, selectedType]);
+  }, [searchTerm, selectedAccount, selectedCategory, selectedType, dateFilter, dateRange]);
 
   // Resetar página quando o número de transações muda (nova transação criada)
   React.useEffect(() => {
@@ -90,12 +166,87 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
     setCurrentPage(1);
   }, [transactions.length]);
 
+  // Fechar date picker quando clicar fora
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (showDatePicker && !target.closest('.date-picker-container')) {
+        setShowDatePicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDatePicker]);
+
+  // Calcular e enviar métricas filtradas
+  React.useEffect(() => {
+    if (onMetricsUpdate) {
+      const filteredIncome = filteredTransactions
+        .filter(t => t.tipo === 'receita')
+        .reduce((sum, t) => sum + t.valor, 0);
+
+      const filteredExpenses = filteredTransactions
+        .filter(t => t.tipo === 'despesa')
+        .reduce((sum, t) => sum + t.valor, 0);
+
+      const filteredNetBalance = filteredIncome - filteredExpenses;
+      const filteredCount = filteredTransactions.length;
+
+      onMetricsUpdate({
+        totalIncome: filteredIncome,
+        totalExpenses: filteredExpenses,
+        netBalance: filteredNetBalance,
+        transactionCount: filteredCount
+      });
+    }
+  }, [filteredTransactions, onMetricsUpdate]);
+
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
   };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-PT');
+  };
+
+  // Função para obter o texto do filtro de data
+  const getDateFilterText = () => {
+    if (dateFilter === 'all') return 'Todas as datas';
+    if (dateRange.start && dateRange.end) {
+      const start = new Date(dateRange.start).toLocaleDateString('pt-PT');
+      const end = new Date(dateRange.end).toLocaleDateString('pt-PT');
+      return `${start} - ${end}`;
+    }
+    
+    const today = new Date();
+    switch (dateFilter) {
+      case 'today':
+        return 'Hoje';
+      case 'this-week':
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay());
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        return `${startOfWeek.toLocaleDateString('pt-PT')} - ${endOfWeek.toLocaleDateString('pt-PT')}`;
+      case 'this-month':
+        return `${today.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })}`;
+      case 'this-year':
+        return `${today.getFullYear()}`;
+      case 'last-week':
+        const lastWeekStart = new Date(today);
+        lastWeekStart.setDate(today.getDate() - today.getDay() - 7);
+        const lastWeekEnd = new Date(lastWeekStart);
+        lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
+        return `${lastWeekStart.toLocaleDateString('pt-PT')} - ${lastWeekEnd.toLocaleDateString('pt-PT')}`;
+      case 'last-month':
+        const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        return `${lastMonth.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })}`;
+      default:
+        return 'Todas as datas';
+    }
   };
 
   const handleDelete = (transactionId: string) => {
@@ -134,7 +285,7 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
     <div className="space-y-4">
       {/* Filtros */}
       <div className="bg-white rounded-lg shadow-sm border p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           {/* Pesquisa */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Pesquisar</label>
@@ -207,6 +358,147 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
             </Select>
           </div>
 
+          {/* Filtro por Data */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Data</label>
+            <div className="relative date-picker-container">
+              <button
+                type="button"
+                onClick={() => setShowDatePicker(!showDatePicker)}
+                className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <span className="flex items-center">
+                  <Calendar className="h-4 w-4 mr-2 text-gray-400" />
+                  {getDateFilterText()}
+                </span>
+                <ChevronDown className="h-4 w-4 text-gray-400" />
+              </button>
+              
+              {showDatePicker && (
+                <div className="absolute z-50 mt-1 w-80 bg-white border border-gray-300 rounded-md shadow-lg">
+                  <div className="p-4">
+                    <div className="space-y-3">
+                      {/* Filtros rápidos */}
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-gray-700">Filtros Rápidos</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => {
+                              setDateFilter('today');
+                              setDateRange({ start: '', end: '' });
+                              setShowDatePicker(false);
+                            }}
+                            className="text-left px-3 py-2 text-sm rounded hover:bg-gray-100"
+                          >
+                            Hoje
+                          </button>
+                          <button
+                            onClick={() => {
+                              setDateFilter('this-week');
+                              setDateRange({ start: '', end: '' });
+                              setShowDatePicker(false);
+                            }}
+                            className="text-left px-3 py-2 text-sm rounded hover:bg-gray-100"
+                          >
+                            Esta semana
+                          </button>
+                          <button
+                            onClick={() => {
+                              setDateFilter('this-month');
+                              setDateRange({ start: '', end: '' });
+                              setShowDatePicker(false);
+                            }}
+                            className="text-left px-3 py-2 text-sm rounded hover:bg-gray-100"
+                          >
+                            Este mês
+                          </button>
+                          <button
+                            onClick={() => {
+                              setDateFilter('this-year');
+                              setDateRange({ start: '', end: '' });
+                              setShowDatePicker(false);
+                            }}
+                            className="text-left px-3 py-2 text-sm rounded hover:bg-gray-100"
+                          >
+                            Este ano
+                          </button>
+                          <button
+                            onClick={() => {
+                              setDateFilter('last-week');
+                              setDateRange({ start: '', end: '' });
+                              setShowDatePicker(false);
+                            }}
+                            className="text-left px-3 py-2 text-sm rounded hover:bg-gray-100"
+                          >
+                            Semana passada
+                          </button>
+                          <button
+                            onClick={() => {
+                              setDateFilter('last-month');
+                              setDateRange({ start: '', end: '' });
+                              setShowDatePicker(false);
+                            }}
+                            className="text-left px-3 py-2 text-sm rounded hover:bg-gray-100"
+                          >
+                            Mês passado
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="border-t pt-3">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">Intervalo Personalizado</h4>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">Data Inicial</label>
+                            <input
+                              type="date"
+                              value={dateRange.start}
+                              onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">Data Final</label>
+                            <input
+                              type="date"
+                              value={dateRange.end}
+                              onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                            />
+                          </div>
+                          <div className="flex gap-2 pt-2">
+                            <button
+                              onClick={() => {
+                                if (dateRange.start && dateRange.end) {
+                                  setDateFilter('custom');
+                                  setShowDatePicker(false);
+                                }
+                              }}
+                              className="flex-1 px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                              disabled={!dateRange.start || !dateRange.end}
+                            >
+                              Aplicar
+                            </button>
+                            <button
+                              onClick={() => {
+                                setDateFilter('all');
+                                setDateRange({ start: '', end: '' });
+                                setShowDatePicker(false);
+                              }}
+                              className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
+                            >
+                              Limpar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Botão Limpar Filtros */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">&nbsp;</label>
@@ -217,6 +509,9 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
                 setSelectedAccount('all');
                 setSelectedCategory('all');
                 setSelectedType('all');
+                setDateFilter('all');
+                setDateRange({ start: '', end: '' });
+                setShowDatePicker(false);
               }}
               className="w-full"
             >

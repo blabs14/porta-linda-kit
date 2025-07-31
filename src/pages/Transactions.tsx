@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import TransactionList from '../components/TransactionList';
 import TransactionForm from '../components/TransactionForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
@@ -101,7 +101,15 @@ const TransactionsPage = () => {
     }
   };
 
-  // Calcular métricas
+  // Estado para métricas filtradas
+  const [filteredMetrics, setFilteredMetrics] = useState({
+    totalIncome: 0,
+    totalExpenses: 0,
+    netBalance: 0,
+    transactionCount: 0
+  });
+
+  // Calcular métricas totais (sem filtros)
   const totalIncome = transactions
     .filter(t => t.tipo === 'receita')
     .reduce((sum, t) => sum + t.valor, 0);
@@ -113,8 +121,15 @@ const TransactionsPage = () => {
   const netBalance = totalIncome - totalExpenses;
   const transactionCount = transactions.length;
 
-  // Usar todas as transações sem filtros
-  const filteredTransactions = transactions;
+  // Inicializar métricas filtradas com valores totais
+  React.useEffect(() => {
+    setFilteredMetrics({
+      totalIncome,
+      totalExpenses,
+      netBalance,
+      transactionCount
+    });
+  }, [totalIncome, totalExpenses, netBalance, transactionCount]);
 
   return (
     <div className="space-y-6">
@@ -150,7 +165,10 @@ const TransactionsPage = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Receitas</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(totalIncome)}</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(filteredMetrics.totalIncome)}</p>
+                {filteredMetrics.totalIncome !== totalIncome && (
+                  <p className="text-xs text-muted-foreground">Filtrado de {formatCurrency(totalIncome)}</p>
+                )}
               </div>
               <TrendingUp className="h-8 w-8 text-green-600" />
             </div>
@@ -162,7 +180,10 @@ const TransactionsPage = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Despesas</p>
-                <p className="text-2xl font-bold text-red-600">{formatCurrency(totalExpenses)}</p>
+                <p className="text-2xl font-bold text-red-600">{formatCurrency(filteredMetrics.totalExpenses)}</p>
+                {filteredMetrics.totalExpenses !== totalExpenses && (
+                  <p className="text-xs text-muted-foreground">Filtrado de {formatCurrency(totalExpenses)}</p>
+                )}
               </div>
               <TrendingDown className="h-8 w-8 text-red-600" />
             </div>
@@ -174,9 +195,12 @@ const TransactionsPage = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Saldo Líquido</p>
-                <p className={`text-2xl font-bold ${netBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(netBalance)}
+                <p className={`text-2xl font-bold ${filteredMetrics.netBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(filteredMetrics.netBalance)}
                 </p>
+                {filteredMetrics.netBalance !== netBalance && (
+                  <p className="text-xs text-muted-foreground">Filtrado de {formatCurrency(netBalance)}</p>
+                )}
               </div>
               <Wallet className="h-8 w-8 text-blue-600" />
             </div>
@@ -188,7 +212,10 @@ const TransactionsPage = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Transações</p>
-                <p className="text-2xl font-bold">{transactionCount}</p>
+                <p className="text-2xl font-bold">{filteredMetrics.transactionCount}</p>
+                {filteredMetrics.transactionCount !== transactionCount && (
+                  <p className="text-xs text-muted-foreground">Filtrado de {transactionCount}</p>
+                )}
               </div>
               <Calendar className="h-8 w-8 text-purple-600" />
             </div>
@@ -204,6 +231,7 @@ const TransactionsPage = () => {
           <TransactionList 
             key={refreshKey} 
             onEdit={handleEdit}
+            onMetricsUpdate={setFilteredMetrics}
           />
         </CardContent>
       </Card>

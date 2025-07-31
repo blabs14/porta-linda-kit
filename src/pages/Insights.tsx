@@ -29,6 +29,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import TransactionForm from '../components/TransactionForm';
 import { useToast } from '../hooks/use-toast';
 import { goalSchema } from '../validation/goalSchema';
+import * as XLSX from 'xlsx';
 
 const typeColors = {
   success: 'border-success bg-success/10 text-success',
@@ -285,7 +286,7 @@ export default function Insights() {
     setIsExporting(true);
     try {
       const currentDate = new Date().toLocaleDateString('pt-PT');
-      const fileName = `relatorio-insights-${currentDate}.csv`;
+      const fileName = `relatorio-insights-${currentDate}.xlsx`;
       
       // Preparar dados para exportação
       const exportData = {
@@ -318,47 +319,85 @@ export default function Insights() {
         }))
       };
 
-      // Converter para CSV
-      let csvContent = 'Data de Exportação,Insights Financeiros\n';
-      csvContent += `${currentDate},\n\n`;
+      // Criar workbook e worksheets
+      const workbook = XLSX.utils.book_new();
       
-      // Insights
-      csvContent += 'INSIGHTS\n';
-      csvContent += 'Título,Descrição,Tipo,Valor,Tendência,Ação\n';
+      // Worksheet 1: Insights
+      const insightsData = [
+        ['INSIGHTS FINANCEIROS'],
+        ['Data de Exportação', currentDate],
+        [],
+        ['Título', 'Descrição', 'Tipo', 'Valor', 'Tendência', 'Ação']
+      ];
+      
       exportData.insights.forEach(insight => {
-        csvContent += `"${insight.titulo}","${insight.descricao}","${insight.tipo}","${insight.valor}","${insight.tendencia}","${insight.acao}"\n`;
+        insightsData.push([
+          insight.titulo,
+          insight.descricao,
+          insight.tipo,
+          insight.valor,
+          insight.tendencia,
+          insight.acao
+        ]);
       });
       
-      csvContent += '\nRESUMO FINANCEIRO\n';
-      csvContent += 'Métrica,Valor\n';
-      csvContent += `Saldo Total,€${exportData.resumoFinanceiro.saldoTotal.toFixed(2)}\n`;
-      csvContent += `Total de Contas,${exportData.resumoFinanceiro.totalContas}\n`;
-      csvContent += `Total de Transações,${exportData.resumoFinanceiro.totalTransacoes}\n`;
-      csvContent += `Total de Objetivos,${exportData.resumoFinanceiro.totalObjetivos}\n`;
-      csvContent += `Objetivos Ativos,${exportData.resumoFinanceiro.objetivosAtivos}\n`;
+      const insightsSheet = XLSX.utils.aoa_to_sheet(insightsData);
+      XLSX.utils.book_append_sheet(workbook, insightsSheet, 'Insights');
       
-      csvContent += '\nGASTOS POR CATEGORIA\n';
-      csvContent += 'Categoria,Valor,Percentagem\n';
+      // Worksheet 2: Resumo Financeiro
+      const resumoData = [
+        ['RESUMO FINANCEIRO'],
+        [],
+        ['Métrica', 'Valor'],
+        ['Saldo Total', `€${exportData.resumoFinanceiro.saldoTotal.toFixed(2)}`],
+        ['Total de Contas', exportData.resumoFinanceiro.totalContas],
+        ['Total de Transações', exportData.resumoFinanceiro.totalTransacoes],
+        ['Total de Objetivos', exportData.resumoFinanceiro.totalObjetivos],
+        ['Objetivos Ativos', exportData.resumoFinanceiro.objetivosAtivos]
+      ];
+      
+      const resumoSheet = XLSX.utils.aoa_to_sheet(resumoData);
+      XLSX.utils.book_append_sheet(workbook, resumoSheet, 'Resumo');
+      
+      // Worksheet 3: Gastos por Categoria
+      const gastosData = [
+        ['GASTOS POR CATEGORIA'],
+        [],
+        ['Categoria', 'Valor', 'Percentagem']
+      ];
+      
       exportData.gastosPorCategoria.forEach(cat => {
-        csvContent += `"${cat.categoria}",€${cat.valor.toFixed(2)},${cat.percentagem}%\n`;
+        gastosData.push([
+          cat.categoria,
+          `€${cat.valor.toFixed(2)}`,
+          `${cat.percentagem}%`
+        ]);
       });
       
-      csvContent += '\nTENDÊNCIAS MENSAIS (Últimos 6 meses)\n';
-      csvContent += 'Mês,Receitas,Despesas,Poupanças\n';
+      const gastosSheet = XLSX.utils.aoa_to_sheet(gastosData);
+      XLSX.utils.book_append_sheet(workbook, gastosSheet, 'Gastos');
+      
+      // Worksheet 4: Tendências Mensais
+      const tendenciasData = [
+        ['TENDÊNCIAS MENSAIS (Últimos 6 meses)'],
+        [],
+        ['Mês', 'Receitas', 'Despesas', 'Poupanças']
+      ];
+      
       exportData.tendenciasMensais.forEach(month => {
-        csvContent += `${month.mes},€${month.receitas.toFixed(2)},€${month.despesas.toFixed(2)},€${month.poupancas.toFixed(2)}\n`;
+        tendenciasData.push([
+          month.mes,
+          `€${month.receitas.toFixed(2)}`,
+          `€${month.despesas.toFixed(2)}`,
+          `€${month.poupancas.toFixed(2)}`
+        ]);
       });
+      
+      const tendenciasSheet = XLSX.utils.aoa_to_sheet(tendenciasData);
+      XLSX.utils.book_append_sheet(workbook, tendenciasSheet, 'Tendências');
 
-      // Criar e descarregar ficheiro
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', fileName);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Exportar ficheiro XLSX
+      XLSX.writeFile(workbook, fileName);
       
       toast({
         title: "Relatório exportado",
@@ -469,10 +508,6 @@ export default function Insights() {
           <p className="text-muted-foreground">Análises inteligentes das suas finanças</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="border-border" onClick={handleRefresh} disabled={isRefreshing}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            {isRefreshing ? 'Atualizando...' : 'Atualizar'}
-          </Button>
           <Button variant="outline" size="sm" className="border-border" onClick={handleExport} disabled={isExporting}>
             <Download className="h-4 w-4 mr-2" />
             {isExporting ? 'Exportando...' : 'Exportar'}
