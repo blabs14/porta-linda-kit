@@ -75,13 +75,77 @@ export const createAccount = async (accountData: AccountInsert, userId: string):
 
 export const updateAccount = async (id: string, updates: AccountUpdateExtended, userId: string): Promise<{ data: Account | null; error: any }> => {
   try {
+    console.log('[updateAccount] Starting update for account:', id);
+    console.log('[updateAccount] Updates:', updates);
+    
+    // Se apenas nome e tipo estão sendo atualizados, fazer update simples
+    if (Object.keys(updates).length === 2 && updates.nome !== undefined && updates.tipo !== undefined) {
+      console.log('[updateAccount] Simple update - only nome and tipo');
+      const { data, error } = await supabase
+        .from('accounts')
+        .update({ nome: updates.nome, tipo: updates.tipo })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      console.log('[updateAccount] Simple update result:', { data, error });
+      return { data, error };
+    }
+    
+    // Para atualizações que incluem saldos, usar a lógica original
     let otherUpdates = updates;
     let needsAdjustmentTransaction = false;
     let adjustmentAmount = 0;
 
     // Processar saldoAtual se fornecido
     if (updates.saldoAtual !== undefined) {
-      // Buscar o saldo atual calculado da conta
+      console.log('[updateAccount] Processing saldoAtual:', updates.saldoAtual);
+      
+      // Buscar o tipo da conta
+      const { data: accountData } = await supabase
+        .from('accounts')
+        .select('tipo')
+        .eq('id', id)
+        .single();
+
+      // TODO: Implementar lógica especializada para cartões de crédito mais tarde
+      // if (accountData?.tipo === 'cartão de crédito') {
+      //   console.log('[updateAccount] Using set_credit_card_balance RPC');
+      //   
+      //   // Para cartões de crédito, usar função especializada
+      //   const { data: result, error: rpcError } = await supabase.rpc('manage_credit_card_balance', {
+      //     p_user_id: userId,
+      //     p_account_id: id,
+      //     p_new_balance: updates.saldoAtual || 0
+      //   });
+      //
+      //   console.log('[updateAccount] RPC result:', result);
+      //
+      //   if (rpcError) {
+      //     console.error('[updateAccount] RPC error:', rpcError);
+      //     return { data: null, error: rpcError };
+      //   }
+      //
+      //   // Buscar a conta atualizada
+      //   const { data: updatedAccount, error: fetchError } = await supabase
+      //     .from('accounts')
+      //     .select('*')
+      //     .eq('id', id)
+      //     .single();
+      //
+      //   console.log('[updateAccount] Updated account:', updatedAccount);
+      //   console.log('[updateAccount] Fetch error:', fetchError);
+      //
+      //   if (fetchError) {
+      //     return { data: null, error: fetchError };
+      //   }
+      //
+      //   console.log('[updateAccount] Returning updated account');
+      //   return { data: updatedAccount, error: null };
+      // }
+      
+      // Para outras contas, usar lógica normal
       const { data: currentBalanceData, error: balanceError } = await supabase
         .from('account_balances')
         .select('saldo_atual')
@@ -92,7 +156,6 @@ export const updateAccount = async (id: string, updates: AccountUpdateExtended, 
         return { data: null, error: balanceError };
       }
 
-      // Calcular a diferença entre o novo saldo e o saldo atual calculado
       const currentBalance = currentBalanceData?.saldo_atual || 0;
       const newBalance = updates.saldoAtual || 0;
       const difference = newBalance - currentBalance;

@@ -33,7 +33,7 @@ export const categoryValidationSchema = z.object({
 export const goalValidationSchema = z.object({
   nome: z.string().min(1, 'Nome é obrigatório').max(100, 'Nome deve ter no máximo 100 caracteres'),
   valor_objetivo: z.number().positive('Valor objetivo deve ser positivo').max(999999.99, 'Valor máximo é 999.999,99'),
-  prazo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Prazo deve estar no formato YYYY-MM-DD'),
+  prazo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Prazo deve estar no formato YYYY-MM-DD').optional(),
   account_id: z.string().uuid('ID da conta deve ser um UUID válido').optional(),
 });
 
@@ -174,7 +174,7 @@ export const validateAndSanitizeGoal = (data: any) => {
     const sanitizedData = {
       nome: sanitizeString(data.nome),
       valor_objetivo: sanitizeNumber(Number(data.valor_objetivo)),
-      prazo: data.prazo,
+      prazo: data.prazo || undefined,
       account_id: data.account_id,
     };
 

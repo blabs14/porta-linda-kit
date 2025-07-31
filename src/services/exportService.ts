@@ -22,6 +22,11 @@ export interface ExportOptions {
   includeCharts?: boolean;
 }
 
+interface CategoryStats {
+  receitas: number;
+  despesas: number;
+}
+
 /**
  * Exporta relatório em formato PDF
  */
@@ -96,12 +101,12 @@ export const exportToPDF = async (data: ExportData, options: ExportOptions): Pro
         acc[category].despesas += Number(t.valor);
       }
       return acc;
-    }, {} as Record<string, { receitas: number; despesas: number }>);
+    }, {} as Record<string, CategoryStats>);
     
     const categoryData = Object.entries(categoryStats).map(([category, stats]) => [
       category,
-      stats.receitas.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }),
-      stats.despesas.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }),
+      (stats as CategoryStats).receitas.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }),
+      (stats as CategoryStats).despesas.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }),
     ]);
     
     doc.addPage();
@@ -179,13 +184,13 @@ export const exportToExcel = (data: ExportData, options: ExportOptions): Blob =>
       acc[category].despesas += Number(t.valor);
     }
     return acc;
-  }, {} as Record<string, { receitas: number; despesas: number }>);
+  }, {} as Record<string, CategoryStats>);
   
   const statsData = Object.entries(categoryStats).map(([category, stats]) => ({
     Categoria: category,
-    Receitas: stats.receitas,
-    Despesas: stats.despesas,
-    Saldo: stats.receitas - stats.despesas,
+    Receitas: (stats as CategoryStats).receitas,
+    Despesas: (stats as CategoryStats).despesas,
+    Saldo: (stats as CategoryStats).receitas - (stats as CategoryStats).despesas,
   }));
   
   const statsSheet = XLSX.utils.json_to_sheet(statsData);
@@ -209,7 +214,9 @@ export const exportToExcel = (data: ExportData, options: ExportOptions): Blob =>
   const summarySheet = XLSX.utils.json_to_sheet(summaryData);
   XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumo');
   
-  return XLSX.write(workbook, { bookType: 'xlsx', type: 'blob' });
+  // Usar a sintaxe correta para gerar o blob
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 };
 
 /**

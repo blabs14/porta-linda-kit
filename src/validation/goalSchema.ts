@@ -10,7 +10,7 @@ export const goalSchema = z.object({
     (v) => (typeof v === 'string' ? parseFloat(v) : v),
     z.number({ invalid_type_error: 'Valor atual inválido' }).min(0, 'Valor atual deve ser maior ou igual a 0').optional()
   ),
-  prazo: z.string().min(1, 'Prazo obrigatório'),
+  prazo: z.string().optional(),
   status: z.string().optional(),
   ativa: z.boolean().optional(),
   account_id: z.string().optional(),

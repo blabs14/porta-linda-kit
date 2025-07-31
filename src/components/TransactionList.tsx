@@ -45,21 +45,23 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
   const categoriesData = Array.isArray(categories.data) ? categories.data : [];
 
   // Filtrar transações
-  const filteredTransactions = transactions.filter(transaction => {
-    const matchesSearch = !searchTerm || 
-      transaction.descricao.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesAccount = selectedAccount === 'all' || 
-      transaction.account_id === selectedAccount;
-    
-    const matchesCategory = selectedCategory === 'all' || 
-      transaction.categoria_id === selectedCategory;
-    
-    const matchesType = selectedType === 'all' || 
-      transaction.tipo === selectedType;
-    
-    return matchesSearch && matchesAccount && matchesCategory && matchesType;
-  });
+  const filteredTransactions = React.useMemo(() => {
+    return transactions.filter(transaction => {
+      const matchesSearch = !searchTerm || 
+        (transaction.descricao && transaction.descricao.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const matchesAccount = selectedAccount === 'all' || 
+        transaction.account_id === selectedAccount;
+      
+      const matchesCategory = selectedCategory === 'all' || 
+        transaction.categoria_id === selectedCategory;
+      
+      const matchesType = selectedType === 'all' || 
+        transaction.tipo === selectedType;
+      
+      return matchesSearch && matchesAccount && matchesCategory && matchesType;
+    });
+  }, [transactions, searchTerm, selectedAccount, selectedCategory, selectedType]);
 
   // Calcular paginação
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
@@ -86,25 +88,7 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
     console.log('[TransactionList] Number of transactions changed from', transactions.length - 1, 'to', transactions.length);
     console.log('[TransactionList] Resetting to page 1');
     setCurrentPage(1);
-    
-    // Mostrar toast se estamos numa página diferente da primeira
-    if (currentPage > 1) {
-      console.log('[TransactionList] Showing toast for new transaction');
-      toast({
-        title: "Nova transação criada!",
-        description: "A transação foi adicionada à primeira página da lista.",
-        action: (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setCurrentPage(1)}
-          >
-            Ver
-          </Button>
-        ),
-      });
-    }
-  }, [transactions.length, currentPage, toast]);
+  }, [transactions.length]);
 
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
@@ -159,7 +143,13 @@ const TransactionList = ({ onEdit }: { onEdit?: (tx: any) => void }) => {
               <Input
                 placeholder="Descrição..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  try {
+                    setSearchTerm(e.target.value);
+                  } catch (error) {
+                    console.error('Erro ao atualizar searchTerm:', error);
+                  }
+                }}
                 className="pl-10"
               />
             </div>

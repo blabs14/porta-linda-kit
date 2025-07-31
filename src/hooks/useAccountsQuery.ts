@@ -67,14 +67,30 @@ export const useUpdateAccount = () => {
   const queryClient = useQueryClient();
 
   return useCrudMutation(
-    ({ id, data }: { id: string; data: { nome?: string; tipo?: string; saldo?: number } }) => 
+    ({ id, data }: { id: string; data: { nome?: string; tipo?: string; saldo?: number; saldoAtual?: number; ajusteSaldo?: number } }) => 
       updateAccount(id, data, user?.id || ''),
     {
       operation: 'update',
       entityName: 'Conta',
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['accounts'] });
-        queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] });
+      onSuccess: async (_, variables) => {
+        console.log('[useUpdateAccount] Invalidating queries...');
+        console.log('[useUpdateAccount] Account ID:', variables.id);
+        console.log('[useUpdateAccount] Data:', variables.data);
+        
+        // Invalidar todas as queries relacionadas
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['accounts'] }),
+          queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] })
+          // TODO: Adicionar creditCardSummary quando implementar
+        ]);
+        
+        // Forçar refetch das queries específicas
+        await Promise.all([
+          queryClient.refetchQueries({ queryKey: ['accountsWithBalances', user?.id] })
+          // TODO: Adicionar creditCardSummary quando implementar
+        ]);
+        
+        console.log('[useUpdateAccount] Queries invalidated and refetched');
       }
     }
   );
@@ -97,26 +113,27 @@ export const useDeleteAccount = () => {
   );
 };
 
-export const useCreditCardSummary = (accountId: string) => {
-  const { user } = useAuth();
-  
-  return useQuery({
-    queryKey: ['creditCardSummary', accountId, user?.id],
-    queryFn: async () => {
-      if (!user?.id || !accountId) return null;
-      
-      const { data, error } = await supabase.rpc('get_credit_card_summary', {
-        p_user_id: user.id,
-        p_account_id: accountId
-      });
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user?.id && !!accountId,
-    staleTime: 0, // Sempre considerar stale para forçar refetch
-    gcTime: 5 * 60 * 1000, // 5 minutos de cache
-  });
-};
+// TODO: Implementar mais tarde
+// export const useCreditCardSummary = (accountId: string) => {
+//   const { user } = useAuth();
+//   
+//   return useQuery({
+//     queryKey: ['creditCardSummary', accountId, user?.id],
+//     queryFn: async () => {
+//       if (!user?.id || !accountId) return null;
+//       
+//       const { data, error } = await supabase.rpc('get_credit_card_summary', {
+//         p_user_id: user.id,
+//         p_account_id: accountId
+//       });
+//       
+//       if (error) throw error;
+//       return data;
+//     },
+//     enabled: !!user?.id && !!accountId,
+//     staleTime: 0, // Sempre considerar stale para forçar refetch
+//     gcTime: 5 * 60 * 1000, // 5 minutos de cache
+//   });
+// };
 
  

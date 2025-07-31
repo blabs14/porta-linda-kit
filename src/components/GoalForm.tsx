@@ -32,8 +32,6 @@ interface GoalFormProps {
 }
 
 const GoalForm = ({ initialData, onSuccess, onCancel }: GoalFormProps) => {
-  console.log('[GoalForm] Component rendered with props:', { initialData, onSuccess: !!onSuccess, onCancel: !!onCancel });
-  
   const { user } = useAuth();
   const { createGoal, updateGoal, isCreating, isUpdating } = useGoals();
   const [form, setForm] = useState<GoalFormData>({
@@ -45,11 +43,6 @@ const GoalForm = ({ initialData, onSuccess, onCancel }: GoalFormProps) => {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   
   const isSubmitting = isCreating || isUpdating;
-
-  console.log('[GoalForm] initialData:', initialData);
-  console.log('[GoalForm] form state:', form);
-  console.log('[GoalForm] isSubmitting:', isSubmitting);
-  console.log('[GoalForm] user:', user);
 
   useEffect(() => {
     if (initialData) {
@@ -77,8 +70,6 @@ const GoalForm = ({ initialData, onSuccess, onCancel }: GoalFormProps) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('[GoalForm] handleSubmit called - Event:', e);
-    console.log('[GoalForm] Form element:', e.target);
     setValidationErrors({});
     
     // Validação manual simples
@@ -90,10 +81,8 @@ const GoalForm = ({ initialData, onSuccess, onCancel }: GoalFormProps) => {
       errors.valor_objetivo = 'Valor objetivo obrigatório';
     }
     
-    console.log('[GoalForm] Manual validation errors:', errors);
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
-      console.log('[GoalForm] Validation failed, not submitting');
       return;
     }
     
@@ -105,30 +94,20 @@ const GoalForm = ({ initialData, onSuccess, onCancel }: GoalFormProps) => {
         valor_atual: 0, // Inicializar com 0
       };
       
-      console.log('[GoalForm] Payload to send:', payload);
-      
       if (initialData && initialData.id) {
-        console.log('[GoalForm] Updating goal...');
         await updateGoal({ id: initialData.id, data: payload });
       } else {
-        console.log('[GoalForm] Creating goal...');
         await createGoal(payload);
       }
       
-      console.log('[GoalForm] Success! Calling onSuccess...');
       if (onSuccess) onSuccess();
     } catch (err: any) {
-      console.error('[GoalForm] Error:', err);
       // O erro já é tratado pelo hook useGoals
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-2 sm:p-4">
-      <div className="text-sm text-gray-600 mb-2">
-        Debug: Form rendered, isSubmitting: {isSubmitting.toString()}
-      </div>
-      
       <div className="space-y-2">
         <label htmlFor="nome">Nome do Objetivo</label>
         <Input
@@ -184,7 +163,6 @@ const GoalForm = ({ initialData, onSuccess, onCancel }: GoalFormProps) => {
           submitText={initialData?.id ? 'Atualizar' : 'Criar'}
           submittingText={initialData?.id ? 'A atualizar...' : 'A criar...'}
           className="w-full"
-          onClick={() => console.log('[GoalForm] Submit button clicked')}
         />
         {onCancel && (
           <Button type="button" variant="outline" onClick={onCancel} className="w-full">

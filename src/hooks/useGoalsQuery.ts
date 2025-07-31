@@ -31,7 +31,7 @@ export const useGoals = () => {
   });
 
   const createGoalMutation = useMutation({
-    mutationFn: async (data: { nome: string; valor_objetivo: number; prazo: string; account_id?: string; family_id?: string; valor_atual?: number; ativa?: boolean }) => {
+    mutationFn: async (data: { nome: string; valor_objetivo: number; prazo?: string; account_id?: string; family_id?: string; valor_atual?: number; ativa?: boolean }) => {
       console.log('[createGoalMutation] Mutation function called with data:', data);
       const result = await createGoal({ ...data, user_id: user?.id || '' }, user?.id || '');
       console.log('[createGoalMutation] createGoal result:', result);

@@ -12,6 +12,8 @@ import { GoalAllocationModal } from '../components/GoalAllocationModal';
 import GoalForm from '../components/GoalForm';
 import { GoalProgress } from '../integrations/supabase/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
+import { useConfirmation } from '../hooks/useConfirmation';
+import { ConfirmationDialog } from '../components/ui/confirmation-dialog';
 
 export default function Goals() {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -23,6 +25,7 @@ export default function Goals() {
   const { goals, isLoading, error, refetch, createGoal, updateGoal, deleteGoal } = useGoals();
   const { data: goalProgress = [] } = useGoalProgress();
   const { toast } = useToast();
+  const confirmation = useConfirmation();
 
   const handleCreateGoal = () => {
     setShowCreateModal(true);
@@ -58,21 +61,30 @@ export default function Goals() {
   };
 
   const handleDeleteGoal = async (goalId: string) => {
-    if (!window.confirm('Tem a certeza que deseja remover este objetivo?')) return;
-    
-    try {
-      await deleteGoal(goalId);
-      toast({
-        title: 'Objetivo removido',
-        description: 'O objetivo foi removido com sucesso.',
-      });
-    } catch (error: any) {
-      toast({
-        title: 'Erro ao remover objetivo',
-        description: error.message || 'Erro ao remover objetivo',
+    confirmation.confirm(
+      {
+        title: 'Eliminar Objetivo',
+        message: 'Tem a certeza que deseja eliminar este objetivo? Esta ação não pode ser desfeita.',
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
         variant: 'destructive',
-      });
-    }
+      },
+      async () => {
+        try {
+          await deleteGoal(goalId);
+          toast({
+            title: 'Objetivo removido',
+            description: 'O objetivo foi removido com sucesso.',
+          });
+        } catch (error: any) {
+          toast({
+            title: 'Erro ao remover objetivo',
+            description: error.message || 'Erro ao remover objetivo',
+            variant: 'destructive',
+          });
+        }
+      }
+    );
   };
 
   const formatDate = (dateString: string) => {
@@ -342,6 +354,19 @@ export default function Goals() {
           targetAmount={selectedGoal.valor_objetivo}
         />
       )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={confirmation.isOpen}
+        onClose={confirmation.close}
+        onConfirm={confirmation.onConfirm}
+        onCancel={confirmation.onCancel}
+        title={confirmation.options.title}
+        message={confirmation.options.message}
+        confirmText={confirmation.options.confirmText}
+        cancelText={confirmation.options.cancelText}
+        variant={confirmation.options.variant}
+      />
     </div>
   );
 }

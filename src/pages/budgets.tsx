@@ -13,6 +13,8 @@ import { useTransactions } from '../hooks/useTransactionsQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { budgetSchema } from '../validation/budgetSchema';
 import { useToast } from '../hooks/use-toast';
+import { useConfirmation } from '../hooks/useConfirmation';
+import { ConfirmationDialog } from '../components/ui/confirmation-dialog';
 
 interface BudgetFormData {
   categoria_id: string;
@@ -36,6 +38,7 @@ const BudgetsPage = () => {
   const { data: transactions = [] } = useTransactions();
   const { user } = useAuth();
   const { toast } = useToast();
+  const confirmation = useConfirmation();
 
   const handleNew = () => {
     setEditBudget(null);
@@ -164,21 +167,30 @@ const BudgetsPage = () => {
       return;
     }
 
-    if (window.confirm('Tem a certeza que deseja remover este orçamento?')) {
-      const result = await remove(id, user.id);
-      if (result.error) {
-        toast({
-          title: "Erro",
-          description: "Erro ao remover orçamento",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Sucesso",
-          description: "Orçamento removido com sucesso",
-        });
+    confirmation.confirm(
+      {
+        title: 'Eliminar Orçamento',
+        message: 'Tem a certeza que deseja eliminar este orçamento? Esta ação não pode ser desfeita.',
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+        variant: 'destructive',
+      },
+      async () => {
+        const result = await remove(id, user.id);
+        if (result.error) {
+          toast({
+            title: "Erro",
+            description: "Erro ao remover orçamento",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Sucesso",
+            description: "Orçamento removido com sucesso",
+          });
+        }
       }
-    }
+    );
   };
 
   const formatCurrency = (value: number) => {
@@ -434,6 +446,18 @@ const BudgetsPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmationDialog
+        isOpen={confirmation.isOpen}
+        onClose={confirmation.close}
+        onConfirm={confirmation.onConfirm}
+        onCancel={confirmation.onCancel}
+        title={confirmation.options.title}
+        message={confirmation.options.message}
+        confirmText={confirmation.options.confirmText}
+        cancelText={confirmation.options.cancelText}
+        variant={confirmation.options.variant}
+      />
     </div>
   );
 };

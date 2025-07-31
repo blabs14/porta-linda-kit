@@ -1,97 +1,112 @@
-# Lógica de Cartões de Crédito
+# Lógica de Cartões de Crédito - Documentação
 
-## Como funcionam as transações para cartões de crédito
+## 📋 **Estado Atual**
+- ✅ **Comentado**: Todas as funções e componentes relacionados com cartões de crédito foram comentados
+- ✅ **Limpo**: Base de dados limpa de transações de teste
+- ✅ **Pronto**: Para implementar mais tarde com uma abordagem mais robusta
 
-### 1. **Conceito Base**
-- **Saldo negativo** = Dívida no cartão
-- **Saldo positivo** = Crédito disponível
-- **Saldo zero** = Cartão sem dívida
+## 🎯 **Lógica Desenvolvida**
 
-### 2. **Tipos de Transação**
+### **Princípios Fundamentais:**
+1. **Saldo Total**: Sempre ≤ 0 (negativo ou zero)
+2. **Quando aumenta dívida**: Aumenta os gastos
+3. **Quando diminui dívida**: Aumenta os pagamentos
+4. **Quando saldo = 0**: Tudo zerado, novo ciclo limpo
 
-#### **Despesas (Gastos)**
-- **Ação**: Aumentam a dívida
-- **Cálculo**: `saldo_atual = saldo_atual - valor`
-- **Exemplo**: 
-  - Saldo atual: -100€
-  - Gasto: 50€
-  - Novo saldo: -150€ (mais dívida)
-
-#### **Receitas (Pagamentos)**
-- **Ação**: Diminuem a dívida
-- **Cálculo**: `saldo_atual = saldo_atual + valor`
-- **Exemplo**:
-  - Saldo atual: -150€
-  - Pagamento: 200€
-  - Novo saldo: +50€ (sem dívida, com crédito disponível)
-
-### 3. **Funcionalidades Implementadas**
-
-#### **Criação de Conta**
-- Saldo inicial sempre 0€ (mesmo que o utilizador introduza outro valor)
-- Aplicação automática da lógica específica de cartão de crédito
-
-#### **Transações**
-- **Função RPC**: `handle_credit_card_transaction`
-- **Lógica específica**: Diferencia entre despesas e receitas
-- **Atualização automática**: Saldo da conta atualizado automaticamente
-
-#### **Resumo de Cartão**
-- **Função RPC**: `get_credit_card_summary`
-- **Informações mostradas**:
-  - Status (Em dívida/Sem dívida)
-  - Dívida atual (se aplicável)
-  - Total de gastos
-  - Total de pagamentos
-  - Avisos quando em dívida
-
-### 4. **Interface do Utilizador**
-
-#### **Formulário de Criação**
-- Mensagem informativa sobre como funcionam cartões de crédito
-- Placeholder específico para saldo inicial
-- Validação automática do saldo
-
-#### **Cards de Conta**
-- Seção específica para cartões de crédito
-- Ícone de cartão de crédito
-- Informações detalhadas sobre dívida e gastos
-- Avisos visuais quando em dívida
-
-### 5. **Exemplos Práticos**
-
-#### **Cenário 1: Cartão novo**
+### **Exemplos de Comportamento:**
 ```
-Saldo inicial: 0€
-Gasto: 100€ → Saldo: -100€ (dívida)
-Pagamento: 100€ → Saldo: 0€ (sem dívida)
+Estado 1: 0€ → 400€ (input)
+- Saldo Total: -400€
+- Total Gastos: 400€
+- Total Pagamentos: 0€
+
+Estado 2: -400€ → 300€ (input)
+- Saldo Total: -300€
+- Total Gastos: 400€ (mantido)
+- Total Pagamentos: 100€ (aumentado)
+
+Estado 3: -300€ → 0€ (input)
+- Saldo Total: 0€
+- Total Gastos: 0€ (reset)
+- Total Pagamentos: 0€ (reset)
+- Histórico: Limpo (novo ciclo)
 ```
 
-#### **Cenário 2: Cartão com dívida**
+## 🔧 **Funções Desenvolvidas (Comentadas)**
+
+### **1. manage_credit_card_balance**
+- **Propósito**: Gerir saldo de cartões de crédito
+- **Lógica**: 
+  - Converte valores positivos para negativos
+  - Quando saldo = 0: limpa tudo e inicia novo ciclo
+  - Quando aumenta dívida: aumenta gastos
+  - Quando diminui dívida: aumenta pagamentos
+
+### **2. get_credit_card_summary**
+- **Propósito**: Obter resumo de cartão de crédito
+- **Retorna**: Saldo, gastos, pagamentos, status
+
+## 🎨 **Componentes Desenvolvidos (Comentados)**
+
+### **1. CreditCardBalance**
+- **Propósito**: Mostrar saldo de cartão de crédito
+- **Características**: Sempre mostra saldo negativo em vermelho
+
+### **2. CreditCardInfo**
+- **Propósito**: Mostrar informações detalhadas
+- **Inclui**: Status, total gastos, total pagamentos
+
+## 📁 **Ficheiros Modificados**
+
+### **Comentados:**
+- `src/services/accounts.ts` - Lógica especializada
+- `src/hooks/useAccountsQuery.ts` - Hook useCreditCardSummary
+- `src/pages/accounts.tsx` - Componentes específicos
+- `src/integrations/supabase/database.types.ts` - Tipos TypeScript
+- `src/components/AccountForm.tsx` - Opção "cartão de crédito" no formulário
+- `src/services/transactions.ts` - Lógica específica para transações de cartão de crédito
+
+### **Base de Dados:**
+- `manage_credit_card_balance` - Função comentada
+- `get_credit_card_summary` - Função comentada
+
+## 🚀 **Próximos Passos (Quando Implementar)**
+
+### **1. Descomentar e Testar**
+```bash
+# Descomentar funções na base de dados
+# Descomentar tipos TypeScript
+# Descomentar serviços e hooks
+# Descomentar componentes
 ```
-Saldo atual: -200€
-Gasto: 50€ → Saldo: -250€ (mais dívida)
-Pagamento: 300€ → Saldo: +50€ (sem dívida, com crédito)
-```
 
-#### **Cenário 3: Cartão com crédito**
-```
-Saldo atual: +100€
-Gasto: 50€ → Saldo: +50€ (menos crédito)
-Gasto: 100€ → Saldo: -50€ (agora em dívida)
-```
+### **2. Melhorias Sugeridas**
+- **Validação**: Verificar se conta é realmente cartão de crédito
+- **Logs**: Adicionar logs detalhados para debugging
+- **Testes**: Criar testes unitários para a lógica
+- **UI**: Melhorar interface para cartões de crédito
 
-### 6. **Vantagens da Implementação**
+### **3. Cenários de Teste**
+- [ ] 0€ → 400€ → 300€ → 0€
+- [ ] 0€ → 500€ → 200€ → 100€
+- [ ] 0€ → 1000€ → 0€ (reset)
+- [ ] Valores negativos diretos
+- [ ] Valores positivos (conversão automática)
 
-1. **Clareza**: Saldo negativo = dívida, positivo = crédito
-2. **Automatização**: Lógica aplicada automaticamente
-3. **Transparência**: Utilizador vê sempre o estado real do cartão
-4. **Flexibilidade**: Suporta tanto dívidas como crédito disponível
-5. **Consistência**: Mesma lógica aplicada em todas as transações
+## 💡 **Lições Aprendidas**
 
-### 7. **Considerações Futuras**
+1. **Lógica Simples**: Manter a lógica o mais simples possível
+2. **Reset Completo**: Quando saldo = 0, limpar tudo
+3. **Consistência**: Manter gastos e pagamentos consistentes
+4. **Testes**: Testar cada cenário antes de avançar
 
-- **Limite de crédito**: Pode ser adicionado como campo opcional
-- **Data de vencimento**: Para lembretes de pagamento
-- **Taxas de juros**: Para cálculo de dívida acumulada
-- **Histórico de faturas**: Para acompanhamento mensal 
+## 🔍 **Problemas Resolvidos**
+
+1. **Conversão de Valores**: Valores positivos convertidos para negativos
+2. **Cálculo de Totais**: Lógica para aumentar gastos vs pagamentos
+3. **Reset de Ciclo**: Limpeza completa quando saldo = 0
+4. **Consistência de Dados**: Totais sempre alinhados com saldo
+
+---
+*Documentação criada em 31/07/2025*
+*Pronto para implementação futura* 

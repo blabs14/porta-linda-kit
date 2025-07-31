@@ -3,85 +3,96 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Wallet, Plus, Edit, Trash2, ArrowRightLeft, Target, RefreshCw, CreditCard, AlertTriangle } from 'lucide-react';
-import { useAccountsWithBalances, useDeleteAccount, useCreditCardSummary } from '../hooks/useAccountsQuery';
+import { Wallet, Plus, Edit, Trash2, ArrowRightLeft, Target, CreditCard, AlertTriangle } from 'lucide-react';
+import { useAccountsWithBalances, useDeleteAccount } from '../hooks/useAccountsQuery';
+// TODO: Adicionar useCreditCardSummary quando implementar
 import { useToast } from '../hooks/use-toast';
 import { formatCurrency } from '../lib/utils';
 import AccountForm from '../components/AccountForm';
+// TODO: Implementar mais tarde
+// import CreditCardForm from '../components/CreditCardForm';
+import RegularAccountForm from '../components/RegularAccountForm';
 import { TransferModal } from '../components/TransferModal';
 import { AccountWithBalances } from '../integrations/supabase/types';
 import { ConfirmationDialog } from '../components/ui/confirmation-dialog';
 import { Alert, AlertDescription } from '../components/ui/alert';
 
 
+// TODO: Implementar mais tarde
 // Componente para mostrar o saldo de cartão de crédito
-const CreditCardBalance = ({ accountId, fallbackBalance, accountType }: { accountId: string; fallbackBalance: number; accountType: string }) => {
-  const { data: summary } = useCreditCardSummary(accountId);
-  
-  const balance = summary ? summary.total_payments - summary.total_expenses : fallbackBalance;
-  
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">Saldo Total</span>
-        <span className={`text-lg font-semibold ${balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
-          {formatCurrency(balance)}
-        </span>
-      </div>
-      <p className="text-xs text-muted-foreground capitalize">{accountType}</p>
-    </div>
-  );
-};
+// const CreditCardBalance = ({ accountId, fallbackBalance, accountType }: { accountId: string; fallbackBalance: number; accountType: string }) => {
+//   const { data: summary } = useCreditCardSummary(accountId);
+//   
+//   // Para cartões de crédito, o saldo total deve ser sempre <= 0
+//   // Usar o saldo calculado pela função RPC que já aplica a lógica correta
+//   const balance = summary ? summary.current_balance : Math.min(0, fallbackBalance);
+//   
+//   // Determinar a cor baseada no saldo (sempre vermelho para cartões de crédito, exceto quando = 0)
+//   const balanceColor = balance < 0 ? 'text-red-600' : 'text-gray-600';
+//   
+//   return (
+//     <div className="space-y-1">
+//       <div className="flex items-center justify-between">
+//         <span className="text-sm text-muted-foreground">Saldo Total</span>
+//         <span className={`text-lg font-semibold ${balanceColor}`}>
+//           {formatCurrency(balance)}
+//         </span>
+//       </div>
+//       <p className="text-xs text-muted-foreground capitalize">{accountType}</p>
+//     </div>
+//   );
+// };
 
+// TODO: Implementar mais tarde
 // Componente para mostrar informações específicas de cartão de crédito
-const CreditCardInfo = ({ accountId }: { accountId: string }) => {
-  const { data: summary, isLoading, error } = useCreditCardSummary(accountId);
-
-  if (isLoading) {
-    return (
-      <div className="space-y-2">
-        <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-        <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-      </div>
-    );
-  }
-
-  if (error || !summary) {
-    return (
-      <div className="text-sm text-red-600">
-        Erro ao carregar dados do cartão
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      {/* Status */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">Status</span>
-        <Badge variant={summary.is_in_debt ? "destructive" : "default"} className="text-xs">
-          {summary.is_in_debt ? 'Em Dívida' : 'Em Dia'}
-        </Badge>
-      </div>
-
-      {/* Total Gastos */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">Total Gastos</span>
-        <span className="text-xs font-medium text-red-600">
-          {formatCurrency(summary.total_expenses)}
-        </span>
-      </div>
-
-      {/* Total Pagamentos */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">Total Pagamentos</span>
-        <span className="text-xs font-medium text-green-600">
-          {formatCurrency(summary.total_payments)}
-        </span>
-      </div>
-    </div>
-  );
-};
+// const CreditCardInfo = ({ accountId }: { accountId: string }) => {
+//   const { data: summary, isLoading, error } = useCreditCardSummary(accountId);
+//
+//   if (isLoading) {
+//     return (
+//       <div className="space-y-2">
+//         <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+//         <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
+//       </div>
+//     );
+//   }
+//
+//   if (error || !summary) {
+//     return (
+//       <div className="text-sm text-red-600">
+//         Erro ao carregar dados do cartão
+//       </div>
+//     );
+//   }
+//
+//   return (
+//     <div className="space-y-2">
+//       {/* Status */}
+//       <div className="flex items-center justify-between">
+//         <span className="text-xs text-muted-foreground">Status</span>
+//         <Badge variant={summary.is_in_debt ? "destructive" : "default"} className="text-xs">
+//           {summary.is_in_debt ? 'Em Dívida' : 'Em Dia'}
+//         </Badge>
+//       </div>
+//
+//       {/* Total Gastos */}
+//       <div className="flex items-center justify-between">
+//         <span className="text-xs text-muted-foreground">Total Gastos</span>
+//         <span className="text-xs font-medium text-red-600">
+//           {formatCurrency(summary.total_expenses || 0)}
+//         </span>
+//       </div>
+//
+//       {/* Total Pagamentos */}
+//       <div className="flex items-center justify-between">
+//         <span className="text-xs text-muted-foreground">Total Pagamentos</span>
+//         <span className="text-xs font-medium text-green-600">
+//           {formatCurrency(summary.total_payments || 0)}
+//         </span>
+//       </div>
+//     </div>
+//   );
+// };
 
 
 export default function AccountsPage() {
@@ -93,7 +104,7 @@ export default function AccountsPage() {
     id: string;
     nome: string;
     tipo: string;
-    saldo: number;
+    saldoAtual: number;
   } | null>(null);
   
   const { data: accounts = [], isLoading, error, refetch } = useAccountsWithBalances();
@@ -119,25 +130,39 @@ export default function AccountsPage() {
     refetch();
   };
 
-  const handleRefresh = () => {
-    console.log('[AccountsPage] Forcing refresh...');
-    refetch();
-  };
+
 
   const handleEdit = (account: AccountWithBalances) => {
+    console.log('[AccountsPage] handleEdit called with account:', account);
+    
+    // Para cartões de crédito, usar o saldo da conta diretamente
+    // Para outras contas, usar o saldo calculado
+    let saldoAtual = 0;
+    if (account.tipo === 'cartão de crédito') {
+      // Buscar o saldo diretamente da tabela accounts
+      // Por enquanto, usar 0 como fallback
+      saldoAtual = 0; // Será atualizado via useEffect
+    } else {
+      saldoAtual = account.saldo_atual || 0;
+    }
+    
     const editData = {
       id: account.account_id,
       nome: account.nome,
       tipo: account.tipo,
-      saldo: account.saldo_atual || 0,
+      saldoAtual,
     };
+    
+    console.log('[AccountsPage] editData created:', editData);
     setEditingAccount(editData);
     setShowCreateModal(true);
   };
 
   const handleSuccess = () => {
+    console.log('[AccountsPage] handleSuccess called');
     setShowCreateModal(false);
     setEditingAccount(null);
+    console.log('[AccountsPage] Forcing refetch...');
     refetch();
   };
 
@@ -203,10 +228,6 @@ export default function AccountsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={handleRefresh} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Atualizar
-          </Button>
           <Button onClick={handleTransfer} variant="outline">
             <ArrowRightLeft className="h-4 w-4 mr-2" />
             Transferir
@@ -243,11 +264,12 @@ export default function AccountsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {account.tipo === 'cartão de crédito' ? (
+                {/* TODO: Implementar layout específico para cartões de crédito mais tarde */}
+                {/* {account.tipo === 'cartão de crédito' ? (
                   // Layout específico para cartões de crédito
                   <CreditCardBalance accountId={account.account_id} fallbackBalance={account.saldo_atual || 0} accountType={account.tipo} />
-                ) : (
-                  // Layout normal para outras contas
+                ) : ( */}
+                  {/* Layout normal para outras contas */}
                   <>
                     {/* Saldo Total */}
                     <div className="space-y-1">
@@ -285,30 +307,21 @@ export default function AccountsPage() {
                           {formatCurrency(account.saldo_disponivel)}
                         </span>
                       </div>
-                      {account.total_reservado > 0 && (
-                        <div className="w-full bg-gray-200 rounded-full h-1.5">
-                          <div
-                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                            style={{
-                              width: `${Math.min(100, (account.total_reservado / (account.saldo_atual || 1)) * 100)}%`
-                            }}
-                          />
-                        </div>
-                      )}
                     </div>
                   </>
-                )}
+                {/* ) */}
 
+                {/* TODO: Implementar informações específicas de cartão de crédito mais tarde */}
                 {/* Informações específicas de cartão de crédito */}
-                {account.tipo === 'cartão de crédito' && (
+                {/* {account.tipo === 'cartão de crédito' && (
                   <div className="pt-2 border-t border-gray-100">
                     <CreditCardInfo accountId={account.account_id} />
                   </div>
-                )}
+                )} */}
 
 
 
-                {/* Botões de ação - apenas Editar e Eliminar */}
+                {/* Botões de ação - Editar e Eliminar */}
                 <div className="flex gap-2 pt-2">
                   <Button
                     variant="outline"
@@ -326,7 +339,8 @@ export default function AccountsPage() {
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     disabled={deleteAccountMutation.isPending}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Eliminar
                   </Button>
                 </div>
               </CardContent>
@@ -343,11 +357,41 @@ export default function AccountsPage() {
               {editingAccount ? 'Editar dados da conta' : 'Criar nova conta'}
             </DialogDescription>
           </DialogHeader>
-          <AccountForm
-            initialData={editingAccount}
-            onSuccess={handleSuccess}
-            onCancel={() => setShowCreateModal(false)}
-          />
+          {(() => {
+            console.log('[AccountsPage] Modal rendering - editingAccount:', editingAccount);
+            console.log('[AccountsPage] editingAccount?.tipo:', editingAccount?.tipo);
+            
+            // TODO: Implementar mais tarde
+            // if (editingAccount?.tipo === 'cartão de crédito') {
+            //   console.log('[AccountsPage] Rendering CreditCardForm');
+            //   return (
+            //     <CreditCardForm
+            //       initialData={editingAccount}
+            //       onSuccess={handleSuccess}
+            //       onCancel={() => setShowCreateModal(false)}
+            //     />
+            //   );
+            // } else 
+            if (editingAccount) {
+              console.log('[AccountsPage] Rendering RegularAccountForm');
+              return (
+                <RegularAccountForm
+                  initialData={editingAccount}
+                  onSuccess={handleSuccess}
+                  onCancel={() => setShowCreateModal(false)}
+                />
+              );
+            } else {
+              console.log('[AccountsPage] Rendering AccountForm');
+              return (
+                <AccountForm
+                  initialData={editingAccount}
+                  onSuccess={handleSuccess}
+                  onCancel={() => setShowCreateModal(false)}
+                />
+              );
+            }
+          })()}
         </DialogContent>
       </Dialog>
 
