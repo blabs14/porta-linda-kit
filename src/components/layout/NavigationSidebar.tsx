@@ -9,7 +9,8 @@ import {
   Settings, 
   ChevronRight,
   User,
-  BarChart3
+  BarChart3,
+  Lightbulb
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/useProfilesQuery';
@@ -58,7 +59,7 @@ const navigationItems = [
   {
     title: 'Insights',
     href: '/app/insights',
-    icon: TrendingUp,
+    icon: Lightbulb,
     description: 'Análises e relatórios'
   }
 ];
