@@ -180,21 +180,22 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
       
 
       
-      {/* Campos opcionais para edição - apenas visíveis quando editando */}
+      {/* Campo opcional para saldo atual - visível sempre */}
+      <Input
+        name="saldoAtual"
+        type="text"
+        placeholder="Saldo Atual (€) - Opcional"
+        value={form.saldoAtual?.toString() || ''}
+        onChange={handleChange}
+        className="w-full"
+        aria-invalid={!!validationErrors.saldoAtual}
+        aria-describedby={validationErrors.saldoAtual ? 'saldoAtual-error' : undefined}
+      />
+      {validationErrors.saldoAtual && <div id="saldoAtual-error" className="text-red-600 text-sm">{validationErrors.saldoAtual}</div>}
+      
+      {/* Campo opcional para ajuste de saldo - apenas visível quando editando */}
       {initialData?.id && (
         <>
-          <Input
-            name="saldoAtual"
-            type="text"
-            placeholder="Saldo Atual (€) - Opcional"
-            value={form.saldoAtual?.toString() || ''}
-            onChange={handleChange}
-            className="w-full"
-            aria-invalid={!!validationErrors.saldoAtual}
-            aria-describedby={validationErrors.saldoAtual ? 'saldoAtual-error' : undefined}
-          />
-          {validationErrors.saldoAtual && <div id="saldoAtual-error" className="text-red-600 text-sm">{validationErrors.saldoAtual}</div>}
-          
           <Input
             name="ajusteSaldo"
             type="text"
