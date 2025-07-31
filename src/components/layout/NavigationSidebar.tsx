@@ -1,13 +1,17 @@
 import { NavLink } from 'react-router-dom';
+import { cn } from '../../lib/utils';
 import { 
   Home, 
-  CreditCard, 
+  Wallet, 
+  TrendingUp, 
   Target, 
   Users, 
-  TrendingUp,
-  ChevronRight
+  Settings, 
+  ChevronRight,
+  User
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { useAuth } from '../../contexts/AuthContext';
+import { useProfile } from '../../hooks/useProfilesQuery';
 
 interface NavigationSidebarProps {
   onNavigate?: () => void;
@@ -16,27 +20,27 @@ interface NavigationSidebarProps {
 const navigationItems = [
   {
     title: 'Dashboard',
-    href: '/app',
+    href: '/app/dashboard',
     icon: Home,
-    description: 'Visão geral das suas finanças'
+    description: 'Visão geral das finanças'
   },
   {
     title: 'Contas',
     href: '/app/accounts',
-    icon: CreditCard,
-    description: 'Gestão de contas bancárias'
+    icon: Wallet,
+    description: 'Gerir contas bancárias'
   },
   {
     title: 'Transações',
     href: '/app/transactions',
-    icon: CreditCard,
-    description: 'Histórico e gestão de movimentos'
+    icon: TrendingUp,
+    description: 'Registar e consultar transações'
   },
   {
     title: 'Orçamentos',
     href: '/app/budgets',
     icon: Target,
-    description: 'Gestão de orçamentos'
+    description: 'Definir e acompanhar orçamentos'
   },
   {
     title: 'Objetivos',
@@ -59,6 +63,24 @@ const navigationItems = [
 ];
 
 export function NavigationSidebar({ onNavigate }: NavigationSidebarProps) {
+  const { user } = useAuth();
+  const { data: profile, isLoading: profileLoading } = useProfile();
+
+  // Função para obter as iniciais do nome
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(word => word.charAt(0))
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  // Dados do utilizador
+  const userName = profile?.nome || user?.user_metadata?.full_name || 'Utilizador';
+  const userEmail = user?.email || 'usuario@exemplo.com';
+  const userInitials = getInitials(userName);
+
   return (
     <div className="flex flex-col w-full h-full bg-card">
       {/* Logo/Brand */}
@@ -120,19 +142,28 @@ export function NavigationSidebar({ onNavigate }: NavigationSidebarProps) {
         ))}
       </nav>
 
-      {/* User section placeholder */}
+      {/* User section */}
       <div className="p-4 border-t border-border">
-        <div className="flex items-center space-x-3 p-3 rounded-lg bg-accent">
+        <NavLink
+          to="/app/profile"
+          onClick={onNavigate}
+          className="flex items-center space-x-3 p-3 rounded-lg bg-accent hover:bg-accent/80 transition-colors cursor-pointer"
+        >
           <div className="w-8 h-8 bg-gradient-secondary rounded-full flex items-center justify-center">
-            <span className="text-secondary-foreground font-medium text-sm">U</span>
+            <span className="text-secondary-foreground font-medium text-sm">
+              {profileLoading ? '...' : userInitials}
+            </span>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-medium text-sm text-foreground">Utilizador</div>
+            <div className="font-medium text-sm text-foreground">
+              {profileLoading ? 'A carregar...' : userName}
+            </div>
             <div className="text-xs text-muted-foreground truncate">
-              usuario@exemplo.com
+              {userEmail}
             </div>
           </div>
-        </div>
+          <User className="h-4 w-4 text-muted-foreground" />
+        </NavLink>
       </div>
     </div>
   );

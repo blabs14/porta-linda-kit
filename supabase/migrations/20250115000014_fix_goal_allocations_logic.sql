@@ -45,10 +45,105 @@ BEGIN
 END;
 $function$;
 
--- 3. Remover transações de alocação antigas (já executado manualmente)
+-- 3. Atualizar função de alocação para criar transações como transferência
+CREATE OR REPLACE FUNCTION public.allocate_to_goal_with_transaction(
+  goal_id_param uuid,
+  account_id_param uuid,
+  amount_param numeric,
+  user_id_param uuid,
+  description_param text DEFAULT 'Alocação para objetivo'
+)
+RETURNS json
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  categoria_id uuid;
+  allocation_record record;
+  transaction_record record;
+BEGIN
+  -- Iniciar transação
+  BEGIN
+    -- 1. Buscar ou criar a categoria "Objetivos"
+    SELECT id INTO categoria_id
+    FROM categories
+    WHERE user_id = user_id_param AND nome = 'Objetivos';
+    
+    IF categoria_id IS NULL THEN
+      INSERT INTO categories (nome, user_id, cor)
+      VALUES ('Objetivos', user_id_param, '#3B82F6')
+      RETURNING id INTO categoria_id;
+    END IF;
+    
+    -- 2. Criar a alocação
+    INSERT INTO goal_allocations (
+      goal_id,
+      account_id,
+      valor,
+      descricao,
+      user_id,
+      data_alocacao
+    )
+    VALUES (
+      goal_id_param,
+      account_id_param,
+      amount_param,
+      description_param,
+      user_id_param,
+      NOW()
+    )
+    RETURNING * INTO allocation_record;
+    
+    -- 3. Criar a transação como transferência (não afeta o saldo)
+    INSERT INTO transactions (
+      account_id,
+      categoria_id,
+      valor,
+      tipo,
+      data,
+      descricao,
+      goal_id,
+      user_id
+    )
+    VALUES (
+      account_id_param,
+      categoria_id,
+      amount_param,
+      'transferencia',
+      NOW()::date,
+      description_param,
+      goal_id_param,
+      user_id_param
+    )
+    RETURNING * INTO transaction_record;
+    
+    -- 4. NÃO atualizar saldo da conta (transferências não afetam o saldo)
+    -- PERFORM update_account_balance(account_id_param);
+    
+    -- Retornar resultado
+    RETURN json_build_object(
+      'allocation', row_to_json(allocation_record),
+      'transaction', row_to_json(transaction_record),
+      'success', true
+    );
+    
+  EXCEPTION
+    WHEN OTHERS THEN
+      -- Rollback automático em caso de erro
+      RAISE EXCEPTION 'Erro na alocação: %', SQLERRM;
+  END;
+END;
+$$;
+
+-- 4. Corrigir transações antigas de alocação para transferência
+UPDATE transactions 
+SET tipo = 'transferencia' 
+WHERE descricao LIKE '%alocação%' OR descricao LIKE '%Alocação%' 
+AND tipo = 'despesa';
+
+-- 5. Remover transações de alocação antigas (já executado manualmente)
 -- DELETE FROM transactions WHERE descricao LIKE '%Alocação%';
 
--- 4. Recalcular saldos das contas (já executado manualmente)
+-- 6. Recalcular saldos das contas (já executado manualmente)
 -- SELECT update_account_balance(id) FROM accounts;
 
 -- Fim da migração 

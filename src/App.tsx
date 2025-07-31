@@ -19,6 +19,7 @@ import {
   Insights,
   AccountsPage,
   BudgetsPage,
+  ProfilePage,
 } from './components/lazy';
 
 // Páginas de autenticação (não lazy loading para melhor UX)
@@ -89,6 +90,11 @@ function App() {
               <Route path="insights" element={
                 <Suspense fallback={<PageLoading />}>
                   <Insights />
+                </Suspense>
+              } />
+              <Route path="profile" element={
+                <Suspense fallback={<PageLoading />}>
+                  <ProfilePage />
                 </Suspense>
               } />
             </Route>
