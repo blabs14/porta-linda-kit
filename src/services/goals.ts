@@ -96,108 +96,22 @@ export const allocateToGoal = async (
   try {
     console.log('[allocateToGoal] Starting allocation:', { goalId, accountId, amount, userId, description });
     
-    // 1. Criar a alocação
-    const { data: allocation, error: allocationError } = await supabase
-      .from('goal_allocations')
-      .insert([{
-        goal_id: goalId,
-        account_id: accountId,
-        valor: amount,
-        descricao: description || 'Alocação para objetivo',
-        user_id: userId,
-        data_alocacao: new Date().toISOString()
-      }])
-      .select()
-      .single();
+    // Usar uma transação para garantir consistência
+    const { data, error } = await supabase.rpc('allocate_to_goal_with_transaction', {
+      goal_id_param: goalId,
+      account_id_param: accountId,
+      amount_param: amount,
+      user_id_param: userId,
+      description_param: description || 'Alocação para objetivo'
+    });
 
-    console.log('[allocateToGoal] Allocation result:', { allocation, allocationError });
-
-    if (allocationError) {
-      console.error('[allocateToGoal] Allocation error:', allocationError);
-      return { data: null, error: allocationError };
-    }
-
-    // 2. Buscar ou criar a categoria "Objetivos"
-    let categoriaId = null;
-    try {
-      // Primeiro, tentar encontrar a categoria "Objetivos"
-      const { data: categoria, error: categoriaError } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('nome', 'Objetivos')
-        .single();
-
-      if (categoria && !categoriaError) {
-        categoriaId = categoria.id;
-        console.log('[allocateToGoal] Found "Objetivos" category:', categoriaId);
-      } else {
-        // Se não encontrar, criar a categoria "Objetivos"
-        const { data: novaCategoria, error: novaCategoriaError } = await supabase
-          .from('categories')
-          .insert([{
-            nome: 'Objetivos',
-            user_id: userId,
-            cor: '#3B82F6'
-          }])
-          .select('id')
-          .single();
-
-        if (novaCategoria && !novaCategoriaError) {
-          categoriaId = novaCategoria.id;
-          console.log('[allocateToGoal] Created "Objetivos" category:', categoriaId);
-        } else {
-          console.error('[allocateToGoal] Failed to create "Objetivos" category:', novaCategoriaError);
-          return { data: null, error: novaCategoriaError };
-        }
-      }
-    } catch (error) {
-      console.error('[allocateToGoal] Error finding/creating "Objetivos" category:', error);
+    if (error) {
+      console.error('[allocateToGoal] RPC error:', error);
       return { data: null, error };
     }
 
-    if (!categoriaId) {
-      console.error('[allocateToGoal] No valid category found');
-      return { data: null, error: 'No valid category found' };
-    }
-
-    // 3. Criar a transação de débito
-    const transactionData = {
-      account_id: accountId,
-      categoria_id: categoriaId,
-      valor: amount,
-      tipo: 'despesa',
-      data: new Date().toISOString(),
-      descricao: description || 'Alocação para objetivo',
-      goal_id: goalId,
-      user_id: userId
-    };
-
-    const { data: transaction, error: transactionError } = await supabase
-      .from('transactions')
-      .insert([transactionData])
-      .select()
-      .single();
-
-    console.log('[allocateToGoal] Transaction result:', { transaction, transactionError });
-
-    if (transactionError) {
-      console.error('[allocateToGoal] Transaction error:', transactionError);
-      return { data: null, error: transactionError };
-    }
-
-    // 4. Atualizar saldo da conta
-    try {
-      await supabase.rpc('update_account_balance', {
-        account_id_param: accountId
-      });
-      console.log('[allocateToGoal] Account balance updated');
-    } catch (balanceError) {
-      console.warn('[allocateToGoal] Error updating account balance:', balanceError);
-    }
-
     console.log('[allocateToGoal] Allocation completed successfully');
-    return { data: { allocation, transaction }, error: null };
+    return { data, error: null };
   } catch (error) {
     console.error('[allocateToGoal] Exception:', error);
     return { data: null, error };
