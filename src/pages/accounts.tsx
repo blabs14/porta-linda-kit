@@ -290,7 +290,7 @@ export default function AccountsPage() {
                             <Target className="h-3 w-3" />
                             Reservado
                           </span>
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge variant="secondary" className="text-xs text-blue-600 bg-blue-50 border-blue-200">
                             {formatCurrency(account.total_reservado)}
                           </Badge>
                         </div>
