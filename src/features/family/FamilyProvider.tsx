@@ -36,76 +36,7 @@ import {
 } from '../../services/transactions';
 import { useCrudMutation } from '../../hooks/useMutationWithFeedback';
 import { supabase } from '../../lib/supabaseClient';
-
-// Tipos para o contexto
-interface FamilyContextType {
-  // Dados da família atual
-  family: any;
-  members: any[];
-  myRole: 'owner' | 'admin' | 'member' | 'viewer' | null;
-  pendingInvites: any[];
-  
-  // Dados familiares (family_id IS NOT NULL)
-  familyAccounts: any[];
-  familyCards: any[];
-  familyGoals: any[];
-  familyBudgets: any[];
-  familyTransactions: any[];
-  
-  // KPIs familiares
-  familyKPIs: {
-    totalBalance: number;
-    creditCardDebt: number;
-    topGoalProgress: number;
-    monthlySavings: number;
-    totalMembers: number;
-    pendingInvites: number;
-  };
-  
-  // Estados de loading
-  isLoading: {
-    family: boolean;
-    members: boolean;
-    accounts: boolean;
-    goals: boolean;
-    budgets: boolean;
-    transactions: boolean;
-    invites: boolean;
-    kpis: boolean;
-  };
-  
-  // Métodos de gestão de membros
-  inviteMember: (email: string, role: 'admin' | 'member' | 'viewer') => Promise<any>;
-  updateMemberRole: (memberId: string, role: 'admin' | 'member' | 'viewer') => Promise<any>;
-  removeMember: (memberId: string) => Promise<any>;
-  updateFamily: (data: any) => Promise<any>;
-  
-  // Métodos CRUD para dados familiares
-  createFamilyAccount: (data: any) => Promise<any>;
-  updateFamilyAccount: (id: string, data: any) => Promise<any>;
-  deleteFamilyAccount: (id: string) => Promise<any>;
-  
-  createFamilyGoal: (data: any) => Promise<any>;
-  updateFamilyGoal: (id: string, data: any) => Promise<any>;
-  deleteFamilyGoal: (id: string) => Promise<any>;
-  
-  createFamilyBudget: (data: any) => Promise<any>;
-  updateFamilyBudget: (id: string, data: any) => Promise<any>;
-  deleteFamilyBudget: (id: string) => Promise<any>;
-  
-  createFamilyTransaction: (data: any) => Promise<any>;
-  updateFamilyTransaction: (id: string, data: any) => Promise<any>;
-  deleteFamilyTransaction: (id: string) => Promise<any>;
-  
-  // Métodos específicos
-  payCreditCard: (accountId: string, amount: number) => Promise<any>;
-  allocateToGoal: (goalId: string, amount: number, accountId: string) => Promise<any>;
-  
-  // Utilitários
-  refetchAll: () => void;
-  canEdit: (resourceType: 'account' | 'goal' | 'budget' | 'transaction' | 'member') => boolean;
-  canDelete: (resourceType: 'account' | 'goal' | 'budget' | 'transaction' | 'member') => boolean;
-}
+import { FamilyContextType, Family, FamilyMember, FamilyInvite, FamilyKPIs, FamilyLoadingStates } from '../../types/family';
 
 const FamilyContext = createContext<FamilyContextType | undefined>(undefined);
 
@@ -140,8 +71,8 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     gcTime: 5 * 60 * 1000,
   });
 
-  const family = (familyData as any)?.family || null;
-  const myRole = (familyData as any)?.myRole || null;
+  const family = (familyData as any)?.family as Family | null;
+  const myRole = (familyData as any)?.myRole as 'owner' | 'admin' | 'member' | 'viewer' | null;
 
   // Query para membros da família
   const { data: members = [], isLoading: membersLoading } = useQuery({
@@ -149,7 +80,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     queryFn: async () => {
       if (!family?.id) return [];
       const data = await getFamilyMembers(family.id);
-      return data || [];
+      return (data || []) as unknown as FamilyMember[];
     },
     enabled: !!family?.id,
     refetchOnWindowFocus: true,
@@ -165,7 +96,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     queryFn: async () => {
       if (!family?.id) return [];
       const data = await getPendingInvites(family.id);
-      return data || [];
+      return (data || []) as unknown as FamilyInvite[];
     },
     enabled: !!family?.id,
     refetchOnWindowFocus: true,
@@ -253,48 +184,63 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   // Filtrar transações familiares (family_id IS NOT NULL)
   const familyTransactions = (allTransactions as any[]).filter(transaction => transaction.family_id !== null);
 
-  // Query para KPIs familiares
-  const { data: familyKPIs, isLoading: kpisLoading } = useQuery({
-    queryKey: ['family', 'kpis', family?.id],
-    queryFn: async () => {
-      // Calcular saldo total das contas familiares
-      const totalBalance = regularFamilyAccounts.reduce((sum, account) => sum + (account.saldo_atual || 0), 0);
-      
-      // Calcular dívida total dos cartões de crédito familiares
-      const creditCardDebt = familyCards.reduce((sum, card) => {
-        const balance = card.saldo_atual || 0;
-        return sum + (balance < 0 ? Math.abs(balance) : 0);
-      }, 0);
-      
-      // Calcular progresso do objetivo principal familiar
-      const topGoal = familyGoals[0];
-      const topGoalProgress = topGoal 
-        ? ((topGoal.valor_atual || 0) / (topGoal.valor_objetivo || 1)) * 100
-        : 0;
-      
-      // Calcular poupança mensal familiar (simplificado)
-      const currentMonth = new Date().toISOString().slice(0, 7);
-      const monthlyTransactions = familyTransactions.filter(t => 
-        t.data.startsWith(currentMonth) && t.tipo === 'receita'
-      );
-      const monthlySavings = monthlyTransactions.reduce((sum, t) => sum + (t.valor || 0), 0);
-      
-      return {
-        totalBalance,
-        creditCardDebt,
-        topGoalProgress: Math.min(topGoalProgress, 100),
-        monthlySavings,
-                 totalMembers: (members as any[]).length,
-         pendingInvites: (pendingInvites as any[]).filter(invite => invite.status === 'pending').length
-      };
-    },
-    enabled: !!family?.id && !accountsLoading && !goalsLoading && !transactionsLoading && !membersLoading,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
-    refetchOnReconnect: true,
-    staleTime: 0,
-    gcTime: 5 * 60 * 1000,
-  });
+  // Calcular KPIs familiares
+  const familyKPIs: FamilyKPIs = React.useMemo(() => {
+    const totalBalance = familyAccounts.reduce((sum, account) => sum + (account.saldo || 0), 0);
+    const creditCardDebt = familyCards.reduce((sum, card) => {
+      const balance = card.saldo || 0;
+      return balance < 0 ? sum + Math.abs(balance) : sum;
+    }, 0);
+    
+    const topGoal = familyGoals
+      .filter(goal => goal.ativa && goal.valor_atual < goal.valor_objetivo)
+      .sort((a, b) => {
+        const progressA = (a.valor_atual / a.valor_objetivo) * 100;
+        const progressB = (b.valor_atual / b.valor_objetivo) * 100;
+        return progressB - progressA;
+      })[0];
+    
+    const topGoalProgress = topGoal 
+      ? (topGoal.valor_atual / topGoal.valor_objetivo) * 100 
+      : 0;
+    
+    // Calcular poupança mensal (receitas - despesas)
+    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const monthlyTransactions = familyTransactions.filter(t => 
+      t.data.startsWith(currentMonth)
+    );
+    
+    const monthlyIncome = monthlyTransactions
+      .filter(t => t.tipo === 'receita')
+      .reduce((sum, t) => sum + (t.valor || 0), 0);
+    
+    const monthlyExpenses = monthlyTransactions
+      .filter(t => t.tipo === 'despesa')
+      .reduce((sum, t) => sum + (t.valor || 0), 0);
+    
+    const monthlySavings = monthlyIncome - monthlyExpenses;
+    
+    return {
+      totalBalance,
+      creditCardDebt,
+      topGoalProgress,
+      monthlySavings,
+      totalMembers: members.length,
+      pendingInvites: pendingInvites.length
+    };
+  }, [familyAccounts, familyCards, familyGoals, familyTransactions, members.length, pendingInvites.length]);
+
+  // Estados de loading
+  const isLoading: FamilyLoadingStates = {
+    family: familyLoading,
+    members: membersLoading,
+    accounts: accountsLoading,
+    goals: goalsLoading,
+    budgets: budgetsLoading,
+    transactions: transactionsLoading,
+    invites: invitesLoading,
+    kpis: false, // KPIs são calculados localmente agora
+  };
 
   // Mutations para gestão de membros
   const inviteMemberMutation = useCrudMutation(
@@ -560,16 +506,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     },
     
     // Estados de loading
-    isLoading: {
-      family: familyLoading,
-      members: membersLoading,
-      accounts: accountsLoading,
-      goals: goalsLoading,
-      budgets: budgetsLoading,
-      transactions: transactionsLoading,
-      invites: invitesLoading,
-      kpis: kpisLoading,
-    },
+    isLoading: isLoading,
     
     // Métodos de gestão
     inviteMember: (email: string, role: 'admin' | 'member' | 'viewer') => 
@@ -578,6 +515,86 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       updateMemberRoleMutation.mutateAsync({ memberId, role }),
     removeMember: (memberId: string) => removeMemberMutation.mutateAsync(memberId),
     updateFamily: (data: any) => updateFamilyMutation.mutateAsync(data),
+    
+    // Métodos de gestão de convites
+    cancelInvite: async (inviteId: string) => {
+      if (!user?.id) throw new Error('Utilizador não autenticado');
+      if (!family?.id) throw new Error('Família não encontrada');
+      
+      try {
+        const { data, error } = await supabase.rpc('cancel_family_invite', {
+          p_invite_id: inviteId
+        });
+        
+        if (error) throw error;
+        
+        // Invalidar queries relacionadas
+        queryClient.invalidateQueries({ queryKey: ['family', 'invites', family.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'current', user.id] });
+        
+        return data;
+      } catch (error: any) {
+        console.error('Erro ao cancelar convite:', error);
+        throw new Error(error.message || 'Erro ao cancelar convite');
+      }
+    },
+    acceptInvite: async (inviteId: string) => {
+      if (!user?.id) throw new Error('Utilizador não autenticado');
+      if (!family?.id) throw new Error('Família não encontrada');
+      
+      try {
+        const { data, error } = await supabase.rpc('accept_family_invite_by_email', {
+          p_invite_id: inviteId
+        });
+        
+        if (error) throw error;
+        
+        // Invalidar queries relacionadas
+        queryClient.invalidateQueries({ queryKey: ['family', 'invites', family.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'members', family.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'current', user.id] });
+        
+        return data;
+      } catch (error: any) {
+        console.error('Erro ao aceitar convite:', error);
+        throw new Error(error.message || 'Erro ao aceitar convite');
+      }
+    },
+    
+    // Método para eliminar família
+    deleteFamily: async () => {
+      if (!user?.id || !family?.id) throw new Error('Utilizador não autenticado ou família não encontrada');
+      
+      // Verificar se o utilizador é owner
+      if (myRole !== 'owner') {
+        throw new Error('Apenas o proprietário da família pode eliminá-la');
+      }
+      
+      try {
+        // Usar a função RPC robusta para eliminar família com cascade
+        const { data, error } = await (supabase as any).rpc('delete_family_with_cascade', {
+          p_family_id: family.id
+        });
+        
+        if (error) throw error;
+        
+        // Invalidar todas as queries relacionadas
+        queryClient.invalidateQueries({ queryKey: ['family'] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'members'] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'invites'] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'goals'] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'budgets'] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'transactions'] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'current', user.id] });
+        
+        console.log('Família eliminada com sucesso:', data);
+        return data;
+      } catch (error: any) {
+        console.error('Erro ao eliminar família:', error);
+        throw new Error(error.message || 'Erro ao eliminar família. Verifique se tem permissões adequadas.');
+      }
+    },
     
     // Métodos CRUD para dados familiares
     createFamilyAccount: (data: any) => createFamilyAccountMutation.mutateAsync(data),

@@ -4,6 +4,7 @@ import { useFamily } from './FamilyProvider';
 import { Button } from '../../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Home, Plus } from 'lucide-react';
+import { FamilyNotifications } from '../../components/family/FamilyNotifications';
 
 interface FamilyHeaderProps {
   onPrimaryAction?: () => void;
@@ -62,6 +63,11 @@ const FamilyHeader: React.FC<FamilyHeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Notificações da Família */}
+        {family?.id && (
+          <FamilyNotifications familyId={family.id} />
+        )}
+
         {/* Seletor de Família */}
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Família:</span>
