@@ -57,6 +57,8 @@ export default function Family() {
   const userRole = typedFamilyData?.user_role;
   const familyId = family?.id;
 
+
+
   const handleCreateFamily = async (e: React.FormEvent) => {
     e.preventDefault();
     

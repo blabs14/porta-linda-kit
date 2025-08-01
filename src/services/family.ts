@@ -54,6 +54,17 @@ export const updateFamilySettings = async (familyId: string, settings: any) => {
 // ============================================================================
 
 export const getFamilyMembers = async (familyId?: string) => {
+  // Verificar autenticação primeiro
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  
+  if (authError) {
+    throw authError;
+  }
+  
+  if (!user) {
+    throw new Error('Utilizador não autenticado');
+  }
+
   if (familyId) {
     const { data, error } = await supabase.rpc('get_family_members_with_profiles', {
       p_family_id: familyId
@@ -104,19 +115,27 @@ export const removeFamilyMember = async (familyId: string, userId: string) => {
 // ============================================================================
 
 export const getPendingInvites = async (familyId?: string) => {
+  // Verificar autenticação primeiro
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  
+  if (authError) {
+    throw authError;
+  }
+  
+  if (!user) {
+    throw new Error('Utilizador não autenticado');
+  }
+
   if (familyId) {
     const { data, error } = await supabase.rpc('get_family_pending_invites', {
       p_family_id: familyId
     });
     if (error) throw error;
-    return (data as any)?.data || [];
+    return data || [];
   } else {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Utilizador não autenticado');
-
     const { data, error } = await supabase.rpc('get_user_pending_family_invites');
     if (error) throw error;
-    return (data as any)?.data || [];
+    return data || [];
   }
 };
 

@@ -64,6 +64,8 @@ export const FamilyMembersList = ({ familyId, userRole }: FamilyMembersListProps
   const { user } = useAuth();
   const { toast } = useToast();
   
+
+  
   const [editingMember, setEditingMember] = useState<string | null>(null);
 
   const canManageMembers = userRole === 'admin';
@@ -190,16 +192,16 @@ export const FamilyMembersList = ({ familyId, userRole }: FamilyMembersListProps
                 return (
                   <div key={member.id} className="flex items-center gap-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                     <Avatar className="h-10 w-10">
-                      <AvatarImage src={member.profiles?.foto_url} alt={member.profiles?.nome} />
+                      <AvatarImage src={member.profile?.foto_url} alt={member.profile?.nome} />
                       <AvatarFallback>
-                        {member.profiles?.nome ? getInitials(member.profiles.nome) : 'U'}
+                        {member.profile?.nome ? getInitials(member.profile.nome) : 'U'}
                       </AvatarFallback>
                     </Avatar>
                     
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h4 className="font-medium truncate">
-                          {member.profiles?.nome || 'Utilizador'}
+                          {member.profile?.nome || 'Utilizador'}
                           {isCurrentUser && (
                             <span className="ml-2 text-xs text-muted-foreground">(Tu)</span>
                           )}
@@ -211,7 +213,7 @@ export const FamilyMembersList = ({ familyId, userRole }: FamilyMembersListProps
                       
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Mail className="h-3 w-3" />
-                        <span className="truncate">{member.profiles?.email || 'Email não disponível'}</span>
+                        <span className="truncate">{member.profile?.email || 'Email não disponível'}</span>
                       </div>
                       
                       <div className="flex items-center gap-2 mt-2">
@@ -278,7 +280,7 @@ export const FamilyMembersList = ({ familyId, userRole }: FamilyMembersListProps
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleRemoveMember(member.user_id, member.profiles?.nome || 'este membro')}
+                            onClick={() => handleRemoveMember(member.user_id, member.profile?.nome || 'este membro')}
                             disabled={removeMemberMutation.isPending}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
