@@ -24,6 +24,7 @@ import {
 
 // Página da Área Pessoal
 import PersonalPage from './pages/Personal';
+import FamilyPage from './pages/Family';
 
 // Páginas de autenticação (não lazy loading para melhor UX)
 import Index from './pages/Index';
@@ -104,6 +105,9 @@ function App() {
             
             {/* Área Pessoal */}
             <Route path="/personal/*" element={<RequireAuth><PersonalPage /></RequireAuth>} />
+            
+            {/* Finanças Partilhadas */}
+            <Route path="/family/*" element={<RequireAuth><FamilyPage /></RequireAuth>} />
             
             {/* Página 404 */}
             <Route path="*" element={<NotFound />} />

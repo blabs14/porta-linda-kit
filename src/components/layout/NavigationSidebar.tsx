@@ -26,12 +26,18 @@ const navigationItems = [
     icon: Home,
     description: 'Visão geral das finanças'
   },
-  {
-    title: 'Área Pessoal',
-    href: '/personal',
-    icon: User,
-    description: 'Gestão financeira individual'
-  },
+                {
+                title: 'Área Pessoal',
+                href: '/personal',
+                icon: User,
+                description: 'Gestão financeira individual'
+              },
+              {
+                title: 'Finanças Partilhadas',
+                href: '/family',
+                icon: Users,
+                description: 'Gestão financeira familiar'
+              },
   {
     title: 'Contas',
     href: '/app/accounts',
