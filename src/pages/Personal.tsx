@@ -55,6 +55,19 @@ const MobileNavigation: React.FC = () => {
 
   return (
     <div className="lg:hidden">
+      {/* Botão de voltar à home em mobile */}
+      <div className="flex justify-center mb-4">
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => navigate('/app')}
+          className="flex items-center gap-2"
+        >
+          <Home className="h-4 w-4" />
+          Voltar à Home
+        </Button>
+      </div>
+      
       <Tabs value={currentTab} onValueChange={(value) => navigate(value)}>
         <TabsList className="grid w-full grid-cols-4 mb-4">
           {tabs.slice(0, 4).map((tab) => (
@@ -95,7 +108,18 @@ const DesktopNavigation: React.FC = () => {
   return (
     <div className="hidden lg:block w-64 bg-card border-r border-border min-h-screen p-4">
       <div className="mb-6">
-        <h2 className="text-lg font-semibold text-foreground">Área Pessoal</h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-semibold text-foreground">Área Pessoal</h2>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => navigate('/app')}
+            className="h-8 w-8 p-0"
+            title="Voltar à Home"
+          >
+            <Home className="h-4 w-4" />
+          </Button>
+        </div>
         <p className="text-sm text-muted-foreground">Gestão financeira individual</p>
       </div>
       
@@ -154,11 +178,24 @@ const PersonalHeader: React.FC = () => {
 
   return (
     <div className="flex items-center justify-between p-6 border-b border-border bg-background">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Visão Pessoal › {getPageTitle()}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Gestão das suas finanças pessoais
-        </p>
+      <div className="flex items-center gap-4">
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate('/app')}
+          className="flex items-center gap-2"
+        >
+          <Home className="h-4 w-4" />
+          <span className="hidden sm:inline">Voltar à Home</span>
+        </Button>
+        
+        <div className="hidden sm:block w-px h-6 bg-border" />
+        
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Visão Pessoal › {getPageTitle()}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Gestão das suas finanças pessoais
+          </p>
+        </div>
       </div>
       
       {primaryAction && (
