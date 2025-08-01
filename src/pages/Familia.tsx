@@ -23,20 +23,7 @@ import {
   Target
 } from 'lucide-react';
 
-interface FamilyData {
-  family?: {
-    id: string;
-    nome: string;
-    descricao?: string;
-    created_at: string;
-  };
-  user_role?: string;
-  member_count?: number;
-  pending_invites_count?: number;
-  shared_goals_count?: number;
-}
-
-export default function Family() {
+export default function Familia() {
   const { data: familyData, isLoading, error } = useFamilyData();
   const createFamilyMutation = useCreateFamily();
   const { user } = useAuth();
@@ -47,10 +34,8 @@ export default function Family() {
   const [familyName, setFamilyName] = useState('');
   const [familyDescription, setFamilyDescription] = useState('');
 
-  // Type assertion para os dados da família
-  const typedFamilyData = familyData as FamilyData | undefined;
-  const family = typedFamilyData?.family;
-  const userRole = typedFamilyData?.user_role;
+  const family = familyData?.family;
+  const userRole = familyData?.user_role;
   const familyId = family?.id;
 
   const handleCreateFamily = async (e: React.FormEvent) => {
@@ -264,7 +249,7 @@ export default function Family() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{typedFamilyData?.member_count || 0}</div>
+            <div className="text-2xl font-bold">{familyData?.member_count || 0}</div>
             <p className="text-xs text-muted-foreground">
               Membros ativos na família
             </p>
@@ -277,7 +262,7 @@ export default function Family() {
             <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{typedFamilyData?.pending_invites_count || 0}</div>
+            <div className="text-2xl font-bold">{familyData?.pending_invites_count || 0}</div>
             <p className="text-xs text-muted-foreground">
               Aguardando resposta
             </p>
@@ -290,7 +275,7 @@ export default function Family() {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{typedFamilyData?.shared_goals_count || 0}</div>
+            <div className="text-2xl font-bold">{familyData?.shared_goals_count || 0}</div>
             <p className="text-xs text-muted-foreground">
               Objetivos em família
             </p>
@@ -397,4 +382,4 @@ export default function Family() {
       )}
     </div>
   );
-}
+} 
