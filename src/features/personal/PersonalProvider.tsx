@@ -26,6 +26,9 @@ import {
   updateTransaction, 
   deleteTransaction 
 } from '../../services/transactions';
+import { useGoals } from '../../hooks/useGoalsQuery';
+import { useBudgets } from '../../hooks/useBudgetsQuery';
+import { useTransactions } from '../../hooks/useTransactionsQuery';
 import { useCrudMutation } from '../../hooks/useMutationWithFeedback';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -91,96 +94,45 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Query para contas pessoais (family_id IS NULL)
+  // Query para contas pessoais - usar exatamente a mesma abordagem que funciona na página de contas
   const { data: myAccounts = [], isLoading: accountsLoading } = useQuery({
     queryKey: ['personal', 'accounts', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('accounts')
-        .select('*')
-        .eq('user_id', user?.id)
-        .is('family_id', null)
-        .order('nome');
-      
+      const { data, error } = await getAccountsWithBalances(user?.id);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user?.id
+    enabled: !!user?.id,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
   });
 
   // Separar contas normais de cartões de crédito
   const myCards = myAccounts.filter(account => account.tipo === 'cartão de crédito');
   const regularAccounts = myAccounts.filter(account => account.tipo !== 'cartão de crédito');
 
-  // Query para objetivos pessoais
-  const { data: myGoals = [], isLoading: goalsLoading } = useQuery({
-    queryKey: ['personal', 'goals', user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('goals')
-        .select('*')
-        .eq('user_id', user?.id)
-        .is('family_id', null)
-        .eq('ativa', true)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!user?.id
-  });
+  // Query para objetivos pessoais - usar o hook existente
+  const { goals: myGoals = [], isLoading: goalsLoading } = useGoals();
 
-  // Query para orçamentos pessoais
-  const { data: myBudgets = [], isLoading: budgetsLoading } = useQuery({
-    queryKey: ['personal', 'budgets', user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('budgets')
-        .select(`
-          *,
-          categoria:categories(nome, cor)
-        `)
-        .eq('user_id', user?.id)
-        .order('mes', { ascending: false });
-      
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!user?.id
-  });
+  // Query para orçamentos pessoais - usar o hook existente
+  const { data: myBudgets = [], isLoading: budgetsLoading } = useBudgets();
 
-  // Query para transações pessoais
-  const { data: myTransactions = [], isLoading: transactionsLoading } = useQuery({
-    queryKey: ['personal', 'transactions', user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          categoria:categories(nome, cor),
-          account:accounts(nome, tipo)
-        `)
-        .eq('user_id', user?.id)
-        .is('family_id', null)
-        .order('data', { ascending: false })
-        .limit(50);
-      
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!user?.id
-  });
+  // Query para transações pessoais - usar o hook existente
+  const { data: myTransactions = [], isLoading: transactionsLoading } = useTransactions();
 
   // Query para KPIs pessoais
   const { data: personalKPIs, isLoading: kpisLoading } = useQuery({
     queryKey: ['personal', 'kpis', user?.id],
     queryFn: async () => {
       // Calcular saldo total das contas pessoais
-      const totalBalance = regularAccounts.reduce((sum, account) => sum + (account.saldo || 0), 0);
+      const totalBalance = regularAccounts.reduce((sum, account) => sum + account.saldo_atual, 0);
       
       // Calcular dívida total dos cartões de crédito
       const creditCardDebt = myCards.reduce((sum, card) => {
-        const balance = card.saldo || 0;
+        const balance = card.saldo_atual;
         return sum + (balance < 0 ? Math.abs(balance) : 0);
       }, 0);
       
@@ -204,7 +156,12 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
         monthlySavings
       };
     },
-    enabled: !!user?.id && !accountsLoading && !goalsLoading && !transactionsLoading
+    enabled: !!user?.id && !accountsLoading && !goalsLoading && !transactionsLoading,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
   });
 
   // Mutations para contas pessoais
@@ -413,7 +370,7 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
   };
 
   const contextValue: PersonalContextType = {
-    myAccounts: regularAccounts,
+    myAccounts,
     myCards,
     myGoals,
     myBudgets,

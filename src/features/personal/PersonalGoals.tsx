@@ -1,16 +1,129 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { usePersonal } from './PersonalProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Progress } from '../../components/ui/progress';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
-import { Target, Plus, Edit, Trash2, Calendar } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Target, Plus, Edit, Trash2, Calendar, CheckCircle, Trophy } from 'lucide-react';
 import { LoadingSpinner } from '../../components/ui/loading-states';
+import { useGoals, useGoalProgress } from '../../hooks/useGoalsQuery';
+import { useToast } from '../../hooks/use-toast';
+import { formatCurrency } from '../../lib/utils';
+import { GoalAllocationModal } from '../../components/GoalAllocationModal';
+import GoalForm from '../../components/GoalForm';
+import { GoalProgress } from '../../integrations/supabase/types';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
+import { useConfirmation } from '../../hooks/useConfirmation';
+import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
 
 const PersonalGoals: React.FC = () => {
-  const { myGoals, isLoading, deletePersonalGoal } = usePersonal();
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showAllocationModal, setShowAllocationModal] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState<GoalProgress | null>(null);
+  const [editingGoal, setEditingGoal] = useState<any>(null);
+  
+  // Usar os hooks robustos que já funcionam
+  const { goals, isLoading, error, refetch, createGoal, updateGoal, deleteGoal } = useGoals();
+  const { data: goalProgress = [] } = useGoalProgress();
+  const { toast } = useToast();
+  const confirmation = useConfirmation();
 
-  if (isLoading.goals) {
+  const handleCreateGoal = () => {
+    setShowCreateModal(true);
+  };
+
+  const handleAllocationSuccess = () => {
+    setShowAllocationModal(false);
+    setSelectedGoal(null);
+    toast({
+      title: 'Alocação realizada',
+      description: 'Valor alocado com sucesso ao objetivo!',
+    });
+  };
+
+  const handleAllocateToGoal = (goal: GoalProgress) => {
+    setSelectedGoal(goal);
+    setShowAllocationModal(true);
+  };
+
+  const handleEditGoal = (goal: any) => {
+    // Buscar os dados completos do objetivo
+    const fullGoal = goals.find(g => g.id === goal.goal_id);
+    if (fullGoal) {
+      setEditingGoal(fullGoal);
+      setShowEditModal(true);
+    } else {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os dados do objetivo',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteGoal = async (goalId: string) => {
+    // Encontrar o objetivo para mostrar informações específicas
+    const goal = goalProgress.find(g => g.goal_id === goalId);
+    const isCompleted = goal?.progresso_percentual >= 100;
+    
+    let message = 'Tem a certeza que deseja eliminar este objetivo? Esta ação não pode ser desfeita.';
+    
+    if (goal) {
+      if (isCompleted) {
+        message = `O objetivo "${goal.nome}" foi atingido a 100%. Ao eliminar, o valor alocado (${formatCurrency(goal.total_alocado)}) será mantido na conta objetivos e não será restituído à conta original.`;
+      } else {
+        message = `O objetivo "${goal.nome}" está a ${goal.progresso_percentual}%. Ao eliminar, o valor alocado (${formatCurrency(goal.total_alocado)}) será restituído ao saldo disponível da conta original.`;
+      }
+    }
+    
+    confirmation.confirm(
+      {
+        title: 'Eliminar Objetivo',
+        message: message,
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+        variant: 'destructive',
+      },
+      async () => {
+        try {
+          const result = await deleteGoal(goalId);
+          
+          if (result.data) {
+            const { goal_name, total_allocated, goal_progress, restored_to_account } = result.data;
+            
+            if (restored_to_account) {
+              toast({
+                title: 'Objetivo eliminado',
+                description: `O objetivo "${goal_name}" foi eliminado. ${formatCurrency(total_allocated)} foi restituído à conta original.`,
+              });
+            } else {
+              toast({
+                title: 'Objetivo eliminado',
+                description: `O objetivo "${goal_name}" foi eliminado. ${formatCurrency(total_allocated)} foi mantido na conta objetivos.`,
+              });
+            }
+          }
+        } catch (error) {
+          toast({
+            title: 'Erro',
+            description: 'Erro ao eliminar objetivo',
+            variant: 'destructive',
+          });
+        }
+      }
+    );
+  };
+
+  const getProgressText = (progress: number) => {
+    if (progress >= 100) return 'Concluído';
+    if (progress >= 80) return 'Quase concluído';
+    if (progress >= 50) return 'A meio caminho';
+    return 'A começar';
+  };
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <LoadingSpinner size="lg" />
@@ -18,111 +131,258 @@ const PersonalGoals: React.FC = () => {
     );
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Tem a certeza que pretende eliminar este objetivo?')) {
-      await deletePersonalGoal(id);
-    }
-  };
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600">Erro ao carregar objetivos: {error.message}</p>
+        <Button onClick={() => refetch()} className="mt-4">
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Objetivos Pessoais
-              </CardTitle>
-              <CardDescription>
-                Suas metas financeiras e objetivos de poupança
-              </CardDescription>
-            </div>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Objetivo
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {myGoals.length === 0 ? (
-            <div className="text-center py-8">
-              <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhum objetivo pessoal encontrado</p>
-              <Button variant="outline" className="mt-4">
-                <Plus className="h-4 w-4 mr-2" />
-                Criar primeiro objetivo
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {myGoals.map((goal) => {
-                const progress = goal.valor_objetivo > 0 
-                  ? ((goal.valor_atual || 0) / goal.valor_objetivo) * 100 
-                  : 0;
-                
-                return (
-                  <Card key={goal.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <Target className="h-4 w-4 text-primary" />
-                          <h3 className="font-semibold">{goal.nome}</h3>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleDelete(goal.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">
-                            Progresso
-                          </span>
-                          <Badge variant={progress >= 100 ? "default" : "secondary"}>
-                            {progress.toFixed(0)}%
-                          </Badge>
-                        </div>
-                        
-                        <Progress value={Math.min(progress, 100)} className="h-2" />
-                        
-                        <div className="text-center">
-                          <p className="text-2xl font-bold">
-                            {(goal.valor_atual || 0).toFixed(2)}€
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            de {goal.valor_objetivo.toFixed(2)}€
-                          </p>
-                        </div>
-                        
-                        {goal.prazo && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Calendar className="h-4 w-4" />
-                            <span>Prazo: {new Date(goal.prazo).toLocaleDateString('pt-PT')}</span>
-                          </div>
-                        )}
-                        
-                        <Badge variant="outline" className="text-xs">
-                          Pessoal
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Target className="h-5 w-5" />
+            Objetivos Pessoais
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Suas metas financeiras e objetivos de poupança
+          </p>
+        </div>
+        <Button onClick={handleCreateGoal}>
+          <Plus className="h-4 w-4 mr-2" />
+          Novo Objetivo
+        </Button>
+      </div>
+
+      {/* Goals Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {goalProgress.map((goal) => {
+          const isCompleted = goal.progresso_percentual >= 100;
+          const remaining = Math.max(goal.valor_objetivo - goal.total_alocado, 0);
+
+          return (
+            <Card 
+              key={goal.goal_id} 
+              className={`hover:shadow-lg transition-shadow ${
+                isCompleted ? 'border-green-200 bg-green-50' : ''
+              }`}
+            >
+              <CardHeader>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-start">
+                    <CardTitle className="flex items-center gap-2">
+                      {isCompleted ? (
+                        <Trophy className="h-5 w-5 text-yellow-600" />
+                      ) : (
+                        <Target className="h-5 w-5 text-blue-600" />
+                      )}
+                      {goal.nome}
+                    </CardTitle>
+                    <div className="flex gap-1">
+                      {!isCompleted ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleAllocateToGoal(goal)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled
+                                className="h-8 w-8 p-0 opacity-50 cursor-not-allowed"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Objetivo já atingido! Edite o valor objetivo ou o valor atual para continuar.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditGoal(goal)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteGoal(goal.goal_id)}
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {isCompleted && (
+                    <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200 w-fit">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Atingido
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Progress */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Progresso</span>
+                    <span className={`font-medium ${isCompleted ? 'text-green-600' : ''}`}>
+                      {goal.progresso_percentual}%
+                    </span>
+                  </div>
+                  <Progress 
+                    value={Math.min(goal.progresso_percentual, 100)} 
+                    className={`h-2 ${isCompleted ? 'bg-green-100' : ''}`}
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span className={isCompleted ? 'text-green-600 font-medium' : ''}>
+                      {isCompleted ? 'Objetivo Atingido! 🎉' : getProgressText(goal.progresso_percentual)}
+                    </span>
+                    <span className="text-right">
+                      {formatCurrency(goal.total_alocado)} / {formatCurrency(goal.valor_objetivo)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Values */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Objetivo</span>
+                    <span className="font-medium">{formatCurrency(goal.valor_objetivo)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Alocado</span>
+                    <span className={`font-medium ${isCompleted ? 'text-green-600' : 'text-green-600'}`}>
+                      {formatCurrency(goal.total_alocado)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Restante</span>
+                    <span className={`font-medium ${isCompleted ? 'text-green-600' : remaining > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                      {isCompleted ? '0,00€' : formatCurrency(remaining)}
+                    </span>
+                  </div>
+                </div>
+
+                {isCompleted && (
+                  <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center gap-2 text-green-800">
+                      <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                      <span className="text-sm font-medium">Parabéns! Objetivo atingido com sucesso!</span>
+                    </div>
+                    <p className="text-xs text-green-600 mt-1 leading-relaxed">
+                      Para continuar a alocar valores, edite o objetivo e aumente o valor alvo ou reduza o valor atual.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Empty State */}
+      {goalProgress.length === 0 && (
+        <div className="text-center py-12">
+          <Target className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-lg font-medium mb-2">Nenhum objetivo encontrado</h3>
+          <p className="text-muted-foreground mb-4">
+            Cria o teu primeiro objetivo para começar a poupar
+          </p>
+          <Button onClick={handleCreateGoal}>
+            <Plus className="h-4 w-4 mr-2" />
+            Criar Objetivo
+          </Button>
+        </div>
+      )}
+
+      {/* Create Goal Modal */}
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo Objetivo</DialogTitle>
+            <DialogDescription>
+              Cria um novo objetivo financeiro
+            </DialogDescription>
+          </DialogHeader>
+          <GoalForm
+            onSuccess={() => {
+              setShowCreateModal(false);
+              refetch();
+            }}
+            onCancel={() => setShowCreateModal(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Goal Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Objetivo</DialogTitle>
+            <DialogDescription>
+              Edita os dados do objetivo
+            </DialogDescription>
+          </DialogHeader>
+          <GoalForm
+            initialData={editingGoal}
+            onSuccess={() => {
+              setShowEditModal(false);
+              setEditingGoal(null);
+              refetch();
+            }}
+            onCancel={() => {
+              setShowEditModal(false);
+              setEditingGoal(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Allocation Modal */}
+      {selectedGoal && (
+        <GoalAllocationModal
+          isOpen={showAllocationModal}
+          onClose={handleAllocationSuccess}
+          goalId={selectedGoal.goal_id}
+          goalName={selectedGoal.nome}
+          currentProgress={selectedGoal.total_alocado}
+          targetAmount={selectedGoal.valor_objetivo}
+        />
+      )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={confirmation.isOpen}
+        onClose={confirmation.close}
+        onConfirm={confirmation.onConfirm}
+        onCancel={confirmation.onCancel}
+        title={confirmation.options.title}
+        message={confirmation.options.message}
+        confirmText={confirmation.options.confirmText}
+        cancelText={confirmation.options.cancelText}
+        variant={confirmation.options.variant}
+      />
     </div>
   );
 };

@@ -143,7 +143,6 @@ const PersonalHeader: React.FC = () => {
 
   const getPrimaryAction = () => {
     const path = location.pathname;
-    if (path === '/personal/accounts') return { label: 'Nova Conta', action: () => navigate('/personal/accounts/new') };
     if (path === '/personal/goals') return { label: 'Novo Objetivo', action: () => navigate('/personal/goals/new') };
     if (path === '/personal/budgets') return { label: 'Novo Orçamento', action: () => navigate('/personal/budgets/new') };
     if (path === '/personal/transactions') return { label: 'Nova Transação', action: () => navigate('/personal/transactions/new') };
@@ -159,9 +158,9 @@ const PersonalHeader: React.FC = () => {
           variant="ghost" 
           onClick={() => navigate('/app')}
           className="flex items-center gap-2"
+          title="Voltar à Home"
         >
           <Home className="h-4 w-4" />
-          <span className="hidden sm:inline">Voltar à Home</span>
         </Button>
         
         <div className="hidden sm:block w-px h-6 bg-border" />

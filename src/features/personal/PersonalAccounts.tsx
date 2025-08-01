@@ -1,316 +1,443 @@
-import React from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import { usePersonal } from './PersonalProvider';
-import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
-import { 
-  Wallet, 
-  CreditCard, 
-  Plus, 
-  Edit, 
-  Trash2,
-  AlertCircle,
-  CheckCircle,
-  PiggyBank,
-  TrendingUp
-} from 'lucide-react';
-import { LoadingSpinner } from '../../components/ui/loading-states';
+import { Button } from '../../components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Wallet, Plus, Edit, Trash2, ArrowRightLeft, Target, CreditCard, AlertTriangle } from 'lucide-react';
+import { formatCurrency } from '../../lib/utils';
+import { AccountWithBalances } from '../../integrations/supabase/types';
+import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
+import { Alert, AlertDescription } from '../../components/ui/alert';
+import AccountForm from '../../components/AccountForm';
+import RegularAccountForm from '../../components/RegularAccountForm';
+import { TransferModal } from '../../components/TransferModal';
+import { useToast } from '../../hooks/use-toast';
 
-// Componente de lista de contas
-const AccountsList: React.FC = () => {
-  const { myAccounts, myCards, isLoading, deletePersonalAccount } = usePersonal();
-  const navigate = useNavigate();
+const PersonalAccounts: React.FC = () => {
+    const {
+    myAccounts,
+    myCards,
+    isLoading,
+    deletePersonalAccount,
+    refetchAll
+  } = usePersonal();
+  
+  const { toast } = useToast();
+  
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [accountToDelete, setAccountToDelete] = useState<{ id: string; nome: string } | null>(null);
+  const [editingAccount, setEditingAccount] = useState<{
+    id: string;
+    nome: string;
+    tipo: string;
+    saldoAtual: number;
+  } | null>(null);
+
+  // Debug logs
+  console.log('[PersonalAccounts] myAccounts data:', myAccounts);
+  console.log('[PersonalAccounts] myCards data:', myCards);
+  console.log('[PersonalAccounts] isLoading:', isLoading);
+
+  const handleNew = () => {
+    setEditingAccount(null);
+    setShowCreateModal(true);
+  };
+
+  const handleTransfer = () => {
+    setShowTransferModal(true);
+  };
+
+  const handleTransferSuccess = () => {
+    setShowTransferModal(false);
+    refetchAll();
+  };
+
+  const handleEdit = (account: AccountWithBalances) => {
+    console.log('[PersonalAccounts] handleEdit called with account:', account);
+    
+    // Para cartões de crédito, usar o saldo da conta diretamente
+    // Para outras contas, usar o saldo calculado
+    let saldoAtual = 0;
+    if (account.tipo === 'cartão de crédito') {
+      // Buscar o saldo diretamente da tabela accounts
+      // Por enquanto, usar 0 como fallback
+      saldoAtual = 0; // Será atualizado via useEffect
+    } else {
+      saldoAtual = account.saldo_atual || 0;
+    }
+    
+    const editData = {
+      id: account.account_id,
+      nome: account.nome,
+      tipo: account.tipo,
+      saldoAtual,
+    };
+    
+    console.log('[PersonalAccounts] editData created:', editData);
+    setEditingAccount(editData);
+    setShowCreateModal(true);
+  };
+
+  const handleSuccess = () => {
+    console.log('[PersonalAccounts] handleSuccess called');
+    setShowCreateModal(false);
+    setEditingAccount(null);
+    console.log('[PersonalAccounts] Forcing refetch...');
+    refetchAll();
+  };
+
+  const handleDeleteAccount = (account: AccountWithBalances) => {
+    setAccountToDelete({
+      id: account.account_id,
+      nome: account.nome
+    });
+    setShowDeleteConfirmation(true);
+  };
+
+  const confirmDeleteAccount = async () => {
+    if (!accountToDelete) return;
+
+    try {
+      await deletePersonalAccount(accountToDelete.id);
+      toast({
+        title: 'Conta eliminada',
+        description: `A conta "${accountToDelete.nome}" foi eliminada com sucesso.`,
+      });
+      setShowDeleteConfirmation(false);
+      setAccountToDelete(null);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao eliminar conta',
+        description: error.message || 'Ocorreu um erro ao eliminar a conta.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   if (isLoading.accounts) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <LoadingSpinner size="lg" />
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">A carregar contas...</p>
+        </div>
       </div>
     );
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Tem a certeza que pretende eliminar esta conta?')) {
-      await deletePersonalAccount(id);
-    }
-  };
+
+
+  // Separar contas bancárias de cartões de crédito
+  const bankAccounts = myAccounts.filter(account => account.tipo !== 'cartão de crédito');
+  const creditCards = myCards.filter(account => account.tipo === 'cartão de crédito');
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold">Contas Pessoais</h2>
+          <p className="text-muted-foreground">
+            Gerencie suas contas bancárias e cartões pessoais
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={handleTransfer} variant="outline">
+            <ArrowRightLeft className="h-4 w-4 mr-2" />
+            Transferir
+          </Button>
+          <Button onClick={handleNew}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Conta
+          </Button>
+        </div>
+      </div>
+
       {/* Contas Bancárias */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Wallet className="h-5 w-5" />
-                Contas Bancárias
-              </CardTitle>
-              <CardDescription>
-                Suas contas correntes, poupança e investimento
-              </CardDescription>
-            </div>
-            <Button onClick={() => navigate('/personal/accounts/new')}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Conta
-            </Button>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Wallet className="h-5 w-5" />
+              Contas Bancárias
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Contas correntes e poupanças
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {myAccounts.length === 0 ? (
-            <div className="text-center py-8">
-              <Wallet className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhuma conta bancária encontrada</p>
-              <Button 
-                variant="outline" 
-                className="mt-4"
-                onClick={() => navigate('/personal/accounts/new')}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Criar primeira conta
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {myAccounts.map((account) => (
-                <Card key={account.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        {account.tipo === 'poupança' && <PiggyBank className="h-4 w-4 text-green-600" />}
-                        {account.tipo === 'investimento' && <TrendingUp className="h-4 w-4 text-blue-600" />}
-                        {account.tipo === 'corrente' && <Wallet className="h-4 w-4 text-primary" />}
-                        {account.tipo === 'outro' && <Wallet className="h-4 w-4 text-muted-foreground" />}
-                        <h3 className="font-semibold">{account.nome}</h3>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate(`/personal/accounts/edit/${account.id}`)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(account.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+          <Button onClick={handleNew} variant="outline" size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Conta
+          </Button>
+        </div>
+
+        {bankAccounts.length === 0 ? (
+          <div className="text-center py-8 border border-dashed border-gray-200 rounded-lg">
+            <Wallet className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">Nenhuma conta bancária encontrada</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {bankAccounts.map((account) => (
+              <Card key={account.account_id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{account.nome}</CardTitle>
+                    <Badge variant="outline" className="capitalize">
+                      {account.tipo}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Saldo Total */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Saldo Total</span>
+                      <span className="text-lg font-semibold">
+                        {formatCurrency(account.saldo_atual || 0)}
+                      </span>
                     </div>
-                    
-                    <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground capitalize">{account.tipo}</p>
+                  </div>
+
+                  {/* Saldo Reservado */}
+                  {account.total_reservado > 0 && (
+                    <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground capitalize">
-                          {account.tipo}
+                        <span className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Target className="h-3 w-3" />
+                          Reservado
                         </span>
-                        <Badge variant="outline" className="text-xs">
-                          Pessoal
+                        <Badge variant="secondary" className="text-xs text-blue-600 bg-blue-50 border-blue-200">
+                          {formatCurrency(account.total_reservado)}
                         </Badge>
                       </div>
-                      
-                      <div className="text-right">
-                        <p className={`text-2xl font-bold ${(account.saldo || 0) >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                          {(account.saldo || 0).toFixed(2)}€
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Saldo atual
-                        </p>
-                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  )}
+
+                  {/* Saldo Disponível */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Disponível</span>
+                      <span className={`text-sm font-medium ${
+                        account.saldo_disponivel < 0 ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {formatCurrency(account.saldo_disponivel)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Botões de ação - Editar e Eliminar */}
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(account)}
+                      className="flex-1"
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteAccount(account)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Eliminar
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Cartões de Crédito */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5" />
-                Cartões de Crédito
-              </CardTitle>
-              <CardDescription>
-                Estado dos seus cartões de crédito
-              </CardDescription>
-            </div>
-            <Button onClick={() => navigate('/personal/accounts/new-card')}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Cartão
-            </Button>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Cartões de Crédito
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Cartões de crédito e débito
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {myCards.length === 0 ? (
-            <div className="text-center py-8">
-              <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhum cartão de crédito encontrado</p>
-              <Button 
-                variant="outline" 
-                className="mt-4"
-                onClick={() => navigate('/personal/accounts/new-card')}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar cartão
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {myCards.map((card) => {
-                const balance = card.saldo || 0;
-                const isInDebt = balance < 0;
-                
-                return (
-                  <Card key={card.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <CreditCard className="h-4 w-4 text-orange-600" />
-                          <h3 className="font-semibold">{card.nome}</h3>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigate(`/personal/accounts/edit/${card.id}`)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(card.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">
-                            Cartão de Crédito
-                          </span>
-                          <div className="flex items-center gap-2">
-                            {isInDebt ? (
-                              <Badge variant="destructive" className="text-xs">
-                                <AlertCircle className="h-3 w-3 mr-1" />
-                                Em Dívida
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Em Dia
-                              </Badge>
-                            )}
-                            <Badge variant="outline" className="text-xs">
-                              Pessoal
-                            </Badge>
-                          </div>
-                        </div>
-                        
-                        <div className="text-right">
-                          <p className={`text-2xl font-bold ${isInDebt ? 'text-destructive' : 'text-green-600'}`}>
-                            {balance.toFixed(2)}€
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {isInDebt ? 'Dívida atual' : 'Limite disponível'}
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-
-// Componente de formulário de nova conta (placeholder)
-const NewAccountForm: React.FC = () => {
-  const navigate = useNavigate();
-  
-  return (
-    <div className="p-6">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-2 mb-6">
-          <Button variant="ghost" onClick={() => navigate('/personal/accounts')}>
-            ← Voltar
+          <Button onClick={handleNew} variant="outline" size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Cartão
           </Button>
-          <h1 className="text-2xl font-bold">Nova Conta Pessoal</h1>
         </div>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Adicionar Conta</CardTitle>
-            <CardDescription>
-              Crie uma nova conta bancária pessoal
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              Formulário de criação de conta será implementado aqui.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-};
 
-// Componente de edição de conta (placeholder)
-const EditAccountForm: React.FC = () => {
-  const navigate = useNavigate();
-  
-  return (
-    <div className="p-6">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-2 mb-6">
-          <Button variant="ghost" onClick={() => navigate('/personal/accounts')}>
-            ← Voltar
-          </Button>
-          <h1 className="text-2xl font-bold">Editar Conta</h1>
-        </div>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Editar Conta</CardTitle>
-            <CardDescription>
-              Modifique os dados da sua conta
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              Formulário de edição de conta será implementado aqui.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-};
+        {creditCards.length === 0 ? (
+          <div className="text-center py-8 border border-dashed border-gray-200 rounded-lg">
+            <CreditCard className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">Nenhum cartão de crédito encontrado</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {creditCards.map((account) => (
+              <Card key={account.account_id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{account.nome}</CardTitle>
+                    <Badge variant="outline" className="capitalize">
+                      {account.tipo}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Saldo Total */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Saldo Total</span>
+                      <span className="text-lg font-semibold">
+                        {formatCurrency(account.saldo_atual || 0)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground capitalize">{account.tipo}</p>
+                  </div>
 
-// Componente principal
-const PersonalAccounts: React.FC = () => {
-  return (
-    <Routes>
-      <Route index element={<AccountsList />} />
-      <Route path="new" element={<NewAccountForm />} />
-      <Route path="new-card" element={<NewAccountForm />} />
-      <Route path="edit/:id" element={<EditAccountForm />} />
-    </Routes>
+                  {/* Saldo Reservado */}
+                  {account.total_reservado > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Target className="h-3 w-3" />
+                          Reservado
+                        </span>
+                        <Badge variant="secondary" className="text-xs text-blue-600 bg-blue-50 border-blue-200">
+                          {formatCurrency(account.total_reservado)}
+                        </Badge>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Saldo Disponível */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Disponível</span>
+                      <span className={`text-sm font-medium ${
+                        account.saldo_disponivel < 0 ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {formatCurrency(account.saldo_disponivel)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Status do Cartão */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Status</span>
+                      <Badge variant={account.saldo_atual <= 0 ? "default" : "destructive"} className="text-xs">
+                        {account.saldo_atual <= 0 ? 'Em Dia' : 'Em Dívida'}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Botões de ação - Editar e Eliminar */}
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(account)}
+                      className="flex-1"
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteAccount(account)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Eliminar
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingAccount ? 'Editar Conta' : 'Nova Conta'}</DialogTitle>
+            <DialogDescription>
+              {editingAccount ? 'Editar dados da conta' : 'Criar nova conta'}
+            </DialogDescription>
+          </DialogHeader>
+          {(() => {
+            console.log('[PersonalAccounts] Modal rendering - editingAccount:', editingAccount);
+            console.log('[PersonalAccounts] editingAccount?.tipo:', editingAccount?.tipo);
+            
+            // TODO: Implementar mais tarde
+            // if (editingAccount?.tipo === 'cartão de crédito') {
+            //   console.log('[PersonalAccounts] Rendering CreditCardForm');
+            //   return (
+            //     <CreditCardForm
+            //       initialData={editingAccount}
+            //       onSuccess={handleSuccess}
+            //       onCancel={() => setShowCreateModal(false)}
+            //     />
+            //   );
+            // } else 
+            if (editingAccount) {
+              console.log('[PersonalAccounts] Rendering RegularAccountForm');
+              return (
+                <RegularAccountForm
+                  initialData={editingAccount}
+                  onSuccess={handleSuccess}
+                  onCancel={() => setShowCreateModal(false)}
+                />
+              );
+            } else {
+              console.log('[PersonalAccounts] Rendering AccountForm');
+              return (
+                <AccountForm
+                  initialData={editingAccount}
+                  onSuccess={handleSuccess}
+                  onCancel={() => setShowCreateModal(false)}
+                />
+              );
+            }
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      <TransferModal
+        isOpen={showTransferModal}
+        onClose={handleTransferSuccess}
+      />
+
+      <ConfirmationDialog
+        isOpen={showDeleteConfirmation}
+        onClose={() => {
+          setShowDeleteConfirmation(false);
+          setAccountToDelete(null);
+        }}
+        onConfirm={confirmDeleteAccount}
+        title="Eliminar Conta"
+        message={
+          accountToDelete 
+            ? `Tem a certeza que deseja eliminar "${accountToDelete.nome}"? Esta ação não pode ser desfeita e eliminará todas as transações associadas.`
+            : 'Tem a certeza que deseja eliminar esta conta?'
+        }
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="destructive"
+      />
+    </div>
   );
 };
 
