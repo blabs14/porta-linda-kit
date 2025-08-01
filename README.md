@@ -76,6 +76,12 @@ Nunca commits o ficheiro `.env.local`!
 - Proteção por roles (owner, admin, member, viewer) — ver matriz em `ONBOARDING_ROLES.md`.
 - Políticas RLS ativas no backend.
 
+## 🏠 Área Pessoal vs Família
+- **Área Pessoal** (`/personal`) — Gestão financeira individual onde `family_id IS NULL`
+- **Área Família** (`/app/family`) — Dados partilhados entre membros onde `family_id IS NOT NULL`
+- Separação clara entre finanças pessoais e familiares
+- Navegação adaptativa (tabs em mobile, sidebar em desktop)
+
 ---
 
 ## 📋 Scripts úteis

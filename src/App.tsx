@@ -22,6 +22,9 @@ import {
   ProfilePage,
 } from './components/lazy/index';
 
+// Página da Área Pessoal
+import PersonalPage from './pages/Personal';
+
 // Páginas de autenticação (não lazy loading para melhor UX)
 import Index from './pages/Index';
 import Login from './pages/Login';
@@ -98,6 +101,9 @@ function App() {
                 </Suspense>
               } />
             </Route>
+            
+            {/* Área Pessoal */}
+            <Route path="/personal/*" element={<RequireAuth><PersonalPage /></RequireAuth>} />
             
             {/* Página 404 */}
             <Route path="*" element={<NotFound />} />

@@ -27,6 +27,12 @@ const navigationItems = [
     description: 'Visão geral das finanças'
   },
   {
+    title: 'Área Pessoal',
+    href: '/personal',
+    icon: User,
+    description: 'Gestão financeira individual'
+  },
+  {
     title: 'Contas',
     href: '/app/accounts',
     icon: Wallet,
