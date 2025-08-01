@@ -1,7 +1,6 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
-import { useCrudMutation } from '../../hooks/useMutationWithFeedback';
 import { 
   getFamilyData, 
   getFamilyMembers, 
@@ -12,23 +11,33 @@ import {
   updateFamilySettings
 } from '../../services/family';
 import { 
-  getAccountsWithBalances 
+  getAccountsWithBalances,
+  createAccount,
+  updateAccount,
+  deleteAccount
 } from '../../services/accounts';
 import { 
-  getGoals 
+  getGoals, 
+  createGoal, 
+  updateGoal, 
+  deleteGoal 
 } from '../../services/goals';
 import { 
-  getBudgets 
+  getBudgets, 
+  createBudget, 
+  updateBudget, 
+  deleteBudget 
 } from '../../services/budgets';
 import { 
-  getTransactions 
+  getTransactions, 
+  createTransaction, 
+  updateTransaction, 
+  deleteTransaction 
 } from '../../services/transactions';
-import { useGoals } from '../../hooks/useGoalsQuery';
-import { useBudgets } from '../../hooks/useBudgetsQuery';
-import { useTransactions } from '../../hooks/useTransactionsQuery';
+import { useCrudMutation } from '../../hooks/useMutationWithFeedback';
 import { supabase } from '../../lib/supabaseClient';
 
-// Tipos para o contexto familiar
+// Tipos para o contexto
 interface FamilyContextType {
   // Dados da família atual
   family: any;
@@ -117,7 +126,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   const queryClient = useQueryClient();
 
   // Query para dados da família atual
-  const { data: familyData = null, isLoading: familyLoading } = useQuery({
+  const { data: familyData, isLoading: familyLoading } = useQuery({
     queryKey: ['family', 'current', user?.id],
     queryFn: async () => {
       const data = await getFamilyData();
@@ -131,16 +140,15 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     gcTime: 5 * 60 * 1000,
   });
 
-  // Extrair dados da família do resultado
-  const family = familyData && typeof familyData === 'object' && 'family' in familyData 
-    ? (familyData as any).family 
-    : null;
+  const family = (familyData as any)?.family || null;
+  const myRole = (familyData as any)?.myRole || null;
 
   // Query para membros da família
   const { data: members = [], isLoading: membersLoading } = useQuery({
     queryKey: ['family', 'members', family?.id],
     queryFn: async () => {
-      const data = await getFamilyMembers(family?.id);
+      if (!family?.id) return [];
+      const data = await getFamilyMembers(family.id);
       return data || [];
     },
     enabled: !!family?.id,
@@ -155,7 +163,8 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   const { data: pendingInvites = [], isLoading: invitesLoading } = useQuery({
     queryKey: ['family', 'invites', family?.id],
     queryFn: async () => {
-      const data = await getPendingInvites(family?.id);
+      if (!family?.id) return [];
+      const data = await getPendingInvites(family.id);
       return data || [];
     },
     enabled: !!family?.id,
@@ -166,7 +175,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     gcTime: 5 * 60 * 1000,
   });
 
-  // Query para contas familiares - usar exatamente a mesma abordagem que funciona
+  // Query para contas familiares - usar a mesma abordagem que funciona na área pessoal
   const { data: allAccounts = [], isLoading: accountsLoading } = useQuery({
     queryKey: ['family', 'accounts', user?.id],
     queryFn: async () => {
@@ -183,220 +192,299 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   });
 
   // Filtrar contas familiares (family_id IS NOT NULL)
-  const familyAccounts = React.useMemo(() => {
-    return (allAccounts as any[]).filter(account => account.family_id === family?.id);
-  }, [allAccounts, family?.id]);
+  const familyAccounts = (allAccounts as any[]).filter(account => account.family_id !== null);
+  const familyCards = familyAccounts.filter(account => account.tipo === 'cartão de crédito');
+  const regularFamilyAccounts = familyAccounts.filter(account => account.tipo !== 'cartão de crédito');
 
-  // Separar cartões de crédito
-  const familyCards = React.useMemo(() => {
-    return familyAccounts.filter(account => account.tipo === 'cartão de crédito');
-  }, [familyAccounts]);
+  // Query para objetivos familiares
+  const { data: allGoals = [], isLoading: goalsLoading } = useQuery({
+    queryKey: ['family', 'goals', user?.id],
+    queryFn: async () => {
+      const { data, error } = await getGoals(user?.id || '');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+  });
 
-  // Query para objetivos familiares - usar o hook existente
-  const { goals: allGoals = [], isLoading: goalsLoading } = useGoals();
-  
-  // Filtrar objetivos familiares
-  const familyGoals = React.useMemo(() => {
-    return (allGoals as any[]).filter(goal => goal.family_id === family?.id);
-  }, [allGoals, family?.id]);
+  // Filtrar objetivos familiares (family_id IS NOT NULL)
+  const familyGoals = (allGoals as any[]).filter(goal => goal.family_id !== null);
 
-  // Query para orçamentos familiares - usar o hook existente
-  const { data: allBudgets = [], isLoading: budgetsLoading } = useBudgets();
-  
-  // Filtrar orçamentos familiares
-  const familyBudgets = React.useMemo(() => {
-    return (allBudgets as any[]).filter(budget => budget.family_id === family?.id);
-  }, [allBudgets, family?.id]);
+  // Query para orçamentos familiares
+  const { data: allBudgets = [], isLoading: budgetsLoading } = useQuery({
+    queryKey: ['family', 'budgets', user?.id],
+    queryFn: async () => {
+      const { data, error } = await getBudgets();
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+  });
 
-  // Query para transações familiares - usar o hook existente
-  const { data: allTransactions = [], isLoading: transactionsLoading } = useTransactions();
-  
-  // Filtrar transações familiares
-  const familyTransactions = React.useMemo(() => {
-    return (allTransactions as any[]).filter(transaction => transaction.family_id === family?.id);
-  }, [allTransactions, family?.id]);
+  // Filtrar orçamentos familiares (family_id IS NOT NULL)
+  const familyBudgets = (allBudgets as any[]).filter(budget => budget.family_id !== null);
 
-  // Determinar o papel do utilizador atual
-  const myRole = React.useMemo(() => {
-    if (!family || !user) return null;
-    const member = (members as any[]).find(m => m.user_id === user.id);
-    return member?.role || null;
-  }, [family, user, members]);
+  // Query para transações familiares
+  const { data: allTransactions = [], isLoading: transactionsLoading } = useQuery({
+    queryKey: ['family', 'transactions', user?.id],
+    queryFn: async () => {
+      const { data, error } = await getTransactions();
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+  });
 
-  // Calcular KPIs familiares
-  const familyKPIs = React.useMemo(() => {
-    const totalBalance = familyAccounts.reduce((sum, account) => sum + (account.saldo_atual || 0), 0);
-    
-    const creditCardDebt = familyCards.reduce((sum, card) => {
-      const debt = (card.saldo_atual || 0) < 0 ? Math.abs(card.saldo_atual) : 0;
-      return sum + debt;
-    }, 0);
+  // Filtrar transações familiares (family_id IS NOT NULL)
+  const familyTransactions = (allTransactions as any[]).filter(transaction => transaction.family_id !== null);
 
-    const activeGoals = familyGoals.filter(goal => goal.ativa);
-    const topGoal = activeGoals.sort((a, b) => (b.valor_atual || 0) - (a.valor_atual || 0))[0];
-    const topGoalProgress = topGoal ? ((topGoal.valor_atual || 0) / (topGoal.valor_objetivo || 1)) * 100 : 0;
-
-    // Calcular poupança mensal (receitas - despesas do mês atual)
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const monthlyTransactions = familyTransactions.filter(t => t.data.startsWith(currentMonth));
-    const monthlyIncome = monthlyTransactions
-      .filter(t => t.tipo === 'receita')
-      .reduce((sum, t) => sum + (t.valor || 0), 0);
-    const monthlyExpenses = monthlyTransactions
-      .filter(t => t.tipo === 'despesa')
-      .reduce((sum, t) => sum + (t.valor || 0), 0);
-    const monthlySavings = monthlyIncome - monthlyExpenses;
-
-    return {
-      totalBalance,
-      creditCardDebt,
-      topGoalProgress,
-      monthlySavings,
-      totalMembers: (members as any[]).length,
-      pendingInvites: (pendingInvites as any[]).filter(invite => invite.status === 'pending').length
-    };
-  }, [familyAccounts, familyCards, familyGoals, familyTransactions, members, pendingInvites]);
+  // Query para KPIs familiares
+  const { data: familyKPIs, isLoading: kpisLoading } = useQuery({
+    queryKey: ['family', 'kpis', family?.id],
+    queryFn: async () => {
+      // Calcular saldo total das contas familiares
+      const totalBalance = regularFamilyAccounts.reduce((sum, account) => sum + (account.saldo_atual || 0), 0);
+      
+      // Calcular dívida total dos cartões de crédito familiares
+      const creditCardDebt = familyCards.reduce((sum, card) => {
+        const balance = card.saldo_atual || 0;
+        return sum + (balance < 0 ? Math.abs(balance) : 0);
+      }, 0);
+      
+      // Calcular progresso do objetivo principal familiar
+      const topGoal = familyGoals[0];
+      const topGoalProgress = topGoal 
+        ? ((topGoal.valor_atual || 0) / (topGoal.valor_objetivo || 1)) * 100
+        : 0;
+      
+      // Calcular poupança mensal familiar (simplificado)
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const monthlyTransactions = familyTransactions.filter(t => 
+        t.data.startsWith(currentMonth) && t.tipo === 'receita'
+      );
+      const monthlySavings = monthlyTransactions.reduce((sum, t) => sum + (t.valor || 0), 0);
+      
+      return {
+        totalBalance,
+        creditCardDebt,
+        topGoalProgress: Math.min(topGoalProgress, 100),
+        monthlySavings,
+                 totalMembers: (members as any[]).length,
+         pendingInvites: (pendingInvites as any[]).filter(invite => invite.status === 'pending').length
+      };
+    },
+    enabled: !!family?.id && !accountsLoading && !goalsLoading && !transactionsLoading && !membersLoading,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+  });
 
   // Mutations para gestão de membros
-  const inviteMemberMutation = useCrudMutation({
-    mutationFn: (data: { email: string; role: string }) => 
+  const inviteMemberMutation = useCrudMutation(
+    (data: { email: string; role: string }) => 
       inviteFamilyMember(family?.id || '', data.email, data.role),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'invites'] });
+    {
+      operation: 'create',
+      entityName: 'Convite',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'invites', family?.id] });
+      }
     }
-  });
+  );
 
-  const updateMemberRoleMutation = useCrudMutation({
-    mutationFn: (data: { memberId: string; role: string }) => 
+  const updateMemberRoleMutation = useCrudMutation(
+    (data: { memberId: string; role: string }) => 
       updateMemberRole(family?.id || '', data.memberId, data.role),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'members'] });
+    {
+      operation: 'update',
+      entityName: 'Role do Membro',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'members', family?.id] });
+      }
     }
-  });
+  );
 
-  const removeMemberMutation = useCrudMutation({
-    mutationFn: (memberId: string) => 
+  const removeMemberMutation = useCrudMutation(
+    (memberId: string) => 
       removeFamilyMember(family?.id || '', memberId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'members'] });
+    {
+      operation: 'delete',
+      entityName: 'Membro',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'members', family?.id] });
+      }
     }
-  });
+  );
 
-  const updateFamilyMutation = useCrudMutation({
-    mutationFn: (data: any) => updateFamilySettings(family?.id || '', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'current'] });
+  const updateFamilyMutation = useCrudMutation(
+    (data: any) => updateFamilySettings(family?.id || '', data),
+    {
+      operation: 'update',
+      entityName: 'Família',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'current', user?.id] });
+      }
     }
-  });
+  );
 
   // Mutations CRUD para dados familiares
-  const createFamilyAccountMutation = useCrudMutation({
-    mutationFn: (data: any) => {
-      return { ...data, family_id: family?.id };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'accounts'] });
+  const createFamilyAccountMutation = useCrudMutation(
+    (data: any) => createAccount({ ...data, family_id: family?.id }, user?.id || ''),
+    {
+      operation: 'create',
+      entityName: 'Conta Familiar',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'accounts', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
+      }
     }
-  });
+  );
 
-  const updateFamilyAccountMutation = useCrudMutation({
-    mutationFn: (data: any) => {
-      return { ...data, family_id: family?.id };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'accounts'] });
+  const updateFamilyAccountMutation = useCrudMutation(
+    ({ id, data }: { id: string; data: any }) => updateAccount(id, data, user?.id || ''),
+    {
+      operation: 'update',
+      entityName: 'Conta Familiar',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'accounts', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
+      }
     }
-  });
+  );
 
-  const deleteFamilyAccountMutation = useCrudMutation({
-    mutationFn: (id: string) => {
-      return { id, family_id: family?.id };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'accounts'] });
+  const deleteFamilyAccountMutation = useCrudMutation(
+    (id: string) => deleteAccount(id, user?.id || ''),
+    {
+      operation: 'delete',
+      entityName: 'Conta Familiar',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'accounts', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
+      }
     }
-  });
+  );
 
-  const createFamilyGoalMutation = useCrudMutation({
-    mutationFn: (data: any) => {
-      return { ...data, family_id: family?.id };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'goals'] });
+  const createFamilyGoalMutation = useCrudMutation(
+    (data: any) => createGoal({ ...data, family_id: family?.id }, user?.id || ''),
+    {
+      operation: 'create',
+      entityName: 'Objetivo Familiar',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'goals', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
+      }
     }
-  });
+  );
 
-  const updateFamilyGoalMutation = useCrudMutation({
-    mutationFn: (data: any) => {
-      return { ...data, family_id: family?.id };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'goals'] });
+  const updateFamilyGoalMutation = useCrudMutation(
+    ({ id, data }: { id: string; data: any }) => updateGoal(id, data, user?.id || ''),
+    {
+      operation: 'update',
+      entityName: 'Objetivo Familiar',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'goals', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
+      }
     }
-  });
+  );
 
-  const deleteFamilyGoalMutation = useCrudMutation({
-    mutationFn: (id: string) => {
-      return { id, family_id: family?.id };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'goals'] });
+  const deleteFamilyGoalMutation = useCrudMutation(
+    (id: string) => deleteGoal(id, user?.id || ''),
+    {
+      operation: 'delete',
+      entityName: 'Objetivo Familiar',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'goals', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
+      }
     }
-  });
+  );
 
-  const createFamilyBudgetMutation = useCrudMutation({
-    mutationFn: (data: any) => {
-      return { ...data, family_id: family?.id };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'budgets'] });
+  const createFamilyBudgetMutation = useCrudMutation(
+    (data: any) => createBudget({ ...data, family_id: family?.id }, user?.id || ''),
+    {
+      operation: 'create',
+      entityName: 'Orçamento Familiar',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'budgets', user?.id] });
+      }
     }
-  });
+  );
 
-  const updateFamilyBudgetMutation = useCrudMutation({
-    mutationFn: (data: any) => {
-      return { ...data, family_id: family?.id };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'budgets'] });
+  const updateFamilyBudgetMutation = useCrudMutation(
+    ({ id, data }: { id: string; data: any }) => updateBudget(id, data, user?.id || ''),
+    {
+      operation: 'update',
+      entityName: 'Orçamento Familiar',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'budgets', user?.id] });
+      }
     }
-  });
+  );
 
-  const deleteFamilyBudgetMutation = useCrudMutation({
-    mutationFn: (id: string) => {
-      return { id, family_id: family?.id };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'budgets'] });
+  const deleteFamilyBudgetMutation = useCrudMutation(
+    (id: string) => deleteBudget(id, user?.id || ''),
+    {
+      operation: 'delete',
+      entityName: 'Orçamento Familiar',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'budgets', user?.id] });
+      }
     }
-  });
+  );
 
-  const createFamilyTransactionMutation = useCrudMutation({
-    mutationFn: (data: any) => {
-      return { ...data, family_id: family?.id };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'transactions'] });
+  const createFamilyTransactionMutation = useCrudMutation(
+    (data: any) => createTransaction({ ...data, family_id: family?.id }, user?.id || ''),
+    {
+      operation: 'create',
+      entityName: 'Transação Familiar',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'transactions', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
+      }
     }
-  });
+  );
 
-  const updateFamilyTransactionMutation = useCrudMutation({
-    mutationFn: (data: any) => {
-      return { ...data, family_id: family?.id };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'transactions'] });
+  const updateFamilyTransactionMutation = useCrudMutation(
+    ({ id, data }: { id: string; data: any }) => updateTransaction(id, data, user?.id || ''),
+    {
+      operation: 'update',
+      entityName: 'Transação Familiar',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'transactions', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
+      }
     }
-  });
+  );
 
-  const deleteFamilyTransactionMutation = useCrudMutation({
-    mutationFn: (id: string) => {
-      return { id, family_id: family?.id };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family', 'transactions'] });
+  const deleteFamilyTransactionMutation = useCrudMutation(
+    (id: string) => deleteTransaction(id, user?.id || ''),
+    {
+      operation: 'delete',
+      entityName: 'Transação Familiar',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['family', 'transactions', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
+      }
     }
-  });
+  );
 
   // Métodos específicos
   const payCreditCard = async (accountId: string, amount: number) => {
@@ -450,9 +538,9 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   const contextValue: FamilyContextType = {
     // Dados da família
     family,
-    members,
+    members: members as any[],
     myRole,
-    pendingInvites,
+    pendingInvites: pendingInvites as any[],
     
     // Dados familiares
     familyAccounts,
@@ -462,7 +550,14 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     familyTransactions,
     
     // KPIs
-    familyKPIs,
+    familyKPIs: familyKPIs || {
+      totalBalance: 0,
+      creditCardDebt: 0,
+      topGoalProgress: 0,
+      monthlySavings: 0,
+      totalMembers: 0,
+      pendingInvites: 0
+    },
     
     // Estados de loading
     isLoading: {
@@ -473,7 +568,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       budgets: budgetsLoading,
       transactions: transactionsLoading,
       invites: invitesLoading,
-      kpis: false, // Calculado localmente
+      kpis: kpisLoading,
     },
     
     // Métodos de gestão
@@ -487,19 +582,19 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     // Métodos CRUD para dados familiares
     createFamilyAccount: (data: any) => createFamilyAccountMutation.mutateAsync(data),
     updateFamilyAccount: (id: string, data: any) => updateFamilyAccountMutation.mutateAsync({ id, data }),
-    deleteFamilyAccount: (id: string) => deleteFamilyAccountMutation.mutateAsync({ id }),
+    deleteFamilyAccount: (id: string) => deleteFamilyAccountMutation.mutateAsync(id),
     
     createFamilyGoal: (data: any) => createFamilyGoalMutation.mutateAsync(data),
     updateFamilyGoal: (id: string, data: any) => updateFamilyGoalMutation.mutateAsync({ id, data }),
-    deleteFamilyGoal: (id: string) => deleteFamilyGoalMutation.mutateAsync({ id }),
+    deleteFamilyGoal: (id: string) => deleteFamilyGoalMutation.mutateAsync(id),
     
     createFamilyBudget: (data: any) => createFamilyBudgetMutation.mutateAsync(data),
     updateFamilyBudget: (id: string, data: any) => updateFamilyBudgetMutation.mutateAsync({ id, data }),
-    deleteFamilyBudget: (id: string) => deleteFamilyBudgetMutation.mutateAsync({ id }),
+    deleteFamilyBudget: (id: string) => deleteFamilyBudgetMutation.mutateAsync(id),
     
     createFamilyTransaction: (data: any) => createFamilyTransactionMutation.mutateAsync(data),
     updateFamilyTransaction: (id: string, data: any) => updateFamilyTransactionMutation.mutateAsync({ id, data }),
-    deleteFamilyTransaction: (id: string) => deleteFamilyTransactionMutation.mutateAsync({ id }),
+    deleteFamilyTransaction: (id: string) => deleteFamilyTransactionMutation.mutateAsync(id),
     
     // Métodos específicos
     payCreditCard,

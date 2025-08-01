@@ -4,37 +4,36 @@ import { useFamily } from './FamilyProvider';
 import { formatCurrency } from '../../lib/utils';
 import { 
   Wallet, 
+  CreditCard, 
   Target, 
-  BarChart3, 
   TrendingUp, 
   Users, 
-  CreditCard,
-  PiggyBank,
-  AlertCircle
+  AlertCircle,
+  CheckCircle,
+  Clock
 } from 'lucide-react';
+import { Badge } from '../../components/ui/badge';
+import { Progress } from '../../components/ui/progress';
 
 const FamilyDashboard: React.FC = () => {
   const { 
     family, 
     familyKPIs, 
+    members, 
+    pendingInvites, 
     familyAccounts, 
     familyGoals, 
-    familyBudgets, 
-    familyTransactions,
-    members,
-    pendingInvites,
+    familyBudgets,
     isLoading 
   } = useFamily();
 
-  if (isLoading.family) {
+  if (isLoading.family || isLoading.kpis) {
     return (
-      <div className="p-6 space-y-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-muted rounded w-1/3 mb-4"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-32 bg-muted rounded"></div>
-            ))}
+      <div className="space-y-6 p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">A carregar dados da família...</p>
           </div>
         </div>
       </div>
@@ -43,13 +42,20 @@ const FamilyDashboard: React.FC = () => {
 
   if (!family) {
     return (
-      <div className="p-6">
+      <div className="space-y-6 p-6">
         <Card>
-          <CardContent className="text-center py-12">
-            <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">Nenhuma família encontrada</h3>
-            <p className="text-muted-foreground">
-              Você ainda não pertence a nenhuma família ou não tem permissões para acessar.
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-500" />
+              Nenhuma Família Encontrada
+            </CardTitle>
+            <CardDescription>
+              Não foi encontrada nenhuma família associada à sua conta.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Para começar a usar as Finanças Partilhadas, crie uma nova família ou aceite um convite existente.
             </p>
           </CardContent>
         </Card>
@@ -58,175 +64,262 @@ const FamilyDashboard: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Resumo da Família */}
+    <div className="space-y-6 p-6">
+      {/* Header da Família */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">{family.nome}</h1>
+          <p className="text-muted-foreground">
+            {family.description || 'Finanças partilhadas da família'}
+          </p>
+        </div>
+        <Badge variant="outline" className="text-sm">
+          {members.length} membros
+        </Badge>
+      </div>
+
+      {/* KPIs Principais */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Membros</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{familyKPIs.totalMembers}</div>
-            <p className="text-xs text-muted-foreground">
-              Membros ativos
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Convites Pendentes</CardTitle>
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{familyKPIs.pendingInvites}</div>
-            <p className="text-xs text-muted-foreground">
-              Aguardando resposta
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Contas Partilhadas</CardTitle>
+            <CardTitle className="text-sm font-medium">Saldo Total</CardTitle>
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{familyAccounts.length}</div>
+            <div className="text-2xl font-bold">
+              {formatCurrency(familyKPIs.totalBalance)}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Contas ativas
+              Contas bancárias familiares
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Objetivos Ativos</CardTitle>
+            <CardTitle className="text-sm font-medium">Dívida Cartões</CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">
+              {formatCurrency(familyKPIs.creditCardDebt)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Cartões de crédito familiares
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Poupança Mensal</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {formatCurrency(familyKPIs.monthlySavings)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Receitas do mês atual
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Progresso Objetivo</CardTitle>
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {familyGoals.filter(goal => goal.ativa).length}
+              {familyKPIs.topGoalProgress.toFixed(1)}%
             </div>
             <p className="text-xs text-muted-foreground">
-              Em progresso
+              Objetivo principal
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Ações Rápidas */}
+      {/* Seção de Contas */}
       <Card>
         <CardHeader>
-          <CardTitle>Ações Rápidas</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            Contas Familiares
+          </CardTitle>
           <CardDescription>
-            Acesse rapidamente as funcionalidades mais utilizadas
+            {familyAccounts.length} contas ativas
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 border rounded-lg hover:bg-muted cursor-pointer transition-colors">
-              <Wallet className="h-8 w-8 mx-auto mb-2 text-blue-600" />
-              <p className="text-sm font-medium">Ver Contas</p>
-            </div>
-            <div className="text-center p-4 border rounded-lg hover:bg-muted cursor-pointer transition-colors">
-              <Target className="h-8 w-8 mx-auto mb-2 text-green-600" />
-              <p className="text-sm font-medium">Objetivos</p>
-            </div>
-            <div className="text-center p-4 border rounded-lg hover:bg-muted cursor-pointer transition-colors">
-              <BarChart3 className="h-8 w-8 mx-auto mb-2 text-purple-600" />
-              <p className="text-sm font-medium">Orçamentos</p>
-            </div>
-            <div className="text-center p-4 border rounded-lg hover:bg-muted cursor-pointer transition-colors">
-              <Users className="h-8 w-8 mx-auto mb-2 text-orange-600" />
-              <p className="text-sm font-medium">Membros</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Últimas Transações */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Últimas Transações</CardTitle>
-          <CardDescription>
-            As transações mais recentes da família
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {familyTransactions.length === 0 ? (
-            <div className="text-center py-8">
-              <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhuma transação encontrada</p>
-            </div>
+          {familyAccounts.length === 0 ? (
+            <p className="text-muted-foreground text-center py-4">
+              Nenhuma conta familiar encontrada
+            </p>
           ) : (
             <div className="space-y-3">
-              {familyTransactions.slice(0, 5).map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{transaction.descricao || 'Transação'}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(transaction.data).toLocaleDateString('pt-PT')}
-                    </p>
+              {familyAccounts.slice(0, 3).map((account) => (
+                <div key={account.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${
+                      account.tipo === 'cartão de crédito' ? 'bg-red-500' : 'bg-green-500'
+                    }`} />
+                    <div>
+                      <p className="font-medium">{account.nome}</p>
+                      <p className="text-sm text-muted-foreground">{account.tipo}</p>
+                    </div>
                   </div>
-                  <div className={`font-semibold ${
-                    transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {transaction.tipo === 'receita' ? '+' : '-'} {formatCurrency(transaction.valor)}
+                  <div className="text-right">
+                    <p className="font-medium">
+                      {formatCurrency(account.saldo_atual || 0)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Disponível: {formatCurrency(account.saldo_disponivel || 0)}
+                    </p>
                   </div>
                 </div>
               ))}
+              {familyAccounts.length > 3 && (
+                <p className="text-sm text-muted-foreground text-center">
+                  +{familyAccounts.length - 3} mais contas
+                </p>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Objetivos em Destaque */}
+      {/* Seção de Objetivos */}
       <Card>
         <CardHeader>
-          <CardTitle>Objetivos em Destaque</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5" />
+            Objetivos Familiares
+          </CardTitle>
           <CardDescription>
-            Objetivos familiares com maior progresso
+            {familyGoals.length} objetivos ativos
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {familyGoals.filter(goal => goal.ativa).length === 0 ? (
-            <div className="text-center py-8">
-              <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhum objetivo ativo</p>
-            </div>
+          {familyGoals.length === 0 ? (
+            <p className="text-muted-foreground text-center py-4">
+              Nenhum objetivo familiar encontrado
+            </p>
           ) : (
             <div className="space-y-4">
-              {familyGoals
-                .filter(goal => goal.ativa)
-                .sort((a, b) => (b.valor_atual || 0) - (a.valor_atual || 0))
-                .slice(0, 3)
-                .map((goal) => {
-                  const progress = ((goal.valor_atual || 0) / (goal.valor_objetivo || 1)) * 100;
-                  return (
-                    <div key={goal.id} className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium">{goal.nome}</h4>
-                        <span className="text-sm font-semibold">{progress.toFixed(1)}%</span>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-2 mb-2">
-                        <div 
-                          className="bg-primary h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${Math.min(progress, 100)}%` }}
-                        ></div>
-                      </div>
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>{formatCurrency(goal.valor_atual || 0)}</span>
-                        <span>{formatCurrency(goal.valor_objetivo)}</span>
-                      </div>
+              {familyGoals.slice(0, 2).map((goal) => {
+                const progress = ((goal.valor_atual || 0) / (goal.valor_objetivo || 1)) * 100;
+                return (
+                  <div key={goal.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium">{goal.nome}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatCurrency(goal.valor_atual || 0)} / {formatCurrency(goal.valor_objetivo)}
+                      </p>
                     </div>
-                  );
-                })}
+                    <Progress value={progress} className="h-2" />
+                    <p className="text-xs text-muted-foreground">
+                      {progress.toFixed(1)}% concluído
+                    </p>
+                  </div>
+                );
+              })}
+              {familyGoals.length > 2 && (
+                <p className="text-sm text-muted-foreground text-center">
+                  +{familyGoals.length - 2} mais objetivos
+                </p>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Seção de Membros */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Membros Ativos
+            </CardTitle>
+            <CardDescription>
+              {members.length} membros na família
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {members.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">
+                Nenhum membro encontrado
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {members.slice(0, 4).map((member) => (
+                  <div key={member.id} className="flex items-center justify-between p-2 border rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-medium">
+                          {member.profiles?.nome?.charAt(0) || 'U'}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{member.profiles?.nome || 'Utilizador'}</p>
+                        <p className="text-xs text-muted-foreground">{member.role}</p>
+                      </div>
+                    </div>
+                    <Badge variant={member.role === 'owner' ? 'default' : 'secondary'} className="text-xs">
+                      {member.role}
+                    </Badge>
+                  </div>
+                ))}
+                {members.length > 4 && (
+                  <p className="text-sm text-muted-foreground text-center">
+                    +{members.length - 4} mais membros
+                  </p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Convites Pendentes
+            </CardTitle>
+            <CardDescription>
+              {pendingInvites.filter(invite => invite.status === 'pending').length} convites aguardando
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {pendingInvites.filter(invite => invite.status === 'pending').length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">
+                Nenhum convite pendente
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {pendingInvites
+                  .filter(invite => invite.status === 'pending')
+                  .slice(0, 3)
+                  .map((invite) => (
+                    <div key={invite.id} className="flex items-center justify-between p-2 border rounded">
+                      <div>
+                        <p className="font-medium text-sm">{invite.email}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Convite enviado em {new Date(invite.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {invite.role}
+                      </Badge>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
