@@ -154,11 +154,24 @@ const PersonalHeader: React.FC = () => {
 
   return (
     <div className="flex items-center justify-between p-6 border-b border-border bg-background">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Visão Pessoal › {getPageTitle()}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Gestão das suas finanças pessoais
-        </p>
+      <div className="flex items-center gap-4">
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate('/app')}
+          className="flex items-center gap-2"
+        >
+          <Home className="h-4 w-4" />
+          <span className="hidden sm:inline">Voltar à Home</span>
+        </Button>
+        
+        <div className="hidden sm:block w-px h-6 bg-border" />
+        
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Visão Pessoal › {getPageTitle()}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Gestão das suas finanças pessoais
+          </p>
+        </div>
       </div>
       
       {primaryAction && (
