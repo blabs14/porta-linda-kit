@@ -76,13 +76,39 @@ Nunca commits o ficheiro `.env.local`!
 - Proteção por roles (owner, admin, member, viewer) — ver matriz em `ONBOARDING_ROLES.md`.
 - Políticas RLS ativas no backend.
 
-## 🏠 Área Pessoal vs Família
+## 🏠 Área Pessoal vs Finanças Partilhadas
 - **Área Pessoal** (`/personal`) — Gestão financeira individual onde `family_id IS NULL`
-- **Área Família** (`/app/family`) — Dados partilhados entre membros onde `family_id IS NOT NULL`
+- **Finanças Partilhadas** (`/family`) — Dados partilhados entre membros onde `family_id IS NOT NULL`
 - Separação clara entre finanças pessoais e familiares
 - Navegação adaptativa (tabs em mobile, sidebar em desktop)
+- Contextos de dados separados com providers dedicados
 
 ---
+
+## 🧭 Estrutura de Navegação
+
+### Área Pessoal (`/personal`)
+- **Dashboard** — Visão geral das finanças pessoais
+- **Contas** — Gestão de contas bancárias e cartões de crédito pessoais
+- **Objetivos** — Metas financeiras individuais
+- **Orçamentos** — Orçamentos mensais pessoais
+- **Transações** — Histórico de transações pessoais
+- **Insights** — Análises e relatórios pessoais
+- **Configurações** — Preferências pessoais
+
+### Finanças Partilhadas (`/family`)
+- **Dashboard** — Visão geral das finanças familiares
+- **Objetivos** — Metas financeiras familiares partilhadas
+- **Orçamentos** — Orçamentos mensais familiares
+- **Contas** — Contas bancárias e cartões partilhados
+- **Transações** — Histórico de transações familiares
+- **Membros** — Gestão de membros da família
+- **Configurações** — Configurações da família
+
+### Navegação Adaptativa
+- **Mobile (< 768px)**: TabBar fixo na parte inferior com ícones e labels
+- **Desktop (≥ 768px)**: Sidebar lateral com navegação completa
+- **Estado preservado**: Scroll e tab ativo mantidos ao navegar
 
 ## 📋 Scripts úteis
 - `npm run dev` — Iniciar ambiente de desenvolvimento
