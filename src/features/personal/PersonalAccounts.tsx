@@ -135,7 +135,7 @@ const PersonalAccounts: React.FC = () => {
   const creditCards = myCards.filter(account => account.tipo === 'cartão de crédito');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold">Contas Pessoais</h2>
