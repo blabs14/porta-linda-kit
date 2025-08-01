@@ -7,6 +7,8 @@ import { useFamilyData, useCreateFamily, useFamilyStatistics } from '../hooks/us
 import { FamilyInviteModal } from '../components/family/FamilyInviteModal';
 import { FamilyMembersList } from '../components/family/FamilyMembersList';
 import { PendingInvitesList } from '../components/family/PendingInvitesList';
+import { FamilyStatisticsCard } from '../components/family/FamilyStatisticsCard';
+import { FamilyQuickActions } from '../components/family/FamilyQuickActions';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/use-toast';
 import { 
@@ -44,6 +46,8 @@ export default function Family() {
   
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showCreateFamilyModal, setShowCreateFamilyModal] = useState(false);
+  const [showStatisticsModal, setShowStatisticsModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [familyName, setFamilyName] = useState('');
   const [familyDescription, setFamilyDescription] = useState('');
 
@@ -298,6 +302,19 @@ export default function Family() {
         </Card>
       </div>
 
+      {/* Ações Rápidas */}
+      <FamilyQuickActions
+        familyId={familyId}
+        familyName={family.nome}
+        userRole={userRole}
+        onInviteMember={() => setShowInviteModal(true)}
+        onViewStatistics={() => setShowStatisticsModal(true)}
+        onManageSettings={() => setShowSettingsModal(true)}
+        memberCount={typedFamilyData?.member_count || 0}
+        pendingInvitesCount={typedFamilyData?.pending_invites_count || 0}
+        sharedGoalsCount={typedFamilyData?.shared_goals_count || 0}
+      />
+
       {/* Tabs para diferentes secções */}
       <Tabs defaultValue="members" className="space-y-4">
         <TabsList>
@@ -308,6 +325,10 @@ export default function Family() {
           <TabsTrigger value="invites" className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
             Convites
+          </TabsTrigger>
+          <TabsTrigger value="statistics" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Estatísticas
           </TabsTrigger>
           {userRole === 'admin' && (
             <TabsTrigger value="settings" className="flex items-center gap-2">
@@ -329,6 +350,10 @@ export default function Family() {
             familyId={familyId} 
             userRole={userRole} 
           />
+        </TabsContent>
+
+        <TabsContent value="statistics" className="space-y-4">
+          <FamilyStatisticsCard familyId={familyId} />
         </TabsContent>
 
         {userRole === 'admin' && (
@@ -394,6 +419,142 @@ export default function Family() {
           familyId={familyId}
           familyName={family.nome}
         />
+      )}
+
+      {/* Modal de Estatísticas */}
+      {showStatisticsModal && familyId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Estatísticas da Família
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowStatisticsModal(false)}
+              >
+                ✕
+              </Button>
+            </div>
+            <FamilyStatisticsCard familyId={familyId} />
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Configurações */}
+      {showSettingsModal && familyId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Configurações da Família
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSettingsModal(false)}
+              >
+                ✕
+              </Button>
+            </div>
+            
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Informações Básicas</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Nome da Família
+                    </label>
+                    <input
+                      type="text"
+                      defaultValue={family.nome}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      disabled
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Descrição
+                    </label>
+                    <textarea
+                      defaultValue={family.descricao || ''}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      rows={3}
+                      disabled
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Criada em
+                    </label>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(family.created_at).toLocaleDateString('pt-PT')}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Permissões e Segurança</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <div>
+                      <p className="font-medium">Seu Role</p>
+                      <p className="text-sm text-muted-foreground">
+                        {userRole === 'owner' ? 'Proprietário - Controlo total' :
+                         userRole === 'admin' ? 'Administrador - Pode gerir membros' :
+                         userRole === 'member' ? 'Membro - Pode ver e adicionar dados' :
+                         'Visualizador - Apenas pode ver'}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className={
+                      userRole === 'owner' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                      userRole === 'admin' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                      'bg-green-100 text-green-800 border-green-200'
+                    }>
+                      {userRole === 'owner' ? 'Proprietário' :
+                       userRole === 'admin' ? 'Administrador' :
+                       userRole === 'member' ? 'Membro' : 'Visualizador'}
+                    </Badge>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <div>
+                      <p className="font-medium">Membros Ativos</p>
+                      <p className="text-sm text-muted-foreground">
+                        {typedFamilyData?.member_count || 0} membros na família
+                      </p>
+                    </div>
+                    <Users className="h-5 w-5 text-green-600" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSettingsModal(false)}
+                >
+                  Fechar
+                </Button>
+                <Button disabled>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Editar Configurações
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

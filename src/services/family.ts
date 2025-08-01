@@ -11,7 +11,7 @@ export const createFamily = async (familyName: string, description?: string) => 
 
   const { data, error } = await supabase.rpc('create_family_with_member', {
     p_family_name: familyName,
-    p_user_id: user.id
+    p_description: description || null
   });
 
   if (error) throw error;
@@ -19,14 +19,22 @@ export const createFamily = async (familyName: string, description?: string) => 
 };
 
 export const getFamilyData = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Utilizador não autenticado');
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  
+  if (authError) {
+    throw authError;
+  }
+  
+  if (!user) {
+    throw new Error('Utilizador não autenticado');
+  }
 
-  const { data, error } = await supabase.rpc('get_user_family_data', {
-    p_user_id: user.id
-  });
+  const { data, error } = await supabase.rpc('get_user_family_data');
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
+  
   return data;
 };
 
