@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
@@ -60,8 +60,66 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   const { data: familyData, isLoading: familyLoading } = useQuery({
     queryKey: ['family', 'current', user?.id],
     queryFn: async () => {
-      const data = await getFamilyData();
-      return data;
+      console.log('[FamilyProvider] Getting family data for user:', user?.id);
+      
+      if (!user?.id) {
+        console.log('[FamilyProvider] No user ID, returning null');
+        return null;
+      }
+
+      try {
+        // Tentar primeiro a função RPC
+        const data = await getFamilyData();
+        console.log('[FamilyProvider] Family data received from RPC:', data);
+        
+        if (data) {
+          return data;
+        }
+      } catch (error) {
+        console.log('[FamilyProvider] RPC failed, trying direct query:', error);
+      }
+
+      // Fallback: buscar diretamente da tabela family_members
+      try {
+        const { data: memberData, error } = await supabase
+          .from('family_members')
+          .select(`
+            *,
+            families:family_id (
+              id,
+              nome,
+              description,
+              created_by,
+              created_at,
+              updated_at,
+              settings
+            )
+          `)
+          .eq('user_id', user.id)
+          .single();
+
+        if (error) {
+          console.log('[FamilyProvider] Direct query error:', error);
+          return null;
+        }
+
+        if (memberData) {
+          const result = {
+            family: memberData.families,
+            user_role: memberData.role,
+            member_count: 0, // Será calculado separadamente
+            pending_invites_count: 0, // Será calculado separadamente
+            shared_goals_count: 0 // Será calculado separadamente
+          };
+          
+          console.log('[FamilyProvider] Family data from direct query:', result);
+          return result;
+        }
+      } catch (error) {
+        console.log('[FamilyProvider] Direct query exception:', error);
+      }
+
+      return null;
     },
     enabled: !!user?.id,
     refetchOnWindowFocus: true,
@@ -72,7 +130,18 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   });
 
   const family = (familyData as any)?.family as Family | null;
-  const myRole = (familyData as any)?.myRole as 'owner' | 'admin' | 'member' | 'viewer' | null;
+  const myRole = (familyData as any)?.user_role as 'owner' | 'admin' | 'member' | 'viewer' | null;
+
+  // Debug log para verificar a estrutura completa
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && familyData) {
+      console.log('[FamilyProvider] Full familyData structure:', familyData);
+      console.log('[FamilyProvider] family:', family);
+      console.log('[FamilyProvider] myRole:', myRole);
+      console.log('[FamilyProvider] familyData.family:', (familyData as any)?.family);
+      console.log('[FamilyProvider] familyData.user_role:', (familyData as any)?.user_role);
+    }
+  }, [familyData, family, myRole]);
 
   // Query para membros da família
   const { data: members = [], isLoading: membersLoading } = useQuery({
@@ -106,15 +175,21 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     gcTime: 5 * 60 * 1000,
   });
 
-  // Query para contas familiares - usar a mesma abordagem que funciona na área pessoal
+  // Query para contas familiares - usar a função RPC específica para contas familiares
   const { data: allAccounts = [], isLoading: accountsLoading } = useQuery({
-    queryKey: ['family', 'accounts', user?.id],
+    queryKey: ['family', 'accounts', user?.id, family?.id],
     queryFn: async () => {
-      const { data, error } = await getAccountsWithBalances(user?.id);
+      if (!user?.id || !family?.id) return [];
+      
+      // Usar a função RPC específica para contas familiares
+      const { data, error } = await supabase.rpc('get_family_accounts_with_balances', {
+        p_user_id: user.id
+      });
+      
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!family?.id,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
@@ -122,20 +197,26 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     gcTime: 5 * 60 * 1000,
   });
 
-  // Filtrar contas familiares (family_id IS NOT NULL)
-  const familyAccounts = (allAccounts as any[]).filter(account => account.family_id !== null);
+  // Filtrar contas familiares
+  const familyAccounts = (allAccounts as any[]);
   const familyCards = familyAccounts.filter(account => account.tipo === 'cartão de crédito');
   const regularFamilyAccounts = familyAccounts.filter(account => account.tipo !== 'cartão de crédito');
 
-  // Query para objetivos familiares
+  // Query para objetivos familiares - usar a função RPC específica para objetivos familiares
   const { data: allGoals = [], isLoading: goalsLoading } = useQuery({
-    queryKey: ['family', 'goals', user?.id],
+    queryKey: ['family', 'goals', user?.id, family?.id],
     queryFn: async () => {
-      const { data, error } = await getGoals(user?.id || '');
+      if (!user?.id || !family?.id) return [];
+      
+      // Usar a função RPC específica para objetivos familiares
+      const { data, error } = await supabase.rpc('get_family_goals', {
+        p_user_id: user.id
+      });
+      
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!family?.id,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
@@ -143,18 +224,29 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     gcTime: 5 * 60 * 1000,
   });
 
-  // Filtrar objetivos familiares (family_id IS NOT NULL)
-  const familyGoals = (allGoals as any[]).filter(goal => goal.family_id !== null);
+  // Filtrar objetivos familiares
+  const familyGoals = (allGoals as any[]).map(goal => ({
+    ...goal,
+    progresso_percentual: goal.valor_atual && goal.valor_objetivo ? 
+      Math.min((goal.valor_atual / goal.valor_objetivo) * 100, 100) : 0,
+    total_alocado: goal.valor_atual || 0
+  }));
 
-  // Query para orçamentos familiares
+  // Query para orçamentos familiares - usar a função RPC específica para orçamentos familiares
   const { data: allBudgets = [], isLoading: budgetsLoading } = useQuery({
-    queryKey: ['family', 'budgets', user?.id],
+    queryKey: ['family', 'budgets', user?.id, family?.id],
     queryFn: async () => {
-      const { data, error } = await getBudgets();
+      if (!user?.id || !family?.id) return [];
+      
+      // Usar a função RPC específica para orçamentos familiares
+      const { data, error } = await supabase.rpc('get_family_budgets', {
+        p_user_id: user.id
+      });
+      
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!family?.id,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
@@ -162,18 +254,24 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     gcTime: 5 * 60 * 1000,
   });
 
-  // Filtrar orçamentos familiares (family_id IS NOT NULL)
-  const familyBudgets = (allBudgets as any[]).filter(budget => budget.family_id !== null);
+  // Filtrar orçamentos familiares
+  const familyBudgets = (allBudgets as any[]);
 
-  // Query para transações familiares
+  // Query para transações familiares - usar a função RPC específica para transações familiares
   const { data: allTransactions = [], isLoading: transactionsLoading } = useQuery({
-    queryKey: ['family', 'transactions', user?.id],
+    queryKey: ['family', 'transactions', user?.id, family?.id],
     queryFn: async () => {
-      const { data, error } = await getTransactions();
+      if (!user?.id || !family?.id) return [];
+      
+      // Usar a função RPC específica para transações familiares
+      const { data, error } = await supabase.rpc('get_family_transactions', {
+        p_user_id: user.id
+      });
+      
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!family?.id,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
@@ -181,14 +279,54 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     gcTime: 5 * 60 * 1000,
   });
 
-  // Filtrar transações familiares (family_id IS NOT NULL)
-  const familyTransactions = (allTransactions as any[]).filter(transaction => transaction.family_id !== null);
+  // Filtrar transações familiares
+  const familyTransactions = (allTransactions as any[]);
+
+  // Debug logs
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('FamilyProvider Debug:', {
+        user: user?.id,
+        userEmail: user?.email,
+        allGoals: allGoals?.length || 0,
+        familyGoals: familyGoals?.length || 0,
+        allBudgets: allBudgets?.length || 0,
+        familyBudgets: familyBudgets?.length || 0,
+        allTransactions: allTransactions?.length || 0,
+        familyTransactions: familyTransactions?.length || 0,
+        allAccounts: allAccounts?.length || 0,
+        familyAccounts: familyAccounts?.length || 0,
+        family: family?.id,
+        myRole,
+        goalsLoading,
+        budgetsLoading,
+        transactionsLoading,
+        accountsLoading
+      });
+    }
+  }, [
+    user, 
+    allGoals, 
+    familyGoals, 
+    allBudgets, 
+    familyBudgets, 
+    allTransactions, 
+    familyTransactions, 
+    allAccounts, 
+    familyAccounts, 
+    family, 
+    myRole,
+    goalsLoading,
+    budgetsLoading,
+    transactionsLoading,
+    accountsLoading
+  ]);
 
   // Calcular KPIs familiares
   const familyKPIs: FamilyKPIs = React.useMemo(() => {
-    const totalBalance = familyAccounts.reduce((sum, account) => sum + (account.saldo || 0), 0);
+    const totalBalance = familyAccounts.reduce((sum, account) => sum + (account.saldo_atual || 0), 0);
     const creditCardDebt = familyCards.reduce((sum, card) => {
-      const balance = card.saldo || 0;
+      const balance = card.saldo_atual || 0;
       return balance < 0 ? sum + Math.abs(balance) : sum;
     }, 0);
     
@@ -297,7 +435,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       operation: 'create',
       entityName: 'Conta Familiar',
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['family', 'accounts', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'accounts', user?.id, family?.id] });
         queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
       }
     }
@@ -309,7 +447,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       operation: 'update',
       entityName: 'Conta Familiar',
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['family', 'accounts', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'accounts', user?.id, family?.id] });
         queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
       }
     }
@@ -321,7 +459,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       operation: 'delete',
       entityName: 'Conta Familiar',
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['family', 'accounts', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'accounts', user?.id, family?.id] });
         queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
       }
     }
@@ -333,7 +471,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       operation: 'create',
       entityName: 'Objetivo Familiar',
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['family', 'goals', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'goals', user?.id, family?.id] });
         queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
       }
     }
@@ -345,7 +483,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       operation: 'update',
       entityName: 'Objetivo Familiar',
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['family', 'goals', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'goals', user?.id, family?.id] });
         queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
       }
     }
@@ -357,7 +495,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       operation: 'delete',
       entityName: 'Objetivo Familiar',
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['family', 'goals', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'goals', user?.id, family?.id] });
         queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
       }
     }
@@ -369,7 +507,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       operation: 'create',
       entityName: 'Orçamento Familiar',
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['family', 'budgets', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'budgets', user?.id, family?.id] });
       }
     }
   );
@@ -380,7 +518,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       operation: 'update',
       entityName: 'Orçamento Familiar',
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['family', 'budgets', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'budgets', user?.id, family?.id] });
       }
     }
   );
@@ -391,7 +529,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       operation: 'delete',
       entityName: 'Orçamento Familiar',
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['family', 'budgets', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'budgets', user?.id, family?.id] });
       }
     }
   );
@@ -402,7 +540,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       operation: 'create',
       entityName: 'Transação Familiar',
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['family', 'transactions', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'transactions', user?.id, family?.id] });
         queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
       }
     }
@@ -414,7 +552,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       operation: 'update',
       entityName: 'Transação Familiar',
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['family', 'transactions', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'transactions', user?.id, family?.id] });
         queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
       }
     }
@@ -426,7 +564,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       operation: 'delete',
       entityName: 'Transação Familiar',
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['family', 'transactions', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'transactions', user?.id, family?.id] });
         queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
       }
     }
@@ -449,16 +587,29 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   const allocateToGoal = async (goalId: string, amount: number, accountId: string) => {
     if (!user?.id) throw new Error('Utilizador não autenticado');
     
-    const { data, error } = await supabase.rpc('allocate_to_goal_with_transaction', {
-      goal_id_param: goalId,
-      account_id_param: accountId,
-      amount_param: amount,
-      user_id_param: user.id,
-      description_param: 'Alocação para objetivo familiar'
-    });
-    
-    if (error) throw error;
-    return data;
+    try {
+      const { data, error } = await supabase.rpc('allocate_to_goal_with_transaction', {
+        goal_id_param: goalId,
+        account_id_param: accountId,
+        amount_param: amount,
+        user_id_param: user.id,
+        description_param: 'Alocação para objetivo familiar'
+      });
+      
+      if (error) throw error;
+      
+      // Invalidar queries relacionadas para atualizar os dados
+      queryClient.invalidateQueries({ queryKey: ['family', 'goals', user.id, family?.id] });
+      queryClient.invalidateQueries({ queryKey: ['family', 'accounts', user.id, family?.id] });
+      queryClient.invalidateQueries({ queryKey: ['family', 'transactions', user.id, family?.id] });
+      queryClient.invalidateQueries({ queryKey: ['family', 'current', user.id] });
+      
+      console.log('[FamilyProvider] Goal allocation successful:', data);
+      return data;
+    } catch (error: any) {
+      console.error('[FamilyProvider] Error allocating to goal:', error);
+      throw error;
+    }
   };
 
   // Funções de permissão
@@ -478,7 +629,13 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
 
   // Função para refazer todas as queries
   const refetchAll = () => {
-    queryClient.invalidateQueries({ queryKey: ['family'] });
+    queryClient.invalidateQueries({ queryKey: ['family', 'accounts', user?.id, family?.id] });
+    queryClient.invalidateQueries({ queryKey: ['family', 'goals', user?.id, family?.id] });
+    queryClient.invalidateQueries({ queryKey: ['family', 'transactions', user?.id, family?.id] });
+    queryClient.invalidateQueries({ queryKey: ['family', 'budgets', user?.id, family?.id] });
+    queryClient.invalidateQueries({ queryKey: ['family', 'members', family?.id] });
+    queryClient.invalidateQueries({ queryKey: ['family', 'invites', family?.id] });
+    queryClient.invalidateQueries({ queryKey: ['family', 'current', user?.id] });
   };
 
   const contextValue: FamilyContextType = {

@@ -1,61 +1,74 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
+import { useFamily } from './FamilyProvider';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { 
-  Plus, 
-  Download, 
   TrendingUp, 
-  TrendingDown, 
+  Plus, 
+  Edit, 
+  Trash2, 
+  TrendingDown,
+  Download,
   Wallet,
   Calendar,
   Search,
   Filter,
-  X
+  ChevronDown
 } from 'lucide-react';
-import { useFamily } from './FamilyProvider';
+import { LoadingSpinner } from '../../components/ui/loading-states';
+import { useTransactions } from '../../hooks/useTransactionsQuery';
 import { useAccounts } from '../../hooks/useAccountsQuery';
 import { useCategories } from '../../hooks/useCategoriesQuery';
+import { useReferenceData } from '../../hooks/useCache';
 import { useAuth } from '../../contexts/AuthContext';
 import { exportReport } from '../../services/exportService';
 import { formatCurrency } from '../../lib/utils';
 import { useToast } from '../../hooks/use-toast';
-import { Input } from '../../components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Badge } from '../../components/ui/badge';
+import TransactionForm from '../../components/TransactionForm';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
-import TransactionForm from '../../components/TransactionForm';
 
 const FamilyTransactions: React.FC = () => {
-  const { 
-    familyTransactions, 
-    createFamilyTransaction, 
-    updateFamilyTransaction, 
-    deleteFamilyTransaction,
-    isLoading,
-    canEdit,
-    canDelete
-  } = useFamily();
-  
   const [modalOpen, setModalOpen] = useState(false);
   const [editTx, setEditTx] = useState<any | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
-
-  // Estado para filtros
+  
+  // Estados para filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAccount, setSelectedAccount] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
-  const { data: accounts = [] } = useAccounts();
+  // Usar o contexto familiar em vez do pessoal
+  const { 
+    familyTransactions, 
+    familyAccounts,
+    isLoading, 
+    canEdit, 
+    canDelete, 
+    createFamilyTransaction, 
+    updateFamilyTransaction, 
+    deleteFamilyTransaction, 
+    refetchAll 
+  } = useFamily();
+  
   const { data: categories = [] } = useCategories();
+  const { accounts: refAccounts, categories: refCategories } = useReferenceData();
   const { user } = useAuth();
   const { toast } = useToast();
   const confirmation = useConfirmation();
+
+  const accountsData = Array.isArray(refAccounts.data) ? refAccounts.data : [];
+  const categoriesData = Array.isArray(refCategories.data) ? refCategories.data : [];
 
   // Forçar atualização quando o modal fecha
   useEffect(() => {
@@ -77,6 +90,81 @@ const FamilyTransactions: React.FC = () => {
   const handleClose = () => {
     setModalOpen(false);
     setEditTx(null);
+  };
+
+  const handleCreateSuccess = async (data: any) => {
+    try {
+      await createFamilyTransaction(data);
+      handleClose();
+      refetchAll();
+      toast({
+        title: 'Transação criada',
+        description: 'Transação familiar criada com sucesso!',
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Erro ao criar transação familiar',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleEditSuccess = async (data: any) => {
+    try {
+      if (editTx) {
+        await updateFamilyTransaction(editTx.id, data);
+        handleClose();
+        refetchAll();
+        toast({
+          title: 'Transação atualizada',
+          description: 'Transação familiar atualizada com sucesso!',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Erro ao atualizar transação familiar',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDelete = async (transactionId: string) => {
+    confirmation.confirm(
+      {
+        title: 'Eliminar Transação Familiar',
+        message: 'Tem a certeza que deseja eliminar esta transação familiar? Esta ação não pode ser desfeita.',
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+        variant: 'destructive',
+      },
+      async () => {
+        try {
+          await deleteFamilyTransaction(transactionId);
+          refetchAll();
+          toast({
+            title: 'Transação eliminada',
+            description: 'Transação familiar eliminada com sucesso!',
+          });
+        } catch (error) {
+          toast({
+            title: 'Erro',
+            description: 'Erro ao eliminar transação familiar',
+            variant: 'destructive',
+          });
+        }
+      }
+    );
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedAccount('all');
+    setSelectedCategory('all');
+    setSelectedType('all');
+    setDateFilter('all');
+    setDateRange({ start: '', end: '' });
   };
 
   const handleExport = async () => {
@@ -118,7 +206,7 @@ const FamilyTransactions: React.FC = () => {
       console.error('Erro na exportação:', error);
       toast({
         title: 'Erro na exportação',
-        description: error.message || 'Ocorreu um erro ao exportar o relatório',
+        description: error.message || 'Ocorreu um erro ao exportar o relatório familiar',
         variant: 'destructive',
       });
     } finally {
@@ -126,8 +214,30 @@ const FamilyTransactions: React.FC = () => {
     }
   };
 
+  // Estado para métricas filtradas
+  const [filteredMetrics, setFilteredMetrics] = useState({
+    totalIncome: 0,
+    totalExpenses: 0,
+    netBalance: 0,
+    transactionCount: 0
+  });
+
+  // Calcular métricas totais (sem filtros)
+  const totalIncome = familyTransactions
+    ?.filter(t => t.tipo === 'receita')
+    .reduce((sum, t) => sum + t.valor, 0) || 0;
+
+  const totalExpenses = familyTransactions
+    ?.filter(t => t.tipo === 'despesa')
+    .reduce((sum, t) => sum + t.valor, 0) || 0;
+
+  const netBalance = totalIncome - totalExpenses;
+  const transactionCount = familyTransactions?.length || 0;
+
   // Filtrar transações
   const filteredTransactions = React.useMemo(() => {
+    if (!familyTransactions) return [];
+    
     return familyTransactions.filter(transaction => {
       const matchesSearch = !searchTerm || 
         (transaction.descricao && transaction.descricao.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -170,14 +280,34 @@ const FamilyTransactions: React.FC = () => {
           const endOfYear = new Date(today.getFullYear(), 11, 31, 23, 59, 59, 999);
           
           switch (dateFilter) {
-            case 'week':
+            case 'today':
+              const startOfDay = new Date(today);
+              startOfDay.setHours(0, 0, 0, 0);
+              const endOfDay = new Date(today);
+              endOfDay.setHours(23, 59, 59, 999);
+              matchesDate = transactionDate >= startOfDay && transactionDate <= endOfDay;
+              break;
+            case 'this-week':
               matchesDate = transactionDate >= startOfWeek && transactionDate <= endOfWeek;
               break;
-            case 'month':
+            case 'this-month':
               matchesDate = transactionDate >= startOfMonth && transactionDate <= endOfMonth;
               break;
-            case 'year':
+            case 'this-year':
               matchesDate = transactionDate >= startOfYear && transactionDate <= endOfYear;
+              break;
+            case 'last-week':
+              const lastWeekStart = new Date(startOfWeek);
+              lastWeekStart.setDate(startOfWeek.getDate() - 7);
+              const lastWeekEnd = new Date(startOfWeek);
+              lastWeekEnd.setDate(startOfWeek.getDate() - 1);
+              lastWeekEnd.setHours(23, 59, 59, 999);
+              matchesDate = transactionDate >= lastWeekStart && transactionDate <= lastWeekEnd;
+              break;
+            case 'last-month':
+              const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+              const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+              matchesDate = transactionDate >= lastMonthStart && transactionDate <= lastMonthEnd;
               break;
           }
         }
@@ -187,103 +317,59 @@ const FamilyTransactions: React.FC = () => {
     });
   }, [familyTransactions, searchTerm, selectedAccount, selectedCategory, selectedType, dateFilter, dateRange]);
 
-  // Calcular métricas filtradas
-  const filteredMetrics = React.useMemo(() => {
-    const totalIncome = filteredTransactions
+  // Calcular e enviar métricas filtradas
+  React.useEffect(() => {
+    const filteredIncome = filteredTransactions
       .filter(t => t.tipo === 'receita')
       .reduce((sum, t) => sum + t.valor, 0);
 
-    const totalExpenses = filteredTransactions
+    const filteredExpenses = filteredTransactions
       .filter(t => t.tipo === 'despesa')
       .reduce((sum, t) => sum + t.valor, 0);
 
-    const netBalance = totalIncome - totalExpenses;
-    const transactionCount = filteredTransactions.length;
+    const filteredNetBalance = filteredIncome - filteredExpenses;
+    const filteredCount = filteredTransactions.length;
 
-    return {
-      totalIncome,
-      totalExpenses,
-      netBalance,
-      transactionCount
-    };
+    setFilteredMetrics({
+      totalIncome: filteredIncome,
+      totalExpenses: filteredExpenses,
+      netBalance: filteredNetBalance,
+      transactionCount: filteredCount
+    });
   }, [filteredTransactions]);
 
-  // Calcular métricas totais (sem filtros)
-  const totalIncome = familyTransactions
-    .filter(t => t.tipo === 'receita')
-    .reduce((sum, t) => sum + t.valor, 0);
-
-  const totalExpenses = familyTransactions
-    .filter(t => t.tipo === 'despesa')
-    .reduce((sum, t) => sum + t.valor, 0);
-
-  const netBalance = totalIncome - totalExpenses;
-  const transactionCount = familyTransactions.length;
-
-  const clearFilters = () => {
-    setSearchTerm('');
-    setSelectedAccount('all');
-    setSelectedCategory('all');
-    setSelectedType('all');
-    setDateFilter('all');
-    setDateRange({ start: '', end: '' });
+  const getDateFilterText = () => {
+    switch (dateFilter) {
+      case 'today': return 'Hoje';
+      case 'this-week': return 'Esta semana';
+      case 'this-month': return 'Este mês';
+      case 'this-year': return 'Este ano';
+      case 'last-week': return 'Última semana';
+      case 'last-month': return 'Último mês';
+      case 'custom': return 'Personalizado';
+      default: return 'Todas as datas';
+    }
   };
 
-  const hasActiveFilters = searchTerm || selectedAccount !== 'all' || selectedCategory !== 'all' || 
-    selectedType !== 'all' || dateFilter !== 'all' || dateRange.start || dateRange.end;
-
-  const getCategoryName = (categoriaId: string) => {
-    const category = categories.find(cat => cat.id === categoriaId);
-    return category?.nome || 'Categoria desconhecida';
-  };
-
-  const getAccountName = (accountId: string) => {
-    const account = (accounts as any[]).find(acc => acc.account_id === accountId);
-    return account?.nome || 'Conta desconhecida';
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-PT');
-  };
-
-  const handleDelete = async (transactionId: string) => {
-    const transaction = familyTransactions.find(t => t.id === transactionId);
-    
-    confirmation.confirm(
-      {
-        title: 'Eliminar Transação Familiar',
-        message: `Tem a certeza que deseja eliminar a transação "${transaction?.descricao}"?`,
-        confirmText: 'Eliminar',
-        cancelText: 'Cancelar',
-        variant: 'destructive',
-      },
-      async () => {
-        try {
-          await deleteFamilyTransaction(transactionId);
-          toast({
-            title: 'Transação eliminada',
-            description: 'A transação familiar foi eliminada com sucesso.',
-          });
-        } catch (error: any) {
-          toast({
-            title: 'Erro ao eliminar transação',
-            description: error.message || 'Ocorreu um erro ao eliminar a transação.',
-            variant: 'destructive',
-          });
-        }
+  // Fechar date picker quando clicar fora
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (showDatePicker && !target.closest('.date-picker-container')) {
+        setShowDatePicker(false);
       }
-    );
-  };
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDatePicker]);
 
   if (isLoading.transactions) {
     return (
-      <div className="space-y-6 p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">A carregar transações familiares...</p>
-          </div>
-        </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
@@ -293,9 +379,12 @@ const FamilyTransactions: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Transações Familiares</h1>
-          <p className="text-muted-foreground">
-            Gerencie as transações partilhadas da família
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Transações Familiares
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Histórico das transações partilhadas pela família
           </p>
         </div>
         <div className="flex gap-2">
@@ -385,20 +474,30 @@ const FamilyTransactions: React.FC = () => {
       {/* Filtros */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filtros
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Filtros
+            </CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={clearFilters}
+              disabled={!searchTerm && selectedAccount === 'all' && selectedCategory === 'all' && selectedType === 'all' && dateFilter === 'all'}
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Limpar Filtros
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
             {/* Pesquisa */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Pesquisar</label>
+            <div className="lg:col-span-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Descrição..."
+                  placeholder="Pesquisar transações familiares..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -406,34 +505,32 @@ const FamilyTransactions: React.FC = () => {
               </div>
             </div>
 
-            {/* Conta */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Conta</label>
+            {/* Filtro por Conta */}
+            <div>
               <Select value={selectedAccount} onValueChange={setSelectedAccount}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Todas as contas" />
+                  <SelectValue placeholder="Conta" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as contas</SelectItem>
-                                     {(accounts as any[]).map((account) => (
-                     <SelectItem key={account.account_id} value={account.account_id}>
-                       {account.nome}
-                     </SelectItem>
-                   ))}
+                  {familyAccounts?.map((account) => (
+                    <SelectItem key={account.account_id} value={account.account_id}>
+                      {account.nome}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Categoria */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Categoria</label>
+            {/* Filtro por Categoria */}
+            <div>
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Todas as categorias" />
+                  <SelectValue placeholder="Categoria" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as categorias</SelectItem>
-                  {categories.map((category) => (
+                  {categoriesData.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.nome}
                     </SelectItem>
@@ -442,69 +539,75 @@ const FamilyTransactions: React.FC = () => {
               </Select>
             </div>
 
-            {/* Tipo */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Tipo</label>
+            {/* Filtro por Tipo */}
+            <div>
               <Select value={selectedType} onValueChange={setSelectedType}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Todos os tipos" />
+                  <SelectValue placeholder="Tipo" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os tipos</SelectItem>
-                  <SelectItem value="receita">Receita</SelectItem>
-                  <SelectItem value="despesa">Despesa</SelectItem>
+                  <SelectItem value="receita">Receitas</SelectItem>
+                  <SelectItem value="despesa">Despesas</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          {/* Filtros de data */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Período</label>
+            {/* Filtro por Data */}
+            <div className="relative date-picker-container">
               <Select value={dateFilter} onValueChange={setDateFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Todos os períodos" />
+                  <SelectValue placeholder="Data" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os períodos</SelectItem>
-                  <SelectItem value="week">Esta semana</SelectItem>
-                  <SelectItem value="month">Este mês</SelectItem>
-                  <SelectItem value="year">Este ano</SelectItem>
+                  <SelectItem value="all">Todas as datas</SelectItem>
+                  <SelectItem value="today">Hoje</SelectItem>
+                  <SelectItem value="this-week">Esta semana</SelectItem>
+                  <SelectItem value="this-month">Este mês</SelectItem>
+                  <SelectItem value="this-year">Este ano</SelectItem>
+                  <SelectItem value="last-week">Última semana</SelectItem>
+                  <SelectItem value="last-month">Último mês</SelectItem>
                   <SelectItem value="custom">Personalizado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
-            {dateFilter === 'custom' && (
-              <>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Data inicial</label>
-                  <Input
-                    type="date"
-                    value={dateRange.start}
-                    onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Data final</label>
-                  <Input
-                    type="date"
-                    value={dateRange.end}
-                    onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                  />
-                </div>
-              </>
-            )}
           </div>
 
-          {/* Botão limpar filtros */}
-          {hasActiveFilters && (
-            <div className="flex justify-end">
-              <Button variant="outline" size="sm" onClick={clearFilters}>
-                <X className="h-4 w-4 mr-2" />
-                Limpar Filtros
-              </Button>
+          {/* Filtro de data personalizado */}
+          {dateFilter === 'custom' && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="start-date">Data inicial</Label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="end-date">Data final</Label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Resumo dos filtros ativos */}
+          {(searchTerm || selectedAccount !== 'all' || selectedCategory !== 'all' || selectedType !== 'all' || dateFilter !== 'all') && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Filtros ativos:</strong> 
+                {searchTerm && ` Pesquisa: "${searchTerm}"`}
+                {selectedAccount !== 'all' && ` Conta: ${familyAccounts?.find(a => a.account_id === selectedAccount)?.nome}`}
+                {selectedCategory !== 'all' && ` Categoria: ${categories.find(c => c.id === selectedCategory)?.nome}`}
+                {selectedType !== 'all' && ` Tipo: ${selectedType === 'receita' ? 'Receitas' : 'Despesas'}`}
+                {dateFilter !== 'all' && ` Data: ${getDateFilterText()}`}
+              </p>
             </div>
           )}
         </CardContent>
@@ -513,72 +616,100 @@ const FamilyTransactions: React.FC = () => {
       {/* Lista de Transações */}
       <Card>
         <CardHeader>
-          <CardTitle>Transações ({filteredTransactions.length})</CardTitle>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Transações Familiares
+              </CardTitle>
+              <CardDescription>
+                Histórico das transações partilhadas pela família
+                {filteredTransactions.length !== (familyTransactions?.length || 0) && (
+                  <span className="ml-2 text-blue-600">
+                    ({filteredTransactions.length} de {familyTransactions?.length || 0})
+                  </span>
+                )}
+              </CardDescription>
+            </div>
+            {canEdit('transaction') && (
+              <Button onClick={handleNew}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Transação
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {filteredTransactions.length === 0 ? (
-            <div className="text-center py-12">
-              <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">Nenhuma transação encontrada</h3>
-              <p className="text-muted-foreground mb-4">
-                {hasActiveFilters 
-                  ? 'Tente ajustar os filtros para ver mais resultados'
-                  : 'Comece a adicionar transações familiares'
+            <div className="text-center py-8">
+              <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">
+                {(familyTransactions?.length || 0) === 0 
+                  ? 'Nenhuma transação familiar encontrada' 
+                  : 'Nenhuma transação encontrada com os filtros aplicados'
                 }
               </p>
-              {!hasActiveFilters && canEdit('transaction') && (
-                <Button onClick={handleNew}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nova Transação
-                </Button>
-              )}
+              <Button variant="outline" className="mt-4" onClick={(familyTransactions?.length || 0) === 0 ? handleNew : clearFilters}>
+                <Plus className="h-4 w-4 mr-2" />
+                {(familyTransactions?.length || 0) === 0 ? 'Registar primeira transação' : 'Limpar filtros'}
+              </Button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {filteredTransactions.map((transaction) => (
                 <Card key={transaction.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="font-medium">{transaction.descricao}</h3>
-                          <Badge variant={transaction.tipo === 'receita' ? 'default' : 'secondary'}>
-                            {transaction.tipo === 'receita' ? 'Receita' : 'Despesa'}
-                          </Badge>
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-full ${
+                          transaction.tipo === 'receita' ? 'bg-green-100' : 'bg-red-100'
+                        }`}>
+                          {transaction.tipo === 'receita' ? (
+                            <TrendingUp className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <TrendingDown className="h-4 w-4 text-red-600" />
+                          )}
                         </div>
-                        <div className="text-sm text-muted-foreground space-y-1">
-                          <p>Conta: {getAccountName(transaction.account_id)}</p>
-                          <p>Categoria: {getCategoryName(transaction.categoria_id)}</p>
-                          <p>Data: {formatDate(transaction.data)}</p>
+                        <div>
+                          <p className="font-medium">{transaction.descricao || 'Transação'}</p>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>{categories.find(c => c.id === transaction.categoria_id)?.nome || 'Sem categoria'}</span>
+                            <span>•</span>
+                            <span>{familyAccounts?.find(a => a.account_id === transaction.account_id)?.nome || 'Conta'}</span>
+                            <span>•</span>
+                            <span>{new Date(transaction.data).toLocaleDateString('pt-PT')}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className={`text-lg font-bold ${
-                          transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {transaction.tipo === 'receita' ? '+' : '-'}{formatCurrency(transaction.valor)}
-                        </p>
-                        {canEdit('transaction') && (
-                          <div className="flex gap-2 mt-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEdit(transaction)}
-                            >
-                              Editar
+                      
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <p className={`font-bold ${
+                            transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {transaction.tipo === 'receita' ? '+' : '-'}
+                            {(transaction.valor || 0).toFixed(2)}€
+                          </p>
+                          <Badge variant="outline" className="text-xs">
+                            Familiar
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {canEdit('transaction') && (
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(transaction)}>
+                              <Edit className="h-4 w-4" />
                             </Button>
-                            {canDelete('transaction') && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleDelete(transaction.id)}
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                Eliminar
-                              </Button>
-                            )}
-                          </div>
-                        )}
+                          )}
+                          {canDelete('transaction') && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleDelete(transaction.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -588,8 +719,7 @@ const FamilyTransactions: React.FC = () => {
           )}
         </CardContent>
       </Card>
-
-      {/* Modal de Transação */}
+      
       <Dialog 
         open={modalOpen} 
         onOpenChange={(open) => {
@@ -605,9 +735,7 @@ const FamilyTransactions: React.FC = () => {
           </DialogHeader>
           <TransactionForm 
             initialData={editTx || undefined} 
-            onSuccess={() => {
-              handleClose();
-            }} 
+            onSuccess={editTx ? handleEditSuccess : handleCreateSuccess} 
             onCancel={handleClose} 
           />
         </DialogContent>

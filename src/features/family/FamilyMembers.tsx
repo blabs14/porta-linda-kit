@@ -25,8 +25,11 @@ import {
   Plus,
   Clock,
   Check,
-  X
+  X,
+  UserPlus
 } from 'lucide-react';
+import { Suspense } from 'react';
+import { LazyConfirmationDialog, LazyFallback } from './lazy';
 
 const roleConfig = {
   admin: {
@@ -50,7 +53,6 @@ const roleConfig = {
 };
 
 const FamilyMembers: React.FC = () => {
-  const familyContext = useFamily();
   const { 
     members, 
     pendingInvites,
@@ -60,15 +62,20 @@ const FamilyMembers: React.FC = () => {
     isLoading,
     canEdit,
     canDelete,
-    myRole
-  } = familyContext;
+    myRole,
+    refetchAll
+  } = useFamily();
   
   // Funções para futuras implementações
-  const cancelInvite = (familyContext as any).cancelInvite;
-  const acceptInvite = (familyContext as any).acceptInvite;
+  const cancelInvite = (useFamily() as any).cancelInvite;
+  const acceptInvite = (useFamily() as any).acceptInvite;
   
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<string | null>(null);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [showCancelInviteConfirmation, setShowCancelInviteConfirmation] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [inviteToCancel, setInviteToCancel] = useState<{ id: string; email: string } | null>(null);
   const [inviteForm, setInviteForm] = useState({
     email: '',
     role: 'member'
@@ -100,21 +107,23 @@ const FamilyMembers: React.FC = () => {
     if (!inviteForm.email.trim()) {
       toast({
         title: 'Erro',
-        description: 'Por favor, insira um email válido',
+        description: 'Por favor, introduza um email válido.',
         variant: 'destructive',
       });
       return;
     }
 
     setIsSubmitting(true);
+
     try {
       await inviteMember(inviteForm.email, inviteForm.role as 'admin' | 'member' | 'viewer');
       toast({
         title: 'Convite enviado',
         description: `Convite enviado para ${inviteForm.email}`,
       });
-      setInviteForm({ email: '', role: 'member' });
       setInviteModalOpen(false);
+      setInviteForm({ email: '', role: 'member' });
+      refetchAll();
     } catch (error: any) {
       toast({
         title: 'Erro ao enviar convite',
@@ -129,11 +138,12 @@ const FamilyMembers: React.FC = () => {
   const handleRoleUpdate = async (memberId: string, newRole: string) => {
     try {
       await updateMemberRole(memberId, newRole as 'admin' | 'member' | 'viewer');
-      setEditingMember(null);
       toast({
         title: 'Role atualizada',
-        description: 'A role do membro foi atualizada com sucesso',
+        description: 'A role do membro foi atualizada com sucesso.',
       });
+      setEditingMember(null);
+      refetchAll();
     } catch (error: any) {
       toast({
         title: 'Erro ao atualizar role',
@@ -144,57 +154,41 @@ const FamilyMembers: React.FC = () => {
   };
 
   const handleRemoveMember = async (memberId: string, memberName: string) => {
-    confirmation.confirm(
-      {
-        title: 'Remover membro',
-        message: `Tem a certeza que deseja remover ${memberName} da família? Esta ação não pode ser desfeita.`,
-        confirmText: 'Remover',
-        cancelText: 'Cancelar',
+    try {
+      await removeMember(memberId);
+      toast({
+        title: 'Membro removido',
+        description: `${memberName} foi removido da família.`,
+      });
+      setShowDeleteConfirmation(false);
+      setMemberToDelete(null);
+      refetchAll();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao remover membro',
+        description: error.message || 'Ocorreu um erro ao remover o membro',
         variant: 'destructive',
-      },
-      async () => {
-        try {
-          await removeMember(memberId);
-          toast({
-            title: 'Membro removido',
-            description: `${memberName} foi removido da família`,
-          });
-        } catch (error: any) {
-          toast({
-            title: 'Erro ao remover membro',
-            description: error.message || 'Ocorreu um erro ao remover o membro',
-            variant: 'destructive',
-          });
-        }
-      }
-    );
+      });
+    }
   };
 
   const handleCancelInvite = async (inviteId: string, email: string) => {
-    confirmation.confirm(
-      {
-        title: 'Cancelar convite',
-        message: `Tem a certeza que deseja cancelar o convite para ${email}?`,
-        confirmText: 'Cancelar',
-        cancelText: 'Manter',
+    try {
+      await cancelInvite(inviteId);
+      toast({
+        title: 'Convite cancelado',
+        description: `Convite para ${email} foi cancelado.`,
+      });
+      setShowCancelInviteConfirmation(false);
+      setInviteToCancel(null);
+      refetchAll();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao cancelar convite',
+        description: error.message || 'Ocorreu um erro ao cancelar o convite',
         variant: 'destructive',
-      },
-      async () => {
-        try {
-          await cancelInvite(inviteId);
-          toast({
-            title: 'Convite cancelado',
-            description: `Convite para ${email} foi cancelado`,
-          });
-        } catch (error: any) {
-          toast({
-            title: 'Erro ao cancelar convite',
-            description: error.message || 'Ocorreu um erro ao cancelar o convite',
-            variant: 'destructive',
-          });
-        }
-      }
-    );
+      });
+    }
   };
 
   const handleAcceptInvite = async (inviteId: string) => {
@@ -204,6 +198,7 @@ const FamilyMembers: React.FC = () => {
         title: 'Convite aceite',
         description: 'Agora faz parte desta família',
       });
+      refetchAll();
     } catch (error: any) {
       toast({
         title: 'Erro ao aceitar convite',
@@ -231,14 +226,17 @@ const FamilyMembers: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Membros da Família</h1>
-          <p className="text-muted-foreground">
-            Gerencie os membros e convites da família
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Membros da Família
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Gestão de membros, roles e convites da família
           </p>
         </div>
         {canEdit('member') && (
           <Button onClick={() => setInviteModalOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
+            <UserPlus className="h-4 w-4 mr-2" />
             Convidar Membro
           </Button>
         )}
@@ -264,7 +262,7 @@ const FamilyMembers: React.FC = () => {
                     onClick={() => setInviteModalOpen(true)}
                     className="mt-2"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <UserPlus className="h-4 w-4 mr-2" />
                     Convidar Primeiro Membro
                   </Button>
                 )}
@@ -365,7 +363,13 @@ const FamilyMembers: React.FC = () => {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleRemoveMember(member.user_id, member.profile?.nome || 'este membro')}
+                              onClick={() => {
+                                setMemberToDelete({ 
+                                  id: member.user_id, 
+                                  name: member.profile?.nome || 'este membro' 
+                                });
+                                setShowDeleteConfirmation(true);
+                              }}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -449,7 +453,10 @@ const FamilyMembers: React.FC = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleCancelInvite(invite.id, invite.email)}
+                            onClick={() => {
+                              setInviteToCancel({ id: invite.id, email: invite.email });
+                              setShowCancelInviteConfirmation(true);
+                            }}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             <X className="h-3 w-3" />
@@ -459,7 +466,10 @@ const FamilyMembers: React.FC = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleCancelInvite(invite.id, invite.email)}
+                          onClick={() => {
+                            setInviteToCancel({ id: invite.id, email: invite.email });
+                            setShowCancelInviteConfirmation(true);
+                          }}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
                           <Trash2 className="h-3 w-3" />
@@ -536,18 +546,47 @@ const FamilyMembers: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation Dialog */}
-      <ConfirmationDialog
-        isOpen={confirmation.isOpen}
-        onClose={confirmation.close}
-        onConfirm={confirmation.onConfirm}
-        onCancel={confirmation.onCancel}
-        title={confirmation.options.title}
-        message={confirmation.options.message}
-        confirmText={confirmation.options.confirmText}
-        cancelText={confirmation.options.cancelText}
-        variant={confirmation.options.variant}
-      />
+      {/* Modal de Confirmação de Exclusão de Membro */}
+      {showDeleteConfirmation && (
+        <Suspense fallback={<LazyFallback message="A carregar diálogo..." />}>
+          <LazyConfirmationDialog
+            open={showDeleteConfirmation}
+            onOpenChange={setShowDeleteConfirmation}
+            title="Remover Membro"
+            description={
+              memberToDelete 
+                ? `Tem a certeza que deseja remover "${memberToDelete.name}" da família? Esta ação não pode ser desfeita.`
+                : 'Tem a certeza que deseja remover este membro da família?'
+            }
+            onConfirm={() => {
+              if (memberToDelete) {
+                handleRemoveMember(memberToDelete.id, memberToDelete.name);
+              }
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Modal de Confirmação de Cancelamento de Convite */}
+      {showCancelInviteConfirmation && (
+        <Suspense fallback={<LazyFallback message="A carregar diálogo..." />}>
+          <LazyConfirmationDialog
+            open={showCancelInviteConfirmation}
+            onOpenChange={setShowCancelInviteConfirmation}
+            title="Cancelar Convite"
+            description={
+              inviteToCancel 
+                ? `Tem a certeza que deseja cancelar o convite para "${inviteToCancel.email}"?`
+                : 'Tem a certeza que deseja cancelar este convite?'
+            }
+            onConfirm={() => {
+              if (inviteToCancel) {
+                handleCancelInvite(inviteToCancel.id, inviteToCancel.email);
+              }
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

@@ -10,10 +10,15 @@ import {
   Users, 
   AlertCircle,
   CheckCircle,
-  Clock
+  Clock,
+  DollarSign,
+  Calendar,
+  Activity
 } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Progress } from '../../components/ui/progress';
+import { Suspense } from 'react';
+import { LazyReportChart, LazyChart, LazyFallback } from './lazy';
 
 const FamilyDashboard: React.FC = () => {
   const { 
@@ -26,6 +31,24 @@ const FamilyDashboard: React.FC = () => {
     familyBudgets,
     isLoading 
   } = useFamily();
+
+  // Dados simulados para gráficos (serão substituídos por dados reais)
+  const expensesData = [
+    { month: 'Jan', value: 1200 },
+    { month: 'Fev', value: 1400 },
+    { month: 'Mar', value: 1100 },
+    { month: 'Abr', value: 1600 },
+    { month: 'Mai', value: 1300 },
+    { month: 'Jun', value: 1500 }
+  ];
+
+  const categoryData = [
+    { category: 'Alimentação', value: 800 },
+    { category: 'Transporte', value: 400 },
+    { category: 'Lazer', value: 300 },
+    { category: 'Saúde', value: 200 },
+    { category: 'Outros', value: 100 }
+  ];
 
   if (isLoading.family || isLoading.kpis) {
     return (
@@ -68,8 +91,11 @@ const FamilyDashboard: React.FC = () => {
       {/* Header da Família */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{family.nome}</h1>
-          <p className="text-muted-foreground">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            {family.nome}
+          </h2>
+          <p className="text-sm text-muted-foreground">
             {family.description || 'Finanças partilhadas da família'}
           </p>
         </div>
@@ -259,11 +285,11 @@ const FamilyDashboard: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
                         <span className="text-sm font-medium">
-                          {member.profiles?.nome?.charAt(0) || 'U'}
+                          {member.profile?.nome?.charAt(0) || 'U'}
                         </span>
                       </div>
                       <div>
-                        <p className="font-medium text-sm">{member.profiles?.nome || 'Utilizador'}</p>
+                        <p className="font-medium text-sm">{member.profile?.nome || 'Utilizador'}</p>
                         <p className="text-xs text-muted-foreground">{member.role}</p>
                       </div>
                     </div>
@@ -317,6 +343,45 @@ const FamilyDashboard: React.FC = () => {
                   ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Gráficos e Visualizações */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Evolução das Despesas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Suspense fallback={<LazyFallback message="A carregar gráfico..." />}>
+              <LazyChart
+                data={expensesData}
+                type="line"
+                height={300}
+              />
+            </Suspense>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Distribuição por Categoria
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Suspense fallback={<LazyFallback message="A carregar gráfico..." />}>
+              <LazyReportChart
+                data={categoryData}
+                type="pie"
+                height={300}
+              />
+            </Suspense>
           </CardContent>
         </Card>
       </div>

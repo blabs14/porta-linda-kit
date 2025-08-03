@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
+import { useFamily } from './FamilyProvider';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
 import { Progress } from '../../components/ui/progress';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Target, Plus, Edit, Trash2, Loader2 } from 'lucide-react';
-import { useFamily } from './FamilyProvider';
+import { BarChart3, Plus, Edit, Trash2, Loader2, Target } from 'lucide-react';
+import { LoadingSpinner } from '../../components/ui/loading-states';
 import { useCategories } from '../../hooks/useCategories';
 import { useTransactions } from '../../hooks/useTransactionsQuery';
 import { useAuth } from '../../contexts/AuthContext';
@@ -23,16 +25,6 @@ interface BudgetFormData {
 }
 
 const FamilyBudgets: React.FC = () => {
-  const { 
-    familyBudgets, 
-    createFamilyBudget, 
-    updateFamilyBudget, 
-    deleteFamilyBudget,
-    isLoading,
-    canEdit,
-    canDelete
-  } = useFamily();
-  
   const [modalOpen, setModalOpen] = useState(false);
   const [editBudget, setEditBudget] = useState<any | null>(null);
   const [form, setForm] = useState<BudgetFormData>({
@@ -43,6 +35,18 @@ const FamilyBudgets: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Usar o contexto familiar em vez do pessoal
+  const { 
+    familyBudgets, 
+    isLoading, 
+    canEdit, 
+    canDelete, 
+    createFamilyBudget, 
+    updateFamilyBudget, 
+    deleteFamilyBudget, 
+    refetchAll 
+  } = useFamily();
+  
   const { categories = [] } = useCategories();
   const { data: transactions = [] } = useTransactions();
   const { user } = useAuth();
@@ -117,33 +121,34 @@ const FamilyBudgets: React.FC = () => {
     }
 
     setIsSubmitting(true);
-
     try {
-      const budgetData = {
+      const payload = {
         categoria_id: form.categoria_id,
         valor: parseFloat(form.valor),
         mes: form.mes,
       };
 
       if (editBudget) {
-        await updateFamilyBudget(editBudget.id, budgetData);
+        await updateFamilyBudget(editBudget.id, payload);
         toast({
           title: "Sucesso",
           description: "Orçamento familiar atualizado com sucesso",
         });
+        handleClose();
+        refetchAll();
       } else {
-        await createFamilyBudget(budgetData);
+        await createFamilyBudget(payload);
         toast({
           title: "Sucesso",
           description: "Orçamento familiar criado com sucesso",
         });
+        handleClose();
+        refetchAll();
       }
-
-      handleClose();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Erro",
-        description: error.message || "Ocorreu um erro ao processar o orçamento",
+        description: "Erro inesperado",
         variant: "destructive",
       });
     } finally {
@@ -152,12 +157,19 @@ const FamilyBudgets: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    const budget = familyBudgets.find(b => b.id === id);
-    
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Utilizador não autenticado",
+        variant: "destructive",
+      });
+      return;
+    }
+
     confirmation.confirm(
       {
         title: 'Eliminar Orçamento Familiar',
-        message: `Tem a certeza que deseja eliminar o orçamento familiar "${getCategoryName(budget?.categoria_id)}" para ${formatMonth(budget?.mes)}?`,
+        message: 'Tem a certeza que deseja eliminar este orçamento familiar? Esta ação não pode ser desfeita.',
         confirmText: 'Eliminar',
         cancelText: 'Cancelar',
         variant: 'destructive',
@@ -166,14 +178,15 @@ const FamilyBudgets: React.FC = () => {
         try {
           await deleteFamilyBudget(id);
           toast({
-            title: 'Orçamento eliminado',
-            description: 'O orçamento familiar foi eliminado com sucesso.',
+            title: "Sucesso",
+            description: "Orçamento familiar removido com sucesso",
           });
-        } catch (error: any) {
+          refetchAll();
+        } catch (error) {
           toast({
-            title: 'Erro ao eliminar orçamento',
-            description: error.message || 'Ocorreu um erro ao eliminar o orçamento.',
-            variant: 'destructive',
+            title: "Erro",
+            description: "Erro ao remover orçamento familiar",
+            variant: "destructive",
           });
         }
       }
@@ -183,44 +196,56 @@ const FamilyBudgets: React.FC = () => {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-PT', {
       style: 'currency',
-      currency: 'EUR',
+      currency: 'EUR'
     }).format(value);
   };
 
   const getProgressPercentage = (gasto: number, valor: number) => {
-    if (valor === 0) return 0;
     return Math.min((gasto / valor) * 100, 100);
   };
 
   const getProgressColor = (percentage: number) => {
-    if (percentage >= 100) return 'bg-red-500';
-    if (percentage >= 80) return 'bg-yellow-500';
-    return 'bg-green-500';
+    if (percentage === 0) return 'bg-gray-300'; // Sem gastos
+    if (percentage >= 100) return 'bg-red-500'; // Ultrapassado
+    if (percentage >= 80) return 'bg-yellow-500'; // Quase a ultrapassar
+    return 'bg-green-500'; // Dentro do orçamento
   };
 
   const getCategoryName = (categoriaId: string) => {
     const category = categories.find(cat => cat.id === categoriaId);
-    return category?.nome || 'Categoria desconhecida';
+    return category?.nome || 'Categoria não encontrada';
   };
 
   const formatMonth = (monthString: string) => {
-    if (!monthString) return '';
-    const [year, month] = monthString.split('-');
-    const date = new Date(parseInt(year), parseInt(month) - 1);
-    return date.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+    if (!monthString) return 'Período não definido';
+    
+    try {
+      const [year, month] = monthString.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      return date.toLocaleDateString('pt-PT', { 
+        month: 'long', 
+        year: 'numeric' 
+      });
+    } catch (error) {
+      return monthString;
+    }
   };
 
+  // Calcular gastos reais baseados nas transações
   const getGastoForBudget = (budget: any) => {
-    // Filtrar transações do mês e categoria específicos
+    if (!transactions || transactions.length === 0) {
+      return 0;
+    }
+
+    // Filtrar transações que são despesas, da mesma categoria e do mesmo mês
     const budgetTransactions = transactions.filter((transaction: any) => {
       const transactionDate = new Date(transaction.data);
-      const budgetDate = new Date(budget.mes + '-01');
+      const transactionMonth = `${transactionDate.getFullYear()}-${String(transactionDate.getMonth() + 1).padStart(2, '0')}`;
       
       return (
+        transaction.tipo === 'despesa' &&
         transaction.categoria_id === budget.categoria_id &&
-        transaction.family_id !== null && // Apenas transações familiares
-        transactionDate.getMonth() === budgetDate.getMonth() &&
-        transactionDate.getFullYear() === budgetDate.getFullYear()
+        transactionMonth === budget.mes
       );
     });
 
@@ -234,13 +259,8 @@ const FamilyBudgets: React.FC = () => {
 
   if (isLoading.budgets) {
     return (
-      <div className="space-y-6 p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">A carregar orçamentos familiares...</p>
-          </div>
-        </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
@@ -250,9 +270,12 @@ const FamilyBudgets: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Orçamentos Familiares</h1>
-          <p className="text-muted-foreground">
-            Gerencie os orçamentos partilhados da família
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Orçamentos Familiares
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Orçamentos mensais por categoria da família
           </p>
         </div>
         {canEdit('budget') && (
@@ -263,13 +286,13 @@ const FamilyBudgets: React.FC = () => {
         )}
       </div>
 
-      {/* Content */}
-      {familyBudgets.length === 0 ? (
+      {/* Budgets Grid */}
+      {(!familyBudgets || familyBudgets.length === 0) ? (
         <div className="text-center py-12">
           <Target className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-lg font-medium mb-2">Nenhum orçamento familiar encontrado</h3>
           <p className="text-muted-foreground mb-4">
-            Clica em "Novo Orçamento" para começar a planear as despesas familiares
+            Clica em "Novo Orçamento" para começar
           </p>
           {canEdit('budget') && (
             <Button onClick={handleNew}>
@@ -297,9 +320,9 @@ const FamilyBudgets: React.FC = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Período</span>
-                      <span className="text-sm font-medium text-blue-600">
+                      <Badge variant="secondary" className="text-xs">
                         {formatMonth(budget.mes)}
-                      </span>
+                      </Badge>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Orçamento</span>
@@ -326,9 +349,19 @@ const FamilyBudgets: React.FC = () => {
                       className={`h-2 ${progressColor}`}
                     />
                   </div>
+
+                  {/* Alerta se orçamento excedido */}
+                  {percentage >= 100 && (
+                    <div className="p-2 bg-red-50 border border-red-200 rounded-md">
+                      <div className="flex items-center gap-2 text-red-800">
+                        <Target className="h-4 w-4" />
+                        <span className="text-sm font-medium">Orçamento Excedido</span>
+                      </div>
+                    </div>
+                  )}
                   
-                  {canEdit('budget') && (
-                    <div className="flex gap-2 pt-2">
+                  <div className="flex gap-2 pt-2">
+                    {canEdit('budget') && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -338,19 +371,19 @@ const FamilyBudgets: React.FC = () => {
                         <Edit className="h-3 w-3 mr-1" />
                         Editar
                       </Button>
-                      {canDelete('budget') && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDelete(budget.id)}
-                          className="text-red-600 hover:text-red-700 flex-1"
-                        >
-                          <Trash2 className="h-3 w-3 mr-1" />
-                          Remover
-                        </Button>
-                      )}
-                    </div>
-                  )}
+                    )}
+                    {canDelete('budget') && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDelete(budget.id)}
+                        className="text-red-600 hover:text-red-700 flex-1"
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Eliminar
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -358,7 +391,7 @@ const FamilyBudgets: React.FC = () => {
         </div>
       )}
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit Budget Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent>
           <DialogHeader>

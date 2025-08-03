@@ -12,6 +12,7 @@ export const getGoals = async (userId: string): Promise<{ data: Goal[] | null; e
       .from('goals')
       .select('*')
       .eq('user_id', userId)
+      .is('family_id', null) // Apenas objetivos pessoais
       .order('created_at', { ascending: false });
 
     return { data, error };
@@ -130,6 +131,30 @@ export const allocateToGoal = async (
 export const getGoalProgress = async (): Promise<{ data: GoalProgressRPC[] | null; error: any }> => {
   try {
     const { data, error } = await supabase.rpc('get_user_goal_progress');
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+export const getPersonalGoals = async (userId: string): Promise<{ data: Goal[] | null; error: any }> => {
+  try {
+    const { data, error } = await supabase.rpc('get_personal_goals', {
+      p_user_id: userId
+    });
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+export const getFamilyGoals = async (userId: string): Promise<{ data: Goal[] | null; error: any }> => {
+  try {
+    const { data, error } = await supabase.rpc('get_family_goals', {
+      p_user_id: userId
+    });
+
     return { data, error };
   } catch (error) {
     return { data: null, error };

@@ -85,11 +85,15 @@ export const useGoals = () => {
     onSuccess: (data) => {
       console.log('[allocateToGoalMutation] onSuccess called with data:', data);
       queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['personal', 'goals'] });
       queryClient.invalidateQueries({ queryKey: ['goalAllocations'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['personal', 'accounts'] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['personal', 'transactions'] });
       queryClient.invalidateQueries({ queryKey: ['goalProgress'] });
       queryClient.invalidateQueries({ queryKey: ['accountsWithBalances'] });
+      queryClient.invalidateQueries({ queryKey: ['personal', 'kpis'] });
     },
     onError: (error) => {
       console.error('[allocateToGoalMutation] onError called with error:', error);

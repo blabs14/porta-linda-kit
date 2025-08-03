@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -17,42 +17,36 @@ import {
   AlertTriangle,
   FileText,
   Download,
-  Database
+  Database,
+  Loader2
 } from 'lucide-react';
 import { useFamily } from './FamilyProvider';
 import { useToast } from '../../hooks/use-toast';
 import { useConfirmation } from '../../hooks/useConfirmation';
-import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
-import { exportFamilyReport } from '../../services/familyExportService';
+
+// Lazy imports para componentes pesados
 import { 
-  getFamilyBackups, 
-  createFamilyBackup, 
-  deleteFamilyBackup, 
-  downloadFamilyBackup,
-  formatFileSize,
-  formatBackupDate,
-  getBackupStatusColor,
-  getBackupStatusText,
-  type FamilyBackup
-} from '../../services/familyBackupService';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+  LazyConfirmationDialog, 
+  LazyFallback,
+  useLazyService 
+} from './lazy/index';
 
 const FamilySettings: React.FC = () => {
-  const familyContext = useFamily();
   const { 
     family,
     updateFamily,
     isLoading,
     canEdit,
     canDelete,
-    myRole
-  } = familyContext;
+    myRole,
+    refetchAll
+  } = useFamily();
   
   // Funções para futuras implementações
-  const deleteFamily = (familyContext as any).deleteFamily;
+  const deleteFamily = (useFamily() as any).deleteFamily;
   
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     nome: '',
@@ -70,19 +64,21 @@ const FamilySettings: React.FC = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [backups, setBackups] = useState<FamilyBackup[]>([]);
+  const [backups, setBackups] = useState<any[]>([]);
   const [isLoadingBackups, setIsLoadingBackups] = useState(false);
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
 
   const { toast } = useToast();
   const confirmation = useConfirmation();
 
-  // Carregar backups quando family carrega
-  React.useEffect(() => {
-    if (family?.id) {
-      loadBackups();
-    }
-  }, [family?.id]);
+  // Lazy loading dos serviços
+  const { service: exportService, loading: exportServiceLoading } = useLazyService(() => 
+    import('../../services/exportService').then(module => ({ default: module.exportReport }))
+  );
+
+  // Backup functionality will be implemented later
+  const backupService = null;
+  const backupServiceLoading = false;
 
   // Inicializar formulário quando family carrega
   React.useEffect(() => {
@@ -95,16 +91,16 @@ const FamilySettings: React.FC = () => {
   }, [family]);
 
   const loadBackups = async () => {
-    if (!family?.id) return;
+    if (!family?.id || !backupService) return;
     
     setIsLoadingBackups(true);
     try {
-      const backupsData = await getFamilyBackups(family.id);
-      setBackups(backupsData);
+      const familyBackups = await backupService.getFamilyBackups(family.id);
+      setBackups(familyBackups || []);
     } catch (error: any) {
       toast({
         title: 'Erro ao carregar backups',
-        description: error.message || 'Não foi possível carregar os backups',
+        description: error.message || 'Não foi possível carregar os backups.',
         variant: 'destructive',
       });
     } finally {
@@ -113,26 +109,20 @@ const FamilySettings: React.FC = () => {
   };
 
   const handleCreateBackup = async () => {
-    if (!family?.id) return;
-
+    if (!family?.id || !backupService) return;
+    
     setIsCreatingBackup(true);
     try {
-      await createFamilyBackup(family.id, {
-        backup_type: 'full',
-        metadata: { created_by: 'user_interface' }
-      });
-      
+      await backupService.createFamilyBackup(family.id);
       toast({
-        title: 'Backup Criado',
-        description: 'O backup da família foi criado com sucesso',
+        title: 'Backup criado',
+        description: 'O backup da família foi criado com sucesso.',
       });
-      
-      // Recarregar backups
-      await loadBackups();
+      loadBackups();
     } catch (error: any) {
       toast({
-        title: 'Erro ao Criar Backup',
-        description: error.message || 'Não foi possível criar o backup',
+        title: 'Erro ao criar backup',
+        description: error.message || 'Não foi possível criar o backup.',
         variant: 'destructive',
       });
     } finally {
@@ -140,75 +130,70 @@ const FamilySettings: React.FC = () => {
     }
   };
 
-  const handleDownloadBackup = async (backup: FamilyBackup) => {
+  const handleDownloadBackup = async (backup: any) => {
+    if (!backupService) return;
+    
     try {
-      await downloadFamilyBackup(backup);
+      const result = await backupService.downloadFamilyBackup(backup.id);
+      
+      // Criar link de download
+      const url = window.URL.createObjectURL(result.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = result.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
       toast({
-        title: 'Download Iniciado',
-        description: 'O download do backup foi iniciado',
+        title: 'Backup descarregado',
+        description: 'O backup foi descarregado com sucesso.',
       });
     } catch (error: any) {
       toast({
-        title: 'Erro no Download',
-        description: error.message || 'Não foi possível fazer o download',
+        title: 'Erro ao descarregar backup',
+        description: error.message || 'Não foi possível descarregar o backup.',
         variant: 'destructive',
       });
     }
   };
 
   const handleDeleteBackup = async (backupId: string) => {
-    confirmation.confirm(
-      {
-        title: 'Eliminar Backup',
-        message: 'Tem a certeza que deseja eliminar este backup? Esta ação não pode ser desfeita.',
-        confirmText: 'Eliminar',
-        cancelText: 'Cancelar',
+    if (!backupService) return;
+    
+    try {
+      await backupService.deleteFamilyBackup(backupId);
+      toast({
+        title: 'Backup eliminado',
+        description: 'O backup foi eliminado com sucesso.',
+      });
+      loadBackups();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao eliminar backup',
+        description: error.message || 'Não foi possível eliminar o backup.',
         variant: 'destructive',
-      },
-      async () => {
-        try {
-          await deleteFamilyBackup(backupId);
-          toast({
-            title: 'Backup Eliminado',
-            description: 'O backup foi eliminado com sucesso',
-          });
-          await loadBackups();
-        } catch (error: any) {
-          toast({
-            title: 'Erro ao Eliminar',
-            description: error.message || 'Não foi possível eliminar o backup',
-            variant: 'destructive',
-          });
-        }
-      }
-    );
+      });
+    }
   };
 
   const handleEditSubmit = async () => {
-    if (!editForm.nome.trim()) {
-      toast({
-        title: 'Erro',
-        description: 'O nome da família é obrigatório',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+    if (!family?.id) return;
+    
     setIsSubmitting(true);
     try {
-      await updateFamily({
-        nome: editForm.nome,
-        description: editForm.description
-      });
+      await updateFamily(editForm);
       toast({
-        title: 'Família atualizada',
-        description: 'As informações da família foram atualizadas com sucesso',
+        title: 'Informações atualizadas',
+        description: 'As informações da família foram atualizadas com sucesso.',
       });
       setEditModalOpen(false);
+      refetchAll();
     } catch (error: any) {
       toast({
-        title: 'Erro ao atualizar família',
-        description: error.message || 'Ocorreu um erro ao atualizar a família',
+        title: 'Erro ao atualizar',
+        description: error.message || 'Não foi possível atualizar as informações.',
         variant: 'destructive',
       });
     } finally {
@@ -217,31 +202,38 @@ const FamilySettings: React.FC = () => {
   };
 
   const handleExportReport = async () => {
-    if (!family?.id) return;
-
+    if (!family?.id || !exportService) return;
+    
     setIsExporting(true);
     try {
-      const { blob, filename } = await exportFamilyReport(family.id, exportForm);
-      
+      const result = await exportService(family.id, {
+        type: 'family-report',
+        format: exportForm.format,
+        dateRange: exportForm.dateRange,
+        includeMembers: exportForm.includeMembers,
+        includeBudgets: exportForm.includeBudgets,
+        includeGoals: exportForm.includeGoals,
+      });
+
       // Criar link de download
-      const url = window.URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(result.blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = filename;
+      link.download = result.filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      
+
       toast({
-        title: 'Relatório Exportado',
-        description: 'O relatório foi exportado com sucesso',
+        title: 'Relatório exportado',
+        description: 'O relatório foi exportado com sucesso.',
       });
       setExportModalOpen(false);
     } catch (error: any) {
       toast({
-        title: 'Erro ao Exportar',
-        description: error.message || 'Ocorreu um erro ao exportar o relatório',
+        title: 'Erro na exportação',
+        description: error.message || 'Não foi possível exportar o relatório.',
         variant: 'destructive',
       });
     } finally {
@@ -249,34 +241,23 @@ const FamilySettings: React.FC = () => {
     }
   };
 
-
-
   const handleDeleteFamily = async () => {
-    confirmation.confirm(
-      {
-        title: 'Eliminar Família',
-        message: `Tem a certeza que deseja eliminar a família "${family?.nome}"? Esta ação não pode ser desfeita e todos os dados partilhados serão perdidos.`,
-        confirmText: 'Eliminar Família',
-        cancelText: 'Cancelar',
+    if (!family?.id) return;
+    
+    try {
+      await deleteFamily(family.id);
+      toast({
+        title: 'Família eliminada',
+        description: 'A família foi eliminada com sucesso.',
+      });
+      setShowDeleteConfirmation(false);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao eliminar',
+        description: error.message || 'Não foi possível eliminar a família.',
         variant: 'destructive',
-      },
-      async () => {
-        try {
-          await deleteFamily();
-          toast({
-            title: 'Família eliminada',
-            description: 'A família foi eliminada com sucesso',
-          });
-          setDeleteModalOpen(false);
-        } catch (error: any) {
-          toast({
-            title: 'Erro ao eliminar família',
-            description: error.message || 'Ocorreu um erro ao eliminar a família',
-            variant: 'destructive',
-          });
-        }
-      }
-    );
+      });
+    }
   };
 
   if (isLoading.family) {
@@ -292,197 +273,194 @@ const FamilySettings: React.FC = () => {
     );
   }
 
+  if (!family) {
+    return (
+      <div className="space-y-6 p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Família Não Encontrada
+            </CardTitle>
+            <CardDescription>
+              Não foi possível carregar as informações da família.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Verifique se tem permissões para aceder às configurações desta família.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Configurações da Família</h1>
-          <p className="text-muted-foreground">
-            Gerencie as configurações e permissões da família
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Configurações da Família
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Gerencie as configurações e preferências da família
           </p>
         </div>
       </div>
 
-      {/* Informações da Família */}
+      {/* Informações Básicas */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Informações da Família
+            Informações Básicas
           </CardTitle>
           <CardDescription>
-            Dados básicos e descrição da família
+            Dados fundamentais da família
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex-1">
-              <h3 className="font-medium">{family?.nome || 'Nome da Família'}</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="family-name">Nome da Família</Label>
+              <Input
+                id="family-name"
+                value={family.nome || ''}
+                disabled
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="family-description">Descrição</Label>
+              <Input
+                id="family-description"
+                value={family.description || ''}
+                disabled
+                className="mt-1"
+              />
+            </div>
+          </div>
+          {(canEdit as any)('family') && (
+            <Button onClick={() => setEditModalOpen(true)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Editar Informações
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Exportar Relatórios */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Exportar Relatórios
+          </CardTitle>
+          <CardDescription>
+            Exporte dados da família em diferentes formatos
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Gere relatórios completos com todos os dados da família, incluindo transações, contas, objetivos e orçamentos.
+          </p>
+          <Button 
+            onClick={() => setExportModalOpen(true)}
+            disabled={exportServiceLoading}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exportar Relatórios
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Backup de Dados */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            Backup de Dados
+          </CardTitle>
+          <CardDescription>
+            Crie e gerencie backups dos dados da família
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
               <p className="text-sm text-muted-foreground">
-                {family?.description || 'Sem descrição'}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Criada em {family?.created_at ? new Date(family.created_at).toLocaleDateString('pt-PT') : 'Data desconhecida'}
+                Crie backups completos dos dados da família para segurança e recuperação.
               </p>
             </div>
-            {(canEdit as any)('family') && (
-              <Button variant="outline" onClick={() => setEditModalOpen(true)}>
-                <Edit className="h-4 w-4 mr-2" />
-                Editar
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Configurações de Permissões */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            Permissões e Acesso
-          </CardTitle>
-          <CardDescription>
-            Configure quem pode fazer o quê na família
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              <div>
-                <h3 className="font-medium">Permissões de Membro</h3>
-                <p className="text-sm text-muted-foreground">
-                  Configurar o que os membros podem fazer
-                </p>
-              </div>
-            </div>
-            <Button variant="outline" disabled={!(canEdit as any)('family')}>
-              Configurar
+            <Button 
+              onClick={handleCreateBackup}
+              disabled={isCreatingBackup || backupServiceLoading}
+            >
+              {isCreatingBackup ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  A criar...
+                </>
+              ) : (
+                <>
+                  <Database className="h-4 w-4 mr-2" />
+                  Criar Novo Backup
+                </>
+              )}
             </Button>
           </div>
 
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              <div>
-                <h3 className="font-medium">Aprovação de Transações</h3>
-                <p className="text-sm text-muted-foreground">
-                  Exigir aprovação para transações acima de um valor
-                </p>
+          {/* Lista de Backups */}
+          {isLoadingBackups ? (
+            <div className="flex items-center justify-center py-8">
+              <LazyFallback message="A carregar backups..." />
+            </div>
+          ) : backups.length > 0 ? (
+            <div className="space-y-2">
+              <h4 className="font-medium">Backups Disponíveis</h4>
+              <div className="space-y-2">
+                {backups.map((backup) => (
+                  <div key={backup.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1">
+                      <p className="font-medium">{backup.description || 'Backup automático'}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {backupService?.formatBackupDate(backup.created_at)} • {backupService?.formatFileSize(backup.size)}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownloadBackup(backup)}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteBackup(backup.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch disabled={!(canEdit as any)('family')} />
-              <span className="text-sm text-muted-foreground">Ativado</span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              <div>
-                <h3 className="font-medium">Visibilidade de Dados</h3>
-                <p className="text-sm text-muted-foreground">
-                  Controlar quem pode ver dados financeiros
-                </p>
-              </div>
-            </div>
-            <Button variant="outline" disabled={!(canEdit as any)('family')}>
-              Configurar
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Notificações */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Notificações da Família
-          </CardTitle>
-          <CardDescription>
-            Configure alertas e notificações para a família
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              <div>
-                <h3 className="font-medium">Alertas de Orçamento</h3>
-                <p className="text-sm text-muted-foreground">
-                  Notificar quando orçamentos são excedidos
-                </p>
-              </div>
-            </div>
-            <Switch />
-          </div>
-
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              <div>
-                <h3 className="font-medium">Novos Membros</h3>
-                <p className="text-sm text-muted-foreground">
-                  Notificar quando alguém se junta à família
-                </p>
-              </div>
-            </div>
-            <Switch />
-          </div>
-
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              <div>
-                <h3 className="font-medium">Transações Grandes</h3>
-                <p className="text-sm text-muted-foreground">
-                  Alertar sobre transações acima de um valor
-                </p>
-              </div>
-            </div>
-            <Switch />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Aparência */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="h-5 w-5" />
-            Aparência da Família
-          </CardTitle>
-          <CardDescription>
-            Personalize a aparência da área familiar
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              <div>
-                <h3 className="font-medium">Tema da Família</h3>
-                <p className="text-sm text-muted-foreground">
-                  Escolher cores e estilo para a família
-                </p>
-              </div>
-            </div>
-            <Button variant="outline">Personalizar</Button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              <div>
-                <h3 className="font-medium">Layout do Dashboard</h3>
-                <p className="text-sm text-muted-foreground">
-                  Configurar a disposição dos elementos
-                </p>
-              </div>
-            </div>
-            <Button variant="outline">Configurar</Button>
-          </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Nenhum backup encontrado. Crie o primeiro backup para proteger os dados da família.
+            </p>
+          )}
         </CardContent>
       </Card>
 
       {/* Zona de Perigo */}
-             {(canDelete as any)('family') && (
+      {((canDelete as any)('family') || myRole === 'owner') && (
         <Card className="border-red-200 bg-red-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-800">
@@ -493,19 +471,16 @@ const FamilySettings: React.FC = () => {
               Ações irreversíveis que afetam toda a família
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between p-4 border border-red-200 rounded-lg bg-white">
-              <div className="flex items-center gap-3">
-                <div>
-                  <h3 className="font-medium text-red-800">Eliminar Família</h3>
-                  <p className="text-sm text-red-700">
-                    Esta ação eliminará permanentemente a família e todos os dados partilhados
-                  </p>
-                </div>
-              </div>
-              <Button 
-                variant="destructive" 
-                onClick={() => setDeleteModalOpen(true)}
+          <CardContent className="space-y-4">
+            <div className="p-4 border border-red-200 rounded-lg bg-white">
+              <h4 className="font-medium text-red-800 mb-2">Eliminar Família</h4>
+              <p className="text-sm text-red-700 mb-4">
+                Esta ação eliminará permanentemente toda a família e todos os dados associados, incluindo transações, contas, objetivos e orçamentos. Esta ação não pode ser desfeita.
+              </p>
+              <Button
+                variant="destructive"
+                onClick={() => setShowDeleteConfirmation(true)}
+                className="bg-red-600 hover:bg-red-700"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Eliminar Família
@@ -515,191 +490,43 @@ const FamilySettings: React.FC = () => {
         </Card>
       )}
 
-      {/* Informações sobre Finanças Partilhadas */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Acerca das Finanças Partilhadas</CardTitle>
-          <CardDescription>
-            Informações sobre esta funcionalidade
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="p-4 bg-blue-50 rounded-lg">
-            <h4 className="font-medium text-blue-800 mb-2">Diferença entre Área Pessoal e Finanças Partilhadas</h4>
-            <p className="text-sm text-blue-700">
-              A <strong>Área Pessoal</strong> concentra todas as suas informações financeiras individuais 
-              (contas, objetivos, transações) onde <code>family_id IS NULL</code>. 
-              As <strong>Finanças Partilhadas</strong> mostram dados partilhados entre membros da família 
-              onde <code>family_id IS NOT NULL</code>.
-            </p>
-          </div>
-          
-          <div className="p-4 bg-green-50 rounded-lg">
-            <h4 className="font-medium text-green-800 mb-2">Funcionalidades Disponíveis</h4>
-            <ul className="text-sm text-green-700 space-y-1">
-              <li>• Gestão de contas bancárias partilhadas</li>
-              <li>• Objetivos financeiros familiares</li>
-              <li>• Orçamentos mensais partilhados</li>
-              <li>• Transações familiares</li>
-              <li>• Gestão de membros e convites</li>
-              <li>• Configurações de permissões</li>
-            </ul>
-          </div>
-
-          <div className="p-4 bg-yellow-50 rounded-lg">
-            <h4 className="font-medium text-yellow-800 mb-2">Sua Role Atual</h4>
-            <p className="text-sm text-yellow-700">
-              Você tem a role de <strong>{myRole}</strong> nesta família, o que determina 
-              as suas permissões e capacidades de gestão.
-            </p>
-          </div>
-
-          {/* Botão de Exportação */}
-          <div className="p-4 bg-purple-50 rounded-lg">
-            <h4 className="font-medium text-purple-800 mb-2">Exportar Relatórios</h4>
-            <p className="text-sm text-purple-700 mb-3">
-              Exporte relatórios detalhados da família em PDF, CSV ou Excel.
-            </p>
-            <Button 
-              onClick={() => setExportModalOpen(true)}
-              variant="outline"
-              className="w-full"
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              Exportar Relatório Familiar
-            </Button>
-          </div>
-
-          {/* Seção de Backup */}
-          <div className="p-4 bg-orange-50 rounded-lg">
-            <h4 className="font-medium text-orange-800 mb-2">Backup de Dados</h4>
-            <p className="text-sm text-orange-700 mb-3">
-              Crie e gerencie backups completos dos dados da família.
-            </p>
-            
-            {/* Botão Criar Backup */}
-            <Button 
-              onClick={handleCreateBackup}
-              disabled={isCreatingBackup || !(canEdit as any)('family')}
-              variant="outline"
-              className="w-full mb-3"
-            >
-              {isCreatingBackup ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600 mr-2"></div>
-                  A criar backup...
-                </>
-              ) : (
-                <>
-                  <Database className="h-4 w-4 mr-2" />
-                  Criar Novo Backup
-                </>
-              )}
-            </Button>
-
-            {/* Lista de Backups */}
-            <div className="space-y-2">
-              <h5 className="text-sm font-medium text-orange-800">Backups Disponíveis</h5>
-              {isLoadingBackups ? (
-                <div className="text-center py-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600 mx-auto"></div>
-                  <p className="text-xs text-orange-600 mt-2">A carregar backups...</p>
-                </div>
-              ) : backups.length === 0 ? (
-                <p className="text-xs text-orange-600 text-center py-4">
-                  Nenhum backup disponível
-                </p>
-              ) : (
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {backups.map((backup) => (
-                    <div key={backup.id} className="flex items-center justify-between p-2 bg-white rounded border">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-1 rounded-full text-xs ${getBackupStatusColor(backup.status)}`}>
-                            {getBackupStatusText(backup.status)}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {formatBackupDate(backup.created_at || '')}
-                          </span>
-                        </div>
-                        {backup.file_size && (
-                          <p className="text-xs text-gray-400 mt-1">
-                            {formatFileSize(backup.file_size)}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex gap-1">
-                        {backup.status === 'completed' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDownloadBackup(backup)}
-                            className="h-6 w-6 p-0"
-                            title="Descarregar"
-                          >
-                            <Download className="h-3 w-3" />
-                          </Button>
-                        )}
-                        {(canDelete as any)('family') && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteBackup(backup.id)}
-                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                            title="Eliminar"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Modal de Edição */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar Família</DialogTitle>
+            <DialogTitle>Editar Informações da Família</DialogTitle>
             <DialogDescription>
-              Atualize as informações básicas da família
+              Atualize os dados básicos da família
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="nome">Nome da Família</Label>
+            <div>
+              <Label htmlFor="edit-name">Nome da Família</Label>
               <Input
-                id="nome"
+                id="edit-name"
                 value={editForm.nome}
                 onChange={(e) => setEditForm(prev => ({ ...prev, nome: e.target.value }))}
-                placeholder="Nome da família"
+                className="mt-1"
               />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Descrição</Label>
+            <div>
+              <Label htmlFor="edit-description">Descrição</Label>
               <Input
-                id="description"
+                id="edit-description"
                 value={editForm.description}
                 onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Descrição opcional da família"
+                className="mt-1"
               />
             </div>
-
             <div className="flex gap-2 pt-4">
-              <Button 
-                onClick={handleEditSubmit} 
+              <Button
+                onClick={handleEditSubmit}
                 disabled={isSubmitting}
                 className="flex-1"
               >
                 {isSubmitting ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     A guardar...
                   </>
                 ) : (
@@ -709,7 +536,10 @@ const FamilySettings: React.FC = () => {
                   </>
                 )}
               </Button>
-              <Button variant="outline" onClick={() => setEditModalOpen(false)} disabled={isSubmitting}>
+              <Button
+                variant="outline"
+                onClick={() => setEditModalOpen(false)}
+              >
                 Cancelar
               </Button>
             </div>
@@ -719,7 +549,7 @@ const FamilySettings: React.FC = () => {
 
       {/* Modal de Exportação */}
       <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Exportar Relatório Familiar</DialogTitle>
             <DialogDescription>
@@ -727,106 +557,98 @@ const FamilySettings: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="format">Formato</Label>
-              <Select 
-                value={exportForm.format} 
-                onValueChange={(value: 'pdf' | 'csv' | 'excel') => 
-                  setExportForm(prev => ({ ...prev, format: value }))
-                }
+            <div>
+              <Label htmlFor="export-format">Formato</Label>
+              <select
+                id="export-format"
+                value={exportForm.format}
+                onChange={(e) => setExportForm(prev => ({ ...prev, format: e.target.value as any }))}
+                className="w-full p-2 border rounded-md mt-1"
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar formato" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pdf">PDF</SelectItem>
-                  <SelectItem value="csv">CSV</SelectItem>
-                  <SelectItem value="excel">Excel</SelectItem>
-                </SelectContent>
-              </Select>
+                <option value="pdf">PDF</option>
+                <option value="excel">Excel</option>
+                <option value="csv">CSV</option>
+              </select>
             </div>
-
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="export-start">Data Início</Label>
+                <Input
+                  id="export-start"
+                  type="date"
+                  value={exportForm.dateRange.start}
+                  onChange={(e) => setExportForm(prev => ({ 
+                    ...prev, 
+                    dateRange: { ...prev.dateRange, start: e.target.value } 
+                  }))}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="export-end">Data Fim</Label>
+                <Input
+                  id="export-end"
+                  type="date"
+                  value={exportForm.dateRange.end}
+                  onChange={(e) => setExportForm(prev => ({ 
+                    ...prev, 
+                    dateRange: { ...prev.dateRange, end: e.target.value } 
+                  }))}
+                  className="mt-1"
+                />
+              </div>
+            </div>
             <div className="space-y-2">
-              <Label htmlFor="startDate">Data de Início</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={exportForm.dateRange.start}
-                onChange={(e) => setExportForm(prev => ({ 
-                  ...prev, 
-                  dateRange: { ...prev.dateRange, start: e.target.value }
-                }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="endDate">Data de Fim</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={exportForm.dateRange.end}
-                onChange={(e) => setExportForm(prev => ({ 
-                  ...prev, 
-                  dateRange: { ...prev.dateRange, end: e.target.value }
-                }))}
-              />
-            </div>
-
-            <div className="space-y-3">
               <Label>Incluir no Relatório</Label>
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <Switch
-                    id="includeMembers"
+                    id="include-members"
                     checked={exportForm.includeMembers}
-                    onCheckedChange={(checked) => 
-                      setExportForm(prev => ({ ...prev, includeMembers: checked }))
-                    }
+                    onCheckedChange={(checked) => setExportForm(prev => ({ ...prev, includeMembers: checked }))}
                   />
-                  <Label htmlFor="includeMembers">Membros da Família</Label>
+                  <Label htmlFor="include-members">Membros da Família</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Switch
-                    id="includeBudgets"
+                    id="include-budgets"
                     checked={exportForm.includeBudgets}
-                    onCheckedChange={(checked) => 
-                      setExportForm(prev => ({ ...prev, includeBudgets: checked }))
-                    }
+                    onCheckedChange={(checked) => setExportForm(prev => ({ ...prev, includeBudgets: checked }))}
                   />
-                  <Label htmlFor="includeBudgets">Orçamentos</Label>
+                  <Label htmlFor="include-budgets">Orçamentos</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Switch
-                    id="includeGoals"
+                    id="include-goals"
                     checked={exportForm.includeGoals}
-                    onCheckedChange={(checked) => 
-                      setExportForm(prev => ({ ...prev, includeGoals: checked }))
-                    }
+                    onCheckedChange={(checked) => setExportForm(prev => ({ ...prev, includeGoals: checked }))}
                   />
-                  <Label htmlFor="includeGoals">Objetivos</Label>
+                  <Label htmlFor="include-goals">Objetivos</Label>
                 </div>
               </div>
             </div>
-
             <div className="flex gap-2 pt-4">
-              <Button 
-                onClick={handleExportReport} 
+              <Button
+                onClick={handleExportReport}
                 disabled={isExporting}
                 className="flex-1"
               >
                 {isExporting ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     A exportar...
                   </>
                 ) : (
                   <>
-                    <FileText className="h-4 w-4 mr-2" />
+                    <Download className="h-4 w-4 mr-2" />
                     Exportar
                   </>
                 )}
               </Button>
-              <Button variant="outline" onClick={() => setExportModalOpen(false)} disabled={isExporting}>
+              <Button
+                variant="outline"
+                onClick={() => setExportModalOpen(false)}
+              >
                 Cancelar
               </Button>
             </div>
@@ -835,56 +657,17 @@ const FamilySettings: React.FC = () => {
       </Dialog>
 
       {/* Modal de Confirmação de Eliminação */}
-      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-red-800">Confirmar Eliminação</DialogTitle>
-            <DialogDescription>
-              Esta ação não pode ser desfeita. Todos os dados partilhados serão perdidos permanentemente.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <h4 className="font-medium text-red-800 mb-2">O que será eliminado:</h4>
-              <ul className="text-sm text-red-700 space-y-1">
-                <li>• Todas as contas bancárias familiares</li>
-                <li>• Todos os objetivos financeiros</li>
-                <li>• Todos os orçamentos</li>
-                <li>• Todas as transações partilhadas</li>
-                <li>• Todos os membros e convites</li>
-                <li>• Todas as configurações</li>
-              </ul>
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <Button 
-                variant="destructive" 
-                onClick={handleDeleteFamily}
-                className="flex-1"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Eliminar Família
-              </Button>
-              <Button variant="outline" onClick={() => setDeleteModalOpen(false)}>
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Confirmation Dialog */}
-      <ConfirmationDialog
-        isOpen={confirmation.isOpen}
-        onClose={confirmation.close}
-        onConfirm={confirmation.onConfirm}
-        onCancel={confirmation.onCancel}
-        title={confirmation.options.title}
-        message={confirmation.options.message}
-        confirmText={confirmation.options.confirmText}
-        cancelText={confirmation.options.cancelText}
-        variant={confirmation.options.variant}
-      />
+      {showDeleteConfirmation && (
+        <Suspense fallback={<LazyFallback message="A carregar diálogo..." />}>
+          <LazyConfirmationDialog
+            open={showDeleteConfirmation}
+            onOpenChange={setShowDeleteConfirmation}
+            title="Eliminar Família"
+            description="Tem a certeza que deseja eliminar esta família? Esta ação não pode ser desfeita e todos os dados serão perdidos permanentemente."
+            onConfirm={handleDeleteFamily}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

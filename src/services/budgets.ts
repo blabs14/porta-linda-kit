@@ -75,3 +75,23 @@ export const deleteBudget = async (id: string, userId: string): Promise<{ data: 
     return { data: null, error };
   }
 };
+
+export const getPersonalBudgets = async (): Promise<{ data: Budget[] | null; error: any }> => {
+  try {
+    const { data, error } = await supabase.rpc('get_personal_budgets');
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+export const getFamilyBudgets = async (): Promise<{ data: Budget[] | null; error: any }> => {
+  try {
+    const { data, error } = await supabase.rpc('get_family_budgets');
+
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+};

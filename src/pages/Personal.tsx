@@ -4,6 +4,7 @@ import { PersonalProvider, usePersonal } from '../features/personal/PersonalProv
 import { LoadingSpinner } from '../components/ui/loading-states';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { useRouteChange } from '../hooks/useRouteChange';
 import { 
   Home, 
   Wallet, 
@@ -253,6 +254,9 @@ const QuickKPIs: React.FC = () => {
 // Componente principal da Área Pessoal
 const PersonalArea: React.FC = () => {
   const isMobile = useMediaQuery('(max-width: 1024px)');
+  
+  // Hook para atualizar dados automaticamente quando a rota muda
+  useRouteChange();
 
   return (
     <div className="flex h-screen bg-background">

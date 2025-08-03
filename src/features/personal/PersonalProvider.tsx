@@ -2,26 +2,25 @@ import React, { createContext, useContext, ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
-  getAccounts, 
+  getPersonalAccountsWithBalances, 
   createAccount, 
   updateAccount, 
-  deleteAccount, 
-  getAccountsWithBalances 
+  deleteAccount
 } from '../../services/accounts';
 import { 
-  getGoals, 
+  getPersonalGoals, 
   createGoal, 
   updateGoal, 
   deleteGoal 
 } from '../../services/goals';
 import { 
-  getBudgets, 
+  getPersonalBudgets, 
   createBudget, 
   updateBudget, 
   deleteBudget 
 } from '../../services/budgets';
 import { 
-  getTransactions, 
+  getPersonalTransactions, 
   createTransaction, 
   updateTransaction, 
   deleteTransaction 
@@ -98,7 +97,7 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
   const { data: myAccounts = [], isLoading: accountsLoading } = useQuery({
     queryKey: ['personal', 'accounts', user?.id],
     queryFn: async () => {
-      const { data, error } = await getAccountsWithBalances(user?.id);
+      const { data, error } = await getPersonalAccountsWithBalances(user?.id);
       if (error) throw error;
       return data || [];
     },
@@ -114,14 +113,54 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
   const myCards = myAccounts.filter(account => account.tipo === 'cartão de crédito');
   const regularAccounts = myAccounts.filter(account => account.tipo !== 'cartão de crédito');
 
-  // Query para objetivos pessoais - usar o hook existente
-  const { goals: myGoals = [], isLoading: goalsLoading } = useGoals();
+  // Query para objetivos pessoais - usar a função que filtra apenas dados pessoais
+  const { data: myGoals = [], isLoading: goalsLoading } = useQuery({
+    queryKey: ['personal', 'goals', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await getPersonalGoals(user.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+  });
 
-  // Query para orçamentos pessoais - usar o hook existente
-  const { data: myBudgets = [], isLoading: budgetsLoading } = useBudgets();
+  // Query para orçamentos pessoais - usar a função que filtra apenas dados pessoais
+  const { data: myBudgets = [], isLoading: budgetsLoading } = useQuery({
+    queryKey: ['personal', 'budgets', user?.id],
+    queryFn: async () => {
+      const { data, error } = await getPersonalBudgets();
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+  });
 
-  // Query para transações pessoais - usar o hook existente
-  const { data: myTransactions = [], isLoading: transactionsLoading } = useTransactions();
+  // Query para transações pessoais - usar a função que filtra apenas dados pessoais
+  const { data: myTransactions = [], isLoading: transactionsLoading } = useQuery({
+    queryKey: ['personal', 'transactions', user?.id],
+    queryFn: async () => {
+      const { data, error } = await getPersonalTransactions();
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+  });
 
   // Query para KPIs pessoais
   const { data: personalKPIs, isLoading: kpisLoading } = useQuery({

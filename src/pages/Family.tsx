@@ -5,6 +5,7 @@ import FamilyHeader from '../features/family/FamilyHeader';
 import FamilySidebar from '../features/family/FamilySidebar';
 import FamilyTabBar from '../features/family/FamilyTabBar';
 import { LoadingSpinner } from '../components/ui/loading-spinner';
+import { useRouteChange } from '../hooks/useRouteChange';
 
 // Lazy load das páginas
 const FamilyDashboard = React.lazy(() => import('../features/family/FamilyDashboard'));
@@ -16,6 +17,9 @@ const FamilyMembers = React.lazy(() => import('../features/family/FamilyMembers'
 const FamilySettings = React.lazy(() => import('../features/family/FamilySettings'));
 
 const FamilyPage: React.FC = () => {
+  // Hook para atualizar dados automaticamente quando a rota muda
+  useRouteChange();
+
   return (
     <FamilyProvider>
       <div className="flex h-screen bg-background">

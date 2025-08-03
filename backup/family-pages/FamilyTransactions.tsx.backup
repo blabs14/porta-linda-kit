@@ -1,0 +1,512 @@
+import React, { useState, useEffect } from 'react';
+import { useFamily } from './FamilyProvider';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { 
+  TrendingUp, 
+  Plus, 
+  Edit, 
+  Trash2, 
+  TrendingDown,
+  Download,
+  Wallet,
+  Calendar,
+  Search,
+  Filter,
+  ChevronDown
+} from 'lucide-react';
+import { LoadingSpinner } from '../../components/ui/loading-states';
+import { useTransactions } from '../../hooks/useTransactionsQuery';
+import { useAccounts } from '../../hooks/useAccountsQuery';
+import { useCategories } from '../../hooks/useCategoriesQuery';
+import { useReferenceData } from '../../hooks/useCache';
+import { useAuth } from '../../contexts/AuthContext';
+import { exportReport } from '../../services/exportService';
+import { formatCurrency } from '../../lib/utils';
+import { useToast } from '../../hooks/use-toast';
+import TransactionForm from '../../components/TransactionForm';
+
+const FamilyTransactions: React.FC = () => {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editTx, setEditTx] = useState<any | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
+  
+  // Estados para filtros
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedAccount, setSelectedAccount] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedType, setSelectedType] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Usar os hooks robustos que já funcionam
+  const { familyTransactions, isLoading, refetchAll } = useFamily();
+  const { data: accounts = [] } = useAccounts();
+  const { data: categories = [] } = useCategories();
+  const { accounts: refAccounts, categories: refCategories } = useReferenceData();
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const accountsData = Array.isArray(refAccounts.data) ? refAccounts.data : [];
+  const categoriesData = Array.isArray(refCategories.data) ? refCategories.data : [];
+
+  // Forçar atualização quando o modal fecha
+  useEffect(() => {
+    if (!modalOpen) {
+      setRefreshKey(prev => prev + 1);
+    }
+  }, [modalOpen]);
+
+  const handleNew = () => {
+    setEditTx(null);
+    setModalOpen(true);
+  };
+
+  const handleEdit = (tx: any) => {
+    setEditTx(tx);
+    setModalOpen(true);
+  };
+
+  const handleClose = () => {
+    setModalOpen(false);
+    setEditTx(null);
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedAccount('all');
+    setSelectedCategory('all');
+    setSelectedType('all');
+    setDateFilter('all');
+    setDateRange({ start: '', end: '' });
+  };
+
+  const handleExport = async () => {
+    if (!user?.id) {
+      toast({
+        title: 'Erro',
+        description: 'Utilizador não autenticado',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const filteredTransactions = getFilteredTransactions();
+      
+      const exportData = {
+        transactions: filteredTransactions,
+        filters: {
+          searchTerm,
+          account: selectedAccount !== 'all' ? getAccountName(selectedAccount) : 'Todas',
+          category: selectedCategory !== 'all' ? getCategoryName(selectedCategory) : 'Todas',
+          type: selectedType !== 'all' ? selectedType : 'Todos',
+          dateRange: dateRange.start && dateRange.end ? `${dateRange.start} a ${dateRange.end}` : 'Todas',
+        },
+        exportDate: new Date().toISOString(),
+      };
+
+      const result = await exportReport(user.id, {
+        format: 'pdf',
+        dateRange: {
+          start: dateRange.start || new Date().toISOString(),
+          end: dateRange.end || new Date().toISOString()
+        }
+      });
+
+      // Criar link de download
+      const url = window.URL.createObjectURL(result.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = result.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: 'Exportação concluída',
+        description: 'O relatório foi exportado com sucesso.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro na exportação',
+        description: error.message || 'Ocorreu um erro ao exportar o relatório.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const getAccountName = (accountId: string) => {
+    const account = accountsData.find(acc => acc.id === accountId);
+    return account?.nome || 'Conta não encontrada';
+  };
+
+  const getCategoryName = (categoryId: string) => {
+    const category = categoriesData.find(cat => cat.id === categoryId);
+    return category?.nome || 'Categoria não encontrada';
+  };
+
+  const getDateFilterText = () => {
+    switch (dateFilter) {
+      case 'today': return 'Hoje';
+      case 'this-week': return 'Esta semana';
+      case 'this-month': return 'Este mês';
+      case 'this-year': return 'Este ano';
+      case 'last-week': return 'Última semana';
+      case 'last-month': return 'Último mês';
+      case 'custom': return 'Personalizado';
+      default: return 'Todas as datas';
+    }
+  };
+
+  // Filtrar transações
+  const getFilteredTransactions = () => {
+    let filtered = [...familyTransactions];
+
+    // Filtro por termo de pesquisa
+    if (searchTerm) {
+      filtered = filtered.filter(tx =>
+        tx.descricao?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tx.valor?.toString().includes(searchTerm) ||
+        getCategoryName(tx.categoria_id).toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filtro por conta
+    if (selectedAccount !== 'all') {
+      filtered = filtered.filter(tx => tx.account_id === selectedAccount);
+    }
+
+    // Filtro por categoria
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(tx => tx.categoria_id === selectedCategory);
+    }
+
+    // Filtro por tipo
+    if (selectedType !== 'all') {
+      filtered = filtered.filter(tx => tx.tipo === selectedType);
+    }
+
+    // Filtro por data
+    if (dateRange.start && dateRange.end) {
+      const startDate = new Date(dateRange.start);
+      const endDate = new Date(dateRange.end);
+      filtered = filtered.filter(tx => {
+        const txDate = new Date(tx.data);
+        return txDate >= startDate && txDate <= endDate;
+      });
+    }
+
+    return filtered;
+  };
+
+  const filteredTransactions = getFilteredTransactions();
+
+  if (isLoading.transactions) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Transações Familiares
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Transações partilhadas e movimentos financeiros da família
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={handleNew}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Transação
+          </Button>
+          <Button onClick={handleExport} variant="outline" disabled={isExporting}>
+            <Download className="h-4 w-4 mr-2" />
+            {isExporting ? 'A exportar...' : 'Exportar'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              <span className="font-medium">Filtros</span>
+              {(searchTerm || selectedAccount !== 'all' || selectedCategory !== 'all' || selectedType !== 'all' || dateFilter !== 'all') && (
+                <Badge variant="secondary" className="ml-2">
+                  {[
+                    searchTerm,
+                    selectedAccount !== 'all',
+                    selectedCategory !== 'all',
+                    selectedType !== 'all',
+                    dateFilter !== 'all'
+                  ].filter(Boolean).length} ativo(s)
+                </Badge>
+              )}
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={clearFilters}
+              disabled={!searchTerm && selectedAccount === 'all' && selectedCategory === 'all' && selectedType === 'all' && dateFilter === 'all'}
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Limpar Filtros
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            {/* Pesquisa */}
+            <div className="lg:col-span-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Pesquisar transações..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            {/* Filtro por Conta */}
+            <div>
+              <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Conta" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as contas</SelectItem>
+                  {accounts.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filtro por Categoria */}
+            <div>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as categorias</SelectItem>
+                  {categoriesData.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filtro por Tipo */}
+            <div>
+              <Select value={selectedType} onValueChange={setSelectedType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  <SelectItem value="receita">Receitas</SelectItem>
+                  <SelectItem value="despesa">Despesas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filtro por Data */}
+            <div className="relative date-picker-container">
+              <Select value={dateFilter} onValueChange={setDateFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Data" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as datas</SelectItem>
+                  <SelectItem value="today">Hoje</SelectItem>
+                  <SelectItem value="this-week">Esta semana</SelectItem>
+                  <SelectItem value="this-month">Este mês</SelectItem>
+                  <SelectItem value="this-year">Este ano</SelectItem>
+                  <SelectItem value="last-week">Última semana</SelectItem>
+                  <SelectItem value="last-month">Último mês</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Filtro de data personalizado */}
+          {dateFilter === 'custom' && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="start-date">Data inicial</Label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="end-date">Data final</Label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Lista de Transações */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Transações</CardTitle>
+              <CardDescription>
+                {filteredTransactions.length} transação{filteredTransactions.length !== 1 ? 'ões' : ''} encontrada{filteredTransactions.length !== 1 ? 's' : ''}
+              </CardDescription>
+            </div>
+            <Button onClick={handleNew}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Transação
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {filteredTransactions.length === 0 ? (
+            <div className="text-center py-8">
+              <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">
+                {familyTransactions.length === 0 
+                  ? 'Nenhuma transação familiar encontrada' 
+                  : 'Nenhuma transação encontrada com os filtros aplicados'
+                }
+              </p>
+              <Button variant="outline" className="mt-4" onClick={familyTransactions.length === 0 ? handleNew : clearFilters}>
+                <Plus className="h-4 w-4 mr-2" />
+                {familyTransactions.length === 0 ? 'Registar primeira transação' : 'Limpar filtros'}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredTransactions.map((transaction) => (
+                <Card key={transaction.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-full ${
+                          transaction.tipo === 'receita' ? 'bg-green-100' : 'bg-red-100'
+                        }`}>
+                          {transaction.tipo === 'receita' ? (
+                            <TrendingUp className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <TrendingDown className="h-4 w-4 text-red-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium">{transaction.descricao || 'Transação'}</p>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>{categories.find(c => c.id === transaction.categoria_id)?.nome || 'Sem categoria'}</span>
+                            <span>•</span>
+                            <span>{accounts.find(a => a.id === transaction.account_id)?.nome || 'Conta'}</span>
+                            <span>•</span>
+                            <span>{new Date(transaction.data).toLocaleDateString('pt-PT')}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <p className={`font-bold ${
+                            transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {transaction.tipo === 'receita' ? '+' : '-'}
+                            {(transaction.valor || 0).toFixed(2)}€
+                          </p>
+                          <Badge variant="outline" className="text-xs">
+                            Familiar
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(transaction)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              if (confirm('Tem a certeza que pretende eliminar esta transação?')) {
+                                // Implementar eliminação
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      <Dialog 
+        open={modalOpen} 
+        onOpenChange={(open) => {
+          setModalOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editTx ? 'Editar Transação Familiar' : 'Nova Transação Familiar'}</DialogTitle>
+            <DialogDescription>
+              {editTx ? 'Editar dados da transação familiar' : 'Criar nova transação familiar'}
+            </DialogDescription>
+          </DialogHeader>
+          <TransactionForm
+            initialData={editTx}
+            onSuccess={() => {
+              handleClose();
+              refetchAll();
+            }}
+            onCancel={handleClose}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default FamilyTransactions; 

@@ -1,0 +1,352 @@
+import React, { useState } from 'react';
+import { useFamily } from './FamilyProvider';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Progress } from '../../components/ui/progress';
+import { BarChart3, Plus, Edit, Trash2, Target, AlertTriangle } from 'lucide-react';
+import { LoadingSpinner } from '../../components/ui/loading-states';
+import { useToast } from '../../hooks/use-toast';
+import { formatCurrency } from '../../lib/utils';
+import { useConfirmation } from '../../hooks/useConfirmation';
+import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
+import BudgetForm from '../../components/BudgetForm';
+
+const FamilyBudgets: React.FC = () => {
+  const { 
+    familyBudgets, 
+    isLoading,
+    createFamilyBudget,
+    updateFamilyBudget,
+    deleteFamilyBudget,
+    canEdit,
+    canDelete,
+    refetchAll
+  } = useFamily();
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingBudget, setEditingBudget] = useState<any>(null);
+  
+  const { toast } = useToast();
+  const confirmation = useConfirmation();
+
+  const handleCreateBudget = () => {
+    setShowCreateModal(true);
+  };
+
+  const handleEditBudget = (budget: any) => {
+    setEditingBudget(budget);
+    setShowEditModal(true);
+  };
+
+  const handleDeleteBudget = async (budgetId: string) => {
+    const budget = familyBudgets.find(b => b.id === budgetId);
+    
+    confirmation.confirm(
+      {
+        title: 'Eliminar Orçamento Familiar',
+        message: `Tem a certeza que deseja eliminar o orçamento "${budget?.categoria_nome || 'Categoria'}" para ${budget?.mes || 'Mês'}? Esta ação não pode ser desfeita.`,
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+        variant: 'destructive',
+      },
+      async () => {
+        try {
+          await deleteFamilyBudget(budgetId);
+          toast({
+            title: 'Orçamento eliminado',
+            description: 'O orçamento familiar foi eliminado com sucesso.',
+          });
+          refetchAll();
+        } catch (error: any) {
+          toast({
+            title: 'Erro',
+            description: error.message || 'Ocorreu um erro ao eliminar o orçamento.',
+            variant: 'destructive',
+          });
+        }
+      }
+    );
+  };
+
+  const handleCreateSuccess = async () => {
+    try {
+      await createFamilyBudget({});
+      toast({
+        title: 'Orçamento criado',
+        description: 'O orçamento familiar foi criado com sucesso.',
+      });
+      setShowCreateModal(false);
+      refetchAll();
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Ocorreu um erro ao criar o orçamento.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleEditSuccess = async () => {
+    try {
+      if (editingBudget) {
+        await updateFamilyBudget(editingBudget.id, {});
+        toast({
+          title: 'Orçamento atualizado',
+          description: 'O orçamento familiar foi atualizado com sucesso.',
+        });
+      }
+      setShowEditModal(false);
+      setEditingBudget(null);
+      refetchAll();
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Ocorreu um erro ao atualizar o orçamento.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-PT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(value);
+  };
+
+  const getProgressPercentage = (gasto: number, valor: number) => {
+    if (valor === 0) return 0;
+    return Math.min((gasto / valor) * 100, 100);
+  };
+
+  const getProgressColor = (percentage: number) => {
+    if (percentage >= 100) return 'bg-red-100';
+    if (percentage >= 80) return 'bg-yellow-100';
+    return 'bg-green-100';
+  };
+
+  const getCategoryName = (categoriaId: string) => {
+    const budget = familyBudgets.find(b => b.categoria_id === categoriaId);
+    return budget?.categoria_nome || 'Categoria não encontrada';
+  };
+
+  const formatMonth = (monthString: string) => {
+    if (!monthString) return 'Mês não definido';
+    
+    try {
+      const [year, month] = monthString.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      return date.toLocaleDateString('pt-PT', { 
+        year: 'numeric', 
+        month: 'long' 
+      });
+    } catch (error) {
+      return monthString;
+    }
+  };
+
+  if (isLoading.budgets) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Orçamentos Familiares
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Orçamentos mensais partilhados por categoria
+          </p>
+        </div>
+        {canEdit('budget') && (
+          <Button onClick={handleCreateBudget}>
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Orçamento
+          </Button>
+        )}
+      </div>
+
+      {/* Budgets Grid */}
+      {familyBudgets.length === 0 ? (
+        <div className="text-center py-12">
+          <Target className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-lg font-medium mb-2">Nenhum orçamento familiar encontrado</h3>
+          <p className="text-muted-foreground mb-4">
+            Clica em "Novo Orçamento" para começar a planear os gastos da família
+          </p>
+          {canEdit('budget') && (
+            <Button onClick={handleCreateBudget}>
+              <Plus className="h-4 w-4 mr-2" />
+              Criar Orçamento
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {familyBudgets.map((budget) => {
+            const gasto = budget.gasto || 0;
+            const percentage = getProgressPercentage(gasto, budget.valor);
+            const progressColor = getProgressColor(percentage);
+            const isExceeded = gasto > budget.valor;
+            const remaining = Math.max(budget.valor - gasto, 0);
+            
+            return (
+              <Card key={budget.id} className="hover:shadow-md transition-shadow h-fit">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium truncate flex-1 mr-2">
+                    {budget.categoria_nome || 'Categoria não encontrada'}
+                  </CardTitle>
+                  <div className="flex items-center gap-1">
+                    <Target className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    {canEdit('budget') && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditBudget(budget)}
+                        className="h-6 w-6 p-0"
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                    )}
+                    {canDelete('budget') && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteBudget(budget.id)}
+                        className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Período</span>
+                      <Badge variant="outline" className="text-xs">
+                        {formatMonth(budget.mes)}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Orçamento</span>
+                      <span className="font-medium">{formatCurrency(budget.valor)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Gasto</span>
+                      <span className={`font-medium ${
+                        gasto === 0 ? 'text-gray-600' : 
+                        isExceeded ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {formatCurrency(gasto)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">
+                        {isExceeded ? 'Excedido' : 'Restante'}
+                      </span>
+                      <span className={`font-medium ${
+                        isExceeded ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {isExceeded ? formatCurrency(gasto - budget.valor) : formatCurrency(remaining)}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Progresso</span>
+                      <span>{percentage.toFixed(1)}%</span>
+                    </div>
+                    <Progress 
+                      value={percentage} 
+                      className={`h-2 ${progressColor}`}
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{formatCurrency(gasto)}</span>
+                      <span>{formatCurrency(budget.valor)}</span>
+                    </div>
+                  </div>
+
+                  {isExceeded && (
+                    <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center gap-2 text-red-800">
+                        <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                        <span className="text-xs font-medium">Orçamento Excedido</span>
+                      </div>
+                      <p className="text-xs text-red-600 mt-1">
+                        O orçamento foi ultrapassado em {formatCurrency(gasto - budget.valor)}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Create Budget Modal */}
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo Orçamento Familiar</DialogTitle>
+            <DialogDescription>
+              Cria um novo orçamento mensal partilhado pela família
+            </DialogDescription>
+          </DialogHeader>
+          <BudgetForm
+            onSuccess={handleCreateSuccess}
+            onCancel={() => setShowCreateModal(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Budget Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Orçamento Familiar</DialogTitle>
+            <DialogDescription>
+              Edita os dados do orçamento familiar
+            </DialogDescription>
+          </DialogHeader>
+          <BudgetForm
+            initialData={editingBudget}
+            onSuccess={handleEditSuccess}
+            onCancel={() => {
+              setShowEditModal(false);
+              setEditingBudget(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={confirmation.isOpen}
+        onClose={confirmation.close}
+        onConfirm={confirmation.onConfirm}
+        onCancel={confirmation.onCancel}
+        title={confirmation.options.title}
+        message={confirmation.options.message}
+        confirmText={confirmation.options.confirmText}
+        cancelText={confirmation.options.cancelText}
+        variant={confirmation.options.variant}
+      />
+    </div>
+  );
+};
+
+export default FamilyBudgets; 

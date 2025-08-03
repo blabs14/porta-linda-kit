@@ -347,3 +347,49 @@ export const getAccountsWithBalances = async (userId?: string): Promise<{ data: 
     return { data: null, error };
   }
 };
+
+export const getPersonalAccountsWithBalances = async (userId?: string): Promise<{ data: AccountWithBalances[] | null; error: any }> => {
+  try {
+    console.log('[getPersonalAccountsWithBalances] Fetching personal accounts with balances...');
+    console.log('[getPersonalAccountsWithBalances] userId:', userId);
+    
+    // Usar a função RPC para contas pessoais
+    const { data, error } = await supabase.rpc('get_personal_accounts_with_balances', {
+      p_user_id: userId || null
+    });
+
+    if (error) {
+      console.error('[getPersonalAccountsWithBalances] RPC error:', error);
+      return { data: null, error };
+    }
+
+    console.log('[getPersonalAccountsWithBalances] RPC result:', data);
+    return { data: data || [], error: null };
+  } catch (error) {
+    console.error('[getPersonalAccountsWithBalances] Exception:', error);
+    return { data: null, error };
+  }
+};
+
+export const getFamilyAccountsWithBalances = async (userId?: string): Promise<{ data: AccountWithBalances[] | null; error: any }> => {
+  try {
+    console.log('[getFamilyAccountsWithBalances] Fetching family accounts with balances...');
+    console.log('[getFamilyAccountsWithBalances] userId:', userId);
+    
+    // Usar a função RPC para contas familiares
+    const { data, error } = await supabase.rpc('get_family_accounts_with_balances', {
+      p_user_id: userId || null
+    });
+
+    if (error) {
+      console.error('[getFamilyAccountsWithBalances] RPC error:', error);
+      return { data: null, error };
+    }
+
+    console.log('[getFamilyAccountsWithBalances] RPC result:', data);
+    return { data: data || [], error: null };
+  } catch (error) {
+    console.error('[getFamilyAccountsWithBalances] Exception:', error);
+    return { data: null, error };
+  }
+};

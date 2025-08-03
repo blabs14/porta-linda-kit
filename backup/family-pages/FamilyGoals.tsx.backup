@@ -1,163 +1,87 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFamily } from './FamilyProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Progress } from '../../components/ui/progress';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Target, Plus, Edit, Trash2, Calendar, CheckCircle, Trophy } from 'lucide-react';
 import { LoadingSpinner } from '../../components/ui/loading-states';
 import { useToast } from '../../hooks/use-toast';
 import { formatCurrency } from '../../lib/utils';
+import { GoalAllocationModal } from '../../components/GoalAllocationModal';
 import GoalForm from '../../components/GoalForm';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
-import { useAccountsWithBalances } from '../../hooks/useAccountsQuery';
-import { FormSubmitButton } from '../../components/ui/loading-button';
+import { useAuth } from '../../contexts/AuthContext';
 
 const FamilyGoals: React.FC = () => {
+  const {
+    familyGoals,
+    isLoading,
+    canEdit,
+    canDelete,
+    createFamilyGoal,
+    updateFamilyGoal,
+    deleteFamilyGoal,
+    allocateToGoal,
+    family,
+    myRole,
+    refetchAll
+  } = useFamily();
+
+  const { user, loading: authLoading } = useAuth();
+
+  // Debug effect
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('FamilyGoals Debug:', {
+        user: user?.id,
+        userEmail: user?.email,
+        authLoading,
+        familyGoals: familyGoals?.length || 0,
+        goalsLoading: isLoading.goals,
+        canEdit: canEdit('goal'),
+        canDelete: canDelete('goal'),
+        family: family?.id,
+        myRole
+      });
+    }
+  }, [user, authLoading, familyGoals, isLoading.goals, canEdit, canDelete, family, myRole]);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAllocationModal, setShowAllocationModal] = useState(false);
-  const [selectedGoal, setSelectedGoal] = useState<any>(null);
+  const [selectedGoal, setSelectedGoal] = useState<any | null>(null);
   const [editingGoal, setEditingGoal] = useState<any>(null);
   
-  // Estados para o modal de alocação personalizado
-  const [selectedAccountId, setSelectedAccountId] = useState('');
-  const [allocationAmount, setAllocationAmount] = useState('');
-  const [allocationDescription, setAllocationDescription] = useState('');
-  const [isAllocating, setIsAllocating] = useState(false);
-  const [allocationError, setAllocationError] = useState('');
-  
-  // Usar o contexto familiar em vez do pessoal
-  const { 
-    familyGoals, 
-    isLoading, 
-    canEdit, 
-    canDelete, 
-    createFamilyGoal, 
-    updateFamilyGoal, 
-    deleteFamilyGoal, 
-    allocateToGoal,
-    refetchAll 
-  } = useFamily();
-  
-  const { data: accounts = [] } = useAccountsWithBalances();
   const { toast } = useToast();
   const confirmation = useConfirmation();
+
+  // Debug logs
+  console.log('[FamilyGoals] familyGoals:', familyGoals);
+  console.log('[FamilyGoals] isLoading:', isLoading);
+  console.log('[FamilyGoals] canEdit:', canEdit);
+  console.log('[FamilyGoals] canDelete:', canDelete);
 
   const handleCreateGoal = () => {
     setShowCreateModal(true);
   };
 
-  const handleCreateSuccess = async () => {
-    try {
-      setShowCreateModal(false);
-      refetchAll();
-      toast({
-        title: 'Objetivo criado',
-        description: 'Objetivo familiar criado com sucesso!',
-      });
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Erro ao criar objetivo familiar',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleEditSuccess = async () => {
-    try {
-      setShowEditModal(false);
-      setEditingGoal(null);
-      refetchAll();
-      toast({
-        title: 'Objetivo atualizado',
-        description: 'Objetivo familiar atualizado com sucesso!',
-      });
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Erro ao atualizar objetivo familiar',
-        variant: 'destructive',
-      });
-    }
-  };
-
   const handleAllocationSuccess = () => {
     setShowAllocationModal(false);
     setSelectedGoal(null);
-    setSelectedAccountId('');
-    setAllocationAmount('');
-    setAllocationDescription('');
-    setAllocationError('');
-    refetchAll();
     toast({
       title: 'Alocação realizada',
       description: 'Valor alocado com sucesso ao objetivo familiar!',
     });
+    refetchAll();
   };
 
   const handleAllocateToGoal = (goal: any) => {
     setSelectedGoal(goal);
-    setSelectedAccountId('');
-    setAllocationAmount('');
-    setAllocationDescription('');
-    setAllocationError('');
     setShowAllocationModal(true);
-  };
-
-  const handleAllocationSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAllocationError('');
-    setIsAllocating(true);
-
-    if (!selectedAccountId) {
-      setAllocationError('Selecione uma conta');
-      setIsAllocating(false);
-      return;
-    }
-
-    const numericAmount = parseFloat(allocationAmount.replace(',', '.'));
-    if (!numericAmount || numericAmount <= 0) {
-      setAllocationError('Insira um valor válido');
-      setIsAllocating(false);
-      return;
-    }
-
-    const selectedAccount = accounts.find(acc => acc.account_id === selectedAccountId);
-    if (selectedAccount && numericAmount > selectedAccount.saldo_disponivel) {
-      setAllocationError('Saldo insuficiente na conta selecionada');
-      setIsAllocating(false);
-      return;
-    }
-
-    try {
-      await allocateToGoal(
-        selectedGoal.id,
-        numericAmount,
-        selectedAccountId
-      );
-      
-      handleAllocationSuccess();
-    } catch (error: any) {
-      console.error('Erro na alocação:', error);
-      setAllocationError(error.message || 'Erro ao processar alocação');
-    } finally {
-      setIsAllocating(false);
-    }
-  };
-
-  const handleAllocationAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    // Permitir apenas números e vírgula/ponto
-    const numericValue = value.replace(/[^\d.,]/g, '').replace(',', '.');
-    setAllocationAmount(numericValue);
   };
 
   const handleEditGoal = (goal: any) => {
@@ -167,16 +91,16 @@ const FamilyGoals: React.FC = () => {
 
   const handleDeleteGoal = async (goalId: string) => {
     // Encontrar o objetivo para mostrar informações específicas
-    const goal = familyGoals.find((g: any) => g.id === goalId);
+    const goal = familyGoals.find(g => g.id === goalId);
     const isCompleted = goal?.progresso_percentual >= 100;
     
     let message = 'Tem a certeza que deseja eliminar este objetivo familiar? Esta ação não pode ser desfeita.';
     
     if (goal) {
       if (isCompleted) {
-        message = `O objetivo familiar "${goal.nome}" foi atingido a 100%. Ao eliminar, o valor alocado (${formatCurrency(goal.total_alocado)}) será mantido na conta objetivos e não será restituído à conta original.`;
+        message = `O objetivo "${goal.nome}" foi atingido a 100%. Ao eliminar, o valor alocado (${formatCurrency(goal.total_alocado || 0)}) será mantido na conta objetivos e não será restituído à conta original.`;
       } else {
-        message = `O objetivo familiar "${goal.nome}" está a ${goal.progresso_percentual}%. Ao eliminar, o valor alocado (${formatCurrency(goal.total_alocado)}) será restituído ao saldo disponível da conta original.`;
+        message = `O objetivo "${goal.nome}" está a ${goal.progresso_percentual || 0}%. Ao eliminar, o valor alocado (${formatCurrency(goal.total_alocado || 0)}) será restituído ao saldo disponível da conta original.`;
       }
     }
     
@@ -191,15 +115,15 @@ const FamilyGoals: React.FC = () => {
       async () => {
         try {
           await deleteFamilyGoal(goalId);
-          refetchAll();
           toast({
             title: 'Objetivo eliminado',
-            description: 'Objetivo familiar eliminado com sucesso!',
+            description: 'O objetivo familiar foi eliminado com sucesso.',
           });
-        } catch (error) {
+          refetchAll();
+        } catch (error: any) {
           toast({
             title: 'Erro',
-            description: 'Erro ao eliminar objetivo familiar',
+            description: error.message || 'Ocorreu um erro ao eliminar o objetivo.',
             variant: 'destructive',
           });
         }
@@ -207,11 +131,51 @@ const FamilyGoals: React.FC = () => {
     );
   };
 
+  const handleCreateSuccess = async () => {
+    try {
+      await createFamilyGoal({});
+      toast({
+        title: 'Objetivo criado',
+        description: 'O objetivo familiar foi criado com sucesso.',
+      });
+      setShowCreateModal(false);
+      refetchAll();
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Ocorreu um erro ao criar o objetivo.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleEditSuccess = async () => {
+    try {
+      if (editingGoal) {
+        await updateFamilyGoal(editingGoal.id, {});
+        toast({
+          title: 'Objetivo atualizado',
+          description: 'O objetivo familiar foi atualizado com sucesso.',
+        });
+      }
+      setShowEditModal(false);
+      setEditingGoal(null);
+      refetchAll();
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Ocorreu um erro ao atualizar o objetivo.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const getProgressText = (progress: number) => {
-    if (progress >= 100) return 'Concluído';
-    if (progress >= 80) return 'Quase concluído';
-    if (progress >= 50) return 'A meio caminho';
-    return 'A começar';
+    if (progress >= 100) return 'Objetivo Atingido! 🎉';
+    if (progress >= 80) return 'Quase lá!';
+    if (progress >= 50) return 'A meio caminho!';
+    if (progress >= 25) return 'Bom começo!';
+    return 'A começar...';
   };
 
   if (isLoading.goals) {
@@ -245,7 +209,7 @@ const FamilyGoals: React.FC = () => {
 
       {/* Goals Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {familyGoals?.map((goal: any) => {
+        {familyGoals.map((goal) => {
           const isCompleted = (goal.progresso_percentual || 0) >= 100;
           const remaining = Math.max((goal.valor_objetivo || 0) - (goal.total_alocado || 0), 0);
 
@@ -388,7 +352,7 @@ const FamilyGoals: React.FC = () => {
       </div>
 
       {/* Empty State */}
-      {(!familyGoals || familyGoals.length === 0) && (
+      {familyGoals.length === 0 && (
         <div className="text-center py-12">
           <Target className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-lg font-medium mb-2">Nenhum objetivo familiar encontrado</h3>
@@ -414,7 +378,7 @@ const FamilyGoals: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <GoalForm
-            onSuccess={() => handleCreateSuccess()}
+            onSuccess={handleCreateSuccess}
             onCancel={() => setShowCreateModal(false)}
           />
         </DialogContent>
@@ -431,7 +395,7 @@ const FamilyGoals: React.FC = () => {
           </DialogHeader>
           <GoalForm
             initialData={editingGoal}
-            onSuccess={() => handleEditSuccess()}
+            onSuccess={handleEditSuccess}
             onCancel={() => {
               setShowEditModal(false);
               setEditingGoal(null);
@@ -442,71 +406,14 @@ const FamilyGoals: React.FC = () => {
 
       {/* Allocation Modal */}
       {showAllocationModal && selectedGoal && (
-        <Dialog open={showAllocationModal} onOpenChange={setShowAllocationModal}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Alocar Valor ao Objetivo: {selectedGoal.nome}</DialogTitle>
-              <DialogDescription>
-                Insira o valor a ser alocado ao objetivo familiar.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleAllocationSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="account-select">Conta de Origem</Label>
-                <Select onValueChange={setSelectedAccountId} value={selectedAccountId}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Selecione uma conta" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accounts.map(account => (
-                      <SelectItem key={account.account_id} value={account.account_id}>
-                        {account.nome} - Saldo: {formatCurrency(account.saldo_disponivel)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {allocationError && <p className="text-red-500 text-sm mt-1">{allocationError}</p>}
-              </div>
-              <div>
-                <Label htmlFor="allocation-amount">Valor a Alocar</Label>
-                <Input
-                  id="allocation-amount"
-                  type="text"
-                  value={allocationAmount}
-                  onChange={handleAllocationAmountChange}
-                  placeholder="Ex: 100,00"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="allocation-description">Descrição (Opcional)</Label>
-                <Input
-                  id="allocation-description"
-                  type="text"
-                  value={allocationDescription}
-                  onChange={(e) => setAllocationDescription(e.target.value)}
-                  placeholder="Ex: Alocação para objetivo"
-                />
-              </div>
-              <div className="flex gap-2">
-                <FormSubmitButton
-                  isSubmitting={isAllocating}
-                  submitText="Alocar Valor"
-                  submittingText="A alocar..."
-                  className="flex-1"
-                />
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setShowAllocationModal(false)}
-                  className="flex-1"
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <GoalAllocationModal
+          isOpen={showAllocationModal}
+          onClose={handleAllocationSuccess}
+          goalId={selectedGoal.id}
+          goalName={selectedGoal.nome}
+          currentProgress={selectedGoal.total_alocado || 0}
+          targetAmount={selectedGoal.valor_objetivo || 0}
+        />
       )}
 
       {/* Confirmation Dialog */}

@@ -171,3 +171,35 @@ export const deleteTransaction = async (id: string, userId: string): Promise<{ d
     return { data: null, error };
   }
 };
+
+export const getPersonalTransactions = async (): Promise<{ data: Transaction[] | null; error: any }> => {
+  try {
+    console.log('[getPersonalTransactions] Fetching personal transactions...');
+    const { data, error } = await supabase.rpc('get_personal_transactions');
+
+    console.log('[getPersonalTransactions] RPC response - data:', data);
+    console.log('[getPersonalTransactions] RPC response - error:', error);
+    console.log('[getPersonalTransactions] Number of transactions:', data?.length || 0);
+    
+    return { data, error };
+  } catch (error) {
+    console.error('[getPersonalTransactions] Exception:', error);
+    return { data: null, error };
+  }
+};
+
+export const getFamilyTransactions = async (): Promise<{ data: Transaction[] | null; error: any }> => {
+  try {
+    console.log('[getFamilyTransactions] Fetching family transactions...');
+    const { data, error } = await supabase.rpc('get_family_transactions');
+
+    console.log('[getFamilyTransactions] RPC response - data:', data);
+    console.log('[getFamilyTransactions] RPC response - error:', error);
+    console.log('[getFamilyTransactions] Number of transactions:', data?.length || 0);
+    
+    return { data, error };
+  } catch (error) {
+    console.error('[getFamilyTransactions] Exception:', error);
+    return { data: null, error };
+  }
+};
