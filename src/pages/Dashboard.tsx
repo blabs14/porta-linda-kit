@@ -259,7 +259,7 @@ export default function Dashboard() {
                   variant="outline" 
                   size="sm" 
                   className="mt-2"
-                  onClick={() => navigate('/app/transactions')}
+                  onClick={() => navigate('/personal/transactions')}
                 >
                   Criar Transação
                 </Button>
@@ -279,7 +279,7 @@ export default function Dashboard() {
             <Button 
               variant="outline" 
               className="h-20 flex flex-col items-center justify-center gap-2"
-              onClick={() => navigate('/app/transactions')}
+              onClick={() => navigate('/personal/transactions')}
             >
               <Plus className="h-6 w-6" />
               <span className="text-sm">Nova Transação</span>

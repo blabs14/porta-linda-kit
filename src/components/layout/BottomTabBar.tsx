@@ -3,8 +3,7 @@ import {
   Home, 
   CreditCard, 
   Target, 
-  Users, 
-  TrendingUp
+  Users
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -14,11 +13,7 @@ const tabItems = [
     href: '/app',
     icon: Home
   },
-  {
-    title: 'Transações',
-    href: '/app/transactions',
-    icon: CreditCard
-  },
+
   {
     title: 'Contas',
     href: '/app/accounts',

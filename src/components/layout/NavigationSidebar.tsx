@@ -3,7 +3,6 @@ import { cn } from '../../lib/utils';
 import { 
   Home, 
   Wallet, 
-  TrendingUp, 
   Target, 
   Users, 
   Settings, 
@@ -44,12 +43,7 @@ const navigationItems = [
     icon: Wallet,
     description: 'Gerir contas bancárias'
   },
-  {
-    title: 'Transações',
-    href: '/app/transactions',
-    icon: TrendingUp,
-    description: 'Registar e consultar transações'
-  },
+
   {
     title: 'Orçamentos',
     href: '/app/budgets',

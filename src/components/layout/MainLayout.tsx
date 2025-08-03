@@ -22,8 +22,7 @@ export function MainLayout() {
     switch (location.pathname) {
       case '/app':
         return 'Dashboard';
-      case '/app/transactions':
-        return 'Transações';
+
       case '/app/goals':
         return 'Objetivos';
       case '/app/family':
