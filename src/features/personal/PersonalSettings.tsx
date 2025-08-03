@@ -1,9 +1,59 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { Settings, User, Shield, Bell, Palette } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
+import { Settings, User, Shield, Bell, Palette, Eye, EyeOff, Moon, Sun, Smartphone, Mail, Calendar } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../hooks/use-toast';
 
 const PersonalSettings: React.FC = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isSecurityOpen, setIsSecurityOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isAppearanceOpen, setIsAppearanceOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
+
+  // Função para alterar palavra-passe
+  const handlePasswordChange = async (currentPassword: string, newPassword: string) => {
+    try {
+      // Aqui implementaria a lógica de alteração de palavra-passe
+      toast({
+        title: "Palavra-passe alterada",
+        description: "A sua palavra-passe foi alterada com sucesso.",
+      });
+      setIsSecurityOpen(false);
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível alterar a palavra-passe.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Função para alterar tema
+  const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
+    setTheme(newTheme);
+    // Aqui implementaria a lógica de alteração de tema
+    toast({
+      title: "Tema alterado",
+      description: `Tema alterado para ${newTheme === 'system' ? 'sistema' : newTheme === 'dark' ? 'escuro' : 'claro'}.`,
+    });
+  };
+
+  // Função para salvar configurações de notificações
+  const handleNotificationSettings = (settings: any) => {
+    // Aqui implementaria a lógica de salvamento das configurações
+    toast({
+      title: "Configurações salvas",
+      description: "As suas configurações de notificações foram salvas.",
+    });
+    setIsNotificationsOpen(false);
+  };
+
   return (
     <div className="p-6 space-y-6">
       <Card>
@@ -28,7 +78,43 @@ const PersonalSettings: React.FC = () => {
                 </p>
               </div>
             </div>
-            <Button variant="outline">Editar</Button>
+            <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">Editar</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Editar Perfil</DialogTitle>
+                  <DialogDescription>
+                    Atualize suas informações pessoais
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">Email</label>
+                    <p className="text-sm text-muted-foreground">{user?.email}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">ID do Utilizador</label>
+                    <p className="text-sm text-muted-foreground font-mono">{user?.id}</p>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsProfileOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={() => {
+                      toast({
+                        title: "Perfil atualizado",
+                        description: "As suas informações foram atualizadas.",
+                      });
+                      setIsProfileOpen(false);
+                    }}>
+                      Salvar
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Segurança */}
@@ -42,7 +128,70 @@ const PersonalSettings: React.FC = () => {
                 </p>
               </div>
             </div>
-            <Button variant="outline">Configurar</Button>
+            <Dialog open={isSecurityOpen} onOpenChange={setIsSecurityOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">Configurar</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Configurações de Segurança</DialogTitle>
+                  <DialogDescription>
+                    Gerencie sua palavra-passe e configurações de segurança
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">Palavra-passe Atual</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        className="w-full p-2 border rounded-md"
+                        placeholder="Palavra-passe atual"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Nova Palavra-passe</label>
+                    <input
+                      type="password"
+                      className="w-full p-2 border rounded-md"
+                      placeholder="Nova palavra-passe"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Confirmar Nova Palavra-passe</label>
+                    <input
+                      type="password"
+                      className="w-full p-2 border rounded-md"
+                      placeholder="Confirmar nova palavra-passe"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsSecurityOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={() => {
+                      toast({
+                        title: "Segurança atualizada",
+                        description: "As suas configurações de segurança foram atualizadas.",
+                      });
+                      setIsSecurityOpen(false);
+                    }}>
+                      Salvar
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Notificações */}
@@ -56,7 +205,56 @@ const PersonalSettings: React.FC = () => {
                 </p>
               </div>
             </div>
-            <Button variant="outline">Configurar</Button>
+            <Dialog open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">Configurar</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Configurações de Notificações</DialogTitle>
+                  <DialogDescription>
+                    Configure como receber alertas e lembretes
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      <span className="text-sm">Notificações por Email</span>
+                    </div>
+                    <input type="checkbox" defaultChecked className="rounded" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="h-4 w-4" />
+                      <span className="text-sm">Notificações Push</span>
+                    </div>
+                    <input type="checkbox" defaultChecked className="rounded" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      <span className="text-sm">Lembretes de Objetivos</span>
+                    </div>
+                    <input type="checkbox" defaultChecked className="rounded" />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsNotificationsOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={() => {
+                      toast({
+                        title: "Notificações configuradas",
+                        description: "As suas configurações de notificações foram salvas.",
+                      });
+                      setIsNotificationsOpen(false);
+                    }}>
+                      Salvar
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Aparência */}
@@ -70,7 +268,61 @@ const PersonalSettings: React.FC = () => {
                 </p>
               </div>
             </div>
-            <Button variant="outline">Configurar</Button>
+            <Dialog open={isAppearanceOpen} onOpenChange={setIsAppearanceOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">Configurar</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Configurações de Aparência</DialogTitle>
+                  <DialogDescription>
+                    Escolha o tema da interface
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <Button
+                      variant={theme === 'light' ? 'default' : 'outline'}
+                      className="flex flex-col items-center gap-2 h-20"
+                      onClick={() => handleThemeChange('light')}
+                    >
+                      <Sun className="h-5 w-5" />
+                      <span className="text-xs">Claro</span>
+                    </Button>
+                    <Button
+                      variant={theme === 'dark' ? 'default' : 'outline'}
+                      className="flex flex-col items-center gap-2 h-20"
+                      onClick={() => handleThemeChange('dark')}
+                    >
+                      <Moon className="h-5 w-5" />
+                      <span className="text-xs">Escuro</span>
+                    </Button>
+                    <Button
+                      variant={theme === 'system' ? 'default' : 'outline'}
+                      className="flex flex-col items-center gap-2 h-20"
+                      onClick={() => handleThemeChange('system')}
+                    >
+                      <Settings className="h-5 w-5" />
+                      <span className="text-xs">Sistema</span>
+                    </Button>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsAppearanceOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={() => {
+                      toast({
+                        title: "Aparência atualizada",
+                        description: "As suas configurações de aparência foram salvas.",
+                      });
+                      setIsAppearanceOpen(false);
+                    }}>
+                      Salvar
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </CardContent>
       </Card>
