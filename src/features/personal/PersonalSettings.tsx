@@ -8,23 +8,37 @@ import { Switch } from '../../components/ui/switch';
 import { Settings, User, Shield, Bell, Palette, Eye, EyeOff, Moon, Sun, Smartphone, Mail, Calendar, Save, BarChart3, TrendingUp } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../hooks/use-toast';
+import { usePersonalSettings } from '../../hooks/usePersonalSettings';
+import { LoadingSpinner } from '../../components/ui/loading-states';
 
 const PersonalSettings: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const {
+    settings,
+    profile,
+    currentTheme,
+    isLoading,
+    isUpdatingProfile,
+    isUpdatingTheme,
+    isUpdatingNotifications,
+    updateProfile,
+    changeTheme,
+    updateNotifications
+  } = usePersonalSettings();
+
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isAppearanceOpen, setIsAppearanceOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
 
   // Estados para formulários
   const [profileData, setProfileData] = useState({
-    firstName: user?.user_metadata?.first_name || '',
-    lastName: user?.user_metadata?.last_name || '',
-    phone: user?.user_metadata?.phone || '',
-    birthDate: user?.user_metadata?.birth_date || ''
+    firstName: profile?.first_name || '',
+    lastName: profile?.last_name || '',
+    phone: profile?.phone || '',
+    birthDate: profile?.birth_date || ''
   });
 
   const [securityData, setSecurityData] = useState({
@@ -34,29 +48,49 @@ const PersonalSettings: React.FC = () => {
   });
 
   const [notificationSettings, setNotificationSettings] = useState({
-    emailNotifications: true,
-    pushNotifications: true,
-    goalReminders: true,
-    budgetAlerts: true,
-    transactionAlerts: false
+    emailNotifications: settings?.personal_settings?.notifications?.email ?? true,
+    pushNotifications: settings?.personal_settings?.notifications?.push ?? true,
+    goalReminders: settings?.personal_settings?.notifications?.goal_reminders ?? true,
+    budgetAlerts: settings?.personal_settings?.notifications?.budget_alerts ?? true,
+    transactionAlerts: settings?.personal_settings?.notifications?.transaction_alerts ?? false
   });
+
+  // Atualizar estados locais quando os dados mudarem
+  React.useEffect(() => {
+    if (profile) {
+      setProfileData({
+        firstName: profile.first_name || '',
+        lastName: profile.last_name || '',
+        phone: profile.phone || '',
+        birthDate: profile.birth_date || ''
+      });
+    }
+  }, [profile]);
+
+  React.useEffect(() => {
+    if (settings?.personal_settings?.notifications) {
+      setNotificationSettings({
+        emailNotifications: settings.personal_settings.notifications.email ?? true,
+        pushNotifications: settings.personal_settings.notifications.push ?? true,
+        goalReminders: settings.personal_settings.notifications.goal_reminders ?? true,
+        budgetAlerts: settings.personal_settings.notifications.budget_alerts ?? true,
+        transactionAlerts: settings.personal_settings.notifications.transaction_alerts ?? false
+      });
+    }
+  }, [settings?.personal_settings?.notifications]);
 
   // Função para salvar dados do perfil
   const handleProfileSave = async () => {
     try {
-      // Aqui implementaria a lógica de salvamento do perfil
-      console.log('Salvando dados do perfil:', profileData);
-      toast({
-        title: "Perfil atualizado",
-        description: "As suas informações foram atualizadas com sucesso.",
+      await updateProfile({
+        first_name: profileData.firstName,
+        last_name: profileData.lastName,
+        phone: profileData.phone,
+        birth_date: profileData.birthDate
       });
       setIsProfileOpen(false);
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível atualizar o perfil.",
-        variant: "destructive",
-      });
+      console.error('Erro ao salvar perfil:', error);
     }
   };
 
@@ -81,8 +115,7 @@ const PersonalSettings: React.FC = () => {
     }
 
     try {
-      // Aqui implementaria a lógica de alteração de palavra-passe
-      console.log('Alterando palavra-passe:', securityData);
+      // Aqui implementaria a lógica de alteração de palavra-passe com Supabase Auth
       toast({
         title: "Palavra-passe alterada",
         description: "A sua palavra-passe foi alterada com sucesso.",
@@ -98,34 +131,29 @@ const PersonalSettings: React.FC = () => {
     }
   };
 
-  // Função para alterar tema
-  const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
-    setTheme(newTheme);
-    // Aqui implementaria a lógica de alteração de tema
-    toast({
-      title: "Tema alterado",
-      description: `Tema alterado para ${newTheme === 'system' ? 'sistema' : newTheme === 'dark' ? 'escuro' : 'claro'}.`,
-    });
-  };
-
   // Função para salvar configurações de notificações
   const handleNotificationSettings = () => {
     try {
-      // Aqui implementaria a lógica de salvamento das configurações
-      console.log('Salvando configurações de notificações:', notificationSettings);
-      toast({
-        title: "Configurações salvas",
-        description: "As suas configurações de notificações foram salvas.",
+      updateNotifications({
+        email: notificationSettings.emailNotifications,
+        push: notificationSettings.pushNotifications,
+        goal_reminders: notificationSettings.goalReminders,
+        budget_alerts: notificationSettings.budgetAlerts,
+        transaction_alerts: notificationSettings.transactionAlerts
       });
       setIsNotificationsOpen(false);
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível salvar as configurações.",
-        variant: "destructive",
-      });
+      console.error('Erro ao salvar notificações:', error);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -215,8 +243,12 @@ const PersonalSettings: React.FC = () => {
                     <Button variant="outline" onClick={() => setIsProfileOpen(false)}>
                       Cancelar
                     </Button>
-                    <Button onClick={handleProfileSave}>
-                      <Save className="h-4 w-4 mr-2" />
+                    <Button onClick={handleProfileSave} disabled={isUpdatingProfile}>
+                      {isUpdatingProfile ? (
+                        <LoadingSpinner size="sm" className="mr-2" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
                       Salvar
                     </Button>
                   </div>
@@ -395,8 +427,12 @@ const PersonalSettings: React.FC = () => {
                     <Button variant="outline" onClick={() => setIsNotificationsOpen(false)}>
                       Cancelar
                     </Button>
-                    <Button onClick={handleNotificationSettings}>
-                      <Save className="h-4 w-4 mr-2" />
+                    <Button onClick={handleNotificationSettings} disabled={isUpdatingNotifications}>
+                      {isUpdatingNotifications ? (
+                        <LoadingSpinner size="sm" className="mr-2" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
                       Salvar
                     </Button>
                   </div>
@@ -430,32 +466,35 @@ const PersonalSettings: React.FC = () => {
                 <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-4">
                     <Button
-                      variant={theme === 'light' ? 'default' : 'outline'}
+                      variant={currentTheme === 'light' ? 'default' : 'outline'}
                       className="flex flex-col items-center gap-2 h-20"
-                      onClick={() => handleThemeChange('light')}
+                      onClick={() => changeTheme('light')}
+                      disabled={isUpdatingTheme}
                     >
                       <Sun className="h-5 w-5" />
                       <span className="text-xs">Claro</span>
                     </Button>
                     <Button
-                      variant={theme === 'dark' ? 'default' : 'outline'}
+                      variant={currentTheme === 'dark' ? 'default' : 'outline'}
                       className="flex flex-col items-center gap-2 h-20"
-                      onClick={() => handleThemeChange('dark')}
+                      onClick={() => changeTheme('dark')}
+                      disabled={isUpdatingTheme}
                     >
                       <Moon className="h-5 w-5" />
                       <span className="text-xs">Escuro</span>
                     </Button>
                     <Button
-                      variant={theme === 'system' ? 'default' : 'outline'}
+                      variant={currentTheme === 'system' ? 'default' : 'outline'}
                       className="flex flex-col items-center gap-2 h-20"
-                      onClick={() => handleThemeChange('system')}
+                      onClick={() => changeTheme('system')}
+                      disabled={isUpdatingTheme}
                     >
                       <Settings className="h-5 w-5" />
                       <span className="text-xs">Sistema</span>
                     </Button>
                   </div>
                   <div className="p-4 bg-muted rounded-lg">
-                    <h4 className="font-medium mb-2">Tema Atual: {theme === 'system' ? 'Sistema' : theme === 'dark' ? 'Escuro' : 'Claro'}</h4>
+                    <h4 className="font-medium mb-2">Tema Atual: {currentTheme === 'system' ? 'Sistema' : currentTheme === 'dark' ? 'Escuro' : 'Claro'}</h4>
                     <p className="text-sm text-muted-foreground">
                       O tema será aplicado imediatamente à interface.
                     </p>
