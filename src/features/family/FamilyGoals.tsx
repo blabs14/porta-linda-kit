@@ -8,7 +8,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Target, Plus, Edit, Trash2, Calendar, CheckCircle, Trophy } from 'lucide-react';
+import { Target, Plus, Edit, Trash2, Calendar, CheckCircle, Trophy, BarChart3 } from 'lucide-react';
+import { getCategoryIcon } from '../../lib/utils';
+import * as LucideIcons from 'lucide-react';
 import { LoadingSpinner } from '../../components/ui/loading-states';
 import { useToast } from '../../hooks/use-toast';
 import { formatCurrency } from '../../lib/utils';
@@ -263,7 +265,11 @@ const FamilyGoals: React.FC = () => {
                       {isCompleted ? (
                         <Trophy className="h-5 w-5 text-yellow-600" />
                       ) : (
-                        <Target className="h-5 w-5 text-blue-600" />
+                        (() => {
+                          const iconName = getCategoryIcon(goal.nome);
+                          const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.Target;
+                          return <IconComponent className="h-5 w-5 text-blue-600" />;
+                        })()
                       )}
                       {goal.nome}
                     </CardTitle>
@@ -390,7 +396,7 @@ const FamilyGoals: React.FC = () => {
       {/* Empty State */}
       {(!familyGoals || familyGoals.length === 0) && (
         <div className="text-center py-12">
-          <Target className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <BarChart3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-lg font-medium mb-2">Nenhum objetivo familiar encontrado</h3>
           <p className="text-muted-foreground mb-4">
             Clica em "Novo Objetivo" para começar a planear as metas financeiras da família

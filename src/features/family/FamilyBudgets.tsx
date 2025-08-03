@@ -291,7 +291,7 @@ const FamilyBudgets: React.FC = () => {
       {/* Budgets Grid */}
       {(!familyBudgets || familyBudgets.length === 0) ? (
         <div className="text-center py-12">
-          <BarChart3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <Target className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-lg font-medium mb-2">Nenhum orçamento familiar encontrado</h3>
           <p className="text-muted-foreground mb-4">
             Clica em "Novo Orçamento" para começar

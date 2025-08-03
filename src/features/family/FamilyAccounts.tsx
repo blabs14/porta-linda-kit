@@ -140,20 +140,7 @@ const FamilyAccounts: React.FC = () => {
             Gerencie as contas bancárias e cartões da família
           </p>
         </div>
-        <div className="flex gap-2">
-          {canEdit('account') && (
-            <>
-              <Button onClick={handleTransfer} variant="outline">
-                <ArrowRightLeft className="h-4 w-4 mr-2" />
-                Transferir
-              </Button>
-              <Button onClick={handleNew}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Conta
-              </Button>
-            </>
-          )}
-        </div>
+
       </div>
 
       {/* Contas Bancárias */}
@@ -169,10 +156,16 @@ const FamilyAccounts: React.FC = () => {
             </p>
           </div>
           {canEdit('account') && (
-            <Button onClick={handleNew} variant="outline" size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Conta
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleTransfer} variant="outline" size="sm">
+                <ArrowRightLeft className="h-4 w-4 mr-2" />
+                Transferir
+              </Button>
+              <Button onClick={handleNew} variant="outline" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Conta
+              </Button>
+            </div>
           )}
         </div>
 
