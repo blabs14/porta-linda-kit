@@ -8,7 +8,8 @@ import {
   inviteFamilyMember,
   updateMemberRole,
   removeFamilyMember,
-  updateFamilySettings
+  updateFamilySettings,
+  getFamilyKPIs
 } from '../../services/family';
 import { 
   getAccountsWithBalances,
@@ -322,51 +323,50 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     accountsLoading
   ]);
 
-  // Calcular KPIs familiares
-  const familyKPIs: FamilyKPIs = React.useMemo(() => {
-    const totalBalance = familyAccounts.reduce((sum, account) => sum + (account.saldo_atual || 0), 0);
-    const creditCardDebt = familyCards.reduce((sum, card) => {
-      const balance = card.saldo_atual || 0;
-      return balance < 0 ? sum + Math.abs(balance) : sum;
-    }, 0);
-    
-    const topGoal = familyGoals
-      .filter(goal => goal.ativa && goal.valor_atual < goal.valor_objetivo)
-      .sort((a, b) => {
-        const progressA = (a.valor_atual / a.valor_objetivo) * 100;
-        const progressB = (b.valor_atual / b.valor_objetivo) * 100;
-        return progressB - progressA;
-      })[0];
-    
-    const topGoalProgress = topGoal 
-      ? (topGoal.valor_atual / topGoal.valor_objetivo) * 100 
-      : 0;
-    
-    // Calcular poupança mensal (receitas - despesas)
-    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-    const monthlyTransactions = familyTransactions.filter(t => 
-      t.data.startsWith(currentMonth)
-    );
-    
-    const monthlyIncome = monthlyTransactions
-      .filter(t => t.tipo === 'receita')
-      .reduce((sum, t) => sum + (t.valor || 0), 0);
-    
-    const monthlyExpenses = monthlyTransactions
-      .filter(t => t.tipo === 'despesa')
-      .reduce((sum, t) => sum + (t.valor || 0), 0);
-    
-    const monthlySavings = monthlyIncome - monthlyExpenses;
-    
-    return {
-      totalBalance,
-      creditCardDebt,
-      topGoalProgress,
-      monthlySavings,
-      totalMembers: members.length,
-      pendingInvites: pendingInvites.length
-    };
-  }, [familyAccounts, familyCards, familyGoals, familyTransactions, members.length, pendingInvites.length]);
+  // Query para KPIs familiares - otimizada com RPC
+  const { data: familyKPIsData, isLoading: kpisLoading } = useQuery({
+    queryKey: ['family', 'kpis', user?.id],
+    queryFn: async () => {
+      const { data, error } = await getFamilyKPIs();
+      if (error) throw error;
+      
+      return {
+        totalBalance: data.total_balance || 0,
+        creditCardDebt: data.credit_card_debt || 0,
+        topGoalProgress: Math.min(data.top_goal_progress || 0, 100),
+        monthlySavings: data.monthly_savings || 0,
+        goalsAccountBalance: data.goals_account_balance || 0,
+        totalGoalsValue: data.total_goals_value || 0,
+        goalsProgressPercentage: Math.min(data.goals_progress_percentage || 0, 100),
+        totalBudgetSpent: data.total_budget_spent || 0,
+        totalBudgetAmount: data.total_budget_amount || 0,
+        budgetSpentPercentage: Math.min(data.budget_spent_percentage || 0, 100),
+        totalMembers: data.total_members || 0,
+        pendingInvites: data.pending_invites || 0
+      };
+    },
+    enabled: !!user?.id,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    staleTime: 30 * 1000, // 30 segundos
+    gcTime: 5 * 60 * 1000,
+  });
+
+  const familyKPIs = familyKPIsData || {
+    totalBalance: 0,
+    creditCardDebt: 0,
+    topGoalProgress: 0,
+    monthlySavings: 0,
+    goalsAccountBalance: 0,
+    totalGoalsValue: 0,
+    goalsProgressPercentage: 0,
+    totalBudgetSpent: 0,
+    totalBudgetAmount: 0,
+    budgetSpentPercentage: 0,
+    totalMembers: 0,
+    pendingInvites: 0
+  };
 
   // Estados de loading
   const isLoading: FamilyLoadingStates = {
@@ -377,7 +377,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     budgets: budgetsLoading,
     transactions: transactionsLoading,
     invites: invitesLoading,
-    kpis: false, // KPIs são calculados localmente agora
+    kpis: kpisLoading,
   };
 
   // Mutations para gestão de membros

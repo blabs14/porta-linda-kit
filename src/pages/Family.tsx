@@ -132,62 +132,16 @@ const DesktopNavigation: React.FC = () => {
   );
 };
 
-// Componente de header
-const FamilyHeader: React.FC = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
 
-  const getPageTitle = () => {
-    switch (location.pathname) {
-      case '/family/dashboard': return 'Resumo Familiar';
-      case '/family/accounts': return 'Contas Familiares';
-      case '/family/goals': return 'Objetivos Familiares';
-      case '/family/budgets': return 'Orçamentos Familiares';
-      case '/family/transactions': return 'Transações Familiares';
-      case '/family/members': return 'Membros da Família';
-      case '/family/settings': return 'Definições Familiares';
-      default: return 'Finanças Partilhadas';
-    }
-  };
-
-  const getPrimaryAction = () => {
-    switch (location.pathname) {
-      case '/family/accounts': return { label: 'Nova Conta', action: () => navigate('/family/accounts/new') };
-      case '/family/goals': return { label: 'Novo Objetivo', action: () => navigate('/family/goals/new') };
-      case '/family/budgets': return { label: 'Novo Orçamento', action: () => navigate('/family/budgets/new') };
-      case '/family/members': return { label: 'Convidar Membro', action: () => navigate('/family/members/invite') };
-      default: return null;
-    }
-  };
-
-  const primaryAction = getPrimaryAction();
-
-  return (
-    <header className="bg-background border-b border-border px-6 py-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{getPageTitle()}</h1>
-          <p className="text-sm text-muted-foreground">Gestão das suas finanças familiares</p>
-        </div>
-        {primaryAction && (
-          <Button onClick={primaryAction.action} className="hidden lg:flex">
-            <Plus className="h-4 w-4 mr-2" />
-            {primaryAction.label}
-          </Button>
-        )}
-      </div>
-    </header>
-  );
-};
 
 // Componente de KPIs rápidos
 const QuickKPIs: React.FC = () => {
-  const { familyKPIs, isLoading, myGoals } = useFamily();
+  const { familyKPIs, isLoading, familyGoals } = useFamily();
   const location = useLocation();
   
   // Calcular objetivos ativos e concluídos
-  const activeGoals = myGoals.filter(goal => goal.ativa).length;
-  const completedGoals = myGoals.filter(goal => goal.status === 'completed').length;
+  const activeGoals = familyGoals.filter(goal => goal.ativa).length;
+  const completedGoals = familyGoals.filter(goal => goal.status === 'completed').length;
   
   // Verificar se estamos na página de objetivos, orçamentos, contas ou transações
   const isGoalsPage = location.pathname === '/family/goals';

@@ -235,4 +235,35 @@ export const getFamilyStatistics = async (familyId: string) => {
     totalFamilySpent,
     totalFamilySaved
   };
+};
+
+// ============================================================================
+// FAMILY KPIs
+// ============================================================================
+
+export const getFamilyKPIs = async () => {
+  const { data, error } = await supabase.rpc('get_family_kpis');
+  
+  if (error) {
+    console.error('Error fetching family KPIs:', error);
+    throw error;
+  }
+  
+  return {
+    data: data?.[0] || {
+      total_balance: 0,
+      credit_card_debt: 0,
+      top_goal_progress: 0,
+      monthly_savings: 0,
+      goals_account_balance: 0,
+      total_goals_value: 0,
+      goals_progress_percentage: 0,
+      total_budget_spent: 0,
+      total_budget_amount: 0,
+      budget_spent_percentage: 0,
+      total_members: 0,
+      pending_invites: 0
+    },
+    error: null
+  };
 }; 

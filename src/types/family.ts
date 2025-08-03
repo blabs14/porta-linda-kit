@@ -57,6 +57,12 @@ export interface FamilyKPIs {
   creditCardDebt: number;
   topGoalProgress: number;
   monthlySavings: number;
+  goalsAccountBalance: number;
+  totalGoalsValue: number;
+  goalsProgressPercentage: number;
+  totalBudgetSpent: number;
+  totalBudgetAmount: number;
+  budgetSpentPercentage: number;
   totalMembers: number;
   pendingInvites: number;
 }
