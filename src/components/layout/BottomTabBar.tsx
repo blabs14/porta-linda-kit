@@ -1,8 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   Home, 
-  CreditCard, 
-  Target, 
   Users
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -14,16 +12,7 @@ const tabItems = [
     icon: Home
   },
 
-  {
-    title: 'Contas',
-    href: '/app/accounts',
-    icon: CreditCard
-  },
-  {
-    title: 'Objetivos',
-    href: '/app/goals',
-    icon: Target
-  },
+
   {
     title: 'Família',
     href: '/app/family',

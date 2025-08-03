@@ -2,13 +2,10 @@ import { NavLink } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { 
   Home, 
-  Wallet, 
-  Target, 
   Users, 
   Settings, 
   ChevronRight,
   User,
-  BarChart3,
   Lightbulb
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -38,35 +35,10 @@ const navigationItems = [
                 description: 'Gestão financeira familiar'
               },
   {
-    title: 'Contas',
-    href: '/app/accounts',
-    icon: Wallet,
-    description: 'Gerir contas bancárias'
-  },
-
-  {
-    title: 'Orçamentos',
-    href: '/app/budgets',
-    icon: BarChart3,
-    description: 'Definir e acompanhar orçamentos'
-  },
-  {
-    title: 'Objetivos',
-    href: '/app/goals',
-    icon: Target,
-    description: 'Metas financeiras e poupanças'
-  },
-  {
     title: 'Família',
     href: '/app/family',
     icon: Users,
     description: 'Membros e partilha de contas'
-  },
-  {
-    title: 'Insights',
-    href: '/app/insights',
-    icon: Lightbulb,
-    description: 'Análises e relatórios'
   }
 ];
 

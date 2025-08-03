@@ -16,12 +16,7 @@ import ReactPlugin from '@stagewise-plugins/react';
 // Lazy loading de páginas
 import {
   Dashboard,
-  Reports,
-  Goals,
   Family,
-  Insights,
-  AccountsPage,
-  BudgetsPage,
   ProfilePage,
 } from './components/lazy/index';
 
@@ -65,34 +60,9 @@ function App() {
                 </Suspense>
               } />
 
-              <Route path="accounts" element={
-                <Suspense fallback={<PageLoading />}>
-                  <AccountsPage />
-                </Suspense>
-              } />
-              <Route path="budgets" element={
-                <Suspense fallback={<PageLoading />}>
-                  <BudgetsPage />
-                </Suspense>
-              } />
-              <Route path="reports" element={
-                <Suspense fallback={<PageLoading />}>
-                  <Reports />
-                </Suspense>
-              } />
-              <Route path="goals" element={
-                <Suspense fallback={<PageLoading />}>
-                  <Goals />
-                </Suspense>
-              } />
               <Route path="family" element={
                 <Suspense fallback={<PageLoading />}>
                   <Family />
-                </Suspense>
-              } />
-              <Route path="insights" element={
-                <Suspense fallback={<PageLoading />}>
-                  <Insights />
                 </Suspense>
               } />
               <Route path="profile" element={

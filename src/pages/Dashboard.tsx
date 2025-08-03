@@ -287,7 +287,7 @@ export default function Dashboard() {
             <Button 
               variant="outline" 
               className="h-20 flex flex-col items-center justify-center gap-2"
-              onClick={() => navigate('/app/accounts')}
+              onClick={() => navigate('/personal/accounts')}
             >
               <Wallet className="h-6 w-6" />
               <span className="text-sm">Gerir Contas</span>
@@ -295,7 +295,7 @@ export default function Dashboard() {
             <Button 
               variant="outline" 
               className="h-20 flex flex-col items-center justify-center gap-2"
-              onClick={() => navigate('/app/goals')}
+              onClick={() => navigate('/personal/goals')}
             >
               <Target className="h-6 w-6" />
               <span className="text-sm">Objetivos</span>
@@ -303,7 +303,7 @@ export default function Dashboard() {
             <Button 
               variant="outline" 
               className="h-20 flex flex-col items-center justify-center gap-2"
-              onClick={() => navigate('/app/insights')}
+              onClick={() => navigate('/personal/insights')}
             >
               <BarChart3 className="h-6 w-6" />
               <span className="text-sm">Relatórios</span>

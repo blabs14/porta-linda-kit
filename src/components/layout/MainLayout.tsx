@@ -23,16 +23,8 @@ export function MainLayout() {
       case '/app':
         return 'Dashboard';
 
-      case '/app/goals':
-        return 'Objetivos';
       case '/app/family':
         return 'Família';
-      case '/app/insights':
-        return 'Insights';
-      case '/app/accounts':
-        return 'Contas';
-      case '/app/budgets':
-        return 'Orçamentos';
       case '/app/reports':
         return 'Relatórios';
       default:
