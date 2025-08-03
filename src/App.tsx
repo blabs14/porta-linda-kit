@@ -9,6 +9,10 @@ import { MainLayout } from './components/layout/MainLayout';
 import { LoadingSpinner } from './components/ui/loading-states';
 import { Toaster } from './components/ui/toaster';
 
+// Stagewise toolbar (development only)
+import { StagewiseToolbar } from '@stagewise/toolbar-react';
+import ReactPlugin from '@stagewise-plugins/react';
+
 // Lazy loading de páginas
 import {
   Dashboard,
@@ -28,7 +32,7 @@ import FamilyPage from './pages/Family';
 
 // Páginas de autenticação (não lazy loading para melhor UX)
 import Index from './pages/Index';
-import Login from './pages/Login';
+import Login from './pages/login';
 import Register from './pages/register';
 import ForgotPassword from './pages/forgot-password';
 import NotFound from './pages/NotFound';
@@ -115,6 +119,14 @@ function App() {
         </Router>
       </AuthProvider>
       <Toaster />
+      
+      {/* Stagewise Toolbar - apenas em desenvolvimento */}
+      <StagewiseToolbar 
+        config={{
+          plugins: [ReactPlugin]
+        }}
+      />
+      
       {/* <ReactQueryDevtools initialIsOpen={false} /> */}
     </QueryClientProvider>
   );

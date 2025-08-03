@@ -46,6 +46,12 @@ interface PersonalContextType {
     creditCardDebt: number;
     topGoalProgress: number;
     monthlySavings: number;
+    goalsAccountBalance: number;
+    totalGoalsValue: number;
+    goalsProgressPercentage: number;
+    totalBudgetSpent: number;
+    totalBudgetAmount: number;
+    budgetSpentPercentage: number;
   };
   
   // Estados de loading
@@ -188,14 +194,36 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
       );
       const monthlySavings = monthlyTransactions.reduce((sum, t) => sum + (t.valor || 0), 0);
       
+      // Calcular dados da conta objetivos
+      const goalsAccount = myAccounts.find(account => account.nome.toLowerCase().includes('objetivo') || account.tipo === 'objetivo');
+      const goalsAccountBalance = goalsAccount ? (goalsAccount.saldo_atual || 0) : 0;
+      
+      // Calcular valor total de todos os objetivos
+      const totalGoalsValue = myGoals.reduce((sum, goal) => sum + (goal.valor_objetivo || 0), 0);
+      
+      // Calcular percentagem de progresso (valor total dos objetivos vs saldo da conta objetivos)
+      const goalsProgressPercentage = totalGoalsValue > 0 ? (goalsAccountBalance / totalGoalsValue) * 100 : 0;
+      
+      // Calcular dados dos orçamentos (todos os orçamentos existentes)
+      const activeBudgets = myBudgets;
+      const totalBudgetAmount = activeBudgets.reduce((sum, budget) => sum + (budget.valor_orcamento || 0), 0);
+      const totalBudgetSpent = activeBudgets.reduce((sum, budget) => sum + (budget.valor_gasto || 0), 0);
+      const budgetSpentPercentage = totalBudgetAmount > 0 ? (totalBudgetSpent / totalBudgetAmount) * 100 : 0;
+      
       return {
         totalBalance,
         creditCardDebt,
         topGoalProgress: Math.min(topGoalProgress, 100),
-        monthlySavings
+        monthlySavings,
+        goalsAccountBalance,
+        totalGoalsValue,
+        goalsProgressPercentage: Math.min(goalsProgressPercentage, 100),
+        totalBudgetSpent,
+        totalBudgetAmount,
+        budgetSpentPercentage: Math.min(budgetSpentPercentage, 100)
       };
     },
-    enabled: !!user?.id && !accountsLoading && !goalsLoading && !transactionsLoading,
+    enabled: !!user?.id && !accountsLoading && !goalsLoading && !budgetsLoading && !transactionsLoading,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
@@ -418,7 +446,13 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
       totalBalance: 0,
       creditCardDebt: 0,
       topGoalProgress: 0,
-      monthlySavings: 0
+      monthlySavings: 0,
+      goalsAccountBalance: 0,
+      totalGoalsValue: 0,
+      goalsProgressPercentage: 0,
+      totalBudgetSpent: 0,
+      totalBudgetAmount: 0,
+      budgetSpentPercentage: 0
     },
     isLoading: {
       accounts: accountsLoading,

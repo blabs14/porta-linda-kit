@@ -6,7 +6,9 @@ import { Progress } from '../components/ui/progress';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Target, Plus, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Target, Plus, Edit, Trash2, Loader2, BarChart3 } from 'lucide-react';
+import { getCategoryIcon } from '../lib/utils';
+import * as LucideIcons from 'lucide-react';
 import { useBudgets } from '../hooks/useBudgets';
 import { useCategories } from '../hooks/useCategories';
 import { useTransactions } from '../hooks/useTransactionsQuery';
@@ -283,7 +285,7 @@ const BudgetsPage = () => {
           ) : budgets.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center text-muted-foreground">
-                <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Nenhum orçamento encontrado</p>
                 <p className="text-sm">Clica em "Novo Orçamento" para começar</p>
               </div>
@@ -299,10 +301,15 @@ const BudgetsPage = () => {
                   return (
                     <Card key={budget.id} className="hover:shadow-md transition-shadow h-fit">
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium truncate flex-1 mr-2">
-                          {getCategoryName(budget.categoria_id)}
-                        </CardTitle>
-                        <Target className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                          <CardTitle className="text-sm font-medium truncate flex-1 mr-2">
+                    {getCategoryName(budget.categoria_id)}
+                  </CardTitle>
+                  {(() => {
+                    const categoryName = getCategoryName(budget.categoria_id);
+                    const iconName = getCategoryIcon(categoryName);
+                    const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.Target;
+                    return <IconComponent className="h-4 w-4 text-muted-foreground flex-shrink-0" />;
+                  })()}
                       </CardHeader>
                       <CardContent className="space-y-3">
                         <div className="space-y-2">

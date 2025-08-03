@@ -139,38 +139,32 @@ const PersonalAccounts: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold">Contas Pessoais</h2>
-          <p className="text-muted-foreground">
-            Gerencie suas contas bancárias e cartões pessoais
-          </p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={handleTransfer} variant="outline">
-            <ArrowRightLeft className="h-4 w-4 mr-2" />
-            Transferir
-          </Button>
-          <Button onClick={handleNew}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Conta
-          </Button>
-        </div>
+
       </div>
 
       {/* Contas Bancárias */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Wallet className="h-5 w-5" />
-              Contas Bancárias
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Contas correntes e poupanças
-            </p>
-          </div>
-          <Button onClick={handleNew} variant="outline" size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Conta
-          </Button>
+                      <div>
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Wallet className="h-5 w-5" />
+                Contas Bancárias
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Contas correntes e poupanças
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleTransfer} variant="outline">
+                <ArrowRightLeft className="h-4 w-4 mr-2" />
+                Transferir
+              </Button>
+              <Button onClick={handleNew}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Conta
+              </Button>
+            </div>
         </div>
 
         {bankAccounts.length === 0 ? (
@@ -269,7 +263,7 @@ const PersonalAccounts: React.FC = () => {
               Cartões de crédito e débito
             </p>
           </div>
-          <Button onClick={handleNew} variant="outline" size="sm">
+          <Button onClick={handleNew}>
             <Plus className="h-4 w-4 mr-2" />
             Novo Cartão
           </Button>

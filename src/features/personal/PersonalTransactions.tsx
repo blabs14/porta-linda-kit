@@ -532,29 +532,7 @@ const PersonalTransactions: React.FC = () => {
 
       {/* Lista de Transações */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Transações Pessoais
-              </CardTitle>
-              <CardDescription>
-                Histórico das suas transações pessoais
-                {filteredTransactions.length !== transactions.length && (
-                  <span className="ml-2 text-blue-600">
-                    ({filteredTransactions.length} de {transactions.length})
-                  </span>
-                )}
-              </CardDescription>
-            </div>
-            <Button onClick={handleNew}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Transação
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-3 max-h-[calc(100vh-300px)] overflow-y-auto">
           {filteredTransactions.length === 0 ? (
             <div className="text-center py-8">
               <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />

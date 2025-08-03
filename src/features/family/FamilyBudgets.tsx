@@ -9,6 +9,8 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { BarChart3, Plus, Edit, Trash2, Loader2, Target } from 'lucide-react';
+import { getCategoryIcon } from '../../lib/utils';
+import * as LucideIcons from 'lucide-react';
 import { LoadingSpinner } from '../../components/ui/loading-states';
 import { useCategories } from '../../hooks/useCategories';
 import { useTransactions } from '../../hooks/useTransactionsQuery';
@@ -289,7 +291,7 @@ const FamilyBudgets: React.FC = () => {
       {/* Budgets Grid */}
       {(!familyBudgets || familyBudgets.length === 0) ? (
         <div className="text-center py-12">
-          <Target className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <BarChart3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-lg font-medium mb-2">Nenhum orçamento familiar encontrado</h3>
           <p className="text-muted-foreground mb-4">
             Clica em "Novo Orçamento" para começar
@@ -314,7 +316,12 @@ const FamilyBudgets: React.FC = () => {
                   <CardTitle className="text-sm font-medium truncate flex-1 mr-2">
                     {getCategoryName(budget.categoria_id)}
                   </CardTitle>
-                  <Target className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  {(() => {
+                    const categoryName = getCategoryName(budget.categoria_id);
+                    const iconName = getCategoryIcon(categoryName);
+                    const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.Target;
+                    return <IconComponent className="h-4 w-4 text-muted-foreground flex-shrink-0" />;
+                  })()}
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="space-y-2">
@@ -354,7 +361,12 @@ const FamilyBudgets: React.FC = () => {
                   {percentage >= 100 && (
                     <div className="p-2 bg-red-50 border border-red-200 rounded-md">
                       <div className="flex items-center gap-2 text-red-800">
-                        <Target className="h-4 w-4" />
+                        {(() => {
+                          const categoryName = getCategoryName(budget.categoria_id);
+                          const iconName = getCategoryIcon(categoryName);
+                          const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.Target;
+                          return <IconComponent className="h-4 w-4" />;
+                        })()}
                         <span className="text-sm font-medium">Orçamento Excedido</span>
                       </div>
                     </div>

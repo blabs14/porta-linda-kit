@@ -88,7 +88,11 @@ export const getPersonalBudgets = async (): Promise<{ data: Budget[] | null; err
 
 export const getFamilyBudgets = async (): Promise<{ data: Budget[] | null; error: any }> => {
   try {
-    const { data, error } = await supabase.rpc('get_family_budgets');
+    const { data, error } = await supabase
+      .from('budgets')
+      .select('*')
+      .not('family_id', 'is', null)
+      .order('mes', { ascending: false });
 
     return { data, error };
   } catch (error) {

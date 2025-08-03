@@ -174,12 +174,7 @@ const PersonalHeader: React.FC = () => {
         </div>
       </div>
       
-      {primaryAction && (
-        <Button onClick={primaryAction.action} className="hidden lg:flex">
-          <Plus className="h-4 w-4 mr-2" />
-          {primaryAction.label}
-        </Button>
-      )}
+
     </div>
   );
 };
@@ -187,17 +182,92 @@ const PersonalHeader: React.FC = () => {
 // Componente de KPIs rápidos
 const QuickKPIs: React.FC = () => {
   const { personalKPIs, isLoading } = usePersonal();
+  const location = useLocation();
+  
+  // Verificar se estamos na página de objetivos ou orçamentos
+  const isGoalsPage = location.pathname === '/personal/goals';
+  const isBudgetsPage = location.pathname === '/personal/budgets';
 
   if (isLoading.kpis) {
+    const cardCount = (isGoalsPage || isBudgetsPage) ? 2 : 4;
     return (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6">
-        {[1, 2, 3, 4].map((i) => (
+      <div className={`grid grid-cols-1 gap-4 p-6 ${(isGoalsPage || isBudgetsPage) ? 'md:grid-cols-2' : 'md:grid-cols-4'}`}>
+        {Array.from({ length: cardCount }, (_, i) => (
           <div key={i} className="h-20 bg-muted animate-pulse rounded-lg" />
         ))}
       </div>
     );
   }
 
+  // Se estamos na página de objetivos, mostrar apenas os 2 cards específicos
+  if (isGoalsPage) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
+        <div className="bg-card p-4 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Disponível - Conta Objetivos</p>
+              <p className="text-2xl font-bold text-foreground">
+                {personalKPIs.goalsAccountBalance.toFixed(2)}€
+              </p>
+            </div>
+            <Target className="h-8 w-8 text-primary" />
+          </div>
+        </div>
+        
+        <div className="bg-card p-4 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Progresso Objetivo</p>
+              <p className="text-2xl font-bold text-foreground">
+                {personalKPIs.goalsProgressPercentage.toFixed(0)}%
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {personalKPIs.goalsAccountBalance.toFixed(2)}€ / {personalKPIs.totalGoalsValue.toFixed(2)}€
+              </p>
+            </div>
+            <BarChart3 className="h-8 w-8 text-primary" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Se estamos na página de orçamentos, mostrar apenas os 2 cards específicos
+  if (isBudgetsPage) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
+        <div className="bg-card p-4 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Gasto - Orçamentos</p>
+              <p className="text-2xl font-bold text-foreground">
+                {personalKPIs.totalBudgetSpent.toFixed(2)}€
+              </p>
+            </div>
+            <BarChart3 className="h-8 w-8 text-primary" />
+          </div>
+        </div>
+        
+        <div className="bg-card p-4 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Percentagem Gasto - Orçamentos</p>
+              <p className="text-2xl font-bold text-foreground">
+                {personalKPIs.budgetSpentPercentage.toFixed(0)}%
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {personalKPIs.totalBudgetSpent.toFixed(2)}€ / {personalKPIs.totalBudgetAmount.toFixed(2)}€
+              </p>
+            </div>
+            <TrendingUp className="h-8 w-8 text-primary" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Para outras páginas, mostrar os 4 cards originais
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6">
       <div className="bg-card p-4 rounded-lg border">
@@ -254,6 +324,7 @@ const QuickKPIs: React.FC = () => {
 // Componente principal da Área Pessoal
 const PersonalArea: React.FC = () => {
   const isMobile = useMediaQuery('(max-width: 1024px)');
+  const location = useLocation();
   
   // Hook para atualizar dados automaticamente quando a rota muda
   useRouteChange();
@@ -267,8 +338,8 @@ const PersonalArea: React.FC = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         <PersonalHeader />
         
-        {/* KPIs rápidos (apenas em desktop) */}
-        {!isMobile && <QuickKPIs />}
+        {/* KPIs rápidos (apenas em desktop) - removido da página de transações */}
+        {!isMobile && location.pathname !== '/personal/transactions' && <QuickKPIs />}
         
         {/* Navegação mobile */}
         <MobileNavigation />
