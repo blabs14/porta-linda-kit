@@ -26,102 +26,38 @@ const PersonalDashboard: React.FC = () => {
     isLoading 
   } = usePersonal();
 
-  if (isLoading.accounts || isLoading.goals || isLoading.budgets || isLoading.transactions) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-48 bg-muted animate-pulse rounded-lg" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  // Loading progressivo - mostrar conteúdo conforme os dados vão carregando
+  const isLoadingAny = isLoading.accounts || isLoading.goals || isLoading.budgets || isLoading.transactions || isLoading.kpis;
 
-  // Calcular estatísticas
+  // Calcular estatísticas - otimizado com useMemo
   const totalAccounts = myAccounts.length;
   const totalCards = myCards.length;
-  const activeGoals = myGoals.filter(goal => goal.ativa).length;
-  const completedGoals = myGoals.filter(goal => goal.status === 'completed').length;
   
-  // Transações do mês atual
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const monthlyTransactions = myTransactions.filter(t => t.data.startsWith(currentMonth));
-  const monthlyIncome = monthlyTransactions
-    .filter(t => t.tipo === 'receita')
-    .reduce((sum, t) => sum + (t.valor || 0), 0);
-  const monthlyExpenses = monthlyTransactions
-    .filter(t => t.tipo === 'despesa')
-    .reduce((sum, t) => sum + (t.valor || 0), 0);
+  // Usar useMemo para cálculos pesados
+  const { activeGoals, completedGoals, monthlyIncome, monthlyExpenses, cardsInDebt, totalDebt } = React.useMemo(() => {
+    const activeGoals = myGoals.filter(goal => goal.ativa).length;
+    const completedGoals = myGoals.filter(goal => goal.status === 'completed').length;
+    
+    // Transações do mês atual
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const monthlyTransactions = myTransactions.filter(t => t.data.startsWith(currentMonth));
+    const monthlyIncome = monthlyTransactions
+      .filter(t => t.tipo === 'receita')
+      .reduce((sum, t) => sum + (t.valor || 0), 0);
+    const monthlyExpenses = monthlyTransactions
+      .filter(t => t.tipo === 'despesa')
+      .reduce((sum, t) => sum + (t.valor || 0), 0);
 
-  // Cartões em dívida
-  const cardsInDebt = myCards.filter(card => (card.saldo || 0) < 0);
-  const totalDebt = cardsInDebt.reduce((sum, card) => sum + Math.abs(card.saldo || 0), 0);
+    // Cartões em dívida
+    const cardsInDebt = myCards.filter(card => (card.saldo || 0) < 0);
+    const totalDebt = cardsInDebt.reduce((sum, card) => sum + Math.abs(card.saldo || 0), 0);
+    
+    return { activeGoals, completedGoals, monthlyIncome, monthlyExpenses, cardsInDebt, totalDebt };
+  }, [myGoals, myTransactions, myCards]);
 
   return (
     <div className="p-6 space-y-6">
-      {/* KPIs Principais */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Saldo Total</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {personalKPIs.totalBalance.toFixed(2)}€
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {totalAccounts} conta{totalAccounts !== 1 ? 's' : ''}
-            </p>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Dívida Cartões</CardTitle>
-            <CreditCard className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              {totalDebt.toFixed(2)}€
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {cardsInDebt.length} cartão{cardsInDebt.length !== 1 ? 's' : ''} em dívida
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Poupança Mensal</CardTitle>
-            <PiggyBank className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {(monthlyIncome - monthlyExpenses).toFixed(2)}€
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {monthlyIncome.toFixed(2)}€ receitas - {monthlyExpenses.toFixed(2)}€ despesas
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Objetivos Ativos</CardTitle>
-            <BarChart3 className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {activeGoals}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {completedGoals} concluído{completedGoals !== 1 ? 's' : ''}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Seção de Contas e Cartões */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -137,7 +73,19 @@ const PersonalDashboard: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {myAccounts.length === 0 ? (
+            {isLoading.accounts ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="space-y-2">
+                      <div className="h-4 bg-muted animate-pulse rounded w-24" />
+                      <div className="h-3 bg-muted animate-pulse rounded w-16" />
+                    </div>
+                    <div className="h-4 bg-muted animate-pulse rounded w-20" />
+                  </div>
+                ))}
+              </div>
+            ) : myAccounts.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">
                 Nenhuma conta pessoal encontrada
               </p>
@@ -173,7 +121,19 @@ const PersonalDashboard: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {myCards.length === 0 ? (
+            {isLoading.accounts ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="space-y-2">
+                      <div className="h-4 bg-muted animate-pulse rounded w-24" />
+                      <div className="h-3 bg-muted animate-pulse rounded w-16" />
+                    </div>
+                    <div className="h-4 bg-muted animate-pulse rounded w-20" />
+                  </div>
+                ))}
+              </div>
+            ) : myCards.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">
                 Nenhum cartão de crédito encontrado
               </p>
@@ -225,7 +185,22 @@ const PersonalDashboard: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {myGoals.length === 0 ? (
+          {isLoading.goals ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <div className="h-4 bg-muted animate-pulse rounded w-32" />
+                      <div className="h-3 bg-muted animate-pulse rounded w-24" />
+                    </div>
+                    <div className="h-5 bg-muted animate-pulse rounded w-12" />
+                  </div>
+                  <div className="h-2 bg-muted animate-pulse rounded" />
+                </div>
+              ))}
+            </div>
+          ) : myGoals.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               Nenhum objetivo pessoal encontrado
             </p>
@@ -268,7 +243,25 @@ const PersonalDashboard: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {myTransactions.length === 0 ? (
+          {isLoading.transactions ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-muted animate-pulse rounded-full" />
+                    <div className="space-y-1">
+                      <div className="h-4 bg-muted animate-pulse rounded w-32" />
+                      <div className="h-3 bg-muted animate-pulse rounded w-20" />
+                    </div>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <div className="h-4 bg-muted animate-pulse rounded w-20" />
+                    <div className="h-3 bg-muted animate-pulse rounded w-16" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : myTransactions.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               Nenhuma transação pessoal encontrada
             </p>

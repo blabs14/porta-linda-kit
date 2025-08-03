@@ -323,70 +323,7 @@ const PersonalTransactions: React.FC = () => {
         </div>
       </div>
 
-      {/* Métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Receitas</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(filteredMetrics.totalIncome)}</p>
-                {filteredMetrics.totalIncome !== totalIncome && (
-                  <p className="text-xs text-muted-foreground">Filtrado de {formatCurrency(totalIncome)}</p>
-                )}
-              </div>
-              <TrendingUp className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Despesas</p>
-                <p className="text-2xl font-bold text-red-600">{formatCurrency(filteredMetrics.totalExpenses)}</p>
-                {filteredMetrics.totalExpenses !== totalExpenses && (
-                  <p className="text-xs text-muted-foreground">Filtrado de {formatCurrency(totalExpenses)}</p>
-                )}
-              </div>
-              <TrendingDown className="h-8 w-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Saldo Líquido</p>
-                <p className={`text-2xl font-bold ${filteredMetrics.netBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(filteredMetrics.netBalance)}
-                </p>
-                {filteredMetrics.netBalance !== netBalance && (
-                  <p className="text-xs text-muted-foreground">Filtrado de {formatCurrency(netBalance)}</p>
-                )}
-              </div>
-              <Wallet className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Transações</p>
-                <p className="text-2xl font-bold">{filteredMetrics.transactionCount}</p>
-                {filteredMetrics.transactionCount !== transactionCount && (
-                  <p className="text-xs text-muted-foreground">Filtrado de {transactionCount}</p>
-                )}
-              </div>
-              <Calendar className="h-8 w-8 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Filtros */}
       <Card>
@@ -549,7 +486,7 @@ const PersonalTransactions: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredTransactions.map((transaction) => (
+              {filteredTransactions.slice(0, 50).map((transaction) => (
                 <Card key={transaction.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">

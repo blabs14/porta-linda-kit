@@ -1,6 +1,7 @@
 import React, { Suspense, useState } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { PersonalProvider, usePersonal } from '../features/personal/PersonalProvider';
+import { useTransactions } from '../hooks/useTransactionsQuery';
 import { LoadingSpinner } from '../components/ui/loading-states';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -45,9 +46,9 @@ const MobileNavigation: React.FC = () => {
   const tabs = [
     { value: '/personal', label: 'Resumo', icon: Home },
     { value: '/personal/accounts', label: 'Contas', icon: Wallet },
+    { value: '/personal/transactions', label: 'Transações', icon: TrendingUp },
     { value: '/personal/goals', label: 'Objetivos', icon: Target },
     { value: '/personal/budgets', label: 'Orçamentos', icon: BarChart3 },
-    { value: '/personal/transactions', label: 'Transações', icon: TrendingUp },
     { value: '/personal/insights', label: 'Insights', icon: Lightbulb },
     { value: '/personal/settings', label: 'Definições', icon: Settings }
   ];
@@ -86,9 +87,9 @@ const DesktopNavigation: React.FC = () => {
   const navItems = [
     { path: '/personal', label: 'Resumo', icon: Home, description: 'Visão geral pessoal' },
     { path: '/personal/accounts', label: 'Contas', icon: Wallet, description: 'Contas e cartões pessoais' },
+    { path: '/personal/transactions', label: 'Transações', icon: TrendingUp, description: 'Histórico de transações' },
     { path: '/personal/goals', label: 'Objetivos', icon: Target, description: 'Metas financeiras pessoais' },
     { path: '/personal/budgets', label: 'Orçamentos', icon: BarChart3, description: 'Orçamentos mensais' },
-    { path: '/personal/transactions', label: 'Transações', icon: TrendingUp, description: 'Histórico de transações' },
     { path: '/personal/insights', label: 'Insights', icon: Lightbulb, description: 'Análises e dicas' },
     { path: '/personal/settings', label: 'Definições', icon: Settings, description: 'Configurações pessoais' }
   ];
@@ -181,17 +182,23 @@ const PersonalHeader: React.FC = () => {
 
 // Componente de KPIs rápidos
 const QuickKPIs: React.FC = () => {
-  const { personalKPIs, isLoading } = usePersonal();
+  const { personalKPIs, isLoading, myGoals } = usePersonal();
   const location = useLocation();
   
-  // Verificar se estamos na página de objetivos ou orçamentos
+  // Calcular objetivos ativos e concluídos
+  const activeGoals = myGoals.filter(goal => goal.ativa).length;
+  const completedGoals = myGoals.filter(goal => goal.status === 'completed').length;
+  
+  // Verificar se estamos na página de objetivos, orçamentos, contas ou transações
   const isGoalsPage = location.pathname === '/personal/goals';
   const isBudgetsPage = location.pathname === '/personal/budgets';
+  const isAccountsPage = location.pathname === '/personal/accounts';
+  const isTransactionsPage = location.pathname === '/personal/transactions';
 
   if (isLoading.kpis) {
-    const cardCount = (isGoalsPage || isBudgetsPage) ? 2 : 4;
+    const cardCount = (isGoalsPage) ? 3 : (isBudgetsPage) ? 2 : (isAccountsPage || isTransactionsPage ? 4 : 4);
     return (
-      <div className={`grid grid-cols-1 gap-4 p-6 ${(isGoalsPage || isBudgetsPage) ? 'md:grid-cols-2' : 'md:grid-cols-4'}`}>
+      <div className={`grid grid-cols-1 gap-4 p-6 ${(isGoalsPage) ? 'md:grid-cols-3' : (isBudgetsPage) ? 'md:grid-cols-2' : 'md:grid-cols-4'}`}>
         {Array.from({ length: cardCount }, (_, i) => (
           <div key={i} className="h-20 bg-muted animate-pulse rounded-lg" />
         ))}
@@ -199,10 +206,10 @@ const QuickKPIs: React.FC = () => {
     );
   }
 
-  // Se estamos na página de objetivos, mostrar apenas os 2 cards específicos
+  // Se estamos na página de objetivos, mostrar 3 cards (incluindo Objetivos Ativos)
   if (isGoalsPage) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
         <div className="bg-card p-4 rounded-lg border">
           <div className="flex items-center justify-between">
             <div>
@@ -224,6 +231,21 @@ const QuickKPIs: React.FC = () => {
               </p>
               <p className="text-xs text-muted-foreground">
                 {personalKPIs.goalsAccountBalance.toFixed(2)}€ / {personalKPIs.totalGoalsValue.toFixed(2)}€
+              </p>
+            </div>
+            <BarChart3 className="h-8 w-8 text-primary" />
+          </div>
+        </div>
+        
+        <div className="bg-card p-4 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Objetivos Ativos</p>
+              <p className="text-2xl font-bold text-foreground">
+                {activeGoals}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {completedGoals} concluído{completedGoals !== 1 ? 's' : ''}
               </p>
             </div>
             <BarChart3 className="h-8 w-8 text-primary" />
@@ -267,6 +289,118 @@ const QuickKPIs: React.FC = () => {
     );
   }
 
+  // Se estamos na página de transações, mostrar os 4 cards de métricas de transações
+  if (isTransactionsPage) {
+    // Usar dados das transações do contexto
+    const { data: transactions = [] } = useTransactions();
+    
+    const totalIncome = transactions
+      .filter(t => t.tipo === 'receita')
+      .reduce((sum, t) => sum + t.valor, 0);
+
+    const totalExpenses = transactions
+      .filter(t => t.tipo === 'despesa')
+      .reduce((sum, t) => sum + t.valor, 0);
+
+    const netBalance = totalIncome - totalExpenses;
+    const transactionCount = transactions.length;
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6">
+        <div className="bg-card p-4 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Receitas</p>
+              <p className="text-2xl font-bold text-green-600">
+                {totalIncome.toFixed(2)}€
+              </p>
+            </div>
+            <TrendingUp className="h-8 w-8 text-green-600" />
+          </div>
+        </div>
+        
+        <div className="bg-card p-4 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Despesas</p>
+              <p className="text-2xl font-bold text-red-600">
+                {totalExpenses.toFixed(2)}€
+              </p>
+            </div>
+            <TrendingDown className="h-8 w-8 text-red-600" />
+          </div>
+        </div>
+        
+        <div className="bg-card p-4 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Saldo Líquido</p>
+              <p className="text-2xl font-bold text-blue-600">
+                {netBalance.toFixed(2)}€
+              </p>
+            </div>
+            <Wallet className="h-8 w-8 text-blue-600" />
+          </div>
+        </div>
+        
+        <div className="bg-card p-4 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Transações</p>
+              <p className="text-2xl font-bold text-foreground">
+                {transactionCount}
+              </p>
+            </div>
+            <BarChart3 className="h-8 w-8 text-primary" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Se estamos na página de contas, mostrar apenas 3 cards (sem Objetivos Ativos)
+  if (isAccountsPage) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
+        <div className="bg-card p-4 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Saldo Total</p>
+              <p className="text-2xl font-bold text-foreground">
+                {personalKPIs.totalBalance.toFixed(2)}€
+              </p>
+            </div>
+            <Wallet className="h-8 w-8 text-primary" />
+          </div>
+        </div>
+        
+        <div className="bg-card p-4 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Dívida Cartões</p>
+              <p className="text-2xl font-bold text-destructive">
+                {personalKPIs.creditCardDebt.toFixed(2)}€
+              </p>
+            </div>
+            <CreditCard className="h-8 w-8 text-destructive" />
+          </div>
+        </div>
+        
+        <div className="bg-card p-4 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Poupança Mensal</p>
+              <p className="text-2xl font-bold text-green-600">
+                {personalKPIs.monthlySavings.toFixed(2)}€
+              </p>
+            </div>
+            <PiggyBank className="h-8 w-8 text-green-600" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Para outras páginas, mostrar os 4 cards originais
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6">
@@ -297,12 +431,15 @@ const QuickKPIs: React.FC = () => {
       <div className="bg-card p-4 rounded-lg border">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-muted-foreground">Progresso Objetivo</p>
+            <p className="text-sm text-muted-foreground">Objetivos Ativos</p>
             <p className="text-2xl font-bold text-foreground">
-              {personalKPIs.topGoalProgress.toFixed(0)}%
+              {activeGoals}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {completedGoals} concluído{completedGoals !== 1 ? 's' : ''}
             </p>
           </div>
-          <Target className="h-8 w-8 text-primary" />
+          <BarChart3 className="h-8 w-8 text-primary" />
         </div>
       </div>
       
@@ -338,8 +475,8 @@ const PersonalArea: React.FC = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         <PersonalHeader />
         
-        {/* KPIs rápidos (apenas em desktop) - removido da página de transações */}
-        {!isMobile && location.pathname !== '/personal/transactions' && <QuickKPIs />}
+        {/* KPIs rápidos (apenas em desktop) - removido apenas da página de definições */}
+        {!isMobile && location.pathname !== '/personal/settings' && <QuickKPIs />}
         
         {/* Navegação mobile */}
         <MobileNavigation />

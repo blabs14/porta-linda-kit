@@ -5,7 +5,8 @@ import {
   getPersonalAccountsWithBalances, 
   createAccount, 
   updateAccount, 
-  deleteAccount
+  deleteAccount,
+  getPersonalKPIs
 } from '../../services/accounts';
 import { 
   getPersonalGoals, 
@@ -99,7 +100,7 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Query para contas pessoais - usar exatamente a mesma abordagem que funciona na página de contas
+  // Query para contas pessoais - otimizada para performance
   const { data: myAccounts = [], isLoading: accountsLoading } = useQuery({
     queryKey: ['personal', 'accounts', user?.id],
     queryFn: async () => {
@@ -108,10 +109,10 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
       return data || [];
     },
     enabled: !!user?.id,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
-    refetchOnReconnect: true,
-    staleTime: 0,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    staleTime: 30 * 1000, // 30 segundos
     gcTime: 5 * 60 * 1000,
   });
 
@@ -119,7 +120,7 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
   const myCards = myAccounts.filter(account => account.tipo === 'cartão de crédito');
   const regularAccounts = myAccounts.filter(account => account.tipo !== 'cartão de crédito');
 
-  // Query para objetivos pessoais - usar a função que filtra apenas dados pessoais
+  // Query para objetivos pessoais - otimizada para performance
   const { data: myGoals = [], isLoading: goalsLoading } = useQuery({
     queryKey: ['personal', 'goals', user?.id],
     queryFn: async () => {
@@ -129,14 +130,14 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
       return data || [];
     },
     enabled: !!user?.id,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
-    refetchOnReconnect: true,
-    staleTime: 0,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    staleTime: 30 * 1000, // 30 segundos
     gcTime: 5 * 60 * 1000,
   });
 
-  // Query para orçamentos pessoais - usar a função que filtra apenas dados pessoais
+  // Query para orçamentos pessoais - otimizada para performance
   const { data: myBudgets = [], isLoading: budgetsLoading } = useQuery({
     queryKey: ['personal', 'budgets', user?.id],
     queryFn: async () => {
@@ -145,14 +146,14 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
       return data || [];
     },
     enabled: !!user?.id,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
-    refetchOnReconnect: true,
-    staleTime: 0,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    staleTime: 30 * 1000, // 30 segundos
     gcTime: 5 * 60 * 1000,
   });
 
-  // Query para transações pessoais - usar a função que filtra apenas dados pessoais
+  // Query para transações pessoais - otimizada para performance
   const { data: myTransactions = [], isLoading: transactionsLoading } = useQuery({
     queryKey: ['personal', 'transactions', user?.id],
     queryFn: async () => {
@@ -161,73 +162,38 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
       return data || [];
     },
     enabled: !!user?.id,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
-    refetchOnReconnect: true,
-    staleTime: 0,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    staleTime: 30 * 1000, // 30 segundos
     gcTime: 5 * 60 * 1000,
   });
 
-  // Query para KPIs pessoais
+  // Query para KPIs pessoais - otimizada com RPC
   const { data: personalKPIs, isLoading: kpisLoading } = useQuery({
     queryKey: ['personal', 'kpis', user?.id],
     queryFn: async () => {
-      // Calcular saldo total das contas pessoais
-      const totalBalance = regularAccounts.reduce((sum, account) => sum + account.saldo_atual, 0);
-      
-      // Calcular dívida total dos cartões de crédito
-      const creditCardDebt = myCards.reduce((sum, card) => {
-        const balance = card.saldo_atual;
-        return sum + (balance < 0 ? Math.abs(balance) : 0);
-      }, 0);
-      
-      // Calcular progresso do objetivo principal
-      const topGoal = myGoals[0];
-      const topGoalProgress = topGoal 
-        ? ((topGoal.valor_atual || 0) / (topGoal.valor_objetivo || 1)) * 100
-        : 0;
-      
-      // Calcular poupança mensal (simplificado - pode ser melhorado)
-      const currentMonth = new Date().toISOString().slice(0, 7);
-      const monthlyTransactions = myTransactions.filter(t => 
-        t.data.startsWith(currentMonth) && t.tipo === 'receita'
-      );
-      const monthlySavings = monthlyTransactions.reduce((sum, t) => sum + (t.valor || 0), 0);
-      
-      // Calcular dados da conta objetivos
-      const goalsAccount = myAccounts.find(account => account.nome.toLowerCase().includes('objetivo') || account.tipo === 'objetivo');
-      const goalsAccountBalance = goalsAccount ? (goalsAccount.saldo_atual || 0) : 0;
-      
-      // Calcular valor total de todos os objetivos
-      const totalGoalsValue = myGoals.reduce((sum, goal) => sum + (goal.valor_objetivo || 0), 0);
-      
-      // Calcular percentagem de progresso (valor total dos objetivos vs saldo da conta objetivos)
-      const goalsProgressPercentage = totalGoalsValue > 0 ? (goalsAccountBalance / totalGoalsValue) * 100 : 0;
-      
-      // Calcular dados dos orçamentos (todos os orçamentos existentes)
-      const activeBudgets = myBudgets;
-      const totalBudgetAmount = activeBudgets.reduce((sum, budget) => sum + (budget.valor_orcamento || 0), 0);
-      const totalBudgetSpent = activeBudgets.reduce((sum, budget) => sum + (budget.valor_gasto || 0), 0);
-      const budgetSpentPercentage = totalBudgetAmount > 0 ? (totalBudgetSpent / totalBudgetAmount) * 100 : 0;
+      const { data, error } = await getPersonalKPIs();
+      if (error) throw error;
       
       return {
-        totalBalance,
-        creditCardDebt,
-        topGoalProgress: Math.min(topGoalProgress, 100),
-        monthlySavings,
-        goalsAccountBalance,
-        totalGoalsValue,
-        goalsProgressPercentage: Math.min(goalsProgressPercentage, 100),
-        totalBudgetSpent,
-        totalBudgetAmount,
-        budgetSpentPercentage: Math.min(budgetSpentPercentage, 100)
+        totalBalance: data.total_balance || 0,
+        creditCardDebt: data.credit_card_debt || 0,
+        topGoalProgress: Math.min(data.top_goal_progress || 0, 100),
+        monthlySavings: data.monthly_savings || 0,
+        goalsAccountBalance: data.goals_account_balance || 0,
+        totalGoalsValue: data.total_goals_value || 0,
+        goalsProgressPercentage: Math.min(data.goals_progress_percentage || 0, 100),
+        totalBudgetSpent: data.total_budget_spent || 0,
+        totalBudgetAmount: data.total_budget_amount || 0,
+        budgetSpentPercentage: Math.min(data.budget_spent_percentage || 0, 100)
       };
     },
-    enabled: !!user?.id && !accountsLoading && !goalsLoading && !budgetsLoading && !transactionsLoading,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
-    refetchOnReconnect: true,
-    staleTime: 0,
+    enabled: !!user?.id,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    staleTime: 30 * 1000, // 30 segundos
     gcTime: 5 * 60 * 1000,
   });
 
