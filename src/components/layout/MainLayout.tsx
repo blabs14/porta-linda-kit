@@ -23,8 +23,7 @@ export function MainLayout() {
       case '/app':
         return 'Dashboard';
 
-      case '/app/family':
-        return 'Família';
+
       case '/app/reports':
         return 'Relatórios';
       default:

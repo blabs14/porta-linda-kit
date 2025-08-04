@@ -16,7 +16,6 @@ import ReactPlugin from '@stagewise-plugins/react';
 // Lazy loading de páginas
 import {
   Dashboard,
-  Family,
   ProfilePage,
 } from './components/lazy/index';
 
@@ -60,11 +59,7 @@ function App() {
                 </Suspense>
               } />
 
-              <Route path="family" element={
-                <Suspense fallback={<PageLoading />}>
-                  <Family />
-                </Suspense>
-              } />
+
               <Route path="profile" element={
                 <Suspense fallback={<PageLoading />}>
                   <ProfilePage />

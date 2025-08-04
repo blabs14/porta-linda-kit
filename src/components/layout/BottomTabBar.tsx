@@ -1,7 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
-  Home, 
-  Users
+  Home
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -13,11 +12,7 @@ const tabItems = [
   },
 
 
-  {
-    title: 'Família',
-    href: '/app/family',
-    icon: Users
-  }
+
 ];
 
 export function BottomTabBar() {

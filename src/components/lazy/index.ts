@@ -3,7 +3,7 @@ import { lazy } from 'react';
 // Lazy loading de páginas
 export const Dashboard = lazy(() => import('../../pages/Dashboard'));
 
-export const Family = lazy(() => import('../../pages/Family'));
+
 export const ProfilePage = lazy(() => import('../../pages/Profile'));
 
 // Lazy loading para formulários menos usados

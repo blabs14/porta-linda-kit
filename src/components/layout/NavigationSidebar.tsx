@@ -34,12 +34,7 @@ const navigationItems = [
                 icon: Users,
                 description: 'Gestão financeira familiar'
               },
-  {
-    title: 'Família',
-    href: '/app/family',
-    icon: Users,
-    description: 'Membros e partilha de contas'
-  }
+
 ];
 
 export function NavigationSidebar({ onNavigate }: NavigationSidebarProps) {

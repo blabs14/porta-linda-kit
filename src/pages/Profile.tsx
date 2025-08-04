@@ -107,7 +107,7 @@ export default function ProfilePage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-red-600">Erro ao carregar perfil</h1>
           <p className="text-gray-600 mt-2">Não foi possível carregar os dados do perfil</p>
-          <Button onClick={() => navigate('/app/dashboard')} className="mt-4">
+          <Button onClick={() => navigate('/app')} className="mt-4">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar ao Dashboard
           </Button>
@@ -123,7 +123,7 @@ export default function ProfilePage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => navigate('/app/dashboard')}
+          onClick={() => navigate('/app')}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar
