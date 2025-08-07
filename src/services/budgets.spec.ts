@@ -1,5 +1,32 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as svc from './budgets';
+
+// Mock do supabase
+vi.mock('../lib/supabaseClient', () => ({
+  supabase: {
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue({ data: [], error: null }),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: null }),
+      insert: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      delete: vi.fn().mockResolvedValue({ data: [], error: null })
+    })),
+    auth: {
+      signUp: vi.fn().mockImplementation(({ email }) => Promise.resolve({ 
+        data: { user: { email } }, 
+        error: null 
+      })),
+      signInWithPassword: vi.fn().mockImplementation(({ email }) => Promise.resolve({ 
+        data: { user: { email } }, 
+        error: null 
+      }))
+    }
+  }
+}));
+
+const { supabase } = await import('../lib/supabaseClient');}]}}}
 
 describe('budgets service', () => {
   it('getBudgets retorna um array', async () => {
@@ -7,4 +34,4 @@ describe('budgets service', () => {
     expect(error).toBeNull();
     expect(Array.isArray(data)).toBe(true);
   });
-}); 
+});

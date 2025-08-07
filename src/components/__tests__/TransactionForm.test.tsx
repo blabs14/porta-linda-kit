@@ -53,7 +53,7 @@ describe('TransactionForm', () => {
       logout: vi.fn(),
     });
 
-    mockAccountsService.getAccounts.mockResolvedValue({
+    mockAccountsService.getAccountsWithBalances.mockResolvedValue({
       data: mockAccounts,
       error: null,
     });
@@ -68,8 +68,8 @@ describe('TransactionForm', () => {
     render(<TransactionForm />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Valor')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Descrição')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('0,00')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Descrição da transação')).toBeInTheDocument();
     });
   });
 
@@ -77,7 +77,7 @@ describe('TransactionForm', () => {
     render(<TransactionForm />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(mockAccountsService.getAccounts).toHaveBeenCalled();
+      expect(mockAccountsService.getAccountsWithBalances).toHaveBeenCalled();
       expect(mockCategoriesService.getCategories).toHaveBeenCalled();
     });
   });
@@ -87,23 +87,23 @@ describe('TransactionForm', () => {
     render(<TransactionForm onSuccess={onSuccess} />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Valor')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('0,00')).toBeInTheDocument();
     });
 
     // Preencher formulário
-    fireEvent.change(screen.getByPlaceholderText('Valor'), {
+    fireEvent.change(screen.getByPlaceholderText('0,00'), {
       target: { value: '100' },
     });
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), {
+    fireEvent.change(screen.getByPlaceholderText('Descrição da transação'), {
       target: { value: 'Test transaction' },
     });
 
     // Submeter formulário
-    fireEvent.click(screen.getByText('Guardar'));
+    fireEvent.click(screen.getByText('Criar'));
 
     // Verificar que o formulário foi submetido
     await waitFor(() => {
-      expect(screen.getByText('Guardar')).toBeInTheDocument();
+      expect(screen.getByText('Criar')).toBeInTheDocument();
     });
   });
 
@@ -111,15 +111,15 @@ describe('TransactionForm', () => {
     render(<TransactionForm />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Valor')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('0,00')).toBeInTheDocument();
     });
 
     // Tentar submeter formulário vazio
-    fireEvent.click(screen.getByText('Guardar'));
+    fireEvent.click(screen.getByText('Criar'));
 
     // Verificar que erros de validação são exibidos
     await waitFor(() => {
-      expect(screen.getByText('Guardar')).toBeInTheDocument();
+      expect(screen.getByText('Criar')).toBeInTheDocument();
     });
   });
 
@@ -142,7 +142,7 @@ describe('TransactionForm', () => {
   });
 
   it('should call onCancel when cancel button is clicked', async () => {
-    const onCancel = jest.fn();
+    const onCancel = vi.fn();
     render(<TransactionForm onCancel={onCancel} />, { wrapper: createWrapper() });
 
     await waitFor(() => {

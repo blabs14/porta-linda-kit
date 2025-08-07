@@ -96,7 +96,7 @@ const CategoryForm = ({ initialData, onSuccess, onCancel }: CategoryFormProps) =
 
   return (
     <FormTransition isVisible={true}>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-2 sm:p-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-2 sm:p-4" data-testid="category-form">
         <div className="space-y-2">
           <label htmlFor="nome">Nome</label>
           <Input
@@ -177,4 +177,4 @@ const CategoryForm = ({ initialData, onSuccess, onCancel }: CategoryFormProps) =
   );
 };
 
-export default CategoryForm; 
+export default CategoryForm;

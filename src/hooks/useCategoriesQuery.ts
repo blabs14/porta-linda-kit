@@ -55,7 +55,7 @@ export const useUpdateCategory = () => {
   
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { data: result, error } = await updateCategory(id, data, user?.id || '');
+      const { data: result, error } = await updateCategory(id, data);
       if (error) throw error;
       return result;
     },
@@ -79,4 +79,4 @@ export const useDeleteCategory = () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
     },
   });
-}; 
+};

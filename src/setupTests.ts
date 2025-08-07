@@ -1,6 +1,43 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 
+// Mock do Supabase
+const mockSupabaseClient = {
+  from: vi.fn(() => ({
+    select: vi.fn().mockReturnThis(),
+    order: vi.fn().mockResolvedValue({ data: [], error: null }),
+    eq: vi.fn().mockReturnThis(),
+    single: vi.fn().mockResolvedValue({ data: null, error: null }),
+    insert: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockResolvedValue({ data: [], error: null })
+  })),
+  auth: {
+    signUp: vi.fn().mockResolvedValue({ 
+      data: { user: { email: 'test@test.com' } }, 
+      error: null 
+    }),
+    signInWithPassword: vi.fn().mockResolvedValue({ 
+      data: { user: { email: 'test@test.com' } }, 
+      error: null 
+    }),
+    signOut: vi.fn().mockResolvedValue({ error: null }),
+    getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+    onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } }))
+  },
+  storage: {
+    from: vi.fn(() => ({
+      upload: vi.fn().mockResolvedValue({ data: null, error: null }),
+      download: vi.fn().mockResolvedValue({ data: null, error: null }),
+      remove: vi.fn().mockResolvedValue({ data: null, error: null })
+    }))
+  }
+};
+
+vi.mock('../lib/supabaseClient', () => ({
+  supabase: mockSupabaseClient
+}));
+
 // Mock do localStorage
 const localStorageMock = {
   getItem: vi.fn(),

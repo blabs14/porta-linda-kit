@@ -51,9 +51,7 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
   
   const isSubmitting = createAccountMutation.isPending || updateAccountMutation.isPending;
 
-  console.log('[AccountForm] initialData:', initialData);
-  console.log('[AccountForm] form state:', form);
-  console.log('[AccountForm] isSubmitting:', isSubmitting);
+
 
   useEffect(() => {
     if (initialData) setForm(initialData);
@@ -121,17 +119,23 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
     }
     
     try {
-      const payload = {
-        nome: form.nome.trim(),
-        tipo: form.tipo,
-        saldoAtual: Number(form.saldoAtual) || 0,
-        ajusteSaldo: typeof form.ajusteSaldo === 'string' ? parseFloat(form.ajusteSaldo) || 0 : (Number(form.ajusteSaldo) || 0),
-      };
-      
       if (initialData && initialData.id) {
-        await updateAccountMutation.mutateAsync({ id: initialData.id, data: payload });
+        // Para atualização, usar o formato esperado pelo hook
+        const updatePayload = {
+          nome: form.nome.trim(),
+          tipo: form.tipo,
+          saldoAtual: Number(form.saldoAtual) || 0,
+          ajusteSaldo: typeof form.ajusteSaldo === 'string' ? parseFloat(form.ajusteSaldo) || 0 : (Number(form.ajusteSaldo) || 0),
+        };
+        await updateAccountMutation.mutateAsync({ id: initialData.id, data: updatePayload });
       } else {
-        await createAccountMutation.mutateAsync(payload);
+        // Para criação, usar o formato esperado pelo hook
+        const createPayload = {
+          nome: form.nome.trim(),
+          tipo: form.tipo,
+          saldo: Number(form.saldoAtual) || 0,
+        };
+        await createAccountMutation.mutateAsync(createPayload);
       }
       
       onSuccess?.();

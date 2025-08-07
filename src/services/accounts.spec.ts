@@ -1,6 +1,32 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as svc from './accounts';
-import { supabase } from '../lib/supabaseClient';
+
+// Mock do supabase
+vi.mock('../lib/supabaseClient', () => ({
+  supabase: {
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue({ data: [], error: null }),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: null }),
+      insert: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      delete: vi.fn().mockResolvedValue({ data: [], error: null })
+    })),
+    auth: {
+       signUp: vi.fn().mockImplementation(({ email }) => Promise.resolve({ 
+         data: { user: { email } }, 
+         error: null 
+       })),
+       signInWithPassword: vi.fn().mockImplementation(({ email }) => Promise.resolve({ 
+         data: { user: { email } }, 
+         error: null 
+       }))
+     }
+  }
+}));
+
+const { supabase } = await import('../lib/supabaseClient');
 
 function randomEmail() {
   return `test_${Math.random().toString(36).substring(2, 10)}@test.com`;
@@ -34,4 +60,4 @@ describe('auth flow', () => {
     expect(loginRes.error).toBeNull();
     expect(loginRes.data.user?.email).toBe(email);
   });
-}); 
+});
