@@ -1,12 +1,21 @@
 import { supabase } from '../lib/supabaseClient';
 import { Category, CategoryInsert, CategoryUpdate } from '../integrations/supabase/types';
 
-export const getCategories = async (): Promise<{ data: Category[] | null; error: any }> => {
+export const getCategories = async (userId?: string, tipo?: string): Promise<{ data: Category[] | null; error: any }> => {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('categories')
-      .select('*')
-      .order('nome');
+      .select('*');
+
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    if (tipo) {
+      query = query.eq('tipo', tipo);
+    }
+
+    const { data, error } = await query.order('nome');
 
     return { data, error };
   } catch (error) {

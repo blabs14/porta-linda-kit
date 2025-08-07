@@ -1,18 +1,19 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import TransactionForm from '../TransactionForm';
 import { useAuth } from '../../contexts/AuthContext';
 import * as accountsService from '../../services/accounts';
 import * as categoriesService from '../../services/categories';
 
 // Mock dos serviços e hooks
-jest.mock('../../contexts/AuthContext');
-jest.mock('../../services/accounts');
-jest.mock('../../services/categories');
+vi.mock('../../contexts/AuthContext');
+vi.mock('../../services/accounts');
+vi.mock('../../services/categories');
 
-const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
-const mockAccountsService = accountsService as jest.Mocked<typeof accountsService>;
-const mockCategoriesService = categoriesService as jest.Mocked<typeof categoriesService>;
+const mockUseAuth = vi.mocked(useAuth);
+const mockAccountsService = vi.mocked(accountsService);
+const mockCategoriesService = vi.mocked(categoriesService);
 
 // Wrapper para QueryClient
 const createWrapper = () => {
@@ -42,14 +43,14 @@ describe('TransactionForm', () => {
   ];
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     mockUseAuth.mockReturnValue({
       user: mockUser,
       loading: false,
-      login: jest.fn(),
-      register: jest.fn(),
-      logout: jest.fn(),
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
     });
 
     mockAccountsService.getAccounts.mockResolvedValue({
@@ -82,7 +83,7 @@ describe('TransactionForm', () => {
   });
 
   it('should handle form submission with valid data', async () => {
-    const onSuccess = jest.fn();
+    const onSuccess = vi.fn();
     render(<TransactionForm onSuccess={onSuccess} />, { wrapper: createWrapper() });
 
     await waitFor(() => {
@@ -151,4 +152,4 @@ describe('TransactionForm', () => {
     fireEvent.click(screen.getByText('Cancelar'));
     expect(onCancel).toHaveBeenCalled();
   });
-}); 
+});

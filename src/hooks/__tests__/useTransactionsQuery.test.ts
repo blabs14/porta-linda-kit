@@ -1,15 +1,16 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useTransactions, useCreateTransaction, useUpdateTransaction, useDeleteTransaction } from '../useTransactionsQuery';
 import * as transactionService from '../../services/transactions';
 import { useAuth } from '../../contexts/AuthContext';
 
 // Mock dos serviços
-jest.mock('../../services/transactions');
-jest.mock('../../contexts/AuthContext');
+vi.mock('../../services/transactions');
+vi.mock('../../contexts/AuthContext');
 
-const mockTransactionService = transactionService as jest.Mocked<typeof transactionService>;
-const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
+const mockTransactionService = vi.mocked(transactionService);
+const mockUseAuth = vi.mocked(useAuth);
 
 // Wrapper para QueryClient
 const createWrapper = () => {
@@ -29,13 +30,13 @@ const createWrapper = () => {
 
 describe('useTransactionsQuery', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockUseAuth.mockReturnValue({
       user: { id: 'test-user-id' },
       loading: false,
-      login: jest.fn(),
-      register: jest.fn(),
-      logout: jest.fn(),
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
     });
   });
 
@@ -205,4 +206,4 @@ describe('useTransactionsQuery', () => {
       );
     });
   });
-}); 
+});
