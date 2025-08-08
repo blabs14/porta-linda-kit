@@ -60,7 +60,7 @@ const DEFAULT_CONFIG: MetricsConfig = {
 // Hook principal para métricas de família
 export const useFamilyMetrics = (familyId: string | null, config: Partial<MetricsConfig> = {}) => {
   const queryClient = useQueryClient();
-  const finalConfig = useMemo<MetricsConfig>(() => ({ ...DEFAULT_CONFIG, ...config }), [config.enableAnalytics, config.enablePersistent, config.enableRealTime, config.maxHistorySize, config.sampleRate]);
+  const finalConfig = useMemo<MetricsConfig>(() => ({ ...DEFAULT_CONFIG, ...config }), [config, config.enableAnalytics, config.enablePersistent, config.enableRealTime, config.maxHistorySize, config.sampleRate]);
   
   const metricsRef = useRef<Record<string, FamilyMetrics>>({});
   const historyRef = useRef<FamilyMetrics[]>([]);

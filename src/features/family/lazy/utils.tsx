@@ -1,17 +1,15 @@
 import React, { lazy, Suspense } from 'react';
 
-export const LazyFallback: React.FC<{ message?: string }> = ({ message = 'A carregar...' }) => (
-  <div className="flex items-center justify-center p-4">
-    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-3"></div>
-    <span className="text-sm text-muted-foreground">{message}</span>
-  </div>
-);
-
 export function withLazyLoading<P>(Component: React.ComponentType<P>, fallback?: React.ReactNode) {
   const LazyComponent = lazy(() => Promise.resolve({ default: Component }));
   
   const Wrapped: React.FC<P> = (props: P) => (
-    <Suspense fallback={fallback || <LazyFallback />}>
+    <Suspense fallback={fallback || (
+      <div className="flex items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-3"></div>
+        <span className="text-sm text-muted-foreground">A carregar...</span>
+      </div>
+    )}>
       <LazyComponent {...props} />
     </Suspense>
   );
@@ -51,7 +49,12 @@ export function useLazyService<TModule = unknown>(serviceImport: () => Promise<T
 export function withLoadingState<P>(Component: React.ComponentType<P>, LoadingComponent?: React.ComponentType) {
   const Wrapper: React.FC<P & { loading?: boolean }> = ({ loading, ...props }) => {
     if (loading) {
-      return LoadingComponent ? <LoadingComponent /> : <LazyFallback />;
+      return LoadingComponent ? <LoadingComponent /> : (
+        <div className="flex items-center justify-center p-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-3"></div>
+          <span className="text-sm text-muted-foreground">A carregar...</span>
+        </div>
+      );
     }
     return <Component {...(props as P)} />;
   };

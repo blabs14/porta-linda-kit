@@ -2,7 +2,6 @@
 // Otimização de performance com carregamento sob demanda
 
 import React, { lazy } from 'react';
-import { LazyFallback } from './utils';
 
 // Componente de fallback para componentes não disponíveis
 const ComponentFallback: React.FC<{ message: string }> = ({ message }) => (
