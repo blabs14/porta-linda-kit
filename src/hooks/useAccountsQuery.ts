@@ -15,9 +15,9 @@ export const useAccounts = () => {
   const { user } = useAuth();
   
   return useQuery({
-    queryKey: ['accounts'],
+    queryKey: ['accounts', user?.id],
     queryFn: async () => {
-      const { data, error } = await getAccounts();
+      const { data, error } = await getAccounts(user?.id as any);
       if (error) throw error;
       return data || [];
     },
@@ -49,8 +49,14 @@ export const useCreateAccount = () => {
   const queryClient = useQueryClient();
 
   return useCrudMutation(
-    (data: { nome: string; tipo: string; saldo?: number }) => 
-      createAccount({ ...data, user_id: user?.id || '' }, user?.id || ''),
+    async (data: any) => {
+      const payload = { user_id: user?.id, ...data };
+      const { data: created, error } = await createAccount(payload as any);
+      if (error) {
+        throw error as any;
+      }
+      return created as any;
+    },
     {
       operation: 'create',
       entityName: 'Conta',
@@ -67,27 +73,29 @@ export const useUpdateAccount = () => {
   const queryClient = useQueryClient();
 
   return useCrudMutation(
-    ({ id, data }: { id: string; data: { nome?: string; tipo?: string; saldo?: number; saldoAtual?: number; ajusteSaldo?: number } }) => 
-      updateAccount(id, data, user?.id || ''),
+    async (variables: any) => {
+      const { id, ...updateData } = variables || {};
+      const { data: updated, error } = await updateAccount(id as string, updateData as any);
+      if (error) {
+        throw error as any;
+      }
+      return updated as any;
+    },
     {
       operation: 'update',
       entityName: 'Conta',
-      onSuccess: async (_, variables) => {
+      onSuccess: async () => {
         console.log('[useUpdateAccount] Invalidating queries...');
-        console.log('[useUpdateAccount] Account ID:', variables.id);
-        console.log('[useUpdateAccount] Data:', variables.data);
         
-        // Invalidar todas as queries relacionadas
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['accounts'] }),
-          queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] })
-          // TODO: Adicionar creditCardSummary quando implementar
+          queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] }),
+          queryClient.invalidateQueries({ queryKey: ['creditCardSummary'] })
         ]);
         
-        // Forçar refetch das queries específicas
         await Promise.all([
-          queryClient.refetchQueries({ queryKey: ['accountsWithBalances', user?.id] })
-          // TODO: Adicionar creditCardSummary quando implementar
+          queryClient.refetchQueries({ queryKey: ['accountsWithBalances', user?.id] }),
+          queryClient.refetchQueries({ queryKey: ['creditCardSummary'] })
         ]);
         
         console.log('[useUpdateAccount] Queries invalidated and refetched');
@@ -101,7 +109,13 @@ export const useDeleteAccount = () => {
   const queryClient = useQueryClient();
 
   return useCrudMutation(
-    (id: string) => deleteAccount(id, user?.id || ''),
+    async (id: string) => {
+      const { data, error } = await deleteAccount(id as any);
+      if (error) {
+        throw error as any;
+      }
+      return data as any;
+    },
     {
       operation: 'delete',
       entityName: 'Conta',
@@ -113,7 +127,7 @@ export const useDeleteAccount = () => {
   );
 };
 
-// TODO: Implementar mais tarde
+// TODO: Descomentar quando a função RPC get_credit_card_summary for implementada
 // export const useCreditCardSummary = (accountId: string) => {
 //   const { user } = useAuth();
 //   
@@ -132,7 +146,7 @@ export const useDeleteAccount = () => {
 //     },
 //     enabled: !!user?.id && !!accountId,
 //     staleTime: 0, // Sempre considerar stale para forçar refetch
-//     gcTime: 5 * 60 * 1000, // 5 minutos de cache
+//     gcTime: 5 * 60 * 1000, // 5 minutos de cache,
 //   });
 // };
 

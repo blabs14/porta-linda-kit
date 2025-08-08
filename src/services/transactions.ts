@@ -51,43 +51,41 @@ export const createTransaction = async (transactionData: TransactionInsert, user
     console.log('[createTransaction] transactionData:', transactionData);
     console.log('[createTransaction] userId:', userId);
     
-    // TODO: Implementar mais tarde
     // Verificar se é uma conta de cartão de crédito
-    // const { data: account } = await supabase
-    //   .from('accounts')
-    //   .select('tipo')
-    //   .eq('id', transactionData.account_id)
-    //   .single();
+    const { data: account } = await supabase
+      .from('accounts')
+      .select('tipo')
+      .eq('id', transactionData.account_id)
+      .single();
     
-    // if (account?.tipo === 'cartão de crédito') {
-    //   // Usar lógica específica para cartões de crédito
-    //   const { data, error } = await supabase.rpc('handle_credit_card_transaction', {
-    //     p_user_id: userId,
-    //     p_account_id: transactionData.account_id,
-    //     p_valor: transactionData.valor,
-    //     p_data: transactionData.data,
-    //     p_categoria_id: transactionData.categoria_id,
-    //     p_tipo: transactionData.tipo,
-    //     p_descricao: transactionData.descricao || null,
-    //     p_goal_id: transactionData.goal_id || null
-    //   });
+    if (account?.tipo === 'cartão de crédito') {
+      // Usar lógica específica para cartões de crédito
+      const { data, error } = await supabase.rpc('handle_credit_card_transaction', {
+        p_user_id: userId,
+        p_account_id: transactionData.account_id,
+        p_valor: transactionData.valor,
+        p_data: transactionData.data,
+        p_categoria_id: transactionData.categoria_id,
+        p_tipo: transactionData.tipo,
+        p_descricao: transactionData.descricao || null,
+        p_goal_id: transactionData.goal_id || null
+      });
     
-    //   if (error) {
-    //     return { data: null, error };
-    //   }
+      if (error) {
+        return { data: null, error };
+      }
     
-    //   // Buscar a transação criada
-    //   const result = data as any;
-    //   const { data: createdTransaction, error: fetchError } = await supabase
-    //     .from('transactions')
-    //     .select('*')
-    //     .eq('id', result.transaction_id)
-    //     .single();
+      // Buscar a transação criada
+      const result = data as any;
+      const { data: createdTransaction, error: fetchError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('id', result.transaction_id)
+        .single();
     
-    //   return { data: createdTransaction, error: fetchError };
-    // } else {
-    
-    // Lógica normal para outras contas
+      return { data: createdTransaction, error: fetchError };
+    } else {
+      // Lógica normal para outras contas
     const { data, error } = await supabase
       .from('transactions')
       .insert([{ ...transactionData, user_id: userId }])
@@ -109,6 +107,7 @@ export const createTransaction = async (transactionData: TransactionInsert, user
     }
 
     return { data, error };
+    }
   } catch (error) {
     console.error('[createTransaction] Exception:', error);
     return { data: null, error };

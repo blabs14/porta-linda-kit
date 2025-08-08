@@ -13,7 +13,15 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "db:lint": "supabase db lint",
+    "db:migrations": "supabase migration list --linked",
+    "types:gen": "supabase gen types --lang=typescript --project-id ebitcwrrcumsvqjgrapw > src/integrations/supabase/database.types.ts",
+    "validate:base": "node scripts/validate-base-path.js",
+    "prebuild": "node scripts/prebuild-check.js && node scripts/validate-base-path.js",
+    "deploy:local": "npm run build -s && npm run preview -s",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint:ci": "npm run lint -s || (echo 'Lint falhou' && exit 1)"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

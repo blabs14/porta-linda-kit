@@ -1,8 +1,8 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
-import { 
-  getPersonalAccountsWithBalances, 
+import {
+  getAccountsWithBalances, 
   createAccount, 
   updateAccount, 
   deleteAccount,
@@ -104,9 +104,11 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
   const { data: myAccounts = [], isLoading: accountsLoading } = useQuery({
     queryKey: ['personal', 'accounts', user?.id],
     queryFn: async () => {
-      const { data, error } = await getPersonalAccountsWithBalances(user?.id);
+      const { data, error } = await getAccountsWithBalances(user?.id);
       if (error) throw error;
-      return data || [];
+      // Filtrar apenas contas pessoais (sem family_id)
+      const personalAccounts = data?.filter((account: any) => !account.family_id) || [];
+      return personalAccounts;
     },
     enabled: !!user?.id,
     refetchOnWindowFocus: false,
@@ -458,4 +460,4 @@ export const usePersonal = () => {
     throw new Error('usePersonal must be used within a PersonalProvider');
   }
   return context;
-}; 
+};

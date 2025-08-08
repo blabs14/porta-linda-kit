@@ -5,9 +5,8 @@ import { accountSchema } from '../validation/accountSchema';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { FormSubmitButton } from './ui/loading-button';
-// TODO: Implementar mais tarde
-// import { Alert, AlertDescription } from './ui/alert';
-// import { CreditCard } from 'lucide-react';
+import { Alert, AlertDescription } from './ui/alert';
+import { CreditCard } from 'lucide-react';
 import {
   Select,
   SelectTrigger,
@@ -34,8 +33,7 @@ const tiposConta = [
   { value: 'corrente', label: 'Conta Corrente' },
   { value: 'poupança', label: 'Conta Poupança' },
   { value: 'investimento', label: 'Conta Investimento' },
-  // TODO: Implementar mais tarde
-  // { value: 'cartão de crédito', label: 'Cartão de Crédito' },
+  { value: 'cartão de crédito', label: 'Cartão de Crédito' },
   { value: 'outro', label: 'Outro' },
 ];
 
@@ -171,16 +169,15 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
       </Select>
       {validationErrors.tipo && <div className="text-red-600 text-sm">{validationErrors.tipo}</div>}
       
-      {/* TODO: Implementar mais tarde */}
       {/* Mensagem informativa para cartões de crédito */}
-      {/* {form.tipo === 'cartão de crédito' && (
+      {form.tipo === 'cartão de crédito' && (
         <Alert>
           <CreditCard className="h-4 w-4" />
           <AlertDescription>
             Cartões de crédito começam com saldo 0€. O saldo negativo representa o valor em dívida.
           </AlertDescription>
         </Alert>
-      )} */}
+      )}
       
 
       

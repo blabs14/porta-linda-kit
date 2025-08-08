@@ -1,8 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Configuração do Supabase
-const supabaseUrl = 'https://ebitcwrrcumsvqjgrapw.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY';
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Defina SUPABASE_URL e SUPABASE_ANON_KEY no ambiente antes de correr este script.');
+}
+
+const TEST_EMAIL = process.env.TEST_EMAIL || 'test@example.com';
+const TEST_PASSWORD = process.env.TEST_PASSWORD || 'password123';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -22,10 +28,10 @@ async function testFamilyPage() {
       console.log('⚠️ Nenhum utilizador autenticado');
       console.log('💡 Tentando fazer login com credenciais de teste...');
       
-      // Tentar fazer login (substituir com credenciais reais)
+      // Tentar fazer login (ler de env)
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: 'test@example.com',
-        password: 'password123'
+        email: TEST_EMAIL,
+        password: TEST_PASSWORD,
       });
       
       if (signInError) {

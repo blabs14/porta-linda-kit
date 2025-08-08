@@ -26,7 +26,7 @@ vi.mock('../lib/supabaseClient', () => ({
   }
 }));
 
-const { supabase } = await import('../lib/supabaseClient');}]}}}
+// Nota: import dinâmico removido; mocks acima são suficientes para estes testes
 
 describe('transactions service', () => {
   it('getTransactions retorna um array', async () => {

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build_test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Env obrigatórias para o build (defina como GitHub Secrets)
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      VITE_BASE_PATH: ${{ secrets.VITE_BASE_PATH }}
+      # Secrets opcionais para verificar migrações remotas
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Supabase CLI
+        run: |
+          curl -fsSL https://cli.supabase.com/install/linux | sh
+          echo "${HOME}/.supabase/bin" >> $GITHUB_PATH
+
+      - name: DB Lint (local)
+        run: npm run db:lint -s
+
+      - name: Tests
+        run: npm run test:run -s
+
+      - name: Typecheck
+        run: npm run typecheck -s
+
+      - name: Lint
+        run: npm run lint:ci -s
+
+      - name: Validate base path
+        run: npm run validate:base -s
+
+      - name: Build
+        run: npm run build -s
+
+      - name: Login e Link Supabase (remoto)
+        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_ID != '' }}
+        run: |
+          supabase login --token "$SUPABASE_ACCESS_TOKEN"
+          supabase link --project-ref "$SUPABASE_PROJECT_ID" --workdir ./supabase
+
+      - name: List migrations (remote)
+        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_ID != '' }}
+        run: supabase migration list --linked 

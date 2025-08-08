@@ -81,11 +81,11 @@ function App() {
       <Toaster />
       
       {/* Stagewise Toolbar - apenas em desenvolvimento */}
-      <StagewiseToolbar 
-        config={{
-          plugins: [ReactPlugin]
-        }}
-      />
+      {import.meta.env.DEV && (
+        <StagewiseToolbar 
+          config={{ plugins: [ReactPlugin] }}
+        />
+      )}
       
       {/* <ReactQueryDevtools initialIsOpen={false} /> */}
     </QueryClientProvider>

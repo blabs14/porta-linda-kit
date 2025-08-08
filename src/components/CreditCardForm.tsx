@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useUpdateAccount } from '../hooks/useAccountsQuery';
+import { useUpdateAccount, useCreateAccount } from '../hooks/useAccountsQuery';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { FormSubmitButton } from './ui/loading-button';
@@ -28,8 +28,10 @@ const CreditCardForm = ({ initialData, onSuccess, onCancel }: CreditCardFormProp
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   
   const updateAccountMutation = useUpdateAccount();
+  const createAccountMutation = useCreateAccount();
   
-  const isSubmitting = updateAccountMutation.isPending;
+  const isEditing = Boolean(initialData.id);
+  const isSubmitting = isEditing ? updateAccountMutation.isPending : createAccountMutation.isPending;
 
   console.log('[CreditCardForm] initialData:', initialData);
   console.log('[CreditCardForm] form state:', form);
@@ -145,9 +147,15 @@ const CreditCardForm = ({ initialData, onSuccess, onCancel }: CreditCardFormProp
       console.log('[CreditCardForm] Form values:', form);
       console.log('[CreditCardForm] Parsed values - saldoAtual:', saldoAtual, 'ajusteSaldo:', ajusteSaldo);
       console.log('[CreditCardForm] Submitting payload:', payload);
+      console.log('[CreditCardForm] Is editing:', isEditing);
       console.log('[CreditCardForm] Account ID:', form.id);
       
-      const result = await updateAccountMutation.mutateAsync({ id: form.id, data: payload });
+      let result;
+      if (isEditing) {
+        result = await updateAccountMutation.mutateAsync({ id: form.id, data: payload });
+      } else {
+        result = await createAccountMutation.mutateAsync(payload);
+      }
       console.log('[CreditCardForm] Update result:', result);
       
       // Aguardar um pouco para garantir que as queries foram atualizadas
@@ -207,8 +215,8 @@ const CreditCardForm = ({ initialData, onSuccess, onCancel }: CreditCardFormProp
       <div className="flex flex-col sm:flex-row gap-2">
         <FormSubmitButton 
           isSubmitting={isSubmitting}
-          submitText="Atualizar"
-          submittingText="A atualizar..."
+          submitText={isEditing ? "Atualizar" : "Criar Cartão"}
+          submittingText={isEditing ? "A atualizar..." : "A criar..."}
           className="w-full"
         />
         <Button type="button" variant="outline" onClick={onCancel} className="w-full">Cancelar</Button>
@@ -217,4 +225,4 @@ const CreditCardForm = ({ initialData, onSuccess, onCancel }: CreditCardFormProp
   );
 };
 
-export default CreditCardForm; 
+export default CreditCardForm;

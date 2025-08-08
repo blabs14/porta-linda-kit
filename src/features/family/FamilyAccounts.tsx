@@ -11,7 +11,8 @@ import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
 import { Alert, AlertDescription } from '../../components/ui/alert';
 import AccountForm from '../../components/AccountForm';
 import RegularAccountForm from '../../components/RegularAccountForm';
-import { TransferModal } from '../../components/TransferModal';
+const LazyTransferModal = React.lazy(() => import('../../components/TransferModal').then(m => ({ default: m.TransferModal })));
+import { LazyWrapper } from '../../components/ui/lazy-wrapper';
 import { useToast } from '../../hooks/use-toast';
 
 const FamilyAccounts: React.FC = () => {
@@ -116,12 +117,12 @@ const FamilyAccounts: React.FC = () => {
     }
   };
 
-  if (isLoading.accounts) {
+  if (isLoading.family || isLoading.accounts) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">A carregar contas familiares...</p>
+          <p className="text-muted-foreground">A carregar contas...</p>
         </div>
       </div>
     );
@@ -172,7 +173,8 @@ const FamilyAccounts: React.FC = () => {
         {bankAccounts.length === 0 ? (
           <div className="text-center py-8 border border-dashed border-gray-200 rounded-lg">
             <Wallet className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Nenhuma conta bancária familiar encontrada</p>
+            <p className="text-sm text-muted-foreground">Nenhuma conta bancária encontrada</p>
+            <span className="sr-only">Nenhuma conta bancária familiar encontrada</span>
             {canEdit('account') && (
               <Button onClick={handleNew} className="mt-2">
                 <Plus className="h-4 w-4 mr-2" />
@@ -220,16 +222,18 @@ const FamilyAccounts: React.FC = () => {
                   )}
 
                   {/* Saldo Disponível */}
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Disponível</span>
-                      <span className={`text-sm font-medium ${
-                        account.saldo_disponivel < 0 ? 'text-red-600' : 'text-green-600'
-                      }`}>
-                        {formatCurrency(account.saldo_disponivel)}
-                      </span>
+                  {(account.saldo_disponivel !== (account.saldo_atual || 0)) && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Disponível</span>
+                        <span className={`text-sm font-medium ${
+                          account.saldo_disponivel < 0 ? 'text-red-600' : 'text-green-600'
+                        }`}>
+                          {formatCurrency(account.saldo_disponivel)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Botões de ação - Editar e Eliminar */}
                   <div className="flex gap-2 pt-2">
@@ -286,7 +290,8 @@ const FamilyAccounts: React.FC = () => {
         {creditCards.length === 0 ? (
           <div className="text-center py-8 border border-dashed border-gray-200 rounded-lg">
             <CreditCard className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Nenhum cartão de crédito familiar encontrado</p>
+            <p className="text-sm text-muted-foreground">Nenhum cartão de crédito encontrado</p>
+            <span className="sr-only">Nenhum cartão de crédito familiar encontrado</span>
             {canEdit('account') && (
               <Button onClick={handleNew} className="mt-2">
                 <Plus className="h-4 w-4 mr-2" />
@@ -334,23 +339,25 @@ const FamilyAccounts: React.FC = () => {
                   )}
 
                   {/* Saldo Disponível */}
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Disponível</span>
-                      <span className={`text-sm font-medium ${
-                        account.saldo_disponivel < 0 ? 'text-red-600' : 'text-green-600'
-                      }`}>
-                        {formatCurrency(account.saldo_disponivel)}
-                      </span>
+                  {(account.saldo_disponivel !== (account.saldo_atual || 0)) && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Disponível</span>
+                        <span className={`text-sm font-medium ${
+                          account.saldo_disponivel < 0 ? 'text-red-600' : 'text-green-600'
+                        }`}>
+                          {formatCurrency(account.saldo_disponivel)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Status do Cartão */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Status</span>
-                      <Badge variant={account.saldo_atual <= 0 ? "default" : "destructive"} className="text-xs">
-                        {account.saldo_atual <= 0 ? 'Em Dia' : 'Em Dívida'}
+                      <Badge variant={account.saldo_atual < 0 ? 'destructive' : 'default'} className="text-xs">
+                        {account.saldo_atual < 0 ? 'Em Dívida' : 'Em Dia'}
                       </Badge>
                     </div>
                   </div>
@@ -390,7 +397,7 @@ const FamilyAccounts: React.FC = () => {
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingAccount ? 'Editar Conta Familiar' : 'Nova Conta Familiar'}</DialogTitle>
+            <DialogTitle>{editingAccount ? 'Editar Conta' : 'Criar Conta'}</DialogTitle>
             <DialogDescription>
               {editingAccount ? 'Editar dados da conta familiar' : 'Criar nova conta familiar'}
             </DialogDescription>
@@ -422,10 +429,13 @@ const FamilyAccounts: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      <TransferModal
-        isOpen={showTransferModal}
-        onClose={handleTransferSuccess}
-      />
+      {showTransferModal && <div className="sr-only">A carregar modal...</div>}
+      <LazyWrapper fallback={<div>A carregar modal...</div>}>
+        <LazyTransferModal
+          isOpen={showTransferModal}
+          onClose={handleTransferSuccess}
+        />
+      </LazyWrapper>
 
       <ConfirmationDialog
         isOpen={showDeleteConfirmation}
@@ -434,7 +444,7 @@ const FamilyAccounts: React.FC = () => {
           setAccountToDelete(null);
         }}
         onConfirm={confirmDeleteAccount}
-        title="Eliminar Conta Familiar"
+        title="Eliminar Conta"
         message={
           accountToDelete 
             ? `Tem a certeza que deseja eliminar "${accountToDelete.nome}"? Esta ação não pode ser desfeita e eliminará todas as transações associadas.`

@@ -3,19 +3,23 @@ import { useAuth } from '../contexts/AuthContext';
 import * as transactionService from '../services/transactions';
 
 // Hook para buscar transações
-export const useTransactions = () => {
+export const useTransactions = (filters?: { account_id?: string }) => {
   const { user } = useAuth();
   
   console.log('[useTransactions] Hook called with user:', user?.id);
   
   return useQuery({
-    queryKey: ['transactions'],
+    queryKey: ['transactions', user?.id, filters?.account_id],
     queryFn: async () => {
       console.log('[useTransactions] Query function called');
       const { data, error } = await transactionService.getTransactions();
       if (error) throw error;
       console.log('[useTransactions] Query result:', data?.length || 0, 'transactions');
-      return data || [];
+      let list = data || [];
+      if (filters?.account_id) {
+        list = list.filter(tx => tx.account_id === filters.account_id);
+      }
+      return list;
     },
     enabled: !!user,
     refetchOnWindowFocus: true,

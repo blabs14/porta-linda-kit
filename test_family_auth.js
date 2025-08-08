@@ -1,27 +1,33 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Configuração do Supabase
-const supabaseUrl = 'https://ebitcwrrcumsvqjgrapw.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY';
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Defina SUPABASE_URL e SUPABASE_ANON_KEY no ambiente antes de correr este script.');
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+const TEST_EMAIL = process.env.TEST_EMAIL || 'teste2@teste';
+const TEST_PASSWORDS = (process.env.TEST_PASSWORDS || 'teste14,teste123,teste,password,123456,admin')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 async function testFamilyAuth() {
   console.log('🔍 Testando autenticação e função RPC...');
   
   try {
-    // 1. Tentar fazer login com teste2@teste
+    // 1. Tentar fazer login com TEST_EMAIL e lista de passwords
     console.log('🔐 Tentando fazer login...');
-    // Tentar diferentes passwords
-    const passwords = ['teste14', 'teste123', 'teste', 'password', '123456', 'admin'];
     let authData = null;
-    let authError = null;
 
-    for (const password of passwords) {
+    for (const password of TEST_PASSWORDS) {
       console.log(`🔐 Tentando password: ${password}`);
       const result = await supabase.auth.signInWithPassword({
-        email: 'teste2@teste',
-        password: password
+        email: TEST_EMAIL,
+        password
       });
       
       if (!result.error) {
@@ -35,11 +41,6 @@ async function testFamilyAuth() {
 
     if (!authData) {
       console.error('❌ Todas as passwords falharam');
-      return;
-    }
-
-    if (authError) {
-      console.error('❌ Erro no login:', authError);
       return;
     }
 

@@ -2,17 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../services/categories';
 import { useAuth } from '../contexts/AuthContext';
 
-export const useCategories = () => {
+export const useCategories = (tipo?: string) => {
   const { user } = useAuth();
   
   return useQuery({
-    queryKey: ['categories'],
+    queryKey: ['categories', user?.id, tipo],
     queryFn: async () => {
-      const { data, error } = await getCategories();
+      const { data, error } = await getCategories(user?.id || '', tipo);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!user?.id,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
@@ -21,37 +21,25 @@ export const useCategories = () => {
   });
 };
 
-export const useCreateCategory = () => {
+export const useCreateCategory = (onSuccess?: (created: any) => void) => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   
   return useMutation({
-    mutationFn: async (payload: { nome: string; cor: string }) => {
-      console.log('[useCreateCategory] Mutation function called with payload:', payload);
-      console.log('[useCreateCategory] user ID:', user?.id);
-      
-      if (!user?.id) {
-        throw new Error('Utilizador não autenticado');
-      }
-      
-      const result = await createCategory(payload, user.id);
-      console.log('[useCreateCategory] Service result:', result);
-      if (result.error) throw result.error;
-      return result.data;
+    mutationFn: async (payload: any) => {
+      const { data, error } = await createCategory(payload);
+      if (error) throw error;
+      return data;
     },
     onSuccess: (data) => {
-      console.log('[useCreateCategory] onSuccess called with data:', data);
       queryClient.invalidateQueries({ queryKey: ['categories'] });
+      onSuccess?.(data as any);
     },
-    onError: (error) => {
-      console.error('[useCreateCategory] onError called with error:', error);
-    }
   });
 };
 
-export const useUpdateCategory = () => {
+export const useUpdateCategory = (onSuccess?: (updated: any) => void) => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
@@ -59,24 +47,25 @@ export const useUpdateCategory = () => {
       if (error) throw error;
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
+      onSuccess?.(data as any);
     },
   });
 };
 
-export const useDeleteCategory = () => {
+export const useDeleteCategory = (onSuccess?: () => void) => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await deleteCategory(id, user?.id || '');
+      const { data, error } = await deleteCategory(id);
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
+      onSuccess?.();
     },
   });
 };

@@ -1,98 +1,25 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Wallet, Plus, Edit, Trash2, ArrowRightLeft, Target, CreditCard, AlertTriangle } from 'lucide-react';
+import { Wallet, Plus, Edit, Trash2, ArrowRightLeft } from 'lucide-react';
 import { useAccountsWithBalances, useDeleteAccount } from '../hooks/useAccountsQuery';
-// TODO: Adicionar useCreditCardSummary quando implementar
 import { useToast } from '../hooks/use-toast';
-import { formatCurrency } from '../lib/utils';
+import { useAuth } from '../contexts/AuthContext';
 import AccountForm from '../components/AccountForm';
-// TODO: Implementar mais tarde
-// import CreditCardForm from '../components/CreditCardForm';
+import CreditCardForm from '../components/CreditCardForm';
 import RegularAccountForm from '../components/RegularAccountForm';
+import { CreditCardBalance } from '../components/CreditCardBalance';
+import { CreditCardInfo } from '../components/CreditCardInfo';
+import { RegularAccountBalance } from '../components/RegularAccountBalance';
 import { TransferModal } from '../components/TransferModal';
 import { AccountWithBalances } from '../integrations/supabase/types';
 import { ConfirmationDialog } from '../components/ui/confirmation-dialog';
 import { Alert, AlertDescription } from '../components/ui/alert';
 
 
-// TODO: Implementar mais tarde
-// Componente para mostrar o saldo de cartão de crédito
-// const CreditCardBalance = ({ accountId, fallbackBalance, accountType }: { accountId: string; fallbackBalance: number; accountType: string }) => {
-//   const { data: summary } = useCreditCardSummary(accountId);
-//   
-//   // Para cartões de crédito, o saldo total deve ser sempre <= 0
-//   // Usar o saldo calculado pela função RPC que já aplica a lógica correta
-//   const balance = summary ? summary.current_balance : Math.min(0, fallbackBalance);
-//   
-//   // Determinar a cor baseada no saldo (sempre vermelho para cartões de crédito, exceto quando = 0)
-//   const balanceColor = balance < 0 ? 'text-red-600' : 'text-gray-600';
-//   
-//   return (
-//     <div className="space-y-1">
-//       <div className="flex items-center justify-between">
-//         <span className="text-sm text-muted-foreground">Saldo Total</span>
-//         <span className={`text-lg font-semibold ${balanceColor}`}>
-//           {formatCurrency(balance)}
-//         </span>
-//       </div>
-//       <p className="text-xs text-muted-foreground capitalize">{accountType}</p>
-//     </div>
-//   );
-// };
 
-// TODO: Implementar mais tarde
-// Componente para mostrar informações específicas de cartão de crédito
-// const CreditCardInfo = ({ accountId }: { accountId: string }) => {
-//   const { data: summary, isLoading, error } = useCreditCardSummary(accountId);
-//
-//   if (isLoading) {
-//     return (
-//       <div className="space-y-2">
-//         <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-//         <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-//       </div>
-//     );
-//   }
-//
-//   if (error || !summary) {
-//     return (
-//       <div className="text-sm text-red-600">
-//         Erro ao carregar dados do cartão
-//       </div>
-//     );
-//   }
-//
-//   return (
-//     <div className="space-y-2">
-//       {/* Status */}
-//       <div className="flex items-center justify-between">
-//         <span className="text-xs text-muted-foreground">Status</span>
-//         <Badge variant={summary.is_in_debt ? "destructive" : "default"} className="text-xs">
-//           {summary.is_in_debt ? 'Em Dívida' : 'Em Dia'}
-//         </Badge>
-//       </div>
-//
-//       {/* Total Gastos */}
-//       <div className="flex items-center justify-between">
-//         <span className="text-xs text-muted-foreground">Total Gastos</span>
-//         <span className="text-xs font-medium text-red-600">
-//           {formatCurrency(summary.total_expenses || 0)}
-//         </span>
-//       </div>
-//
-//       {/* Total Pagamentos */}
-//       <div className="flex items-center justify-between">
-//         <span className="text-xs text-muted-foreground">Total Pagamentos</span>
-//         <span className="text-xs font-medium text-green-600">
-//           {formatCurrency(summary.total_payments || 0)}
-//         </span>
-//       </div>
-//     </div>
-//   );
-// };
 
 
 export default function AccountsPage() {
@@ -107,14 +34,12 @@ export default function AccountsPage() {
     saldoAtual: number;
   } | null>(null);
   
+  const { user } = useAuth();
   const { data: accounts = [], isLoading, error, refetch } = useAccountsWithBalances();
   const deleteAccountMutation = useDeleteAccount();
   const { toast } = useToast();
 
-  // Debug logs
-  console.log('[AccountsPage] accounts data:', accounts);
-  console.log('[AccountsPage] isLoading:', isLoading);
-  console.log('[AccountsPage] error:', error);
+
 
   const handleNew = () => {
     setEditingAccount(null);
@@ -264,60 +189,18 @@ export default function AccountsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* TODO: Implementar layout específico para cartões de crédito mais tarde */}
-                {/* {account.tipo === 'cartão de crédito' ? (
+                {account.tipo === 'cartão de crédito' ? (
                   // Layout específico para cartões de crédito
-                  <CreditCardBalance accountId={account.account_id} fallbackBalance={account.saldo_atual || 0} accountType={account.tipo} />
-                ) : ( */}
-                  {/* Layout normal para outras contas */}
                   <>
-                    {/* Saldo Total */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Saldo Total</span>
-                        <span className="text-lg font-semibold">
-                          {formatCurrency(account.saldo_atual || 0)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground capitalize">{account.tipo}</p>
-                    </div>
-
-                    {/* Saldo Reservado */}
-                    {account.total_reservado > 0 && (
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Target className="h-3 w-3" />
-                            Reservado
-                          </span>
-                          <Badge variant="secondary" className="text-xs text-blue-600 bg-blue-50 border-blue-200">
-                            {formatCurrency(account.total_reservado)}
-                          </Badge>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Saldo Disponível */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Disponível</span>
-                        <span className={`text-sm font-medium ${
-                          account.saldo_disponivel < 0 ? 'text-red-600' : 'text-green-600'
-                        }`}>
-                          {formatCurrency(account.saldo_disponivel)}
-                        </span>
-                      </div>
+                    <CreditCardBalance accountId={account.account_id} fallbackBalance={account.saldo_atual || 0} accountType={account.tipo} />
+                    <div className="pt-2 border-t border-gray-100">
+                      <CreditCardInfo accountId={account.account_id} />
                     </div>
                   </>
-                {/* ) */}
-
-                {/* TODO: Implementar informações específicas de cartão de crédito mais tarde */}
-                {/* Informações específicas de cartão de crédito */}
-                {/* {account.tipo === 'cartão de crédito' && (
-                  <div className="pt-2 border-t border-gray-100">
-                    <CreditCardInfo accountId={account.account_id} />
-                  </div>
-                )} */}
+                ) : (
+                  // Layout normal para outras contas
+                  <RegularAccountBalance account={account} />
+                )}
 
 
 
@@ -419,4 +302,4 @@ export default function AccountsPage() {
       />
     </div>
   );
-} 
+}

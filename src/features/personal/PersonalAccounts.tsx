@@ -11,6 +11,7 @@ import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
 import { Alert, AlertDescription } from '../../components/ui/alert';
 import AccountForm from '../../components/AccountForm';
 import RegularAccountForm from '../../components/RegularAccountForm';
+import CreditCardForm from '../../components/CreditCardForm';
 import { TransferModal } from '../../components/TransferModal';
 import { useToast } from '../../hooks/use-toast';
 
@@ -26,6 +27,7 @@ const PersonalAccounts: React.FC = () => {
   const { toast } = useToast();
   
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreditCardModal, setShowCreditCardModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<{ id: string; nome: string } | null>(null);
@@ -36,14 +38,16 @@ const PersonalAccounts: React.FC = () => {
     saldoAtual: number;
   } | null>(null);
 
-  // Debug logs
-  console.log('[PersonalAccounts] myAccounts data:', myAccounts);
-  console.log('[PersonalAccounts] myCards data:', myCards);
-  console.log('[PersonalAccounts] isLoading:', isLoading);
+
 
   const handleNew = () => {
     setEditingAccount(null);
     setShowCreateModal(true);
+  };
+
+  const handleNewCreditCard = () => {
+    setEditingAccount(null);
+    setShowCreditCardModal(true);
   };
 
   const handleTransfer = () => {
@@ -56,7 +60,6 @@ const PersonalAccounts: React.FC = () => {
   };
 
   const handleEdit = (account: AccountWithBalances) => {
-    console.log('[PersonalAccounts] handleEdit called with account:', account);
     
     // Para cartões de crédito, usar o saldo da conta diretamente
     // Para outras contas, usar o saldo calculado
@@ -76,16 +79,20 @@ const PersonalAccounts: React.FC = () => {
       saldoAtual,
     };
     
-    console.log('[PersonalAccounts] editData created:', editData);
+
     setEditingAccount(editData);
     setShowCreateModal(true);
   };
 
   const handleSuccess = () => {
-    console.log('[PersonalAccounts] handleSuccess called');
     setShowCreateModal(false);
     setEditingAccount(null);
-    console.log('[PersonalAccounts] Forcing refetch...');
+    refetchAll();
+  };
+
+  const handleCreditCardSuccess = () => {
+    setShowCreditCardModal(false);
+    setEditingAccount(null);
     refetchAll();
   };
 
@@ -133,6 +140,8 @@ const PersonalAccounts: React.FC = () => {
   // Separar contas bancárias de cartões de crédito
   const bankAccounts = myAccounts.filter(account => account.tipo !== 'cartão de crédito');
   const creditCards = myCards.filter(account => account.tipo === 'cartão de crédito');
+
+
 
   return (
     <div className="space-y-6 p-6">
@@ -263,7 +272,7 @@ const PersonalAccounts: React.FC = () => {
               Cartões de crédito e débito
             </p>
           </div>
-          <Button onClick={handleNew}>
+          <Button onClick={handleNewCreditCard}>
             <Plus className="h-4 w-4 mr-2" />
             Novo Cartão
           </Button>
@@ -372,22 +381,15 @@ const PersonalAccounts: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           {(() => {
-            console.log('[PersonalAccounts] Modal rendering - editingAccount:', editingAccount);
-            console.log('[PersonalAccounts] editingAccount?.tipo:', editingAccount?.tipo);
-            
-            // TODO: Implementar mais tarde
-            // if (editingAccount?.tipo === 'cartão de crédito') {
-            //   console.log('[PersonalAccounts] Rendering CreditCardForm');
-            //   return (
-            //     <CreditCardForm
-            //       initialData={editingAccount}
-            //       onSuccess={handleSuccess}
-            //       onCancel={() => setShowCreateModal(false)}
-            //     />
-            //   );
-            // } else 
-            if (editingAccount) {
-              console.log('[PersonalAccounts] Rendering RegularAccountForm');
+            if (editingAccount?.tipo === 'cartão de crédito') {
+              return (
+                <CreditCardForm
+                  initialData={editingAccount}
+                  onSuccess={handleSuccess}
+                  onCancel={() => setShowCreateModal(false)}
+                />
+              );
+            } else if (editingAccount) {
               return (
                 <RegularAccountForm
                   initialData={editingAccount}
@@ -396,7 +398,6 @@ const PersonalAccounts: React.FC = () => {
                 />
               );
             } else {
-              console.log('[PersonalAccounts] Rendering AccountForm');
               return (
                 <AccountForm
                   initialData={editingAccount}
@@ -406,6 +407,27 @@ const PersonalAccounts: React.FC = () => {
               );
             }
           })()}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCreditCardModal} onOpenChange={setShowCreditCardModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo Cartão de Crédito</DialogTitle>
+            <DialogDescription>
+              Criar novo cartão de crédito
+            </DialogDescription>
+          </DialogHeader>
+          <CreditCardForm
+            initialData={{
+              id: '',
+              nome: '',
+              tipo: 'cartão de crédito',
+              saldoAtual: 0
+            }}
+            onSuccess={handleCreditCardSuccess}
+            onCancel={() => setShowCreditCardModal(false)}
+          />
         </DialogContent>
       </Dialog>
 
@@ -435,4 +457,4 @@ const PersonalAccounts: React.FC = () => {
   );
 };
 
-export default PersonalAccounts; 
+export default PersonalAccounts;

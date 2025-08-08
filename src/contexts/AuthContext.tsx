@@ -24,11 +24,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
     });
+    
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);
     });
+    
     return () => {
       listener.subscription.unsubscribe();
     };
@@ -72,4 +74,4 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth deve ser usado dentro de AuthProvider');
   return ctx;
-} 
+}
