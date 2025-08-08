@@ -30,6 +30,7 @@ import {
   LazyFallback,
   useLazyService 
 } from './lazy/index';
+import { useLazyService } from './lazy/utils';
 
 const FamilySettings: React.FC = () => {
   const { 

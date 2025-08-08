@@ -1,11 +1,13 @@
 import { supabase } from '../lib/supabaseClient';
 import { familyService } from '../features/family/services/family.service';
 
-export const updateFamilySettings = async (familyId: string, settings: any) => {
+export type FamilySettingsPayload = Record<string, unknown>;
+
+export const updateFamilySettings = async (familyId: string, settings: FamilySettingsPayload) => {
   const { data, error } = await supabase.rpc('update_family_settings', {
     p_family_id: familyId,
     p_nome: '',
-    p_settings: settings,
+    p_settings: settings as unknown,
   });
   if (error) throw error;
   return data;
@@ -83,7 +85,7 @@ export const unshareGoalFromFamily = async (goalId: string) => {
 export const getFamilyStatistics = async (familyId: string) => {
   const members = await familyService.getMembers(familyId);
   const totalMembers = Array.isArray(members) ? members.length : 0;
-  const activeMembers = Array.isArray(members) ? members.filter((m: any) => (m as any).status === 'active').length : 0;
+  const activeMembers = Array.isArray(members) ? members.filter((m: unknown) => (m as { status?: string } | null)?.status === 'active').length : 0;
   const totalFamilySpent = 0;
   const totalFamilySaved = 0;
   return { totalMembers, activeMembers, totalFamilySpent, totalFamilySaved };

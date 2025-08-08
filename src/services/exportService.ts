@@ -2,11 +2,17 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabaseClient';
+import type { Account, Category, Transaction } from '../integrations/supabase/types';
+
+export interface ExportTransaction extends Transaction {
+  categoria_nome?: string;
+  account_nome?: string;
+}
 
 export interface ExportData {
-  transactions: any[];
-  accounts: any[];
-  categories: any[];
+  transactions: ExportTransaction[];
+  accounts: Account[];
+  categories: Category[];
   dateRange: {
     start: string;
     end: string;
@@ -134,7 +140,7 @@ export const exportToPDF = async (data: ExportData, options: ExportOptions): Pro
 /**
  * Exporta relatório em formato CSV
  */
-export const exportToCSV = (data: ExportData, options: ExportOptions): Blob => {
+export const exportToCSV = (data: ExportData, _options: ExportOptions): Blob => {
   const headers = ['Data', 'Descrição', 'Tipo', 'Valor', 'Categoria', 'Conta'];
   const csvData = data.transactions.map(t => [
     new Date(t.data).toLocaleDateString('pt-PT'),
@@ -156,7 +162,7 @@ export const exportToCSV = (data: ExportData, options: ExportOptions): Blob => {
 /**
  * Exporta relatório em formato Excel
  */
-export const exportToExcel = (data: ExportData, options: ExportOptions): Blob => {
+export const exportToExcel = (data: ExportData, _options: ExportOptions): Blob => {
   const workbook = XLSX.utils.book_new();
   
   // Planilha de transações
@@ -222,8 +228,11 @@ export const exportToExcel = (data: ExportData, options: ExportOptions): Blob =>
 /**
  * Busca dados para exportação
  */
-export const fetchExportData = async (userId: string, dateRange: { start: string; end: string }): Promise<ExportData> => {
-  // Buscar transações
+export const fetchExportData = async (
+  userId: string,
+  dateRange: { start: string; end: string }
+): Promise<ExportData> => {
+  // Buscar transações com joins
   const { data: transactions, error: transactionsError } = await supabase
     .from('transactions')
     .select(`
@@ -255,16 +264,21 @@ export const fetchExportData = async (userId: string, dateRange: { start: string
   if (categoriesError) throw categoriesError;
   
   // Processar dados
-  const processedTransactions = (transactions || []).map(t => ({
-    ...t,
-    categoria_nome: t.categories?.nome || 'Sem categoria',
-    account_nome: t.accounts?.nome || 'Sem conta',
+  type TransactionJoined = (Transaction & {
+    categories?: { nome?: string | null } | null;
+    accounts?: { nome?: string | null } | null;
+  })[] | null;
+
+  const processedTransactions: ExportTransaction[] = ((transactions as unknown as TransactionJoined) || []).map(t => ({
+    ...(t as Transaction),
+    categoria_nome: t?.categories?.nome ?? 'Sem categoria',
+    account_nome: t?.accounts?.nome ?? 'Sem conta',
   }));
   
   return {
     transactions: processedTransactions,
-    accounts: accounts || [],
-    categories: categories || [],
+    accounts: (accounts as Account[]) || [],
+    categories: (categories as Category[]) || [],
     dateRange,
   };
 };

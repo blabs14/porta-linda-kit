@@ -1,4 +1,10 @@
 import { supabase } from '../lib/supabaseClient';
+import type { Database } from '../integrations/supabase/database.types';
+
+type Json = Database['public']['Tables']['families']['Row']['settings'];
+
+export type AuditLogRow = Database['public']['Tables']['audit_logs']['Row'];
+export type AuditLogInsert = Database['public']['Tables']['audit_logs']['Insert'];
 
 // Exemplo de modelo: id, user_id, table_name, operation, row_id, old_data, new_data, details
 export const getAuditLogs = (table_name?: string) => {
@@ -14,39 +20,35 @@ export const createAuditLog = (data: {
   user_id: string;
   table_name: string;
   operation: string;
-  row_id?: string;
-  old_data?: any;
-  new_data?: any;
-  details?: any;
-}) => supabase.from('audit_logs').insert(data);
+  row_id?: string | null;
+  old_data?: Json | null;
+  new_data?: Json | null;
+  details?: Json | null;
+}) => supabase.from('audit_logs').insert(data satisfies AuditLogInsert);
 
 // Helper padronizado para registo de logs
 export const logAuditChange = async (
   user_id: string,
   table_name: string,
   operation: string,
-  row_id: string,
-  before: any,
-  after: any
+  row_id: string | null,
+  before: unknown,
+  after: unknown
 ) => {
   try {
-    const auditData = {
-      user_id,
+    const auditData: AuditLogInsert = {
+      user_id: user_id ?? null,
       table_name,
       operation,
-      row_id: row_id || null, // Permitir null se não for fornecido
-      old_data: before || {},
-      new_data: after || {},
-      details: {
-        timestamp: new Date().toISOString(),
-        operation_type: operation
-      }
+      row_id: row_id || null,
+      old_data: (before as Json) ?? null,
+      new_data: (after as Json) ?? null,
+      details: { timestamp: new Date().toISOString(), operation_type: operation } as unknown as Json,
     };
-    
-    return await createAuditLog(auditData);
+
+    return await supabase.from('audit_logs').insert(auditData);
   } catch (error) {
     console.error('Erro ao criar log de auditoria:', error);
-    // Não falhar a operação principal se o log falhar
     return { error: null, data: null };
   }
 }; 
