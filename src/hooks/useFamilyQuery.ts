@@ -71,7 +71,7 @@ export const useUpdateFamilySettings = () => {
   const { toast } = useToast();
   
   return useMutation({
-    mutationFn: ({ familyId, settings }: { familyId: string; settings: any }) =>
+    mutationFn: ({ familyId, settings }: { familyId: string; settings: Record<string, unknown> }) =>
       familyService.updateFamilySettings(familyId, settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['family-data'] });

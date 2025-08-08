@@ -425,7 +425,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   );
 
   const updateFamilyMutation = useCrudMutation(
-    (data: any) => updateFamilySettings(family?.id || '', data),
+    (data: Record<string, unknown>) => updateFamilySettings(family?.id || '', data),
     {
       operation: 'update',
       entityName: 'Família',
