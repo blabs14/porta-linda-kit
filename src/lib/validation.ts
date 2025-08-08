@@ -37,6 +37,21 @@ export const goalValidationSchema = z.object({
   account_id: z.string().uuid('ID da conta deve ser um UUID válido').optional(),
 });
 
+export type TransactionInput = Partial<z.input<typeof transactionValidationSchema>> & {
+  valor: number | string;
+};
+export type AccountInput = z.input<typeof accountValidationSchema>;
+export type CategoryInput = z.input<typeof categoryValidationSchema>;
+export type GoalInput = Partial<z.input<typeof goalValidationSchema>> & {
+  valor_objetivo: number | string;
+};
+
+export interface ValidationResponse<T> {
+  success: boolean;
+  data: T | null;
+  errors: { field: string; message: string }[] | null;
+}
+
 // Função para sanitizar strings
 export const sanitizeString = (input: string): string => {
   return input
@@ -52,16 +67,16 @@ export const sanitizeNumber = (input: number): number => {
 };
 
 // Função para validar e sanitizar dados de transação
-export const validateAndSanitizeTransaction = (data: any) => {
+export const validateAndSanitizeTransaction = (data: TransactionInput): ValidationResponse<z.output<typeof transactionValidationSchema>> => {
   try {
     // Sanitizar inputs
     const sanitizedData = {
-      account_id: data.account_id,
+      account_id: data.account_id as string,
       valor: sanitizeNumber(Number(data.valor)),
-      categoria_id: data.categoria_id,
-      data: data.data,
+      categoria_id: data.categoria_id as string,
+      data: data.data as string,
       descricao: data.descricao ? sanitizeString(data.descricao) : undefined,
-      tipo: data.valor > 0 ? 'receita' : 'despesa',
+      tipo: Number(data.valor) > 0 ? 'receita' as const : 'despesa' as const,
     };
 
     // Validar com Zod
@@ -93,7 +108,7 @@ export const validateAndSanitizeTransaction = (data: any) => {
 };
 
 // Função para validar e sanitizar dados de conta
-export const validateAndSanitizeAccount = (data: any) => {
+export const validateAndSanitizeAccount = (data: AccountInput): ValidationResponse<z.output<typeof accountValidationSchema>> => {
   try {
     // Sanitizar inputs
     const sanitizedData = {
@@ -130,7 +145,7 @@ export const validateAndSanitizeAccount = (data: any) => {
 };
 
 // Função para validar e sanitizar dados de categoria
-export const validateAndSanitizeCategory = (data: any) => {
+export const validateAndSanitizeCategory = (data: CategoryInput): ValidationResponse<z.output<typeof categoryValidationSchema>> => {
   try {
     // Sanitizar inputs
     const sanitizedData = {
@@ -168,11 +183,11 @@ export const validateAndSanitizeCategory = (data: any) => {
 };
 
 // Função para validar e sanitizar dados de objetivo
-export const validateAndSanitizeGoal = (data: any) => {
+export const validateAndSanitizeGoal = (data: GoalInput): ValidationResponse<z.output<typeof goalValidationSchema>> => {
   try {
     // Sanitizar inputs
     const sanitizedData = {
-      nome: sanitizeString(data.nome),
+      nome: sanitizeString(data.nome as string),
       valor_objetivo: sanitizeNumber(Number(data.valor_objetivo)),
       prazo: data.prazo || undefined,
       account_id: data.account_id,
