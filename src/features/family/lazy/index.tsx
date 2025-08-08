@@ -109,19 +109,21 @@ export const LazyRealTimeNotifications = createSafeLazyComponent(
 );
 
 // Wrapper para Suspense com fallback otimizado
-export const withLazyLoading = (Component: any, fallback?: React.ReactNode) => {
+export function withLazyLoading<P>(Component: React.ComponentType<P>, fallback?: React.ReactNode) {
   const LazyComponent = lazy(() => Promise.resolve({ default: Component }));
   
-  return (props: any) => (
+  const Wrapped: React.FC<P> = (props: P) => (
     <Suspense fallback={fallback || <LazyFallback />}>
       <LazyComponent {...props} />
     </Suspense>
   );
-};
+
+  return Wrapped;
+}
 
 // Hook personalizado para lazy loading de serviços com tratamento de erros robusto
-export const useLazyService = (serviceImport: () => Promise<any>) => {
-  const [service, setService] = React.useState<any>(null);
+export function useLazyService<TModule = unknown>(serviceImport: () => Promise<TModule>) {
+  const [service, setService] = React.useState<TModule | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
@@ -139,10 +141,8 @@ export const useLazyService = (serviceImport: () => Promise<any>) => {
         console.warn('⚠️ Lazy service loading failed:', err);
         setError(err as Error);
         setLoading(false);
-        // Fornecer um serviço fallback para evitar quebras na aplicação
-        setService({
-          default: () => Promise.reject(new Error('Serviço não disponível'))
-        });
+        // Fallback para evitar quebras na aplicação
+        setService(null);
       }
     };
 
@@ -150,29 +150,30 @@ export const useLazyService = (serviceImport: () => Promise<any>) => {
   }, [serviceImport]);
 
   return { service, loading, error };
-};
+}
 
 // Wrapper para componentes com loading state
-export const withLoadingState = (Component: any, LoadingComponent?: any) => {
-  return ({ loading, ...props }: any) => {
+export function withLoadingState<P>(Component: React.ComponentType<P>, LoadingComponent?: React.ComponentType) {
+  const Wrapper: React.FC<P & { loading?: boolean }> = ({ loading, ...props }) => {
     if (loading) {
       return LoadingComponent ? <LoadingComponent /> : <LazyFallback />;
     }
-    return <Component {...props} />;
+    return <Component {...(props as P)} />;
   };
-};
+  return Wrapper;
+}
 
 // Função utilitária para criar lazy components com retry
-export const createLazyComponent = (importFn: () => Promise<any>, fallbackComponent?: React.ComponentType) => {
+export function createLazyComponent<P = unknown>(importFn: () => Promise<{ default: React.ComponentType<P> }>, fallbackComponent?: React.ComponentType) {
   return lazy(() => 
     importFn().catch((error) => {
       console.warn('Lazy component loading failed:', error);
       return {
-        default: fallbackComponent || (() => <ComponentFallback message="Componente não disponível" />)
+        default: (fallbackComponent || (() => <ComponentFallback message="Componente não disponível" />)) as React.ComponentType<P>
       };
     })
   );
-};
+}
 
 // Hook para monitorizar performance do lazy loading
 export const useLazyLoadingMetrics = () => {

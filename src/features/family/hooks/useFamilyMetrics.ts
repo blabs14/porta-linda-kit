@@ -68,6 +68,42 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
   
   const [currentMetrics, setCurrentMetrics] = useState<FamilyMetrics | null>(null);
 
+  // Atualizador estável para depender nos callbacks
+  const updateMetrics = useCallback(() => {
+    if (!familyId) return;
+
+    const metrics = metricsRef.current[familyId];
+    if (!metrics) return;
+
+    // Adicionar ao histórico
+    historyRef.current.push({ ...metrics });
+    
+    // Limitar tamanho do histórico
+    if (historyRef.current.length > finalConfig.maxHistorySize) {
+      historyRef.current.shift();
+    }
+
+    // Notificar observadores
+    observersRef.current.forEach(observer => {
+      try {
+        observer(metrics);
+      } catch (error) {
+        console.error('Error in metrics observer:', error);
+      }
+    });
+
+    // Persistir se ativado
+    if (finalConfig.enablePersistent) {
+      try {
+        localStorage.setItem(`family-metrics-${familyId}`, JSON.stringify(metrics));
+      } catch (error) {
+        console.error('Error persisting metrics:', error);
+      }
+    }
+
+    setCurrentMetrics(metrics);
+  }, [familyId, finalConfig.enablePersistent, finalConfig.maxHistorySize]);
+
   // Inicializar métricas para a família
   useEffect(() => {
     if (!familyId) return;
@@ -132,7 +168,7 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
         updateMetrics();
       }
     };
-  }, [familyId, finalConfig.sampleRate]);
+  }, [familyId, finalConfig.sampleRate, updateMetrics]);
 
   // Função para medir tempo de carregamento de dados
   const measureDataLoadTime = useCallback((operation: string) => {
@@ -153,7 +189,7 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
         updateMetrics();
       }
     };
-  }, [familyId, finalConfig.sampleRate]);
+  }, [familyId, finalConfig.sampleRate, updateMetrics]);
 
   // Função para registar operações CRUD
   const recordOperation = useCallback((operation: 'create' | 'update' | 'delete' | 'read') => {
@@ -166,7 +202,7 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
       
       updateMetrics();
     }
-  }, [familyId]);
+  }, [familyId, updateMetrics]);
 
   // Função para registar erros
   const recordError = useCallback((errorType: 'network' | 'validation' | 'permission' | 'unknown', error?: Error) => {
@@ -190,7 +226,7 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
       
       updateMetrics();
     }
-  }, [familyId, finalConfig.enableAnalytics]);
+  }, [familyId, finalConfig.enableAnalytics, updateMetrics]);
 
   // Função para registar atividade de cache
   const recordCacheActivity = useCallback((activity: 'hit' | 'miss' | 'invalidation', size?: number) => {
@@ -209,7 +245,7 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
       
       updateMetrics();
     }
-  }, [familyId]);
+  }, [familyId, updateMetrics]);
 
   // Função para registar visualização de página
   const recordPageView = useCallback((pageName: string) => {
@@ -221,61 +257,25 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
       
       updateMetrics();
     }
-  }, [familyId]);
+  }, [familyId, updateMetrics]);
 
   // Função para medir uso de memória
   const measureMemoryUsage = useCallback(() => {
     if (!familyId || !('memory' in performance)) return;
 
     try {
-      const memory = (performance as any).memory;
-      if (memory) {
+      const mem = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory;
+      if (mem && typeof mem.usedJSHeapSize === 'number') {
         if (metricsRef.current[familyId]) {
           metricsRef.current[familyId].performance.memoryUsage = 
-            memory.usedJSHeapSize / 1024 / 1024; // MB
+            mem.usedJSHeapSize / 1024 / 1024; // MB
           updateMetrics();
         }
       }
-    } catch (error) {
+    } catch {
       // Ignorar erros de medição de memória
     }
-  }, [familyId]);
-
-  // Função para atualizar métricas
-  const updateMetrics = useCallback(() => {
-    if (!familyId) return;
-
-    const metrics = metricsRef.current[familyId];
-    if (!metrics) return;
-
-    // Adicionar ao histórico
-    historyRef.current.push({ ...metrics });
-    
-    // Limitar tamanho do histórico
-    if (historyRef.current.length > finalConfig.maxHistorySize) {
-      historyRef.current.shift();
-    }
-
-    // Notificar observadores
-    observersRef.current.forEach(observer => {
-      try {
-        observer(metrics);
-      } catch (error) {
-        console.error('Error in metrics observer:', error);
-      }
-    });
-
-    // Persistir se ativado
-    if (finalConfig.enablePersistent) {
-      try {
-        localStorage.setItem(`family-metrics-${familyId}`, JSON.stringify(metrics));
-      } catch (error) {
-        console.error('Error persisting metrics:', error);
-      }
-    }
-
-    setCurrentMetrics(metrics);
-  }, [familyId, finalConfig.enablePersistent, finalConfig.maxHistorySize]);
+  }, [familyId, updateMetrics]);
 
   // Função para obter métricas atuais
   const getCurrentMetrics = useCallback(() => {
@@ -431,9 +431,9 @@ export const useFamilyPerformanceMetrics = (familyId: string | null) => {
 
   // Função para obter alertas de performance
   const getPerformanceAlerts = useCallback(() => {
-    if (!currentMetrics) return [];
+    if (!currentMetrics) return [] as Array<{ type: 'warning' | 'error'; message: string; value: string | number; threshold: number }>;
 
-    const alerts = [];
+    const alerts: Array<{ type: 'warning' | 'error'; message: string; value: string | number; threshold: number }> = [];
     const { performance, errors } = currentMetrics;
 
     if (performance.renderTime > 100) {
