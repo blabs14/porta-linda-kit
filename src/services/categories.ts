@@ -1,7 +1,8 @@
 import { supabase } from '../lib/supabaseClient';
 import { Category, CategoryInsert, CategoryUpdate } from '../integrations/supabase/types';
+import { CategoryDomain, mapCategoryRowToDomain } from '../shared/types/categories';
 
-export const getCategories = async (userId?: string, tipo?: string): Promise<{ data: Category[] | null; error: any }> => {
+export const getCategories = async (userId?: string, tipo?: string): Promise<{ data: Category[] | null; error: unknown }> => {
   try {
     let query = supabase
       .from('categories')
@@ -12,18 +13,24 @@ export const getCategories = async (userId?: string, tipo?: string): Promise<{ d
     }
 
     if (tipo) {
-      query = query.eq('tipo', tipo);
+      // A coluna 'tipo' pode existir em esquemas anteriores; aplicamos cast controlado para manter compatibilidade
+      query = (query as unknown as { eq: (column: string, value: string) => typeof query }).eq('tipo', tipo);
     }
 
     const { data, error } = await query.order('nome');
 
-    return { data, error };
+    return { data: data as Category[] | null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const getCategory = async (id: string): Promise<{ data: Category | null; error: any }> => {
+export const getCategoriesDomain = async (userId?: string, tipo?: string): Promise<{ data: CategoryDomain[]; error: unknown }> => {
+  const { data, error } = await getCategories(userId, tipo);
+  return { data: (data || []).map(row => mapCategoryRowToDomain(row as unknown as Record<string, unknown>)), error };
+};
+
+export const getCategory = async (id: string): Promise<{ data: Category | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('categories')
@@ -31,13 +38,13 @@ export const getCategory = async (id: string): Promise<{ data: Category | null; 
       .eq('id', id)
       .single();
 
-    return { data, error };
+    return { data: data as Category | null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const createCategory = async (categoryData: CategoryInsert): Promise<{ data: Category | null; error: any }> => {
+export const createCategory = async (categoryData: CategoryInsert): Promise<{ data: Category | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('categories')
@@ -45,13 +52,13 @@ export const createCategory = async (categoryData: CategoryInsert): Promise<{ da
       .select()
       .single();
 
-    return { data, error };
+    return { data: data as Category | null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const updateCategory = async (id: string, updates: CategoryUpdate): Promise<{ data: Category | null; error: any }> => {
+export const updateCategory = async (id: string, updates: CategoryUpdate): Promise<{ data: Category | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('categories')
@@ -60,13 +67,13 @@ export const updateCategory = async (id: string, updates: CategoryUpdate): Promi
       .select()
       .single();
 
-    return { data, error };
+    return { data: data as Category | null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const deleteCategory = async (id: string): Promise<{ data: boolean | null; error: any }> => {
+export const deleteCategory = async (id: string): Promise<{ data: boolean | null; error: unknown }> => {
   try {
     const { error } = await supabase
       .from('categories')
@@ -80,7 +87,7 @@ export const deleteCategory = async (id: string): Promise<{ data: boolean | null
 };
 
 // Função para garantir que existe uma categoria de transferências
-export const ensureTransferCategory = async (userId: string): Promise<{ data: Category | null; error: any }> => {
+export const ensureTransferCategory = async (userId: string): Promise<{ data: Category | null; error: unknown }> => {
   try {
     // Verificar se já existe uma categoria de transferências
     const { data: existingCategories, error: fetchError } = await supabase
@@ -96,7 +103,7 @@ export const ensureTransferCategory = async (userId: string): Promise<{ data: Ca
 
     // Se já existe, retornar a primeira encontrada
     if (existingCategories && existingCategories.length > 0) {
-      return { data: existingCategories[0], error: null };
+      return { data: existingCategories[0] as Category, error: null };
     }
 
     // Se não existe, criar uma nova categoria de transferências

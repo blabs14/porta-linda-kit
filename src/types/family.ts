@@ -1,4 +1,6 @@
 // Tipos para dados de família
+export type UnknownRecord = Record<string, unknown>;
+
 export interface Family {
   id: string;
   nome: string;
@@ -6,7 +8,7 @@ export interface Family {
   created_by: string;
   created_at: string;
   updated_at: string;
-  settings?: Record<string, any>;
+  settings?: Record<string, unknown>;
 }
 
 export interface FamilyMember {
@@ -48,7 +50,7 @@ export interface FamilyNotification {
   read: boolean | null;
   created_at: string | null;
   updated_at?: string | null;
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 // Tipos para KPIs familiares
@@ -79,17 +81,23 @@ export interface FamilyLoadingStates {
   kpis: boolean;
 }
 
+// Tipos mínimos de domínio utilizados nas listas
+export type FamilyAccount = UnknownRecord & { account_id?: string; id?: string; tipo?: string | null };
+export type FamilyGoal = UnknownRecord & { valor_atual?: number | null; valor_objetivo?: number | null; progresso_percentual?: number; total_alocado?: number };
+export type FamilyBudget = UnknownRecord;
+export type FamilyTransaction = UnknownRecord;
+
 // Tipos para dados familiares
 export interface FamilyData {
   family: Family | null;
   members: FamilyMember[];
   myRole: 'owner' | 'admin' | 'member' | 'viewer' | null;
   pendingInvites: FamilyInvite[];
-  familyAccounts: any[];
-  familyCards: any[];
-  familyGoals: any[];
-  familyBudgets: any[];
-  familyTransactions: any[];
+  familyAccounts: FamilyAccount[];
+  familyCards: FamilyAccount[];
+  familyGoals: FamilyGoal[];
+  familyBudgets: FamilyBudget[];
+  familyTransactions: FamilyTransaction[];
   familyKPIs: FamilyKPIs;
   isLoading: FamilyLoadingStates;
 }
@@ -97,38 +105,38 @@ export interface FamilyData {
 // Tipos para métodos de gestão
 export interface FamilyMethods {
   // Gestão de membros
-  inviteMember: (email: string, role: 'admin' | 'member' | 'viewer') => Promise<any>;
-  updateMemberRole: (memberId: string, role: 'admin' | 'member' | 'viewer') => Promise<any>;
-  removeMember: (memberId: string) => Promise<any>;
-  updateFamily: (data: any) => Promise<any>;
+  inviteMember: (email: string, role: 'admin' | 'member' | 'viewer') => Promise<unknown>;
+  updateMemberRole: (memberId: string, role: 'admin' | 'member' | 'viewer') => Promise<unknown>;
+  removeMember: (memberId: string) => Promise<unknown>;
+  updateFamily: (data: UnknownRecord) => Promise<unknown>;
   
   // Gestão de convites
-  cancelInvite: (inviteId: string) => Promise<any>;
-  acceptInvite: (inviteId: string) => Promise<any>;
+  cancelInvite: (inviteId: string) => Promise<unknown>;
+  acceptInvite: (inviteId: string) => Promise<unknown>;
   
   // Eliminação de família
-  deleteFamily: () => Promise<any>;
+  deleteFamily: () => Promise<unknown>;
   
   // CRUD para dados familiares
-  createFamilyAccount: (data: any) => Promise<any>;
-  updateFamilyAccount: (id: string, data: any) => Promise<any>;
-  deleteFamilyAccount: (id: string) => Promise<any>;
+  createFamilyAccount: (data: UnknownRecord) => Promise<unknown>;
+  updateFamilyAccount: (id: string, data: UnknownRecord) => Promise<unknown>;
+  deleteFamilyAccount: (id: string) => Promise<unknown>;
   
-  createFamilyGoal: (data: any) => Promise<any>;
-  updateFamilyGoal: (id: string, data: any) => Promise<any>;
-  deleteFamilyGoal: (id: string) => Promise<any>;
+  createFamilyGoal: (data: UnknownRecord) => Promise<unknown>;
+  updateFamilyGoal: (id: string, data: UnknownRecord) => Promise<unknown>;
+  deleteFamilyGoal: (id: string) => Promise<unknown>;
   
-  createFamilyBudget: (data: any) => Promise<any>;
-  updateFamilyBudget: (id: string, data: any) => Promise<any>;
-  deleteFamilyBudget: (id: string) => Promise<any>;
+  createFamilyBudget: (data: UnknownRecord) => Promise<unknown>;
+  updateFamilyBudget: (id: string, data: UnknownRecord) => Promise<unknown>;
+  deleteFamilyBudget: (id: string) => Promise<unknown>;
   
-  createFamilyTransaction: (data: any) => Promise<any>;
-  updateFamilyTransaction: (id: string, data: any) => Promise<any>;
-  deleteFamilyTransaction: (id: string) => Promise<any>;
+  createFamilyTransaction: (data: UnknownRecord) => Promise<unknown>;
+  updateFamilyTransaction: (id: string, data: UnknownRecord) => Promise<unknown>;
+  deleteFamilyTransaction: (id: string) => Promise<unknown>;
   
   // Métodos específicos
-  payCreditCard: (accountId: string, amount: number) => Promise<any>;
-  allocateToGoal: (goalId: string, amount: number, accountId: string) => Promise<any>;
+  payCreditCard: (accountId: string, amount: number) => Promise<unknown>;
+  allocateToGoal: (goalId: string, amount: number, accountId: string) => Promise<unknown>;
   
   // Utilitários
   refetchAll: () => void;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useFamily } from './FamilyProvider';
+import { useFamily } from './FamilyContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -14,6 +14,9 @@ import RegularAccountForm from '../../components/RegularAccountForm';
 const LazyTransferModal = React.lazy(() => import('../../components/TransferModal').then(m => ({ default: m.TransferModal })));
 import { LazyWrapper } from '../../components/ui/lazy-wrapper';
 import { useToast } from '../../hooks/use-toast';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
+import { getAuditLogsByRow } from '../../services/audit_logs';
+type AuditEntry = { id: string; timestamp: string; operation: string; old_data?: any; new_data?: any; details?: any };
 
 const FamilyAccounts: React.FC = () => {
     const {
@@ -235,6 +238,16 @@ const FamilyAccounts: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Aviso: saldo disponível negativo (apenas aviso) */}
+                  {account.saldo_disponivel < 0 && (
+                    <Alert variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        Saldo disponível negativo. Isto é apenas um aviso—as operações continuam permitidas.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
                   {/* Botões de ação - Editar e Eliminar */}
                   <div className="flex gap-2 pt-2">
                     {canEdit('account') && (
@@ -260,6 +273,16 @@ const FamilyAccounts: React.FC = () => {
                       </Button>
                     )}
                   </div>
+
+                  {/* Histórico de alterações (Audit Log) */}
+                  <Accordion type="single" collapsible className="pt-2">
+                    <AccordionItem value={`hist-${account.account_id}`}>
+                      <AccordionTrigger>Histórico</AccordionTrigger>
+                      <AccordionContent>
+                        <AccountAuditList accountId={account.account_id} />
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                 </CardContent>
               </Card>
             ))}
@@ -454,6 +477,74 @@ const FamilyAccounts: React.FC = () => {
         cancelText="Cancelar"
         variant="destructive"
       />
+    </div>
+  );
+};
+
+const AccountAuditList: React.FC<{ accountId: string }> = ({ accountId }) => {
+  const [logs, setLogs] = React.useState<AuditEntry[]>([]);
+  const [loading, setLoading] = React.useState<boolean>(false);
+  const [loaded, setLoaded] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    let active = true;
+    const fetchLogs = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await getAuditLogsByRow('accounts', accountId, 20);
+        if (!active) return;
+        if (error) {
+          console.debug('[AccountAuditList] erro a obter logs:', error);
+          setLogs([]);
+        } else {
+          setLogs(Array.isArray(data) ? (data as unknown as AuditEntry[]) : []);
+        }
+      } catch (e) {
+        console.debug('[AccountAuditList] exceção a obter logs:', e);
+        setLogs([]);
+      } finally {
+        if (active) {
+          setLoading(false);
+          setLoaded(true);
+        }
+      }
+    };
+    if (!loaded) fetchLogs();
+    return () => { active = false; };
+  }, [accountId, loaded]);
+
+  if (loading) return <div className="text-sm text-muted-foreground">A carregar histórico...</div>;
+  if (!logs.length) return <div className="text-sm text-muted-foreground">Sem histórico recente.</div>;
+
+  return (
+    <div className="space-y-2 text-sm">
+      {logs.map((log) => (
+        <div key={log.id} className="rounded border p-2">
+          <div className="flex items-center justify-between">
+            <span className="font-medium">{new Date(log.timestamp).toLocaleString('pt-PT')}</span>
+            <Badge variant="outline">{log.operation}</Badge>
+          </div>
+          {log.old_data && log.new_data && (
+            <div className="mt-1 text-xs text-muted-foreground">
+              <span>Mudanças principais: </span>
+              {/* Mostrar diffs simples de saldo se existirem */}
+              {typeof log.old_data === 'object' && typeof log.new_data === 'object' && (
+                <>
+                  {('saldo' in log.old_data || 'saldo' in log.new_data) && (
+                    <div>Saldo: {(log.old_data?.saldo ?? '-') } → {(log.new_data?.saldo ?? '-')}</div>
+                  )}
+                  {('nome' in log.old_data || 'nome' in log.new_data) && (
+                    <div>Nome: {(log.old_data?.nome ?? '-') } → {(log.new_data?.nome ?? '-')}</div>
+                  )}
+                  {('tipo' in log.old_data || 'tipo' in log.new_data) && (
+                    <div>Tipo: {(log.old_data?.tipo ?? '-') } → {(log.new_data?.tipo ?? '-')}</div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 };

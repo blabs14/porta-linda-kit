@@ -1,4 +1,4 @@
-// import { useCreditCardSummary } from '../hooks/useAccountsQuery';
+import { useCreditCardSummary } from '../hooks/useAccountsQuery';
 import { formatCurrency } from '../lib/utils';
 
 interface CreditCardBalanceProps {
@@ -8,13 +8,10 @@ interface CreditCardBalanceProps {
 }
 
 export const CreditCardBalance = ({ accountId, fallbackBalance, accountType }: CreditCardBalanceProps) => {
-  // TODO: Descomentar quando a função RPC get_credit_card_summary for implementada
-  // const { data: summary } = useCreditCardSummary(accountId);
+  const { data: summary } = useCreditCardSummary(accountId);
   
   // Para cartões de crédito, o saldo total deve ser sempre <= 0
-  // Usar o saldo calculado pela função RPC que já aplica a lógica correta
-  // const balance = summary ? summary.current_balance : Math.min(0, fallbackBalance);
-  const balance = Math.min(0, fallbackBalance);
+  const balance = summary ? Math.min(0, summary.saldo) : Math.min(0, fallbackBalance);
   
   // Determinar a cor baseada no saldo (sempre vermelho para cartões de crédito, exceto quando = 0)
   const balanceColor = balance < 0 ? 'text-red-600' : 'text-gray-600';

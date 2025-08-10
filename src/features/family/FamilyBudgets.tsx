@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useFamily } from './FamilyProvider';
+import { useFamily } from './FamilyContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -12,13 +12,16 @@ import { BarChart3, Plus, Edit, Trash2, Loader2, Target } from 'lucide-react';
 import { getCategoryIcon } from '../../lib/utils';
 import * as LucideIcons from 'lucide-react';
 import { LoadingSpinner } from '../../components/ui/loading-states';
-import { useCategories } from '../../hooks/useCategories';
+import { useCategoriesDomain } from '../../hooks/useCategoriesQuery';
 import { useTransactions } from '../../hooks/useTransactionsQuery';
 import { useAuth } from '../../contexts/AuthContext';
 import { budgetSchema } from '../../validation/budgetSchema';
 import { useToast } from '../../hooks/use-toast';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
+import { getAuditLogsByRow } from '../../services/audit_logs';
+type AuditEntry = { id: string; timestamp: string; operation: string; old_data?: any; new_data?: any; details?: any };
 
 interface BudgetFormData {
   categoria_id: string;
@@ -28,6 +31,8 @@ interface BudgetFormData {
 
 const FamilyBudgets: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
+  const [filterMonth, setFilterMonth] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'ok' | 'warn' | 'over'>('all');
   const [editBudget, setEditBudget] = useState<any | null>(null);
   const [form, setForm] = useState<BudgetFormData>({
     categoria_id: '',
@@ -49,7 +54,7 @@ const FamilyBudgets: React.FC = () => {
     refetchAll 
   } = useFamily();
   
-  const { categories = [] } = useCategories();
+  const { data: categories = [] } = useCategoriesDomain();
   const { data: transactions = [] } = useTransactions();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -288,6 +293,28 @@ const FamilyBudgets: React.FC = () => {
         )}
       </div>
 
+      {/* Filtros rápidos */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <Label htmlFor="filter-month">Filtrar por mês</Label>
+          <Input id="filter-month" type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} />
+        </div>
+        <div>
+          <Label>Estado</Label>
+          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="ok">Dentro</SelectItem>
+              <SelectItem value="warn">{'>'} 80%</SelectItem>
+              <SelectItem value="over">Ultrapassado</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       {/* Budgets Grid */}
       {(!familyBudgets || familyBudgets.length === 0) ? (
         <div className="text-center py-12">
@@ -305,101 +332,124 @@ const FamilyBudgets: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {familyBudgets.map((budget) => {
-            const gasto = getGastoForBudget(budget);
-            const percentage = getProgressPercentage(gasto, budget.valor);
-            const progressColor = getProgressColor(percentage);
-            
-            return (
-              <Card key={budget.id} className="hover:shadow-md transition-shadow h-fit">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium truncate flex-1 mr-2">
-                    {getCategoryName(budget.categoria_id)}
-                  </CardTitle>
-                  {(() => {
-                    const categoryName = getCategoryName(budget.categoria_id);
-                    const iconName = getCategoryIcon(categoryName);
-                    const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.Target;
-                    return <IconComponent className="h-4 w-4 text-muted-foreground flex-shrink-0" />;
-                  })()}
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Período</span>
-                      <Badge variant="secondary" className="text-xs">
-                        {formatMonth(budget.mes)}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Orçamento</span>
-                      <span className="font-medium">{formatCurrency(budget.valor)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Gasto</span>
-                      <span className={`font-medium ${
-                        gasto === 0 ? 'text-gray-600' : 
-                        gasto > budget.valor ? 'text-red-600' : 'text-green-600'
-                      }`}>
-                        {formatCurrency(gasto)}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Progresso</span>
-                      <span>{percentage.toFixed(1)}%</span>
-                    </div>
-                    <Progress 
-                      value={percentage} 
-                      className={`h-2 ${progressColor}`}
-                    />
-                  </div>
-
-                  {/* Alerta se orçamento excedido */}
-                  {percentage >= 100 && (
-                    <div className="p-2 bg-red-50 border border-red-200 rounded-md">
-                      <div className="flex items-center gap-2 text-red-800">
-                        {(() => {
-                          const categoryName = getCategoryName(budget.categoria_id);
-                          const iconName = getCategoryIcon(categoryName);
-                          const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.Target;
-                          return <IconComponent className="h-4 w-4" />;
-                        })()}
-                        <span className="text-sm font-medium">Orçamento Excedido</span>
+          {familyBudgets
+            .filter((b) => !filterMonth || b.mes === filterMonth)
+            .filter((b) => {
+              const gasto = getGastoForBudget(b);
+              const pct = getProgressPercentage(gasto, b.valor);
+              if (filterStatus === 'ok') return pct < 80;
+              if (filterStatus === 'warn') return pct >= 80 && pct < 100;
+              if (filterStatus === 'over') return pct >= 100;
+              return true;
+            })
+            .map((budget) => {
+              const gasto = getGastoForBudget(budget);
+              const percentage = getProgressPercentage(gasto, budget.valor);
+              const progressColor = getProgressColor(percentage);
+              
+              return (
+                <Card key={budget.id} className="hover:shadow-md transition-shadow h-fit">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium truncate flex-1 mr-2">
+                      {getCategoryName(budget.categoria_id)}
+                    </CardTitle>
+                    {gasto > budget.valor && (
+                      <Badge variant="destructive" className="mr-2">Over</Badge>
+                    )}
+                    {(() => {
+                      const categoryName = getCategoryName(budget.categoria_id);
+                      const iconName = getCategoryIcon(categoryName);
+                      const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.Target;
+                      return <IconComponent className="h-4 w-4 text-muted-foreground flex-shrink-0" />;
+                    })()}
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Período</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {formatMonth(budget.mes)}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Orçamento</span>
+                        <span className="font-medium">{formatCurrency(budget.valor)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Gasto</span>
+                        <span className={`font-medium ${
+                          gasto === 0 ? 'text-gray-600' : 
+                          gasto > budget.valor ? 'text-red-600' : 'text-green-600'
+                        }`}>
+                          {formatCurrency(gasto)}
+                        </span>
                       </div>
                     </div>
-                  )}
-                  
-                  <div className="flex gap-2 pt-2">
-                    {canEdit('budget') && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEdit(budget)}
-                        className="flex-1"
-                      >
-                        <Edit className="h-3 w-3 mr-1" />
-                        Editar
-                      </Button>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Progresso</span>
+                        <span>{percentage.toFixed(1)}%</span>
+                      </div>
+                      <Progress 
+                        value={percentage} 
+                        className={`h-2 ${progressColor}`}
+                      />
+                    </div>
+
+                    {/* Alerta se orçamento excedido */}
+                    {percentage >= 100 && (
+                      <div className="p-2 bg-red-50 border border-red-200 rounded-md">
+                        <div className="flex items-center gap-2 text-red-800">
+                          {(() => {
+                            const categoryName = getCategoryName(budget.categoria_id);
+                            const iconName = getCategoryIcon(categoryName);
+                            const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.Target;
+                            return <IconComponent className="h-4 w-4" />;
+                          })()}
+                          <span className="text-sm font-medium">Orçamento Excedido</span>
+                        </div>
+                      </div>
                     )}
-                    {canDelete('budget') && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDelete(budget.id)}
-                        className="text-red-600 hover:text-red-700 flex-1"
-                      >
-                        <Trash2 className="h-3 w-3 mr-1" />
-                        Eliminar
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                    
+                    <div className="flex gap-2 pt-2">
+                      {canEdit('budget') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEdit(budget)}
+                          className="flex-1"
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
+                          Editar
+                        </Button>
+                      )}
+                      {canDelete('budget') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDelete(budget.id)}
+                          className="text-red-600 hover:text-red-700 flex-1"
+                        >
+                          <Trash2 className="h-3 w-3 mr-1" />
+                          Eliminar
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Histórico de alterações (Audit Log) */}
+                    <Accordion type="single" collapsible className="pt-2">
+                      <AccordionItem value={`hist-${budget.id}`}>
+                        <AccordionTrigger>Histórico</AccordionTrigger>
+                        <AccordionContent>
+                          <BudgetAuditList budgetId={budget.id} />
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  </CardContent>
+                </Card>
+              );
+            })}
         </div>
       )}
 
@@ -500,3 +550,70 @@ const FamilyBudgets: React.FC = () => {
 };
 
 export default FamilyBudgets; 
+
+const BudgetAuditList: React.FC<{ budgetId: string }> = ({ budgetId }) => {
+  const [logs, setLogs] = React.useState<AuditEntry[]>([]);
+  const [loading, setLoading] = React.useState<boolean>(false);
+  const [loaded, setLoaded] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    let active = true;
+    const fetchLogs = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await getAuditLogsByRow('budgets', budgetId, 20);
+        if (!active) return;
+        if (error) {
+          console.debug('[BudgetAuditList] erro a obter logs:', error);
+          setLogs([]);
+        } else {
+          setLogs(Array.isArray(data) ? (data as unknown as AuditEntry[]) : []);
+        }
+      } catch (e) {
+        console.debug('[BudgetAuditList] exceção a obter logs:', e);
+        setLogs([]);
+      } finally {
+        if (active) {
+          setLoading(false);
+          setLoaded(true);
+        }
+      }
+    };
+    if (!loaded) fetchLogs();
+    return () => { active = false; };
+  }, [budgetId, loaded]);
+
+  if (loading) return <div className="text-sm text-muted-foreground">A carregar histórico...</div>;
+  if (!logs.length) return <div className="text-sm text-muted-foreground">Sem histórico recente.</div>;
+
+  return (
+    <div className="space-y-2 text-sm">
+      {logs.map((log) => (
+        <div key={log.id} className="rounded border p-2">
+          <div className="flex items-center justify-between">
+            <span className="font-medium">{new Date(log.timestamp).toLocaleString('pt-PT')}</span>
+            <Badge variant="outline">{log.operation}</Badge>
+          </div>
+          {log.old_data && log.new_data && (
+            <div className="mt-1 text-xs text-muted-foreground">
+              <span>Mudanças principais: </span>
+              {typeof log.old_data === 'object' && typeof log.new_data === 'object' && (
+                <>
+                  {('valor' in log.old_data || 'valor' in log.new_data) && (
+                    <div>Valor: {(log.old_data?.valor ?? '-') } → {(log.new_data?.valor ?? '-')}</div>
+                  )}
+                  {('categoria_id' in log.old_data || 'categoria_id' in log.new_data) && (
+                    <div>Categoria alterada</div>
+                  )}
+                  {('mes' in log.old_data || 'mes' in log.new_data) && (
+                    <div>Mês: {(log.old_data?.mes ?? '-') } → {(log.new_data?.mes ?? '-')}</div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}; 

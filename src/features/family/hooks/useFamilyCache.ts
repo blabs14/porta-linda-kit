@@ -20,14 +20,14 @@ interface CacheMetrics {
 }
 
 interface FamilyCacheData {
-  family: any;
-  accounts: any[];
-  goals: any[];
-  budgets: any[];
-  transactions: any[];
-  members: any[];
-  invites: any[];
-  kpis: any;
+  family: unknown;
+  accounts: unknown[];
+  goals: unknown[];
+  budgets: unknown[];
+  transactions: unknown[];
+  members: unknown[];
+  invites: unknown[];
+  kpis: unknown;
 }
 
 // Configurações de cache por tipo de dados
@@ -116,8 +116,8 @@ export const useFamilyCache = (familyId: string | null) => {
   }, []);
 
   // Função para gerar chave de cache
-  const getCacheKey = useCallback((dataType: string, familyId: string | null, userId: string | null) => {
-    return ['family', dataType, familyId, userId].filter(Boolean);
+  const getCacheKey = useCallback((dataType: string, familyIdParam: string | null, userId: string | null) => {
+    return ['family', dataType, familyIdParam, userId].filter(Boolean);
   }, []);
 
   // Função para invalidar cache seletivamente
@@ -134,7 +134,7 @@ export const useFamilyCache = (familyId: string | null) => {
       if (metricsRef.current[familyId]) {
         metricsRef.current[familyId].invalidations++;
         metricsRef.current[familyId].lastAccess = new Date();
-      }
+        }
     });
 
     lastSyncRef.current = new Date();
@@ -153,7 +153,7 @@ export const useFamilyCache = (familyId: string | null) => {
           queryKey: cacheKey,
           queryFn: async () => {
             // Mock - será implementado com funções reais
-            return [];
+            return [] as unknown[];
           },
           ...getCacheConfig(dataType),
         });
@@ -166,17 +166,17 @@ export const useFamilyCache = (familyId: string | null) => {
     const now = new Date();
     const maxAge = 24 * 60 * 60 * 1000; // 24 horas
 
-    Object.keys(metricsRef.current).forEach(familyId => {
-      const metrics = metricsRef.current[familyId];
+    Object.keys(metricsRef.current).forEach(fid => {
+      const metrics = metricsRef.current[fid];
       if (now.getTime() - metrics.lastAccess.getTime() > maxAge) {
-        delete metricsRef.current[familyId];
+        delete metricsRef.current[fid];
         
         // Limpar queries antigas
         queryClient.removeQueries({
           queryKey: ['family'],
           predicate: (query) => {
-            const queryKey = query.queryKey as string[];
-            return queryKey.includes(familyId);
+            const queryKey = query.queryKey as unknown[];
+            return Array.isArray(queryKey) && queryKey.includes(fid);
           },
         });
       }
@@ -225,81 +225,6 @@ export const useFamilyCache = (familyId: string | null) => {
     }
   }, [familyId, user?.id, queryClient, getCacheKey, preloadCriticalData, invalidateCache]);
 
-  // Hook para dados com cache inteligente
-  const useCachedFamilyData = useCallback((
-    dataType: string,
-    queryFn: () => Promise<any>,
-    options: any = {}
-  ) => {
-    if (!familyId || !user?.id) {
-      return {
-        data: null,
-        isLoading: false,
-        error: null,
-        refetch: () => Promise.resolve(),
-      };
-    }
-
-    const cacheKey = getCacheKey(dataType, familyId, user.id);
-    const config = getCacheConfig(dataType);
-
-    return useQuery({
-      queryKey: cacheKey,
-      queryFn,
-      enabled: !!familyId && !!user?.id,
-      ...config,
-      ...options,
-      onSuccess: (data) => {
-        // Atualizar métricas
-        if (metricsRef.current[familyId]) {
-          metricsRef.current[familyId].hits++;
-          metricsRef.current[familyId].lastAccess = new Date();
-          metricsRef.current[familyId].size = JSON.stringify(data).length;
-        }
-      },
-      onError: () => {
-        // Atualizar métricas
-        if (metricsRef.current[familyId]) {
-          metricsRef.current[familyId].misses++;
-          metricsRef.current[familyId].lastAccess = new Date();
-        }
-      },
-    });
-  }, [familyId, user?.id, getCacheKey, getCacheConfig]);
-
-  // Hook para mutações com cache inteligente
-  const useCachedFamilyMutation = useCallback((
-    mutationFn: (data: any) => Promise<any>,
-    options: any = {}
-  ) => {
-    return useMutation({
-      mutationFn,
-      onSuccess: (data, variables) => {
-        // Invalidar cache relevante baseado na operação
-        const operation = options.operation || 'update';
-        const dataType = options.dataType || 'family';
-        
-        if (operation === 'create' || operation === 'delete') {
-          invalidateCache([dataType, 'kpis']);
-        } else {
-          invalidateCache([dataType]);
-        }
-
-        // Chamar callback de sucesso se fornecido
-        if (options.onSuccess) {
-          options.onSuccess(data, variables);
-        }
-      },
-      onError: (error, variables) => {
-        // Chamar callback de erro se fornecido
-        if (options.onError) {
-          options.onError(error, variables);
-        }
-      },
-      ...options,
-    });
-  }, [invalidateCache]);
-
   // Efeito para limpeza automática
   useEffect(() => {
     const cleanupInterval = setInterval(cleanupOldCache, 60 * 60 * 1000); // 1 hora
@@ -319,8 +244,6 @@ export const useFamilyCache = (familyId: string | null) => {
   }, [familyId, user?.id, syncCacheWithServer]);
 
   return {
-    useCachedFamilyData,
-    useCachedFamilyMutation,
     invalidateCache,
     preloadCriticalData,
     getCacheMetrics,
@@ -331,7 +254,7 @@ export const useFamilyCache = (familyId: string | null) => {
 
 // Hook para otimização de performance
 export const useFamilyPerformanceOptimizer = (familyId: string | null) => {
-  const { useCachedFamilyData, getCacheMetrics } = useFamilyCache(familyId);
+  const { getCacheMetrics } = useFamilyCache(familyId);
   const performanceRef = useRef({
     renderCount: 0,
     lastRenderTime: 0,
@@ -363,8 +286,63 @@ export const useFamilyPerformanceOptimizer = (familyId: string | null) => {
   }, [getCacheMetrics]);
 
   return {
-    useCachedFamilyData,
     measureRenderPerformance,
     getPerformanceMetrics,
   };
-}; 
+};
+
+// Hooks exportados para queries/mutações com cache (fora de callbacks)
+export function useFamilyCachedQuery<TData>(
+  familyId: string | null,
+  dataType: string,
+  queryFn: () => Promise<TData>,
+  options?: Partial<CacheConfig> & {
+    enabled?: boolean;
+  }
+) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const config = { ...(CACHE_CONFIGS[dataType] || CACHE_CONFIGS.family), ...(options || {}) };
+  const key = ['family', dataType, familyId, user?.id].filter(Boolean);
+
+  return useQuery<TData>({
+    queryKey: key,
+    queryFn: async () => {
+      const data = await queryFn();
+      return data;
+    },
+    enabled: (!!familyId && !!user?.id) && (options?.enabled ?? true),
+    staleTime: config.staleTime,
+    gcTime: config.gcTime,
+    refetchOnWindowFocus: config.refetchOnWindowFocus,
+    refetchOnMount: config.refetchOnMount,
+    refetchOnReconnect: config.refetchOnReconnect,
+  });
+}
+
+export function useFamilyCachedMutation<TVars, TData = unknown>(
+  mutateFn: (vars: TVars) => Promise<TData>,
+  options?: {
+    dataType?: string;
+    operation?: 'create' | 'update' | 'delete';
+    onSuccess?: (data: TData, vars: TVars) => void;
+    onError?: (err: unknown, vars: TVars) => void;
+  }
+) {
+  const queryClient = useQueryClient();
+  const invalidate = (types: string[]) => types.forEach(t => queryClient.invalidateQueries({ queryKey: ['family', t] }));
+
+  return useMutation<TData, unknown, TVars>({
+    mutationFn: mutateFn,
+    onSuccess: (data, vars) => {
+      const op = options?.operation || 'update';
+      const dt = options?.dataType || 'family';
+      if (op === 'create' || op === 'delete') invalidate([dt, 'kpis']);
+      else invalidate([dt]);
+      options?.onSuccess?.(data, vars);
+    },
+    onError: (err, vars) => {
+      options?.onError?.(err, vars);
+    },
+  });
+} 

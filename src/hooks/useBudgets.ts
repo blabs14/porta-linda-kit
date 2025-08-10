@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getBudgets, createBudget, updateBudget, deleteBudget } from '../services/budgets';
+import type { Budget, BudgetInsert, BudgetUpdate } from '../integrations/supabase/types';
 
 export const useBudgets = () => {
-  const [budgets, setBudgets] = useState<any[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<any>(null);
+  const [error, setError] = useState<unknown>(null);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -23,13 +24,13 @@ export const useBudgets = () => {
     fetch();
   }, [fetch]);
 
-  const create = async (payload: { categoria_id: string; valor: number; mes: string }, userId: string) => {
+  const create = async (payload: BudgetInsert, userId: string) => {
     const res = await createBudget(payload, userId);
     if (!res.error) fetch();
     return res;
   };
 
-  const update = async (id: string, data: any, userId: string) => {
+  const update = async (id: string, data: BudgetUpdate, userId: string) => {
     const res = await updateBudget(id, data, userId);
     if (!res.error) fetch();
     return res;

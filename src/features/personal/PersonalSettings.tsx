@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
+import { subscribeToPush, unsubscribeFromPush } from '../../lib/pushClient';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -10,6 +11,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../hooks/use-toast';
 import { usePersonalSettings } from '../../hooks/usePersonalSettings';
 import { LoadingSpinner } from '../../components/ui/loading-states';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
+import { getAuditLogsByRow } from '../../services/audit_logs';
+type AuditEntry = { id: string; timestamp: string; operation: string; old_data?: any; new_data?: any; details?: any };
 
 const PersonalSettings: React.FC = () => {
   const { user } = useAuth();
@@ -24,8 +28,13 @@ const PersonalSettings: React.FC = () => {
     isUpdatingNotifications,
     updateProfile,
     changeTheme,
-    updateNotifications
+    updateNotifications,
+    setLocalRemindersEnabledRemote
   } = usePersonalSettings();
+
+  // Wrappers tipados para evitar acessos a propriedades em 'unknown'
+  const typedProfile: any = (profile as any)?.data || {};
+  const typedSettings: any = (settings as any)?.data || {};
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
@@ -35,10 +44,10 @@ const PersonalSettings: React.FC = () => {
 
   // Estados para formulários
   const [profileData, setProfileData] = useState({
-    firstName: profile?.first_name || '',
-    lastName: profile?.last_name || '',
-    phone: profile?.phone || '',
-    birthDate: profile?.birth_date || ''
+    firstName: typedProfile.first_name || '',
+    lastName: typedProfile.last_name || '',
+    phone: typedProfile.phone || '',
+    birthDate: typedProfile.birth_date || ''
   });
 
   const [securityData, setSecurityData] = useState({
@@ -48,36 +57,73 @@ const PersonalSettings: React.FC = () => {
   });
 
   const [notificationSettings, setNotificationSettings] = useState({
-    emailNotifications: settings?.personal_settings?.notifications?.email ?? true,
-    pushNotifications: settings?.personal_settings?.notifications?.push ?? true,
-    goalReminders: settings?.personal_settings?.notifications?.goal_reminders ?? true,
-    budgetAlerts: settings?.personal_settings?.notifications?.budget_alerts ?? true,
-    transactionAlerts: settings?.personal_settings?.notifications?.transaction_alerts ?? false
+    emailNotifications: typedSettings?.personal_settings?.notifications?.email ?? true,
+    pushNotifications: typedSettings?.personal_settings?.notifications?.push ?? true,
+    goalReminders: typedSettings?.personal_settings?.notifications?.goal_reminders ?? true,
+    budgetAlerts: typedSettings?.personal_settings?.notifications?.budget_alerts ?? true,
+    transactionAlerts: typedSettings?.personal_settings?.notifications?.transaction_alerts ?? false
   });
+
+  // Toggle de notificações locais de lembretes (persistência local)
+  const [localRemindersEnabled, setLocalRemindersEnabled] = React.useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem('local_reminders_enabled');
+      if (raw == null) return true;
+      return raw === '1' || raw === 'true';
+    } catch {
+      return true;
+    }
+  });
+  const [pushEnabled, setPushEnabled] = React.useState<boolean>(false);
+  const toggleLocalReminders = (checked: boolean) => {
+    setLocalRemindersEnabled(checked);
+    try { localStorage.setItem('local_reminders_enabled', checked ? '1' : '0'); } catch {}
+    // sincronizar backend
+    setLocalRemindersEnabledRemote(checked);
+  };
+
+  const togglePush = async (checked: boolean) => {
+    setPushEnabled(checked);
+    try {
+      if (checked) {
+        await subscribeToPush();
+      } else {
+        await unsubscribeFromPush();
+      }
+    } catch {}
+  };
 
   // Atualizar estados locais quando os dados mudarem
   React.useEffect(() => {
     if (profile) {
+      const p: any = (profile as any)?.data || {};
       setProfileData({
-        firstName: profile.first_name || '',
-        lastName: profile.last_name || '',
-        phone: profile.phone || '',
-        birthDate: profile.birth_date || ''
+        firstName: p.first_name || '',
+        lastName: p.last_name || '',
+        phone: p.phone || '',
+        birthDate: p.birth_date || ''
       });
     }
   }, [profile]);
 
   React.useEffect(() => {
-    if (settings?.personal_settings?.notifications) {
+    const ps: any = (settings as any)?.data?.personal_settings;
+    if (ps?.notifications) {
       setNotificationSettings({
-        emailNotifications: settings.personal_settings.notifications.email ?? true,
-        pushNotifications: settings.personal_settings.notifications.push ?? true,
-        goalReminders: settings.personal_settings.notifications.goal_reminders ?? true,
-        budgetAlerts: settings.personal_settings.notifications.budget_alerts ?? true,
-        transactionAlerts: settings.personal_settings.notifications.transaction_alerts ?? false
+        emailNotifications: ps.notifications.email ?? true,
+        pushNotifications: ps.notifications.push ?? true,
+        goalReminders: ps.notifications.goal_reminders ?? true,
+        budgetAlerts: ps.notifications.budget_alerts ?? true,
+        transactionAlerts: ps.notifications.transaction_alerts ?? false
       });
+      // alinhar toggle local com backend
+      const remoteLocalReminders = ps.notifications.local_reminders;
+      if (typeof remoteLocalReminders === 'boolean') {
+        setLocalRemindersEnabled(remoteLocalReminders);
+        try { localStorage.setItem('local_reminders_enabled', remoteLocalReminders ? '1' : '0'); } catch {}
+      }
     }
-  }, [settings?.personal_settings?.notifications]);
+  }, [settings]);
 
   // Função para salvar dados do perfil
   const handleProfileSave = async () => {
@@ -139,7 +185,8 @@ const PersonalSettings: React.FC = () => {
         push: notificationSettings.pushNotifications,
         goal_reminders: notificationSettings.goalReminders,
         budget_alerts: notificationSettings.budgetAlerts,
-        transaction_alerts: notificationSettings.transactionAlerts
+        transaction_alerts: notificationSettings.transactionAlerts,
+        local_reminders: localRemindersEnabled,
       });
       setIsNotificationsOpen(false);
     } catch (error) {
@@ -399,6 +446,19 @@ const PersonalSettings: React.FC = () => {
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      <div>
+                        <span className="text-sm font-medium">Notificações locais de lembretes</span>
+                        <p className="text-xs text-muted-foreground">Mostra notificações no browser no dia/hora dos lembretes</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={localRemindersEnabled}
+                      onCheckedChange={toggleLocalReminders}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
                       <BarChart3 className="h-4 w-4" />
                       <div>
                         <span className="text-sm font-medium">Alertas de Orçamento</span>
@@ -422,6 +482,16 @@ const PersonalSettings: React.FC = () => {
                       checked={notificationSettings.transactionAlerts}
                       onCheckedChange={(checked) => setNotificationSettings(prev => ({ ...prev, transactionAlerts: checked }))}
                     />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="h-4 w-4" />
+                      <div>
+                        <span className="text-sm font-medium">Notificações Push (browser)</span>
+                        <p className="text-xs text-muted-foreground">Recebe lembretes mesmo com a app fechada</p>
+                      </div>
+                    </div>
+                    <Switch checked={pushEnabled} onCheckedChange={togglePush} />
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setIsNotificationsOpen(false)}>
@@ -543,8 +613,80 @@ const PersonalSettings: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Histórico de Alterações do Perfil/Definições */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Histórico</CardTitle>
+          <CardDescription>Alterações recentes ao seu perfil e definições</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Accordion type="single" collapsible>
+            <AccordionItem value="perfil">
+              <AccordionTrigger>Perfil</AccordionTrigger>
+              <AccordionContent>
+                <ProfileAuditList profileRowId={(profile as any)?.data?.id || user?.id || ''} />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </CardContent>
+      </Card>
     </div>
   );
 };
 
-export default PersonalSettings; 
+export default PersonalSettings;
+
+// Histórico de alterações para Perfil (tabela profiles)
+const ProfileAuditList: React.FC<{ profileRowId: string }> = ({ profileRowId }) => {
+  const [entries, setEntries] = React.useState<AuditEntry[] | null>(null);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!profileRowId) return;
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await getAuditLogsByRow('profiles', profileRowId, 20);
+        if (!cancelled) {
+          if (!error && Array.isArray(data)) setEntries(data as unknown as AuditEntry[]);
+          else setEntries([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [profileRowId]);
+
+  if (!profileRowId) return <div className="text-sm text-muted-foreground">Perfil não carregado.</div>;
+  if (loading && !entries) return <div className="text-sm text-muted-foreground">A carregar histórico…</div>;
+  if (!entries || entries.length === 0) return <div className="text-sm text-muted-foreground">Sem alterações registadas.</div>;
+
+  return (
+    <div className="space-y-2">
+      {entries.map((e) => {
+        const oldFirst = e.old_data?.first_name; const newFirst = e.new_data?.first_name;
+        const oldLast = e.old_data?.last_name; const newLast = e.new_data?.last_name;
+        const oldPhone = e.old_data?.phone; const newPhone = e.new_data?.phone;
+        const oldBirth = e.old_data?.birth_date; const newBirth = e.new_data?.birth_date;
+        return (
+          <div key={e.id} className="text-xs border rounded p-2">
+            <div className="flex justify-between">
+              <span className="font-medium">{new Date(e.timestamp).toLocaleString('pt-PT')}</span>
+              <span className="uppercase text-muted-foreground">{e.operation}</span>
+            </div>
+            <div className="mt-1 space-y-0.5">
+              {oldFirst !== newFirst && (<div>Nome: {oldFirst ?? '—'} → {newFirst ?? '—'}</div>)}
+              {oldLast !== newLast && (<div>Apelido: {oldLast ?? '—'} → {newLast ?? '—'}</div>)}
+              {oldPhone !== newPhone && (<div>Telefone: {oldPhone ?? '—'} → {newPhone ?? '—'}</div>)}
+              {oldBirth !== newBirth && (<div>Nascimento: {oldBirth ?? '—'} → {newBirth ?? '—'}</div>)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}; 

@@ -21,15 +21,19 @@ import {
 } from 'lucide-react';
 import { useTransactions } from '../hooks/useTransactionsQuery';
 import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
-import { useGoals } from '../hooks/useGoalsQuery';
-import { useCategories } from '../hooks/useCategoriesQuery';
+import { useGoals, useCreateGoal } from '../hooks/useGoalsQuery';
+import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import TransactionForm from '../components/TransactionForm';
 import { useToast } from '../hooks/use-toast';
 import { goalSchema } from '../validation/goalSchema';
+import { ZodError } from 'zod';
 import * as XLSX from 'xlsx';
+
+// Tipo auxiliar para objetivos usados nesta página
+type GoalLike = { nome?: string; valor_objetivo?: number | string | null; valor_atual?: number | string | null };
 
 const typeColors = {
   success: 'border-success bg-success/10 text-success',
@@ -38,17 +42,37 @@ const typeColors = {
   error: 'border-destructive bg-destructive/10 text-destructive'
 };
 
+type InsightType = 'success' | 'warning' | 'info' | 'error';
+type InsightImpact = 'positive' | 'negative';
+type IconType = React.ComponentType<{ className?: string }>; 
+interface InsightItem {
+  id: number;
+  title: string;
+  description: string;
+  type: InsightType;
+  impact: InsightImpact;
+  icon: IconType;
+  value: string;
+  trend: string;
+  action: string;
+}
+
 export default function Insights() {
   const { user } = useAuth();
   const transactionsQuery = useTransactions();
   const accountsQuery = useAccountsWithBalances();
-  const { goals = [], isLoading: goalsLoading, createGoal, isCreating, refetch: goalsQuery } = useGoals();
-  const categoriesQuery = useCategories();
+  const goalsQuery = useGoals();
+  const goals = useMemo(() => goalsQuery.data || [], [goalsQuery.data]);
+  const goalsLoading = goalsQuery.isLoading;
+  const createGoalMutation = useCreateGoal();
+  const createGoal = createGoalMutation.mutateAsync;
+  const isCreating = createGoalMutation.isPending;
+  const categoriesQuery = useCategoriesDomain();
   
-  // Extrair dados das queries
-  const transactions = transactionsQuery.data || [];
-  const accounts = accountsQuery.data || [];
-  const categories = categoriesQuery.data || [];
+  // Memorizar resultados para estabilizar dependências de useMemo a jusante
+  const transactions = useMemo(() => transactionsQuery.data || [], [transactionsQuery.data]);
+  const accounts = useMemo(() => accountsQuery.data || [], [accountsQuery.data]);
+  const categories = useMemo(() => categoriesQuery.data || [], [categoriesQuery.data]);
   
   const categoriesLoading = categoriesQuery.isLoading;
   const { toast } = useToast();
@@ -64,7 +88,7 @@ export default function Insights() {
 
   // Calcular insights baseados nos dados reais
   const insights = useMemo(() => {
-    if (!transactions.length) return [];
+    if (!transactions.length) return [] as InsightItem[];
 
     const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
     const lastMonth = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 7);
@@ -99,18 +123,18 @@ export default function Insights() {
       const valorAtual = Number(goal.valor_atual) || 0;
       const valorObjetivo = Number(goal.valor_objetivo) || 1;
       const progress = (valorAtual / valorObjetivo) * 100;
-      return { ...goal, progress };
+      return { ...goal, progress } as { progress: number } & typeof goal;
     });
 
-    const insights = [];
+    const list: InsightItem[] = [];
 
     // Insight sobre poupanças
     if (savingsChange > 0) {
-      insights.push({
+      list.push({
         id: 1,
         title: 'Poupanças em Alta',
         description: `Conseguiu poupar ${Math.abs(savingsChange).toFixed(1)}% mais este mês comparado ao anterior`,
-        type: 'success' as const,
+        type: 'success',
         impact: 'positive',
         icon: TrendingUp,
         value: `+€${currentSavings.toFixed(0)}`,
@@ -118,11 +142,11 @@ export default function Insights() {
         action: 'Manter este ritmo para atingir objetivos mais rapidamente'
       });
     } else if (savingsChange < 0) {
-      insights.push({
+      list.push({
         id: 1,
         title: 'Poupanças em Baixa',
         description: `Poupanças diminuíram ${Math.abs(savingsChange).toFixed(1)}% comparado ao mês anterior`,
-        type: 'warning' as const,
+        type: 'warning',
         impact: 'negative',
         icon: TrendingDown,
         value: `€${currentSavings.toFixed(0)}`,
@@ -134,8 +158,8 @@ export default function Insights() {
     // Insight sobre gastos por categoria
     const categoryExpenses = currentMonthTransactions
       .filter(tx => tx.tipo === 'despesa')
-      .reduce((acc, tx) => {
-        const category = categories.find((c: any) => c.id === tx.categoria_id);
+      .reduce((acc: Record<string, number>, tx) => {
+        const category = categories.find((c) => c.id === tx.categoria_id);
         const categoryName = category?.nome || 'Outros';
         acc[categoryName] = (Number(acc[categoryName]) || 0) + (Number(tx.valor) || 0);
         return acc;
@@ -145,11 +169,11 @@ export default function Insights() {
       .sort(([,a], [,b]) => (Number(b) - Number(a)))[0];
 
     if (highestExpenseCategory) {
-      insights.push({
+      list.push({
         id: 2,
         title: `Gastos em ${highestExpenseCategory[0]}`,
         description: `Maior categoria de despesas este mês com €${Number(highestExpenseCategory[1]).toFixed(0)}`,
-        type: 'warning' as const,
+        type: 'warning',
         impact: 'negative',
         icon: TrendingDown,
         value: `€${Number(highestExpenseCategory[1]).toFixed(0)}`,
@@ -159,29 +183,32 @@ export default function Insights() {
     }
 
     // Insight sobre objetivos
-    const nearCompletionGoal = goalsProgress.find(goal => goal.progress >= 80 && goal.progress < 100);
+    const nearCompletionGoal = goalsProgress.find(goal => (goal as { progress: number }).progress >= 80 && (goal as { progress: number }).progress < 100);
     if (nearCompletionGoal) {
-      const remaining = (Number(nearCompletionGoal.valor_objetivo) || 0) - (Number(nearCompletionGoal.valor_atual) || 0);
-      insights.push({
+      const g = nearCompletionGoal as GoalLike & { progress: number };
+      const objetivo = Number(g.valor_objetivo ?? 0);
+      const atual = Number(g.valor_atual ?? 0);
+      const remaining = objetivo - atual;
+      list.push({
         id: 3,
         title: 'Objetivo Quase Atingido',
-        description: `Está a apenas €${Number(remaining).toFixed(0)} de completar o objetivo "${nearCompletionGoal.nome}"`,
-        type: 'info' as const,
+        description: `Está a apenas €${Number(remaining).toFixed(0)} de completar o objetivo "${String(g.nome ?? '')}"`,
+        type: 'info',
         impact: 'positive',
         icon: Target,
         value: `€${Number(remaining).toFixed(0)}`,
-        trend: `${Number(nearCompletionGoal.progress).toFixed(0)}%`,
+        trend: `${Number(g.progress).toFixed(0)}%`,
         action: 'Uma pequena poupança extra este mês completa o objetivo'
       });
     }
 
     // Insight sobre saldo total
     if (totalBalance > 0) {
-      insights.push({
+      list.push({
         id: 4,
         title: 'Saldo Positivo',
         description: `Saldo total de todas as contas: €${totalBalance.toFixed(0)}`,
-        type: 'success' as const,
+        type: 'success',
         impact: 'positive',
         icon: CheckCircle,
         value: `€${totalBalance.toFixed(0)}`,
@@ -190,32 +217,32 @@ export default function Insights() {
       });
     }
 
-    return insights;
+    return list;
   }, [transactions, accounts, goals, categories]);
 
   // Calcular dados de categorias para o gráfico
   const categoryData = useMemo(() => {
-    if (!transactions.length || !categories.length) return [];
+    if (!transactions.length || !categories.length) return [] as Array<{ name: string; amount: number; percentage: number; trend: string; color: string }>;
 
     const currentMonth = new Date().toISOString().slice(0, 7);
     const currentMonthExpenses = transactions
-      .filter((tx: any) => tx.data.startsWith(currentMonth) && tx.tipo === 'despesa');
+      .filter((tx) => tx.data.startsWith(currentMonth) && tx.tipo === 'despesa');
 
-    const categoryTotals = currentMonthExpenses.reduce((acc: Record<string, number>, tx: any) => {
-      const category = categories.find((c: any) => c.id === tx.categoria_id);
+    const categoryTotals = currentMonthExpenses.reduce((acc: Record<string, number>, tx) => {
+      const category = categories.find((c) => c.id === tx.categoria_id);
       const categoryName = category?.nome || 'Outros';
       acc[categoryName] = (Number(acc[categoryName]) || 0) + (Number(tx.valor) || 0);
       return acc;
     }, {} as Record<string, number>);
 
-    const totalExpenses = Object.values(categoryTotals).reduce((sum: number, val: any) => sum + (Number(val) || 0), 0);
+    const totalExpenses = Object.values(categoryTotals).reduce((sum: number, val) => sum + (Number(val) || 0), 0);
 
     return Object.entries(categoryTotals)
       .map(([name, amount]) => ({
         name,
         amount: Number(amount),
         percentage: Number(totalExpenses) > 0 ? Math.round((Number(amount) / Number(totalExpenses)) * 100) : 0,
-        trend: '0%', // Simplificado para esta versão
+        trend: '0%', // Simplificado
         color: 'bg-primary'
       }))
       .sort((a, b) => b.amount - a.amount)
@@ -224,23 +251,23 @@ export default function Insights() {
 
   // Calcular dados mensais
   const monthlyData = useMemo(() => {
-    if (!transactions.length) return [];
+    if (!transactions.length) return [] as Array<{ month: string; income: number; expenses: number; savings: number }>;
 
     const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const currentYear = new Date().getFullYear();
-    const last6Months = [];
+    const last6Months: Array<{ month: string; income: number; expenses: number; savings: number }> = [];
 
     for (let i = 5; i >= 0; i--) {
       const month = new Date(currentYear, new Date().getMonth() - i, 1);
       const monthStr = month.toISOString().slice(0, 7);
       
-      const monthTransactions = transactions.filter((tx: any) => tx.data.startsWith(monthStr));
+      const monthTransactions = transactions.filter((tx) => tx.data.startsWith(monthStr));
       const income = monthTransactions
-        .filter((tx: any) => tx.tipo === 'receita')
-        .reduce((sum: number, tx: any) => sum + (Number(tx.valor) || 0), 0);
+        .filter((tx) => tx.tipo === 'receita')
+        .reduce((sum: number, tx) => sum + (Number(tx.valor) || 0), 0);
       const expenses = monthTransactions
-        .filter((tx: any) => tx.tipo === 'despesa')
-        .reduce((sum: number, tx: any) => sum + (Number(tx.valor) || 0), 0);
+        .filter((tx) => tx.tipo === 'despesa')
+        .reduce((sum: number, tx) => sum + (Number(tx.valor) || 0), 0);
       const savings = Number(income) - Number(expenses);
 
       last6Months.push({
@@ -262,7 +289,7 @@ export default function Insights() {
       await Promise.all([
         transactionsQuery.refetch(),
         accountsQuery.refetch(),
-        goalsQuery(),
+        goalsQuery.refetch(),
         categoriesQuery.refetch()
       ]);
       
@@ -423,22 +450,25 @@ export default function Insights() {
 
   const validateGoalForm = () => {
     try {
-      const validationData: any = {
+      const validationData = {
         nome: goalForm.nome,
         valor_objetivo: parseFloat(goalForm.valor_objetivo),
-        prazo: goalForm.prazo
+        prazo: goalForm.prazo || undefined
       };
       
       goalSchema.parse(validationData);
       setGoalErrors({});
       return true;
-    } catch (error: any) {
+    } catch (err: unknown) {
       const newErrors: Record<string, string> = {};
-      error.errors?.forEach((err: any) => {
-        if (err.path) {
-          newErrors[err.path[0]] = err.message;
+      if (err instanceof ZodError) {
+        for (const issue of err.issues) {
+          const key = issue.path?.[0];
+          if (typeof key === 'string') newErrors[key] = issue.message;
         }
-      });
+      } else {
+        newErrors.general = 'Erro de validação';
+      }
       setGoalErrors(newErrors);
       return false;
     }
@@ -473,10 +503,11 @@ export default function Insights() {
       setShowGoalModal(false);
       setGoalForm({ nome: '', valor_objetivo: '', valor_atual: '', prazo: '' });
       setGoalErrors({});
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ocorreu um erro ao criar o objetivo.';
       toast({
         title: "Erro ao criar objetivo",
-        description: error.message || "Ocorreu um erro ao criar o objetivo.",
+        description: message,
         variant: "destructive",
       });
     }

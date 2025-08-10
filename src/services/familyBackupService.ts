@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import type { Json } from '../integrations/supabase/types';
 
 export interface FamilyBackup {
   id: string;
@@ -8,7 +9,7 @@ export interface FamilyBackup {
   status: string;
   file_path?: string | null;
   file_size?: number | null;
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
   error_message?: string | null;
   created_at: string | null;
   completed_at?: string | null;
@@ -27,33 +28,39 @@ export interface BackupStats {
 
 export interface CreateBackupOptions {
   backup_type?: 'full' | 'incremental' | 'selective';
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
  * Busca todos os backups de uma família
  */
 export const getFamilyBackups = async (familyId: string): Promise<FamilyBackup[]> => {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('family_backups')
     .select('*')
     .eq('family_id', familyId)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return (data || []) as FamilyBackup[];
+  return (data as FamilyBackup[]) || [];
 };
 
 /**
  * Busca estatísticas de backup de uma família
  */
 export const getFamilyBackupStats = async (familyId: string): Promise<BackupStats> => {
-  const { data, error } = await (supabase as any).rpc('get_family_backup_stats', {
+  const { data, error } = await supabase.rpc('get_family_backup_stats', {
     p_family_id: familyId
   });
 
   if (error) throw error;
-  return data as BackupStats;
+  return (data as unknown as BackupStats) || {
+    total_backups: 0,
+    completed_backups: 0,
+    failed_backups: 0,
+    pending_backups: 0,
+    total_size: 0,
+  };
 };
 
 /**
@@ -63,33 +70,33 @@ export const createFamilyBackup = async (
   familyId: string, 
   options: CreateBackupOptions = {}
 ): Promise<{ success: boolean; backup_id: string; message: string }> => {
-  const { data, error } = await (supabase as any).rpc('create_family_backup', {
+  const { data, error } = await supabase.rpc('create_family_backup', {
     p_family_id: familyId,
     p_backup_type: options.backup_type || 'full',
-    p_metadata: options.metadata || {}
+    p_metadata: (options.metadata || {}) as Json
   });
 
   if (error) throw error;
-  return data as { success: boolean; backup_id: string; message: string };
+  return (data as unknown as { success: boolean; backup_id: string; message: string }) || { success: false, backup_id: '', message: 'Sem resposta' };
 };
 
 /**
  * Restaura um backup da família
  */
 export const restoreFamilyBackup = async (backupId: string): Promise<{ success: boolean; message: string }> => {
-  const { data, error } = await (supabase as any).rpc('restore_family_backup', {
+  const { data, error } = await supabase.rpc('restore_family_backup', {
     p_backup_id: backupId
   });
 
   if (error) throw error;
-  return data as { success: boolean; message: string };
+  return (data as unknown as { success: boolean; message: string }) || { success: false, message: 'Sem resposta' };
 };
 
 /**
  * Elimina um backup
  */
 export const deleteFamilyBackup = async (backupId: string): Promise<void> => {
-  const { error } = await (supabase as any)
+  const { error } = await supabase
     .from('family_backups')
     .delete()
     .eq('id', backupId);
@@ -123,7 +130,7 @@ export const downloadFamilyBackup = async (backup: FamilyBackup): Promise<void> 
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `family_backup_${backup.id}_${new Date(backup.created_at).toISOString().split('T')[0]}.json`;
+  link.download = `family_backup_${backup.id}_${new Date(backup.created_at || Date.now()).toISOString().split('T')[0]}.json`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -138,7 +145,7 @@ export const formatFileSize = (bytes?: number): string => {
   
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]} }`.replace(' }', '');
 };
 
 /**

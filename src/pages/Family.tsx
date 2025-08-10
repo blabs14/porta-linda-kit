@@ -1,6 +1,7 @@
 import React, { Suspense, useState } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { FamilyProvider, useFamily } from '../features/family/FamilyProvider';
+import { FamilyProvider } from '../features/family/FamilyProvider';
+import { useFamily } from '../features/family/FamilyContext';
 import FamilyHeader from '../features/family/FamilyHeader';
 import FamilySidebar from '../features/family/FamilySidebar';
 import FamilyTabBar from '../features/family/FamilyTabBar';
@@ -138,6 +139,7 @@ const DesktopNavigation: React.FC = () => {
 const QuickKPIs: React.FC = () => {
   const { familyKPIs, isLoading, familyGoals } = useFamily();
   const location = useLocation();
+  const { data: transactions = [] } = useTransactions();
   
   // Calcular objetivos ativos e concluídos
   const activeGoals = familyGoals.filter(goal => goal.ativa).length;
@@ -246,8 +248,7 @@ const QuickKPIs: React.FC = () => {
   // Se estamos na página de transações, mostrar os 4 cards de métricas de transações
   if (isTransactionsPage) {
     // Usar dados das transações do contexto
-    const { data: transactions = [] } = useTransactions();
-    
+    // Removido hook condicional; usamos 'transactions' já obtidas acima
     const totalIncome = transactions
       .filter(t => t.tipo === 'receita')
       .reduce((sum, t) => sum + t.valor, 0);

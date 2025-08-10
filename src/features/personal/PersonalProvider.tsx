@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
@@ -96,6 +97,17 @@ interface PersonalProviderProps {
   children: ReactNode;
 }
 
+// Conversão segura para número
+type NumericLike = number | string | null | undefined;
+const toNumber = (v: unknown): number => {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+};
+
 export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -178,17 +190,30 @@ export const PersonalProvider: React.FC<PersonalProviderProps> = ({ children }) 
       const { data, error } = await getPersonalKPIs();
       if (error) throw error;
       
-      return {
-        totalBalance: data.total_balance || 0,
-        creditCardDebt: data.credit_card_debt || 0,
-        topGoalProgress: Math.min(data.top_goal_progress || 0, 100),
-        monthlySavings: data.monthly_savings || 0,
-        goalsAccountBalance: data.goals_account_balance || 0,
-        totalGoalsValue: data.total_goals_value || 0,
-        goalsProgressPercentage: Math.min(data.goals_progress_percentage || 0, 100),
-        totalBudgetSpent: data.total_budget_spent || 0,
-        totalBudgetAmount: data.total_budget_amount || 0,
-        budgetSpentPercentage: Math.min(data.budget_spent_percentage || 0, 100)
+      const shape = {
+        totalBalance: toNumber((data as Record<string, unknown>).total_balance),
+        creditCardDebt: toNumber((data as Record<string, unknown>).credit_card_debt),
+        topGoalProgress: Math.min(toNumber((data as Record<string, unknown>).top_goal_progress), 100),
+        monthlySavings: toNumber((data as Record<string, unknown>).monthly_savings),
+        goalsAccountBalance: toNumber((data as Record<string, unknown>).goals_account_balance),
+        totalGoalsValue: toNumber((data as Record<string, unknown>).total_goals_value),
+        goalsProgressPercentage: Math.min(toNumber((data as Record<string, unknown>).goals_progress_percentage), 100),
+        totalBudgetSpent: toNumber((data as Record<string, unknown>).total_budget_spent),
+        totalBudgetAmount: toNumber((data as Record<string, unknown>).total_budget_amount),
+        budgetSpentPercentage: Math.min(toNumber((data as Record<string, unknown>).budget_spent_percentage), 100)
+      };
+
+      return shape as {
+        totalBalance: number;
+        creditCardDebt: number;
+        topGoalProgress: number;
+        monthlySavings: number;
+        goalsAccountBalance: number;
+        totalGoalsValue: number;
+        goalsProgressPercentage: number;
+        totalBudgetSpent: number;
+        totalBudgetAmount: number;
+        budgetSpentPercentage: number;
       };
     },
     enabled: !!user?.id,

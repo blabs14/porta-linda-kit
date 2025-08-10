@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { getAccounts } from '../services/accounts';
 import { getAccountAllocationsTotal } from '../services/goalAllocations';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from './ui/table';
@@ -24,7 +24,7 @@ const AccountList = ({ onEdit }: AccountListProps) => {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
-  const fetchAccounts = async () => {
+  const fetchAccounts = useCallback(async () => {
     setLoading(true);
     const { data, error } = await getAccounts();
     if (!error && data) {
@@ -34,8 +34,8 @@ const AccountList = ({ onEdit }: AccountListProps) => {
       const allocationsData: Record<string, number> = {};
       for (const account of data) {
         try {
-          const total = await getAccountAllocationsTotal(account.id, user?.id || '');
-          allocationsData[account.id] = total;
+          const { data: total } = await getAccountAllocationsTotal(account.id, user?.id || '');
+          allocationsData[account.id] = total ?? 0;
         } catch (error) {
           console.error(`Erro ao buscar alocações da conta ${account.id}:`, error);
           allocationsData[account.id] = 0;
@@ -44,11 +44,11 @@ const AccountList = ({ onEdit }: AccountListProps) => {
       setAllocations(allocationsData);
     }
     setLoading(false);
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     fetchAccounts();
-  }, [user?.id]);
+  }, [user?.id, fetchAccounts]);
 
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });

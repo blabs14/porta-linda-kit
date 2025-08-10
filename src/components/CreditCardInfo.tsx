@@ -1,4 +1,4 @@
-// import { useCreditCardSummary } from '../hooks/useAccountsQuery';
+import { useCreditCardSummary } from '../hooks/useAccountsQuery';
 import { formatCurrency } from '../lib/utils';
 import { Badge } from './ui/badge';
 import { CreditCard, AlertTriangle } from 'lucide-react';
@@ -8,12 +8,7 @@ interface CreditCardInfoProps {
 }
 
 export const CreditCardInfo = ({ accountId }: CreditCardInfoProps) => {
-  // TODO: Descomentar quando a função RPC get_credit_card_summary for implementada
-  // const { data: summary, isLoading } = useCreditCardSummary(accountId);
-  
-  // Implementação temporária até a função RPC estar disponível
-  const isLoading = false;
-  const summary = null;
+  const { data: summary, isLoading } = useCreditCardSummary(accountId);
   
   if (isLoading) {
     return (
@@ -33,36 +28,51 @@ export const CreditCardInfo = ({ accountId }: CreditCardInfoProps) => {
     );
   }
   
-  const utilizationPercentage = summary.credit_limit > 0 
-    ? Math.abs((summary.current_balance / summary.credit_limit) * 100)
-    : 0;
+  const totalGastos = Number(summary.total_gastos);
+  const totalPagamentos = Number(summary.total_pagamentos);
+  const balance = Number(summary.saldo); // negativo
   
-  const availableCredit = summary.credit_limit + summary.current_balance; // current_balance é negativo
+  // Sem limite disponível nos dados atuais; derivação simples: crédito disponível = -saldo (se saldo < 0)
+  const availableCredit = balance < 0 ? -balance : 0;
+  const utilizationPercentage = 0; // não temos limite para calcular efetivamente
   
   return (
     <div className="space-y-3">
-      {/* Limite de Crédito */}
+      {/* Estado */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-muted-foreground flex items-center gap-1">
           <CreditCard className="h-3 w-3" />
-          Limite
+          Estado
         </span>
-        <span className="text-sm font-medium">
-          {formatCurrency(summary.credit_limit)}
-        </span>
+        <Badge 
+          variant={summary.status === 'em dívida' ? 'destructive' : 'secondary'}
+          className="text-xs"
+        >
+          {summary.status}
+        </Badge>
       </div>
       
-      {/* Crédito Disponível */}
+      {/* Crédito Disponível (aproximação) */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-muted-foreground">Disponível</span>
         <span className={`text-sm font-medium ${
-          availableCredit > 0 ? 'text-green-600' : 'text-red-600'
+          availableCredit > 0 ? 'text-green-600' : 'text-gray-600'
         }`}>
           {formatCurrency(availableCredit)}
         </span>
       </div>
       
-      {/* Taxa de Utilização */}
+      {/* Totais do ciclo */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">Gastos (ciclo)</span>
+        <span className="text-sm font-medium">{formatCurrency(totalGastos)}</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">Pagamentos (ciclo)</span>
+        <span className="text-sm font-medium">{formatCurrency(totalPagamentos)}</span>
+      </div>
+      
+      {/* Taxa de Utilização (placeholder até existir limite) */}
       <div className="space-y-1">
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Utilização</span>
@@ -73,8 +83,6 @@ export const CreditCardInfo = ({ accountId }: CreditCardInfoProps) => {
             {utilizationPercentage.toFixed(1)}%
           </Badge>
         </div>
-        
-        {/* Barra de progresso */}
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div 
             className={`h-2 rounded-full transition-all ${

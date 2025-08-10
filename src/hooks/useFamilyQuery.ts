@@ -56,10 +56,11 @@ export const useCreateFamily = () => {
         description: 'Família criada com sucesso!',
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Erro ao criar família';
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao criar família',
+        description: message,
         variant: 'destructive',
       });
     },
@@ -71,7 +72,7 @@ export const useUpdateFamilySettings = () => {
   const { toast } = useToast();
   
   return useMutation({
-    mutationFn: ({ familyId, settings }: { familyId: string; settings: any }) =>
+    mutationFn: ({ familyId, settings }: { familyId: string; settings: Record<string, unknown> }) =>
       familyService.updateFamilySettings(familyId, settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['family-data'] });
@@ -80,10 +81,11 @@ export const useUpdateFamilySettings = () => {
         description: 'Configurações da família atualizadas com sucesso!',
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Erro ao atualizar configurações';
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao atualizar configurações',
+        description: message,
         variant: 'destructive',
       });
     },
@@ -108,10 +110,11 @@ export const useUpdateMemberRole = () => {
         description: 'Role do membro atualizado com sucesso!',
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Erro ao atualizar role';
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao atualizar role',
+        description: message,
         variant: 'destructive',
       });
     },
@@ -132,10 +135,11 @@ export const useRemoveFamilyMember = () => {
         description: 'Membro removido da família com sucesso!',
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Erro ao remover membro';
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao remover membro',
+        description: message,
         variant: 'destructive',
       });
     },
@@ -160,10 +164,11 @@ export const useInviteFamilyMember = () => {
         description: 'Convite enviado com sucesso!',
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Erro ao enviar convite';
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao enviar convite',
+        description: message,
         variant: 'destructive',
       });
     },
@@ -183,10 +188,11 @@ export const useCancelFamilyInvite = () => {
         description: 'Convite cancelado com sucesso!',
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Erro ao cancelar convite';
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao cancelar convite',
+        description: message,
         variant: 'destructive',
       });
     },
@@ -208,10 +214,11 @@ export const useAcceptFamilyInvite = () => {
         description: 'Convite aceite com sucesso! Bem-vindo à família!',
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Erro ao aceitar convite';
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao aceitar convite',
+        description: message,
         variant: 'destructive',
       });
     },
@@ -236,10 +243,11 @@ export const useShareGoalWithFamily = () => {
         description: 'Objetivo partilhado com a família com sucesso!',
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Erro ao partilhar objetivo';
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao partilhar objetivo',
+        description: message,
         variant: 'destructive',
       });
     },
@@ -259,10 +267,11 @@ export const useUnshareGoalFromFamily = () => {
         description: 'Partilha do objetivo removida com sucesso!',
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Erro ao remover partilha';
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao remover partilha',
+        description: message,
         variant: 'destructive',
       });
     },

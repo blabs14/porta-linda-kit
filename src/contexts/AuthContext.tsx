@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
@@ -6,9 +7,9 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<{ error: any } | void>;
-  register: (email: string, password: string) => Promise<{ error: any } | void>;
-  resetPassword: (email: string) => Promise<{ error: any } | void>;
+  login: (email: string, password: string) => Promise<{ error: unknown } | void>;
+  register: (email: string, password: string) => Promise<{ error: unknown } | void>;
+  resetPassword: (email: string) => Promise<{ error: unknown } | void>;
   logout: () => Promise<void>;
 }
 

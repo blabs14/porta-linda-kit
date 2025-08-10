@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getAccounts, createAccount, updateAccount } from '../services/accounts';
+import type { Account, AccountInsert, AccountUpdateExtended } from '../integrations/supabase/types';
 
 export const useAccounts = () => {
-  const [accounts, setAccounts] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetch = useCallback(async () => {
@@ -10,6 +11,8 @@ export const useAccounts = () => {
     const { data, error } = await getAccounts();
     if (!error && data) {
       setAccounts(data);
+    } else {
+      setAccounts([]);
     }
     setLoading(false);
   }, []);
@@ -18,13 +21,13 @@ export const useAccounts = () => {
     fetch();
   }, [fetch]);
 
-  const create = async (payload: { nome: string; tipo: string }, userId: string) => {
+  const create = async (payload: AccountInsert, userId: string) => {
     const res = await createAccount(payload, userId);
     if (!res.error) fetch();
     return res;
   };
 
-  const update = async (id: string, data: any, userId: string) => {
+  const update = async (id: string, data: AccountUpdateExtended, userId: string) => {
     const res = await updateAccount(id, data, userId);
     if (!res.error) fetch();
     return res;

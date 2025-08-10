@@ -4,6 +4,7 @@ import { getAccounts } from '../services/accounts';
 import { getTransactions } from '../services/transactions';
 import { getGoals } from '../services/goals';
 import { getCategories } from '../services/categories';
+import { getPersonalKPIs } from '../services/accounts';
 
 export const useDashboardData = () => {
   const { user } = useAuth();
@@ -16,12 +17,13 @@ export const useDashboardData = () => {
       }
 
       try {
-        // Buscar todos os dados necessários para o dashboard
-        const [accountsResult, transactionsResult, goalsResult, categoriesResult] = await Promise.all([
+        // Buscar dados principais e KPIs pessoais (RPC evita cálculos redundantes no frontend)
+        const [accountsResult, transactionsResult, goalsResult, categoriesResult, kpisResult] = await Promise.all([
           getAccounts(),
           getTransactions(),
           getGoals(user.id),
-          getCategories()
+          getCategories(),
+          getPersonalKPIs(),
         ]);
 
         if (accountsResult.error) throw accountsResult.error;
@@ -30,12 +32,19 @@ export const useDashboardData = () => {
         if (categoriesResult.error) throw categoriesResult.error;
 
         const accounts = accountsResult.data || [];
-        const transactions = transactionsResult.data || [];
+        const transactions = (transactionsResult.data || []).filter((tx) => tx.tipo !== 'transferencia');
         const goals = goalsResult.data || [];
         const categories = categoriesResult.data || [];
 
-        // Calcular estatísticas do dashboard
-        const totalBalance = accounts.reduce((sum, account) => sum + (Number(account.saldo) || 0), 0);
+        // KPIs do RPC
+        const rpc = (kpisResult?.data as Record<string, unknown>) || {};
+        const totalBalanceFromRPC = Number(rpc.total_balance) || 0;
+        const monthlySavingsFromRPC = Number(rpc.monthly_savings) || 0;
+
+        // Fallbacks locais
+        const totalBalanceLocal = accounts.reduce((sum, account) => sum + (Number(account.saldo) || 0), 0);
+        const totalBalance = totalBalanceFromRPC !== 0 ? totalBalanceFromRPC : totalBalanceLocal;
+
         const currentMonth = new Date().getMonth();
         const currentYear = new Date().getFullYear();
         const monthlyTransactions = transactions.filter((tx) => {
@@ -48,25 +57,30 @@ export const useDashboardData = () => {
         const monthlyExpenses = monthlyTransactions
           .filter((tx) => tx.tipo === 'despesa')
           .reduce((sum, tx) => sum + (Number(tx.valor) || 0), 0);
+
         const activeGoals = goals.filter((goal) => goal.ativa !== false).length;
         const totalGoals = goals.length;
+
+        // Top categorias por contagem (exclui transferências)
         const categoryCounts = transactions.reduce((acc, tx) => {
           const category = categories.find((cat) => cat.id === tx.categoria_id);
           const categoryName = category?.nome || 'Categoria Desconhecida';
-          acc[categoryName] = (acc[categoryName] || 0) + 1;
+          (acc as any)[categoryName] = ((acc as any)[categoryName] || 0) + 1;
           return acc;
-        }, {});
+        }, {} as Record<string, number>);
         const topCategories = Object.entries(categoryCounts)
-          .map(([categoryName, count]) => ({ category: categoryName, count: count }))
+          .map(([categoryName, count]) => ({ category: categoryName, count: count as number }))
           .sort((a, b) => b.count - a.count)
           .slice(0, 5);
+
         return {
           totalBalance,
           monthlyIncome,
           monthlyExpenses,
+          monthlySavings: monthlySavingsFromRPC !== 0 ? monthlySavingsFromRPC : (monthlyIncome - monthlyExpenses),
           activeGoals,
           totalGoals,
-          topCategories
+          topCategories,
         };
       } catch (error) {
         console.error('Erro no dashboard query:', error);

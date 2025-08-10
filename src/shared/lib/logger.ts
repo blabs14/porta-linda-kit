@@ -1,11 +1,26 @@
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
+function readModeFromImportMeta(): string | undefined {
+  try {
+    const meta = import.meta as unknown as { env?: { MODE?: string } };
+    return meta?.env?.MODE;
+  } catch {
+    return undefined;
+  }
+}
+
 function resolveLevel(): LogLevel {
-  const level = (import.meta as any)?.env?.MODE === 'development'
-    ? (typeof localStorage !== 'undefined' ? (localStorage.getItem('LOG_LEVEL') as LogLevel) : undefined)
-    : undefined;
-  const envLevel = (typeof process !== 'undefined' ? (process.env.LOG_LEVEL as LogLevel) : undefined) || level;
-  return envLevel || 'info';
+  let level: LogLevel | undefined;
+  const mode = readModeFromImportMeta();
+  if (mode === 'development' && typeof localStorage !== 'undefined') {
+    const stored = localStorage.getItem('LOG_LEVEL') as LogLevel | null;
+    level = stored ?? undefined;
+  }
+  if (!level && typeof process !== 'undefined' && typeof process.env !== 'undefined') {
+    const fromEnv = process.env.LOG_LEVEL as LogLevel | undefined;
+    level = fromEnv;
+  }
+  return level || 'info';
 }
 
 const currentLevel = resolveLevel();
@@ -14,7 +29,7 @@ const order: Record<Exclude<LogLevel, 'silent'>, number> = { debug: 10, info: 20
 function shouldLog(level: Exclude<LogLevel, 'silent'>): boolean {
   if (currentLevel === 'silent') return false;
   const threshold = order[(currentLevel as Exclude<LogLevel, 'silent'>)] ?? 20;
-  return order[level] >= threshold ? true : order[level] >= threshold; // ensure boolean
+  return order[level] >= threshold;
 }
 
 export const logger = {

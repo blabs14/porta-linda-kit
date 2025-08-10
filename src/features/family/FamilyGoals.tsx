@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useFamily } from './FamilyProvider';
+import { useFamily } from './FamilyContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Progress } from '../../components/ui/progress';
 import { Badge } from '../../components/ui/badge';
@@ -20,6 +20,9 @@ import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
 import { useAccountsWithBalances } from '../../hooks/useAccountsQuery';
 import { FormSubmitButton } from '../../components/ui/loading-button';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
+import { getAuditLogsByRow } from '../../services/audit_logs';
+type AuditEntry = { id: string; timestamp: string; operation: string; old_data?: any; new_data?: any; details?: any };
 
 const FamilyGoals: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -27,6 +30,7 @@ const FamilyGoals: React.FC = () => {
   const [showAllocationModal, setShowAllocationModal] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<any>(null);
   const [editingGoal, setEditingGoal] = useState<any>(null);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'progress' | 'warn' | 'done'>('all');
   
   // Estados para o modal de alocação personalizado
   const [selectedAccountId, setSelectedAccountId] = useState('');
@@ -245,9 +249,35 @@ const FamilyGoals: React.FC = () => {
         )}
       </div>
 
+      {/* Filtros rápidos */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <Label>Estado</Label>
+          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="progress">Em progresso</SelectItem>
+              <SelectItem value="warn">{'>'} 80%</SelectItem>
+              <SelectItem value="done">Concluídos</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       {/* Goals Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {familyGoals?.map((goal: any) => {
+        {familyGoals
+          ?.filter((g: any) => {
+            const pct = Number(g.progresso_percentual) || 0;
+            if (filterStatus === 'progress') return pct < 80;
+            if (filterStatus === 'warn') return pct >= 80 && pct < 100;
+            if (filterStatus === 'done') return pct >= 100;
+            return true;
+          })
+          .map((goal: any) => {
           const isCompleted = (goal.progresso_percentual || 0) >= 100;
           const remaining = Math.max((goal.valor_objetivo || 0) - (goal.total_alocado || 0), 0);
 
@@ -272,6 +302,9 @@ const FamilyGoals: React.FC = () => {
                         })()
                       )}
                       {goal.nome}
+                      {!isCompleted && (Number(goal.progresso_percentual) || 0) >= 80 && (
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">Quase</Badge>
+                      )}
                     </CardTitle>
                     <div className="flex gap-1">
                       {!isCompleted && canEdit('goal') ? (
@@ -387,6 +420,15 @@ const FamilyGoals: React.FC = () => {
                     </p>
                   </div>
                 )}
+                {/* Histórico de alterações (Audit Log) */}
+                <Accordion type="single" collapsible className="pt-2">
+                  <AccordionItem value={`hist-${goal.id}`}>
+                    <AccordionTrigger>Histórico</AccordionTrigger>
+                    <AccordionContent>
+                      <GoalAuditList goalId={goal.id} />
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </CardContent>
             </Card>
           );
@@ -531,4 +573,71 @@ const FamilyGoals: React.FC = () => {
   );
 };
 
-export default FamilyGoals; 
+export default FamilyGoals;
+
+const GoalAuditList: React.FC<{ goalId: string }> = ({ goalId }) => {
+  const [logs, setLogs] = React.useState<AuditEntry[]>([]);
+  const [loading, setLoading] = React.useState<boolean>(false);
+  const [loaded, setLoaded] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    let active = true;
+    const fetchLogs = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await getAuditLogsByRow('goals', goalId, 20);
+        if (!active) return;
+        if (error) {
+          console.debug('[GoalAuditList] erro a obter logs:', error);
+          setLogs([]);
+        } else {
+          setLogs(Array.isArray(data) ? (data as unknown as AuditEntry[]) : []);
+        }
+      } catch (e) {
+        console.debug('[GoalAuditList] exceção a obter logs:', e);
+        setLogs([]);
+      } finally {
+        if (active) {
+          setLoading(false);
+          setLoaded(true);
+        }
+      }
+    };
+    if (!loaded) fetchLogs();
+    return () => { active = false; };
+  }, [goalId, loaded]);
+
+  if (loading) return <div className="text-sm text-muted-foreground">A carregar histórico...</div>;
+  if (!logs.length) return <div className="text-sm text-muted-foreground">Sem histórico recente.</div>;
+
+  return (
+    <div className="space-y-2 text-sm">
+      {logs.map((log) => (
+        <div key={log.id} className="rounded border p-2">
+          <div className="flex items-center justify-between">
+            <span className="font-medium">{new Date(log.timestamp).toLocaleString('pt-PT')}</span>
+            <Badge variant="outline">{log.operation}</Badge>
+          </div>
+          {log.old_data && log.new_data && (
+            <div className="mt-1 text-xs text-muted-foreground">
+              <span>Mudanças principais: </span>
+              {typeof log.old_data === 'object' && typeof log.new_data === 'object' && (
+                <>
+                  {('valor_objetivo' in log.old_data || 'valor_objetivo' in log.new_data) && (
+                    <div>Objetivo: {(log.old_data?.valor_objetivo ?? '-') } → {(log.new_data?.valor_objetivo ?? '-')}</div>
+                  )}
+                  {('nome' in log.old_data || 'nome' in log.new_data) && (
+                    <div>Nome: {(log.old_data?.nome ?? '-') } → {(log.new_data?.nome ?? '-')}</div>
+                  )}
+                  {('status' in log.old_data || 'status' in log.new_data) && (
+                    <div>Status: {(log.old_data?.status ?? '-') } → {(log.new_data?.status ?? '-')}</div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}; 

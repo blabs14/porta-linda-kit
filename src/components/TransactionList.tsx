@@ -18,11 +18,21 @@ import { ConfirmationDialog } from './ui/confirmation-dialog';
 import { useToast } from '../hooks/use-toast';
 import { Trash2, Edit, Eye, ChevronLeft, ChevronRight, Search, Filter, Calendar, ChevronDown } from 'lucide-react';
 
+type TransactionItem = {
+  id: string;
+  account_id: string;
+  categoria_id: string;
+  tipo: string;
+  valor: number;
+  descricao?: string;
+  data: string;
+};
+
 const TransactionList = ({ 
   onEdit, 
   onMetricsUpdate 
 }: { 
-  onEdit?: (tx: any) => void;
+  onEdit?: (tx: TransactionItem) => void;
   onMetricsUpdate?: (metrics: {
     totalIncome: number;
     totalExpenses: number;
@@ -102,13 +112,14 @@ const TransactionList = ({
           const endOfYear = new Date(today.getFullYear(), 11, 31, 23, 59, 59, 999);
           
           switch (dateFilter) {
-            case 'today':
+            case 'today': {
               const startOfDay = new Date(today);
               startOfDay.setHours(0, 0, 0, 0);
               const endOfDay = new Date(today);
               endOfDay.setHours(23, 59, 59, 999);
               matchesDate = transactionDate >= startOfDay && transactionDate <= endOfDay;
               break;
+            }
             case 'this-week':
               matchesDate = transactionDate >= startOfWeek && transactionDate <= endOfWeek;
               break;
@@ -118,7 +129,7 @@ const TransactionList = ({
             case 'this-year':
               matchesDate = transactionDate >= startOfYear && transactionDate <= endOfYear;
               break;
-            case 'last-week':
+            case 'last-week': {
               const lastWeekStart = new Date(startOfWeek);
               lastWeekStart.setDate(startOfWeek.getDate() - 7);
               const lastWeekEnd = new Date(startOfWeek);
@@ -126,11 +137,13 @@ const TransactionList = ({
               lastWeekEnd.setHours(23, 59, 59, 999);
               matchesDate = transactionDate >= lastWeekStart && transactionDate <= lastWeekEnd;
               break;
-            case 'last-month':
+            }
+            case 'last-month': {
               const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
               const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
               matchesDate = transactionDate >= lastMonthStart && transactionDate <= lastMonthEnd;
               break;
+            }
           }
         }
       }
@@ -225,25 +238,28 @@ const TransactionList = ({
     switch (dateFilter) {
       case 'today':
         return 'Hoje';
-      case 'this-week':
+      case 'this-week': {
         const startOfWeek = new Date(today);
         startOfWeek.setDate(today.getDate() - today.getDay());
         const endOfWeek = new Date(startOfWeek);
         endOfWeek.setDate(startOfWeek.getDate() + 6);
         return `${startOfWeek.toLocaleDateString('pt-PT')} - ${endOfWeek.toLocaleDateString('pt-PT')}`;
+      }
       case 'this-month':
         return `${today.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })}`;
       case 'this-year':
         return `${today.getFullYear()}`;
-      case 'last-week':
+      case 'last-week': {
         const lastWeekStart = new Date(today);
         lastWeekStart.setDate(today.getDate() - today.getDay() - 7);
         const lastWeekEnd = new Date(lastWeekStart);
         lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
         return `${lastWeekStart.toLocaleDateString('pt-PT')} - ${lastWeekEnd.toLocaleDateString('pt-PT')}`;
-      case 'last-month':
+      }
+      case 'last-month': {
         const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
         return `${lastMonth.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })}`;
+      }
       default:
         return 'Todas as datas';
     }

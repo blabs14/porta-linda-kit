@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePersonal } from './PersonalProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Progress } from '../../components/ui/progress';
@@ -7,7 +7,7 @@ import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Target, Plus, Edit, Trash2, Calendar, CheckCircle, Trophy } from 'lucide-react';
 import { LoadingSpinner } from '../../components/ui/loading-states';
-import { useGoals, useGoalProgress } from '../../hooks/useGoalsQuery';
+import { useGoals, useGoalProgress, useCreateGoal, useUpdateGoal, useDeleteGoal } from '../../hooks/useGoalsQuery';
 import { useToast } from '../../hooks/use-toast';
 import { formatCurrency } from '../../lib/utils';
 import { GoalAllocationModal } from '../../components/GoalAllocationModal';
@@ -16,6 +16,11 @@ import { GoalProgress } from '../../integrations/supabase/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
+import { getAuditLogsByRow } from '../../services/audit_logs';
+import { Label } from '../../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+type AuditEntry = { id: string; timestamp: string; operation: string; old_data?: any; new_data?: any; details?: any };
 
 const PersonalGoals: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -23,9 +28,14 @@ const PersonalGoals: React.FC = () => {
   const [showAllocationModal, setShowAllocationModal] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<GoalProgress | null>(null);
   const [editingGoal, setEditingGoal] = useState<any>(null);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'progress' | 'warn' | 'done'>('all');
   
   // Usar os hooks robustos que já funcionam
-  const { goals, isLoading, error, refetch, createGoal, updateGoal, deleteGoal } = useGoals();
+  const goalsQuery = useGoals();
+  const { data: goals = [], isLoading, error, refetch } = goalsQuery as any;
+  const createGoalMutation = useCreateGoal();
+  const updateGoalMutation = useUpdateGoal();
+  const deleteGoalMutation = useDeleteGoal();
   const { data: goalProgress = [] } = useGoalProgress();
   const { toast } = useToast();
   const confirmation = useConfirmation();
@@ -88,22 +98,13 @@ const PersonalGoals: React.FC = () => {
       },
       async () => {
         try {
-          const result = await deleteGoal(goalId);
+          const result = await deleteGoalMutation.mutateAsync(goalId);
           
-          if (result.data) {
-            const { goal_name, total_allocated, goal_progress, restored_to_account } = result.data;
-            
-            if (restored_to_account) {
-              toast({
-                title: 'Objetivo eliminado',
-                description: `O objetivo "${goal_name}" foi eliminado. ${formatCurrency(total_allocated)} foi restituído à conta original.`,
-              });
-            } else {
-              toast({
-                title: 'Objetivo eliminado',
-                description: `O objetivo "${goal_name}" foi eliminado. ${formatCurrency(total_allocated)} foi mantido na conta objetivos.`,
-              });
-            }
+          if (result) {
+            toast({
+              title: 'Objetivo eliminado',
+              description: `O objetivo foi eliminado com sucesso.`,
+            });
           }
         } catch (error) {
           toast({
@@ -161,9 +162,35 @@ const PersonalGoals: React.FC = () => {
         </Button>
       </div>
 
+      {/* Filtros rápidos */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <Label>Estado</Label>
+          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="progress">Em progresso</SelectItem>
+              <SelectItem value="warn">{'>'} 80%</SelectItem>
+              <SelectItem value="done">Concluídos</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       {/* Goals Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {goalProgress.map((goal) => {
+        {goalProgress
+          .filter((g) => {
+            const pct = Number(g.progresso_percentual) || 0;
+            if (filterStatus === 'progress') return pct < 80;
+            if (filterStatus === 'warn') return pct >= 80 && pct < 100;
+            if (filterStatus === 'done') return pct >= 100;
+            return true;
+          })
+          .map((goal) => {
           const isCompleted = goal.progresso_percentual >= 100;
           const remaining = Math.max(goal.valor_objetivo - goal.total_alocado, 0);
 
@@ -184,6 +211,9 @@ const PersonalGoals: React.FC = () => {
                         <Target className="h-5 w-5 text-blue-600" />
                       )}
                       {goal.nome}
+                      {!isCompleted && goal.progresso_percentual >= 80 && (
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">Quase</Badge>
+                      )}
                     </CardTitle>
                     <div className="flex gap-1">
                       {!isCompleted ? (
@@ -283,6 +313,16 @@ const PersonalGoals: React.FC = () => {
                     </span>
                   </div>
                 </div>
+
+                {/* Histórico de alterações (Audit Log) */}
+                <Accordion type="single" collapsible className="pt-2">
+                  <AccordionItem value={`hist-${goal.goal_id}`}>
+                    <AccordionTrigger>Histórico</AccordionTrigger>
+                    <AccordionContent>
+                      <PersonalGoalAuditList goalId={goal.goal_id} />
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
 
                 {isCompleted && (
                   <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
@@ -387,4 +427,56 @@ const PersonalGoals: React.FC = () => {
   );
 };
 
-export default PersonalGoals; 
+export default PersonalGoals;
+
+// Histórico de alterações para Objetivo Pessoal
+const PersonalGoalAuditList: React.FC<{ goalId: string }> = ({ goalId }) => {
+  const [entries, setEntries] = useState<AuditEntry[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await getAuditLogsByRow('goals', goalId, 20);
+        if (!cancelled) {
+          if (!error && Array.isArray(data)) setEntries(data as unknown as AuditEntry[]);
+          else setEntries([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [goalId]);
+
+  if (loading && !entries) return <div className="text-sm text-muted-foreground">A carregar histórico…</div>;
+  if (!entries || entries.length === 0) return <div className="text-sm text-muted-foreground">Sem alterações registadas.</div>;
+
+  return (
+    <div className="space-y-2">
+      {entries.map((e) => {
+        const oldName = e.old_data?.nome; const newName = e.new_data?.nome;
+        const oldTarget = e.old_data?.valor_objetivo; const newTarget = e.new_data?.valor_objetivo;
+        return (
+          <div key={e.id} className="text-xs border rounded p-2">
+            <div className="flex justify-between">
+              <span className="font-medium">{new Date(e.timestamp).toLocaleString('pt-PT')}</span>
+              <span className="uppercase text-muted-foreground">{e.operation}</span>
+            </div>
+            <div className="mt-1">
+              {oldName !== newName && (
+                <div>Nome: {oldName ?? '—'} → {newName ?? '—'}</div>
+              )}
+              {oldTarget !== newTarget && (
+                <div>Valor objetivo: {oldTarget ?? '—'} → {newTarget ?? '—'}</div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}; 

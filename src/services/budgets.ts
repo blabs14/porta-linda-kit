@@ -5,7 +5,7 @@ import {
   BudgetUpdate 
 } from '../integrations/supabase/types';
 
-export const getBudgets = async (): Promise<{ data: Budget[] | null; error: any }> => {
+export const getBudgets = async (): Promise<{ data: Budget[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('budgets')
@@ -18,7 +18,7 @@ export const getBudgets = async (): Promise<{ data: Budget[] | null; error: any 
   }
 };
 
-export const getBudget = async (id: string): Promise<{ data: Budget | null; error: any }> => {
+export const getBudget = async (id: string): Promise<{ data: Budget | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('budgets')
@@ -32,7 +32,7 @@ export const getBudget = async (id: string): Promise<{ data: Budget | null; erro
   }
 };
 
-export const createBudget = async (budgetData: BudgetInsert, userId: string): Promise<{ data: Budget | null; error: any }> => {
+export const createBudget = async (budgetData: BudgetInsert, userId: string): Promise<{ data: Budget | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('budgets')
@@ -46,7 +46,7 @@ export const createBudget = async (budgetData: BudgetInsert, userId: string): Pr
   }
 };
 
-export const updateBudget = async (id: string, updates: BudgetUpdate, userId: string): Promise<{ data: Budget | null; error: any }> => {
+export const updateBudget = async (id: string, updates: BudgetUpdate, userId: string): Promise<{ data: Budget | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('budgets')
@@ -62,7 +62,7 @@ export const updateBudget = async (id: string, updates: BudgetUpdate, userId: st
   }
 };
 
-export const deleteBudget = async (id: string, userId: string): Promise<{ data: boolean | null; error: any }> => {
+export const deleteBudget = async (id: string, userId: string): Promise<{ data: boolean | null; error: unknown }> => {
   try {
     const { error } = await supabase
       .from('budgets')
@@ -76,17 +76,31 @@ export const deleteBudget = async (id: string, userId: string): Promise<{ data: 
   }
 };
 
-export const getPersonalBudgets = async (): Promise<{ data: Budget[] | null; error: any }> => {
+// Tipo do RPC get_personal_budgets
+export type PersonalBudgetRPC = {
+  id: string;
+  user_id: string;
+  categoria_id: string;
+  categoria_nome: string;
+  categoria_cor: string;
+  mes: string;
+  valor_orcamento: number;
+  valor_gasto: number;
+  valor_restante: number;
+  progresso_percentual: number;
+};
+
+export const getPersonalBudgets = async (): Promise<{ data: PersonalBudgetRPC[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase.rpc('get_personal_budgets');
 
-    return { data, error };
+    return { data: (data as PersonalBudgetRPC[]) || null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const getFamilyBudgets = async (): Promise<{ data: Budget[] | null; error: any }> => {
+export const getFamilyBudgets = async (): Promise<{ data: Budget[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('budgets')

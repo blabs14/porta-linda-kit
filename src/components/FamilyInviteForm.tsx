@@ -3,7 +3,7 @@ import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { FormSubmitButton } from './ui/loading-button';
 import { FormTransition } from './ui/transition-wrapper';
-import { useFamily } from '../features/family/FamilyProvider';
+import { useFamily } from '../features/family/FamilyContext';
 import { useToast } from '../hooks/use-toast';
 
 interface FamilyInviteFormProps {

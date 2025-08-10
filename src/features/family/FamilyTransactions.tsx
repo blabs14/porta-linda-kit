@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useFamily } from './FamilyProvider';
+import { useFamily } from './FamilyContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -21,21 +21,31 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { LoadingSpinner } from '../../components/ui/loading-states';
-import { useTransactions } from '../../hooks/useTransactionsQuery';
-import { useAccounts } from '../../hooks/useAccountsQuery';
-import { useCategories } from '../../hooks/useCategoriesQuery';
+import { useCategoriesDomain } from '../../hooks/useCategoriesQuery';
 import { useReferenceData } from '../../hooks/useCache';
 import { useAuth } from '../../contexts/AuthContext';
-import { exportReport } from '../../services/exportService';
-import { formatCurrency } from '../../lib/utils';
+// exportReport será carregado dinamicamente no ponto de uso para reduzir bundle
 import { useToast } from '../../hooks/use-toast';
 import TransactionForm from '../../components/TransactionForm';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
 
+// Tipos locais
+type TransactionItem = {
+  id: string;
+  account_id: string;
+  categoria_id: string;
+  tipo: 'receita' | 'despesa' | 'transferencia';
+  valor: number;
+  descricao?: string | null;
+  data: string;
+};
+
+type TransactionFormPayload = TransactionItem & { user_id: string };
+
 const FamilyTransactions: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
-  const [editTx, setEditTx] = useState<any | null>(null);
+  const [editTx, setEditTx] = useState<TransactionItem | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   
@@ -48,7 +58,6 @@ const FamilyTransactions: React.FC = () => {
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // Usar o contexto familiar em vez do pessoal
   const { 
     familyTransactions, 
     familyAccounts,
@@ -61,7 +70,7 @@ const FamilyTransactions: React.FC = () => {
     refetchAll 
   } = useFamily();
   
-  const { data: categories = [] } = useCategories();
+  const { data: categories = [] } = useCategoriesDomain();
   const { accounts: refAccounts, categories: refCategories } = useReferenceData();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -82,7 +91,7 @@ const FamilyTransactions: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleEdit = (tx: any) => {
+  const handleEdit = (tx: TransactionItem) => {
     setEditTx(tx);
     setModalOpen(true);
   };
@@ -92,16 +101,17 @@ const FamilyTransactions: React.FC = () => {
     setEditTx(null);
   };
 
-  const handleCreateSuccess = async (data: any) => {
+  const handleCreateSuccess = async (data?: TransactionFormPayload) => {
     try {
-      await createFamilyTransaction(data);
+      if (!data) return;
+      await createFamilyTransaction({ ...data, family_id: (familyAccounts?.[0] as { family_id?: string })?.family_id });
       handleClose();
       refetchAll();
       toast({
         title: 'Transação criada',
         description: 'Transação familiar criada com sucesso!',
       });
-    } catch (error) {
+    } catch {
       toast({
         title: 'Erro',
         description: 'Erro ao criar transação familiar',
@@ -110,10 +120,10 @@ const FamilyTransactions: React.FC = () => {
     }
   };
 
-  const handleEditSuccess = async (data: any) => {
+  const handleEditSuccess = async (data?: Partial<TransactionItem>) => {
     try {
-      if (editTx) {
-        await updateFamilyTransaction(editTx.id, data);
+      if (editTx && data) {
+        await updateFamilyTransaction(editTx.id, data as Partial<TransactionItem>);
         handleClose();
         refetchAll();
         toast({
@@ -121,7 +131,7 @@ const FamilyTransactions: React.FC = () => {
           description: 'Transação familiar atualizada com sucesso!',
         });
       }
-    } catch (error) {
+    } catch {
       toast({
         title: 'Erro',
         description: 'Erro ao atualizar transação familiar',
@@ -147,7 +157,7 @@ const FamilyTransactions: React.FC = () => {
             title: 'Transação eliminada',
             description: 'Transação familiar eliminada com sucesso!',
           });
-        } catch (error) {
+        } catch {
           toast({
             title: 'Erro',
             description: 'Erro ao eliminar transação familiar',
@@ -183,12 +193,12 @@ const FamilyTransactions: React.FC = () => {
       const endDate = new Date().toISOString().split('T')[0];
       const startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+      const { exportReport } = await import('../../services/exportService');
       const { blob, filename } = await exportReport(user.id, {
         format: 'excel',
         dateRange: { start: startDate, end: endDate },
       });
 
-      // Criar link de download
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -202,11 +212,11 @@ const FamilyTransactions: React.FC = () => {
         title: 'Exportação concluída',
         description: `Relatório familiar exportado como ${filename}`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro na exportação:', error);
       toast({
         title: 'Erro na exportação',
-        description: error.message || 'Ocorreu um erro ao exportar o relatório familiar',
+        description: error instanceof Error ? error.message : 'Ocorreu um erro ao exportar o relatório familiar',
         variant: 'destructive',
       });
     } finally {
@@ -223,22 +233,21 @@ const FamilyTransactions: React.FC = () => {
   });
 
   // Calcular métricas totais (sem filtros)
-  const totalIncome = familyTransactions
+  const totalIncome = (familyTransactions as TransactionItem[])
     ?.filter(t => t.tipo === 'receita')
     .reduce((sum, t) => sum + t.valor, 0) || 0;
 
-  const totalExpenses = familyTransactions
+  const totalExpenses = (familyTransactions as TransactionItem[])
     ?.filter(t => t.tipo === 'despesa')
     .reduce((sum, t) => sum + t.valor, 0) || 0;
 
   const netBalance = totalIncome - totalExpenses;
-  const transactionCount = familyTransactions?.length || 0;
+  const transactionCount = (familyTransactions as TransactionItem[])?.length || 0;
 
   // Filtrar transações
   const filteredTransactions = React.useMemo(() => {
-    if (!familyTransactions) return [];
-    
-    return familyTransactions.filter(transaction => {
+    const list = (familyTransactions as TransactionItem[]) || [];
+    return list.filter(transaction => {
       const matchesSearch = !searchTerm || 
         (transaction.descricao && transaction.descricao.toLowerCase().includes(searchTerm.toLowerCase()));
       
@@ -258,19 +267,17 @@ const FamilyTransactions: React.FC = () => {
         const today = new Date();
         
         if (dateRange.start && dateRange.end) {
-          // Filtro por intervalo de datas personalizado
           const startDate = new Date(dateRange.start);
           const endDate = new Date(dateRange.end);
           endDate.setHours(23, 59, 59, 999);
           matchesDate = transactionDate >= startDate && transactionDate <= endDate;
         } else {
-          // Filtros predefinidos
           const startOfWeek = new Date(today);
-          startOfWeek.setDate(today.getDate() - today.getDay()); // Domingo
+          startOfWeek.setDate(today.getDate() - today.getDay());
           startOfWeek.setHours(0, 0, 0, 0);
           
           const endOfWeek = new Date(startOfWeek);
-          endOfWeek.setDate(startOfWeek.getDate() + 6); // Sábado
+          endOfWeek.setDate(startOfWeek.getDate() + 6);
           endOfWeek.setHours(23, 59, 59, 999);
           
           const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -280,13 +287,14 @@ const FamilyTransactions: React.FC = () => {
           const endOfYear = new Date(today.getFullYear(), 11, 31, 23, 59, 59, 999);
           
           switch (dateFilter) {
-            case 'today':
+            case 'today': {
               const startOfDay = new Date(today);
               startOfDay.setHours(0, 0, 0, 0);
               const endOfDay = new Date(today);
               endOfDay.setHours(23, 59, 59, 999);
               matchesDate = transactionDate >= startOfDay && transactionDate <= endOfDay;
               break;
+            }
             case 'this-week':
               matchesDate = transactionDate >= startOfWeek && transactionDate <= endOfWeek;
               break;
@@ -296,7 +304,7 @@ const FamilyTransactions: React.FC = () => {
             case 'this-year':
               matchesDate = transactionDate >= startOfYear && transactionDate <= endOfYear;
               break;
-            case 'last-week':
+            case 'last-week': {
               const lastWeekStart = new Date(startOfWeek);
               lastWeekStart.setDate(startOfWeek.getDate() - 7);
               const lastWeekEnd = new Date(startOfWeek);
@@ -304,11 +312,13 @@ const FamilyTransactions: React.FC = () => {
               lastWeekEnd.setHours(23, 59, 59, 999);
               matchesDate = transactionDate >= lastWeekStart && transactionDate <= lastWeekEnd;
               break;
-            case 'last-month':
+            }
+            case 'last-month': {
               const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
               const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
               matchesDate = transactionDate >= lastMonthStart && transactionDate <= lastMonthEnd;
               break;
+            }
           }
         }
       }
@@ -541,7 +551,7 @@ const FamilyTransactions: React.FC = () => {
                 <strong>Filtros ativos:</strong> 
                 {searchTerm && ` Pesquisa: "${searchTerm}"`}
                 {selectedAccount !== 'all' && ` Conta: ${familyAccounts?.find(a => a.account_id === selectedAccount)?.nome}`}
-                {selectedCategory !== 'all' && ` Categoria: ${categories.find(c => c.id === selectedCategory)?.nome}`}
+                {selectedCategory !== 'all' && ` Categoria: ${categoriesData.find(c => c.id === selectedCategory)?.nome}`}
                 {selectedType !== 'all' && ` Tipo: ${selectedType === 'receita' ? 'Receitas' : 'Despesas'}`}
                 {dateFilter !== 'all' && ` Data: ${getDateFilterText()}`}
               </p>
@@ -610,7 +620,7 @@ const FamilyTransactions: React.FC = () => {
                         <div>
                           <p className="font-medium">{transaction.descricao || 'Transação'}</p>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <span>{categories.find(c => c.id === transaction.categoria_id)?.nome || 'Sem categoria'}</span>
+                            <span>{categoriesData.find(c => c.id === transaction.categoria_id)?.nome || 'Sem categoria'}</span>
                             <span>•</span>
                             <span>{familyAccounts?.find(a => a.account_id === transaction.account_id)?.nome || 'Conta'}</span>
                             <span>•</span>
@@ -671,9 +681,16 @@ const FamilyTransactions: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <TransactionForm 
-            initialData={editTx || undefined} 
-            onSuccess={editTx ? handleEditSuccess : handleCreateSuccess} 
+            initialData={editTx ? { ...editTx, descricao: editTx.descricao || '' } : undefined} 
+            onSuccess={(payload) => {
+              if (editTx) {
+                void handleEditSuccess(payload as Partial<TransactionItem>);
+              } else {
+                void handleCreateSuccess(payload as TransactionFormPayload);
+              }
+            }} 
             onCancel={handleClose} 
+            submitMode={'external'}
           />
         </DialogContent>
       </Dialog>

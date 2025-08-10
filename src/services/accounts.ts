@@ -8,8 +8,9 @@ import {
   AccountBalance,
   AccountReserved
 } from '../integrations/supabase/types';
+import { AccountDomain, AccountWithBalancesDomain, mapAccountRowToDomain, mapAccountWithBalancesToDomain } from '../shared/types/accounts';
 
-export const getAccounts = async (userId?: string): Promise<{ data: Account[] | null; error: any }> => {
+export const getAccounts = async (userId?: string): Promise<{ data: Account[] | null; error: unknown }> => {
   try {
     let query = supabase
       .from('accounts')
@@ -21,13 +22,18 @@ export const getAccounts = async (userId?: string): Promise<{ data: Account[] | 
     }
 
     const { data, error } = await query;
-    return { data, error };
+    return { data: (data as Account[]) ?? null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const getAccount = async (id: string): Promise<{ data: Account | null; error: any }> => {
+export const getAccountsDomain = async (userId?: string): Promise<{ data: AccountDomain[]; error: unknown }> => {
+  const { data, error } = await getAccounts(userId);
+  return { data: (data || []).map(mapAccountRowToDomain), error };
+};
+
+export const getAccount = async (id: string): Promise<{ data: Account | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('accounts')
@@ -35,20 +41,32 @@ export const getAccount = async (id: string): Promise<{ data: Account | null; er
       .eq('id', id)
       .single();
 
-    return { data, error };
+    return { data: data as Account | null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const createAccount = async (accountData: AccountInsert, userId?: string): Promise<{ data: Account | null; error: any }> => {
+export const createAccount = async (accountData: AccountInsert, userId?: string): Promise<{ data: Account | null; error: unknown }> => {
   try {
-    const resolvedUserId = userId ?? (accountData as any)?.user_id;
+    let resolvedUserId: string | undefined = (userId && userId.trim() !== '') ? userId : (accountData.user_id as string | undefined);
+    if (!resolvedUserId) {
+      try {
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (!authError) {
+          resolvedUserId = authData?.user?.id as string | undefined;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    if (!resolvedUserId) {
+      return { data: null, error: { message: 'Utilizador não autenticado' } };
+    }
 
-    // Ajustar saldo inicial para cartões de crédito
-    let adjustedData = { ...accountData } as any;
+    let adjustedData: AccountInsert = { ...accountData };
     if ((adjustedData.tipo === 'cartão de crédito') && ((adjustedData.saldo || 0) > 0)) {
-      adjustedData = { ...adjustedData, saldo: 0 }; // Cartões de crédito começam com saldo 0
+      adjustedData = { ...adjustedData, saldo: 0 };
     }
 
     const { data, error } = await supabase
@@ -61,137 +79,147 @@ export const createAccount = async (accountData: AccountInsert, userId?: string)
       return { data: null, error };
     }
 
-    // Aplicar lógica específica para cartões de crédito
-    if ((data as any) && (data as any).tipo === 'cartão de crédito') {
-      const { error: creditCardError } = await supabase.rpc('handle_credit_card_account', {
-        p_account_id: (data as any).id,
-        p_user_id: resolvedUserId,
-        p_operation: 'create'
-      });
+    const created = data as Account;
 
-      if (creditCardError) {
-        console.warn('Aviso ao aplicar lógica de cartão de crédito:', creditCardError);
+    // Pós-criação: aplicar lógicas específicas por tipo
+    if (created) {
+      if (created.tipo === 'cartão de crédito') {
+        const { error: creditCardError } = await supabase.rpc('handle_credit_card_account', {
+          p_account_id: created.id,
+          p_user_id: resolvedUserId,
+          p_operation: 'create'
+        });
+        if (creditCardError) {
+          console.warn('Aviso ao aplicar lógica de cartão de crédito:', creditCardError);
+        }
+      } else {
+        // Para contas normais: se foi fornecido saldo inicial > 0, criar transação de ajuste até ao alvo
+        const initialBalance = Number(accountData.saldo) || 0;
+        if (initialBalance !== 0) {
+          const { error: setErr } = await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> }).rpc('set_regular_account_balance', {
+            p_user_id: resolvedUserId,
+            p_account_id: created.id,
+            p_new_balance: initialBalance
+          });
+          if (setErr) {
+            console.warn('Aviso ao definir saldo inicial:', setErr);
+          }
+        }
       }
     }
 
-    return { data: data as any, error };
+    // Recarregar a conta atualizada para refletir o saldo calculado
+    const { data: refreshed, error: fetchErr } = await supabase
+      .from('accounts')
+      .select('*')
+      .eq('id', (created as Account).id)
+      .single();
+
+    return { data: (refreshed as Account) || created, error: fetchErr || null };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const updateAccount = async (id: string, updates: AccountUpdateExtended, userId?: string): Promise<{ data: Account | null; error: any }> => {
+export const updateAccount = async (id: string, updates: AccountUpdateExtended, userId?: string): Promise<{ data: Account | null; error: unknown }> => {
   try {
-    const resolvedUserId = userId;
-    console.log('[updateAccount] Starting update for account:', id);
-    console.log('[updateAccount] Updates:', updates);
+    let resolvedUserId: string | undefined = userId;
+    if (!resolvedUserId) {
+      try {
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (!authError) {
+          resolvedUserId = authData?.user?.id as string | undefined;
+        }
+      } catch {
+        // ignore, ficará undefined se não obtivermos user
+      }
+    }
+    if (!resolvedUserId) {
+      return { data: null, error: { message: 'Utilizador não autenticado' } };
+    }
     
-    // Se apenas nome e tipo estão sendo atualizados, fazer update simples
-    if (Object.keys(updates).length === 2 && (updates as any).nome !== undefined && (updates as any).tipo !== undefined) {
-      console.log('[updateAccount] Simple update - only nome and tipo');
+    const onlyNameAndType = ('nome' in updates && 'tipo' in updates) &&
+      Object.keys(updates).every((k) => k === 'nome' || k === 'tipo');
+
+    if (onlyNameAndType) {
       let query = supabase
         .from('accounts')
-        .update({ nome: (updates as any).nome, tipo: (updates as any).tipo })
+        .update({ nome: updates.nome as AccountUpdate['nome'], tipo: updates.tipo as AccountUpdate['tipo'] })
         .eq('id', id);
       if (resolvedUserId) query = query.eq('user_id', resolvedUserId);
       const { data, error } = await query
         .select()
         .single();
 
-      console.log('[updateAccount] Simple update result:', { data, error });
-      return { data: data as any, error };
+      return { data: data as Account, error };
     }
     
-    // Para atualizações que incluem saldos, usar a lógica original
-    let otherUpdates = updates as any;
+    const otherUpdates: Partial<AccountUpdate> = {};
     let needsAdjustmentTransaction = false;
     let adjustmentAmount = 0;
 
-    // Processar saldoAtual se fornecido
-    if ((updates as any).saldoAtual !== undefined) {
-      console.log('[updateAccount] Processing saldoAtual:', (updates as any).saldoAtual);
-      
-      // Buscar o tipo da conta
+    if (updates.saldoAtual !== undefined) {
       const { data: accountData } = await supabase
         .from('accounts')
         .select('tipo')
         .eq('id', id)
         .single();
 
-      // Lógica especializada para cartões de crédito
-      if ((accountData as any)?.tipo === 'cartão de crédito') {
-        console.log('[updateAccount] Using manage_credit_card_balance RPC');
-        
-        // Para cartões de crédito, usar função especializada
-        const { data: result, error: rpcError } = await supabase.rpc('manage_credit_card_balance', {
+      if ((accountData as { tipo?: string } | null)?.tipo === 'cartão de crédito') {
+        const { error: rpcError } = await supabase.rpc('manage_credit_card_balance', {
           p_user_id: resolvedUserId,
           p_account_id: id,
-          p_new_balance: (updates as any).saldoAtual || 0
+          p_new_balance: updates.saldoAtual || 0
         });
 
-        console.log('[updateAccount] RPC result:', result);
-
         if (rpcError) {
-          console.error('[updateAccount] RPC error:', rpcError);
           return { data: null, error: rpcError };
         }
 
-        // Buscar a conta atualizada
         const { data: updatedAccount, error: fetchError } = await supabase
           .from('accounts')
           .select('*')
           .eq('id', id)
           .single();
 
-        console.log('[updateAccount] Updated account:', updatedAccount);
-        console.log('[updateAccount] Fetch error:', fetchError);
-
         if (fetchError) {
           return { data: null, error: fetchError };
         }
 
-        console.log('[updateAccount] Returning updated account');
-        return { data: updatedAccount as any, error: null };
+        return { data: updatedAccount as Account, error: null };
       }
-      
-      // Para outras contas, usar lógica normal
-      const { data: currentBalanceData, error: balanceError } = await supabase
-        .from('account_balances')
-        .select('saldo_atual')
-        .eq('account_id', id)
-        .single();
-
-      if (balanceError) {
-        return { data: null, error: balanceError };
+      // Para contas não-cartão: definir diretamente o saldo para o valor indicado (sem cálculos)
+      const newBalance = updates.saldoAtual || 0;
+      // Atualizar nome/tipo, se necessário
+      if (typeof updates.nome === 'string' || typeof updates.tipo === 'string') {
+        const baseUpdates: Partial<AccountUpdate> = {};
+        if (typeof updates.nome === 'string') baseUpdates.nome = updates.nome as AccountUpdate['nome'];
+        if (typeof updates.tipo === 'string') baseUpdates.tipo = updates.tipo as AccountUpdate['tipo'];
+        let q = supabase.from('accounts').update(baseUpdates).eq('id', id);
+        if (resolvedUserId) q = q.eq('user_id', resolvedUserId);
+        const { error: baseErr } = await q.select('id').single();
+        if (baseErr) return { data: null, error: baseErr };
       }
-
-      const currentBalance = (currentBalanceData as any)?.saldo_atual || 0;
-      const newBalance = (updates as any).saldoAtual || 0;
-      const difference = newBalance - currentBalance;
-
-      if (difference !== 0) {
-        needsAdjustmentTransaction = true;
-        adjustmentAmount = difference;
+      // Definir saldo via função robusta
+      const { error: setErr } = await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> }).rpc('set_regular_account_balance', {
+        p_user_id: resolvedUserId,
+        p_account_id: id,
+        p_new_balance: newBalance
+      });
+      if (setErr) {
+        return { data: null, error: setErr };
       }
-
-      // Remover saldoAtual dos updates pois será tratado via transação
-      const { saldoAtual, ...rest } = updates as any;
-      otherUpdates = rest;
+      const { data: updData2, error: fetchErr2 } = await supabase.from('accounts').select('*').eq('id', id).single();
+      return { data: updData2 as Account, error: fetchErr2 };
     }
 
-    // Processar ajusteSaldo se fornecido
-    if ((updates as any).ajusteSaldo !== undefined && (updates as any).ajusteSaldo !== 0) {
+    if (updates.ajusteSaldo !== undefined && updates.ajusteSaldo !== 0) {
       needsAdjustmentTransaction = true;
-      adjustmentAmount = (updates as any).ajusteSaldo;
-      
-      // Remover ajusteSaldo dos updates pois será tratado via transação
-      const { ajusteSaldo, ...rest } = otherUpdates as any;
-      otherUpdates = rest;
+      adjustmentAmount = updates.ajusteSaldo;
+      // não propagar ajusteSaldo para o PATCH
     }
 
-    // Se o saldo está sendo alterado, precisamos criar uma transação de ajuste
-    if ((updates as any).saldo !== undefined) {
-      // Buscar o saldo atual calculado da conta
+    if ((updates as Partial<AccountUpdate>).saldo !== undefined) {
       const { data: currentBalanceData, error: balanceError } = await supabase
         .from('account_balances')
         .select('saldo_atual')
@@ -202,93 +230,104 @@ export const updateAccount = async (id: string, updates: AccountUpdateExtended, 
         return { data: null, error: balanceError };
       }
 
-      // Calcular a diferença entre o novo saldo e o saldo atual calculado
-      const currentBalance = (currentBalanceData as any)?.saldo_atual || 0;
-      const newBalance = (updates as any).saldo || 0;
+      const currentBalance = (currentBalanceData as { saldo_atual?: number } | null)?.saldo_atual || 0;
+      const newBalance = (updates as Partial<AccountUpdate>).saldo || 0;
       const difference = newBalance - currentBalance;
 
-      // Se há diferença, criar uma transação de ajuste
       if (difference !== 0) {
         needsAdjustmentTransaction = true;
         adjustmentAmount = difference;
       }
-
-      // Remover o saldo dos updates pois agora usamos transações
-      const { saldo, ...rest } = otherUpdates as any;
-      otherUpdates = rest;
+      // se for necessário atualizar coluna saldo diretamente (raro), faze-lo explicitamente
+      otherUpdates.saldo = newBalance as AccountUpdate['saldo'];
     }
 
-    // Criar transação de ajuste se necessário
+    // Adicionar campos válidos (nome, tipo, family_id) caso tenham sido enviados
+    if (typeof updates.nome === 'string') {
+      otherUpdates.nome = updates.nome as AccountUpdate['nome'];
+    }
+    if (typeof updates.tipo === 'string') {
+      otherUpdates.tipo = updates.tipo as AccountUpdate['tipo'];
+    }
+    if ((updates as Partial<AccountUpdate>).family_id !== undefined) {
+      otherUpdates.family_id = (updates as Partial<AccountUpdate>).family_id as AccountUpdate['family_id'];
+    }
+
     if (needsAdjustmentTransaction && adjustmentAmount !== 0) {
-      // Buscar categoria "Ajuste" ou criar se não existir
       let categoryId: string | null = null;
       
-      // Tentar buscar categoria existente
       const { data: ajusteCategory } = await supabase
         .from('categories')
         .select('id')
         .eq('nome', 'Ajuste')
-        .eq('user_id', resolvedUserId as any)
+        .eq('user_id', (resolvedUserId as string) || '')
         .single();
 
       if (ajusteCategory) {
-        categoryId = (ajusteCategory as any).id;
+        categoryId = (ajusteCategory as { id: string }).id;
       } else {
-        // Criar categoria "Ajuste" se não existir
         const { data: newCategory, error: createCategoryError } = await supabase
           .from('categories')
-          .insert([{
-            nome: 'Ajuste',
-            user_id: resolvedUserId as any,
-            cor: '#6B7280' // Cor cinza
-          }])
+          .insert([
+            {
+              nome: 'Ajuste',
+              user_id: (resolvedUserId as string) || '',
+              cor: '#6B7280'
+            }
+          ])
           .select('id')
           .single();
 
         if (createCategoryError) {
-          console.error('Erro ao criar categoria Ajuste:', createCategoryError);
           return { data: null, error: createCategoryError };
         }
-        categoryId = (newCategory as any)?.id || null;
+        categoryId = (newCategory as { id?: string } | null)?.id || null;
       }
 
       if (categoryId) {
-        // Criar transação de ajuste
         const { error: transactionError } = await supabase
           .from('transactions')
-          .insert([{
-            account_id: id,
-            categoria_id: categoryId,
-            user_id: resolvedUserId as any,
-            valor: Math.abs(adjustmentAmount),
-            tipo: adjustmentAmount > 0 ? 'receita' : 'despesa',
-            data: new Date().toISOString().split('T')[0],
-            descricao: `Ajuste de saldo: ${adjustmentAmount > 0 ? '+' : ''}${adjustmentAmount.toFixed(2)}€`
-          }]);
+          .insert([
+            {
+              account_id: id,
+              categoria_id: categoryId,
+              user_id: (resolvedUserId as string) || '',
+              valor: Math.abs(adjustmentAmount),
+              tipo: adjustmentAmount > 0 ? 'receita' : 'despesa',
+              data: new Date().toISOString().split('T')[0],
+              descricao: `Ajuste de saldo: ${adjustmentAmount > 0 ? '+' : ''}${adjustmentAmount.toFixed(2)}€`
+            }
+          ]);
 
         if (transactionError) {
           return { data: null, error: transactionError };
         }
+
+        // Atualizar o saldo agregado após a transação de ajuste
+        try {
+          await supabase.rpc('update_account_balance', { account_id_param: id });
+        } catch (e) {
+          // Ignorar erro de RPC em ambientes onde não exista
+        }
       }
     }
 
-    // Atualizar apenas os outros campos (nome, tipo, etc.)
     let updateQuery = supabase
       .from('accounts')
-      .update(otherUpdates as any)
+      .update(otherUpdates as AccountUpdate)
       .eq('id', id);
     if (resolvedUserId) updateQuery = updateQuery.eq('user_id', resolvedUserId);
     const { data, error } = await updateQuery
       .select()
       .single();
 
-    return { data: data as any, error };
+    return { data: data as Account, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const deleteAccount = async (id: string, userId?: string): Promise<{ data: boolean | null; error: any }> => {
+export const deleteAccount = async (id: string, userId?: string): Promise<{ data: boolean | null; error: unknown }> => {
   try {
     let resolvedUserId = userId;
     if (!resolvedUserId) {
@@ -299,7 +338,6 @@ export const deleteAccount = async (id: string, userId?: string): Promise<{ data
     if (!resolvedUserId) {
       return { data: null, error: { message: 'userId required' } };
     }
-    // Usar a função RPC que elimina a conta e todos os dados relacionados
     const { data, error } = await supabase.rpc('delete_account_with_related_data', {
       p_account_id: id,
       p_user_id: resolvedUserId
@@ -309,13 +347,12 @@ export const deleteAccount = async (id: string, userId?: string): Promise<{ data
       return { data: null, error };
     }
 
-    // Verificar se a operação foi bem-sucedida
-    if (data && typeof data === 'object' && 'success' in (data as any)) {
-      const result = data as any;
+    if (data && typeof data === 'object' && 'success' in (data as Record<string, unknown>)) {
+      const result = data as Record<string, unknown>;
       if (result.success) {
         return { data: true, error: null };
       } else {
-        return { data: null, error: { message: (result as any).error || 'Erro ao eliminar conta' } };
+        return { data: null, error: { message: (result as Record<string, unknown>).error || 'Erro ao eliminar conta' } };
       }
     }
 
@@ -325,98 +362,83 @@ export const deleteAccount = async (id: string, userId?: string): Promise<{ data
   }
 };
 
-// Funções RPC para dados calculados
-export const getAccountBalances = async (): Promise<{ data: import('../integrations/supabase/types').AccountBalanceRPC[] | null; error: any }> => {
+export const getAccountBalances = async (): Promise<{ data: import('../integrations/supabase/types').AccountBalanceRPC[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase.rpc('get_user_account_balances');
-    return { data, error };
+    return { data: (data as import('../integrations/supabase/types').AccountBalanceRPC[]) || null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const getAccountReserved = async (): Promise<{ data: AccountReserved[] | null; error: any }> => {
+export const getAccountReserved = async (): Promise<{ data: AccountReserved[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase.rpc('get_user_account_reserved');
-    return { data, error };
+    return { data: data as AccountReserved[] | null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const getAccountsWithBalances = async (userId?: string): Promise<{ data: AccountWithBalances[] | null; error: any }> => {
+export const getAccountsWithBalances = async (userId?: string): Promise<{ data: AccountWithBalances[] | null; error: unknown }> => {
   try {
     if (!userId) {
       return { data: [], error: null };
     }
-    
-    // Usar a função RPC que já combina tudo
+
     const { data, error } = await supabase.rpc('get_user_accounts_with_balances', {
       p_user_id: userId
     });
 
     if (error) {
-      console.error('[getAccountsWithBalances] RPC error:', error);
       return { data: null, error };
     }
 
-    return { data: (data as any) || [], error: null };
+    return { data: (data as AccountWithBalances[]) || [], error: null };
   } catch (error) {
-    console.error('[getAccountsWithBalances] Exception:', error);
     return { data: null, error };
   }
 };
 
-export const getPersonalAccountsWithBalances = async (userId?: string): Promise<{ data: AccountWithBalances[] | null; error: any }> => {
+export const getAccountsWithBalancesDomain = async (userId?: string): Promise<{ data: AccountWithBalancesDomain[]; error: unknown }> => {
+  const { data, error } = await getAccountsWithBalances(userId);
+  return { data: (data || []).map(mapAccountWithBalancesToDomain), error };
+};
+
+export const getPersonalAccountsWithBalances = async (userId?: string): Promise<{ data: AccountWithBalances[] | null; error: unknown }> => {
   try {
-    // Usar a função RPC existente e filtrar contas pessoais (sem family_id)
     const { data, error } = await supabase.rpc('get_user_accounts_with_balances', {
       p_user_id: userId || null
     });
 
     if (error) {
-      console.error('[getPersonalAccountsWithBalances] RPC error:', error);
       return { data: null, error };
     }
 
-    // Filtrar apenas contas pessoais (sem family_id)
-    const personalAccounts = (data as any)?.filter((account: any) => !account.family_id) || [];
-    
-    return { data: personalAccounts, error: null };
+    // Nota: o retorno RPC não inclui family_id; devolvemos a lista completa
+    const rows = (data as AccountWithBalances[]) || [];
+    return { data: rows, error: null };
   } catch (error) {
-    console.error('[getPersonalAccountsWithBalances] Exception:', error);
     return { data: null, error };
   }
 };
 
-export const getFamilyAccountsWithBalances = async (userId?: string): Promise<{ data: AccountWithBalances[] | null; error: any }> => {
+export const getFamilyAccountsWithBalances = async (userId?: string): Promise<{ data: AccountWithBalances[] | null; error: unknown }> => {
   try {
-    console.log('[getFamilyAccountsWithBalances] Fetching family accounts with balances...');
-    console.log('[getFamilyAccountsWithBalances] userId:', userId);
-    
-    // Usar a função RPC existente e filtrar contas familiares (com family_id)
-    const { data, error } = await supabase.rpc('get_user_accounts_with_balances', {
-      p_user_id: userId || null
-    });
-
-    if (error) {
-      console.error('[getFamilyAccountsWithBalances] RPC error:', error);
-      return { data: null, error };
-    }
-
-    // Filtrar apenas contas familiares (com family_id)
-    const familyAccounts = (data as any)?.filter((account: any) => account.family_id) || [];
-    
-    console.log('[getFamilyAccountsWithBalances] RPC result:', data);
-    console.log('[getFamilyAccountsWithBalances] Family accounts filtered:', familyAccounts);
-    return { data: familyAccounts, error: null };
+    if (!userId) return { data: [], error: null };
+    const { data, error } = await supabase.rpc('get_family_accounts_with_balances', { p_user_id: userId });
+    if (error) return { data: null, error };
+    return { data: (data as AccountWithBalances[]) || [], error: null };
   } catch (error) {
-    console.error('[getFamilyAccountsWithBalances] Exception:', error);
     return { data: null, error };
   }
 };
 
-// Função para obter KPIs pessoais otimizada
+export const getFamilyAccountsWithBalancesDomain = async (userId?: string): Promise<{ data: AccountWithBalancesDomain[]; error: unknown }> => {
+  const { data, error } = await getFamilyAccountsWithBalances(userId);
+  return { data: (data || []).map(mapAccountWithBalancesToDomain), error };
+};
+
 export const getPersonalKPIs = async () => {
   const { data, error } = await supabase.rpc('get_personal_kpis');
   
@@ -426,7 +448,7 @@ export const getPersonalKPIs = async () => {
   }
   
   return {
-    data: (data as any)?.[0] || {
+    data: (Array.isArray(data) && data.length > 0 ? (data[0] as Record<string, unknown>) : {
       total_balance: 0,
       credit_card_debt: 0,
       top_goal_progress: 0,
@@ -437,7 +459,7 @@ export const getPersonalKPIs = async () => {
       total_budget_spent: 0,
       total_budget_amount: 0,
       budget_spent_percentage: 0
-    },
+    }),
     error: null
   };
 };

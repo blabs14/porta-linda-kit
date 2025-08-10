@@ -50,3 +50,17 @@ export const logAuditChange = async (
     return { error: null, data: null };
   }
 }; 
+
+export const getAuditLogsByRow = (
+  table_name: string,
+  row_id: string,
+  limit: number = 20
+) => {
+  return supabase
+    .from('audit_logs')
+    .select('id,timestamp,operation,old_data,new_data,details')
+    .eq('table_name', table_name)
+    .eq('row_id', row_id)
+    .order('timestamp', { ascending: false })
+    .limit(limit);
+}; 

@@ -10,7 +10,7 @@ import { Target, Plus, Edit, Trash2, Loader2, BarChart3 } from 'lucide-react';
 import { getCategoryIcon } from '../lib/utils';
 import * as LucideIcons from 'lucide-react';
 import { useBudgets } from '../hooks/useBudgets';
-import { useCategories } from '../hooks/useCategories';
+import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { useTransactions } from '../hooks/useTransactionsQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { budgetSchema } from '../validation/budgetSchema';
@@ -36,7 +36,7 @@ const BudgetsPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { budgets, loading, create, update, remove } = useBudgets();
-  const { categories = [] } = useCategories();
+  const { data: categories = [] } = useCategoriesDomain();
   const { data: transactions = [] } = useTransactions();
   const { user } = useAuth();
   const { toast } = useToast();

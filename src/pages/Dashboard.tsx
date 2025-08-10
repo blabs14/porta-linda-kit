@@ -15,7 +15,9 @@ import {
   Calendar,
   BarChart3,
   PieChart,
-  Activity
+  Activity,
+  Bell,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useDashboardData } from '../hooks/useDashboardQuery';
@@ -23,6 +25,8 @@ import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
 import { useTransactions } from '../hooks/useTransactionsQuery';
 import { useGoals } from '../hooks/useGoalsQuery';
 import { formatCurrency } from '../lib/utils';
+import { useReminders } from '../hooks/useRemindersQuery';
+import { useBudgets } from '../hooks/useBudgetsQuery';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -30,7 +34,9 @@ export default function Dashboard() {
   const { data: dashboardData, isLoading, error } = useDashboardData();
   const { data: accounts = [] } = useAccountsWithBalances();
   const { data: transactions = [] } = useTransactions();
-  const { goals = [] } = useGoals();
+  const { data: goals = [] } = useGoals();
+  const { data: reminders = [] } = useReminders();
+  const { data: budgets = [] } = useBudgets();
   const [selectedPeriod, setSelectedPeriod] = useState('month');
 
   if (isLoading) {
@@ -56,35 +62,42 @@ export default function Dashboard() {
   }
 
   const getBalanceChange = () => {
-    const change = (dashboardData?.monthlyIncome || 0) - (dashboardData?.monthlyExpenses || 0);
+    const monthlySavings = Number(dashboardData?.monthlySavings || 0);
     return {
-      value: Math.abs(change),
-      isPositive: change >= 0,
-      percentage: (dashboardData?.monthlyIncome || 0) > 0 ? (change / (dashboardData?.monthlyIncome || 1)) * 100 : 0
+      value: Math.abs(monthlySavings),
+      isPositive: monthlySavings >= 0,
+      percentage: (dashboardData?.monthlyIncome || 0) > 0 ? (monthlySavings / (dashboardData?.monthlyIncome || 1)) * 100 : 0
     };
   };
 
   const balanceChange = getBalanceChange();
 
-  // Calcular métricas adicionais
+  // Métricas adicionais
   const totalAccounts = accounts.length;
   const activeGoals = goals.filter(goal => goal.status === 'active').length;
   const recentTransactions = transactions.slice(0, 5);
+
+  // Lembretes de hoje
+  const remindersToday = (() => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    const key = `${y}-${m}-${d}`;
+    return (reminders as any[]).filter(r => typeof r.date === 'string' && r.date.startsWith(key));
+  })();
+
+  // Orçamentos em excesso (quando disponível)
+  const overspentBudgetsCount = Array.isArray(budgets)
+    ? (budgets as any[]).filter(b => Number(b.valor_gasto || 0) > Number(b.valor_orcamento || 0)).length
+    : 0;
   
-  // Calcular distribuição de saldos por conta
+  // Distribuição de contas
   const accountDistribution = accounts.map(account => ({
     name: account.nome,
     balance: account.saldo_atual || 0,
     percentage: ((account.saldo_atual || 0) / (dashboardData?.totalBalance || 1)) * 100
   }));
-
-  // Verificar se há dados para mostrar
-  const hasData = dashboardData && (
-    dashboardData.totalBalance > 0 || 
-    dashboardData.monthlyIncome > 0 || 
-    dashboardData.monthlyExpenses > 0 || 
-    totalAccounts > 0
-  );
 
   return (
     <div className="space-y-6">
@@ -104,6 +117,30 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Indicadores rápidos */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Lembretes de Hoje</CardTitle>
+            <Bell className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{remindersToday.length}</div>
+            <p className="text-xs text-muted-foreground">Lembretes com data de hoje</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Orçamentos em Excesso</CardTitle>
+            <AlertCircle className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">{overspentBudgetsCount}</div>
+            <p className="text-xs text-muted-foreground">Categorias acima do orçamento</p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Cards de Resumo */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Saldo Total */}
@@ -120,7 +157,9 @@ export default function Dashboard() {
               ) : (
                 <ArrowDownRight className="h-3 w-3 text-red-600 mr-1" />
               )}
-              {balanceChange.isPositive ? '+' : '-'}{formatCurrency(balanceChange.value)} este mês
+              <span className={balanceChange.isPositive ? 'text-green-600' : 'text-red-600'}>
+                Poupança Mensal: {balanceChange.isPositive ? '+' : '-'}{formatCurrency(balanceChange.value)}
+              </span>
             </div>
           </CardContent>
         </Card>

@@ -232,8 +232,8 @@ describe('Accounts Service', () => {
       const updateData = {
         nome: 'Conta Atualizada',
         tipo: 'poupanca' as const,
-        saldo_inicial: 2000.00,
-      };
+        // cenário base: sem saldoAtual nem ajusteSaldo, deve usar update direto
+      } as const;
 
       const updatedAccount = {
         id: 'account-1',
@@ -249,7 +249,7 @@ describe('Accounts Service', () => {
 
       mockSupabase.from.mockReturnValue(mockQuery as any);
 
-      const result = await updateAccount('account-1', updateData);
+      const result = await updateAccount('account-1', updateData, 'user-123');
 
       expect(mockSupabase.from).toHaveBeenCalledWith('accounts');
       expect(mockQuery.update).toHaveBeenCalledWith(updateData);
@@ -263,7 +263,7 @@ describe('Accounts Service', () => {
       const updateData = {
         nome: 'Conta Atualizada',
         tipo: 'poupanca' as const,
-      };
+      } as const;
 
       const mockQuery = createMockQuery({
         data: null,
@@ -272,7 +272,7 @@ describe('Accounts Service', () => {
 
       mockSupabase.from.mockReturnValue(mockQuery as any);
 
-      const result = await updateAccount('account-1', updateData);
+      const result = await updateAccount('account-1', updateData, 'user-123');
 
       expect(result.data).toBeNull();
       expect(result.error).toEqual({ message: 'Update failed' });

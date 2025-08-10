@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect, useState } from 'react';
+import { useCallback, useRef, useEffect, useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 // Tipos para métricas de performance
@@ -60,7 +60,7 @@ const DEFAULT_CONFIG: MetricsConfig = {
 // Hook principal para métricas de família
 export const useFamilyMetrics = (familyId: string | null, config: Partial<MetricsConfig> = {}) => {
   const queryClient = useQueryClient();
-  const finalConfig = { ...DEFAULT_CONFIG, ...config };
+  const finalConfig = useMemo<MetricsConfig>(() => ({ ...DEFAULT_CONFIG, ...config }), [config]);
   
   const metricsRef = useRef<Record<string, FamilyMetrics>>({});
   const historyRef = useRef<FamilyMetrics[]>([]);
@@ -113,135 +113,7 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
     setCurrentMetrics(metricsRef.current[familyId]);
   }, [familyId]);
 
-  // Função para medir tempo de renderização
-  const measureRenderTime = useCallback((componentName: string) => {
-    if (!familyId || Math.random() > finalConfig.sampleRate) return () => {};
-
-    const startTime = performance.now();
-    
-    return () => {
-      const endTime = performance.now();
-      const renderTime = endTime - startTime;
-      
-      if (metricsRef.current[familyId]) {
-        metricsRef.current[familyId].performance.renderTime = renderTime;
-        metricsRef.current[familyId].performance.lastUpdate = new Date();
-        metricsRef.current[familyId].userActivity.actions++;
-        metricsRef.current[familyId].userActivity.lastActivity = new Date();
-        
-        updateMetrics();
-      }
-    };
-  }, [familyId, finalConfig.sampleRate]);
-
-  // Função para medir tempo de carregamento de dados
-  const measureDataLoadTime = useCallback((operation: string) => {
-    if (!familyId || Math.random() > finalConfig.sampleRate) return () => {};
-
-    const startTime = performance.now();
-    
-    return () => {
-      const endTime = performance.now();
-      const loadTime = endTime - startTime;
-      
-      if (metricsRef.current[familyId]) {
-        metricsRef.current[familyId].performance.dataLoadTime = loadTime;
-        metricsRef.current[familyId].performance.networkRequests++;
-        metricsRef.current[familyId].operations.reads++;
-        metricsRef.current[familyId].performance.lastUpdate = new Date();
-        
-        updateMetrics();
-      }
-    };
-  }, [familyId, finalConfig.sampleRate]);
-
-  // Função para registar operações CRUD
-  const recordOperation = useCallback((operation: 'create' | 'update' | 'delete' | 'read') => {
-    if (!familyId) return;
-
-    if (metricsRef.current[familyId]) {
-      metricsRef.current[familyId].operations[operation + 's']++;
-      metricsRef.current[familyId].userActivity.actions++;
-      metricsRef.current[familyId].userActivity.lastActivity = new Date();
-      
-      updateMetrics();
-    }
-  }, [familyId]);
-
-  // Função para registar erros
-  const recordError = useCallback((errorType: 'network' | 'validation' | 'permission' | 'unknown', error?: Error) => {
-    if (!familyId) return;
-
-    if (metricsRef.current[familyId]) {
-      metricsRef.current[familyId].errors[errorType]++;
-      metricsRef.current[familyId].performance.errors++;
-      metricsRef.current[familyId].performance.lastUpdate = new Date();
-      
-      // Log detalhado do erro se analytics estiver ativo
-      if (finalConfig.enableAnalytics && error) {
-        console.error(`[FamilyMetrics] Error recorded:`, {
-          familyId,
-          errorType,
-          error: error.message,
-          stack: error.stack,
-          timestamp: new Date().toISOString(),
-        });
-      }
-      
-      updateMetrics();
-    }
-  }, [familyId, finalConfig.enableAnalytics]);
-
-  // Função para registar atividade de cache
-  const recordCacheActivity = useCallback((activity: 'hit' | 'miss' | 'invalidation', size?: number) => {
-    if (!familyId) return;
-
-    if (metricsRef.current[familyId]) {
-      metricsRef.current[familyId].cache[activity + 's']++;
-      if (size !== undefined) {
-        metricsRef.current[familyId].cache.size = size;
-      }
-      
-      // Calcular hit rate
-      const { hits, misses } = metricsRef.current[familyId].cache;
-      metricsRef.current[familyId].performance.cacheHitRate = 
-        hits + misses > 0 ? (hits / (hits + misses)) * 100 : 0;
-      
-      updateMetrics();
-    }
-  }, [familyId]);
-
-  // Função para registar visualização de página
-  const recordPageView = useCallback((pageName: string) => {
-    if (!familyId) return;
-
-    if (metricsRef.current[familyId]) {
-      metricsRef.current[familyId].userActivity.pageViews++;
-      metricsRef.current[familyId].userActivity.lastActivity = new Date();
-      
-      updateMetrics();
-    }
-  }, [familyId]);
-
-  // Função para medir uso de memória
-  const measureMemoryUsage = useCallback(() => {
-    if (!familyId || !('memory' in performance)) return;
-
-    try {
-      const memory = (performance as any).memory;
-      if (memory) {
-        if (metricsRef.current[familyId]) {
-          metricsRef.current[familyId].performance.memoryUsage = 
-            memory.usedJSHeapSize / 1024 / 1024; // MB
-          updateMetrics();
-        }
-      }
-    } catch (error) {
-      // Ignorar erros de medição de memória
-    }
-  }, [familyId]);
-
-  // Função para atualizar métricas
+  // Função para atualizar métricas (declarada cedo para evitar uso antes da definição)
   const updateMetrics = useCallback(() => {
     if (!familyId) return;
 
@@ -276,6 +148,134 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
 
     setCurrentMetrics(metrics);
   }, [familyId, finalConfig.enablePersistent, finalConfig.maxHistorySize]);
+
+  // Função para medir tempo de renderização
+  const measureRenderTime = useCallback((componentName: string) => {
+    if (!familyId || Math.random() > finalConfig.sampleRate) return () => {};
+
+    const startTime = performance.now();
+    
+    return () => {
+      const endTime = performance.now();
+      const renderTime = endTime - startTime;
+      
+      if (metricsRef.current[familyId]) {
+        metricsRef.current[familyId].performance.renderTime = renderTime;
+        metricsRef.current[familyId].performance.lastUpdate = new Date();
+        metricsRef.current[familyId].userActivity.actions++;
+        metricsRef.current[familyId].userActivity.lastActivity = new Date();
+        
+        updateMetrics();
+      }
+    };
+  }, [familyId, finalConfig.sampleRate, updateMetrics]);
+
+  // Função para medir tempo de carregamento de dados
+  const measureDataLoadTime = useCallback((operation: string) => {
+    if (!familyId || Math.random() > finalConfig.sampleRate) return () => {};
+
+    const startTime = performance.now();
+    
+    return () => {
+      const endTime = performance.now();
+      const loadTime = endTime - startTime;
+      
+      if (metricsRef.current[familyId]) {
+        metricsRef.current[familyId].performance.dataLoadTime = loadTime;
+        metricsRef.current[familyId].performance.networkRequests++;
+        metricsRef.current[familyId].operations.reads++;
+        metricsRef.current[familyId].performance.lastUpdate = new Date();
+        
+        updateMetrics();
+      }
+    };
+  }, [familyId, finalConfig.sampleRate, updateMetrics]);
+
+  // Função para registar operações CRUD
+  const recordOperation = useCallback((operation: 'create' | 'update' | 'delete' | 'read') => {
+    if (!familyId) return;
+
+    if (metricsRef.current[familyId]) {
+      metricsRef.current[familyId].operations[operation + 's']++;
+      metricsRef.current[familyId].userActivity.actions++;
+      metricsRef.current[familyId].userActivity.lastActivity = new Date();
+      
+      updateMetrics();
+    }
+  }, [familyId, updateMetrics]);
+
+  // Função para registar erros
+  const recordError = useCallback((errorType: 'network' | 'validation' | 'permission' | 'unknown', error?: Error) => {
+    if (!familyId) return;
+
+    if (metricsRef.current[familyId]) {
+      metricsRef.current[familyId].errors[errorType]++;
+      metricsRef.current[familyId].performance.errors++;
+      metricsRef.current[familyId].performance.lastUpdate = new Date();
+      
+      // Log detalhado do erro se analytics estiver ativo
+      if (finalConfig.enableAnalytics && error) {
+        console.error(`[FamilyMetrics] Error recorded:`, {
+          familyId,
+          errorType,
+          error: error.message,
+          stack: error.stack,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      updateMetrics();
+    }
+  }, [familyId, finalConfig.enableAnalytics, updateMetrics]);
+
+  // Função para registar atividade de cache
+  const recordCacheActivity = useCallback((activity: 'hit' | 'miss' | 'invalidation', size?: number) => {
+    if (!familyId) return;
+
+    if (metricsRef.current[familyId]) {
+      metricsRef.current[familyId].cache[activity + 's']++;
+      if (size !== undefined) {
+        metricsRef.current[familyId].cache.size = size;
+      }
+      
+      // Calcular hit rate
+      const { hits, misses } = metricsRef.current[familyId].cache;
+      metricsRef.current[familyId].performance.cacheHitRate = 
+        hits + misses > 0 ? (hits / (hits + misses)) * 100 : 0;
+      
+      updateMetrics();
+    }
+  }, [familyId, updateMetrics]);
+
+  // Função para registar visualização de página
+  const recordPageView = useCallback((pageName: string) => {
+    if (!familyId) return;
+
+    if (metricsRef.current[familyId]) {
+      metricsRef.current[familyId].userActivity.pageViews++;
+      metricsRef.current[familyId].userActivity.lastActivity = new Date();
+      
+      updateMetrics();
+    }
+  }, [familyId, updateMetrics]);
+
+  // Função para medir uso de memória
+  const measureMemoryUsage = useCallback(() => {
+    if (!familyId || !('memory' in performance)) return;
+
+    try {
+      const memory = (performance as any).memory;
+      if (memory) {
+        if (metricsRef.current[familyId]) {
+          metricsRef.current[familyId].performance.memoryUsage = 
+            memory.usedJSHeapSize / 1024 / 1024; // MB
+          updateMetrics();
+        }
+      }
+    } catch (error) {
+      // Ignorar erros de medição de memória
+    }
+  }, [familyId, updateMetrics]);
 
   // Função para obter métricas atuais
   const getCurrentMetrics = useCallback(() => {

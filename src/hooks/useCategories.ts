@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../services/categories';
+import type { Category, CategoryInsert, CategoryUpdate } from '../integrations/supabase/types';
 
 export const useCategories = () => {
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetch = useCallback(async () => {
@@ -18,24 +19,24 @@ export const useCategories = () => {
     fetch();
   }, [fetch]);
 
-  const create = async (payload: { nome: string; tipo: string; cor?: string }, userId: string) => {
-    const { data, error } = await createCategory(payload, userId);
+  const create = async (payload: CategoryInsert) => {
+    const { data, error } = await createCategory(payload);
     if (!error && data) {
       await fetch();
     }
     return { data, error };
   };
 
-  const update = async (id: string, data: any, userId: string) => {
-    const { data: result, error } = await updateCategory(id, data, userId);
+  const update = async (id: string, data: CategoryUpdate) => {
+    const { data: result, error } = await updateCategory(id, data);
     if (!error && result) {
       await fetch();
     }
     return { data: result, error };
   };
 
-  const remove = async (id: string, userId: string) => {
-    const { data, error } = await deleteCategory(id, userId);
+  const remove = async (id: string) => {
+    const { data, error } = await deleteCategory(id);
     if (!error && data) {
       await fetch();
     }

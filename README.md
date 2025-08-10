@@ -144,3 +144,75 @@ Nunca commits o ficheiro `.env.local`!
 ---
 
 > Para dúvidas ou sugestões, contacta a equipa de desenvolvimento.
+
+## Deploy rápido
+
+1. Pré-requisitos
+   - Node 22, Supabase CLI (opcional)
+   - `.env.local` com:
+     - `VITE_SUPABASE_URL`
+     - `VITE_SUPABASE_ANON_KEY`
+     - `VITE_BASE_PATH=/` (ou `/<repo>/` para GitHub Pages)
+2. Instalar deps
+   ```bash
+   npm ci
+   ```
+3. Gerar tipos (local)
+   ```bash
+   npm run types:gen:local
+   ```
+4. Lint e testes
+   ```bash
+   npm run lint
+   npm run test:run
+   ```
+5. Build
+   ```bash
+   npm run build
+   ```
+6. Preview local (opcional)
+   ```bash
+   npm run deploy:local
+   ```
+
+## CI/CD
+- Workflow `ci.yml`: lint → lint migrações → testes → build
+- Workflow `pages.yml`: deploy opcional para GitHub Pages (branch `main`)
+
+## Scripts úteis
+- `types:gen`: gera tipos do projeto remoto (requer `project-id`/auth)
+- `types:gen:local`: gera tipos da base local
+- `db:lint`: lint das migrações
+- `prebuild`: valida env e base path
+
+## Publicação (detalhado)
+
+1. Variáveis de ambiente locais
+   - Cria `.env.local` (podes basear-te em `.env.local.example`):
+     - `VITE_SUPABASE_URL=http://127.0.0.1:54321`
+     - `VITE_SUPABASE_ANON_KEY=...` (chave demo local do Supabase)
+     - `VITE_BASE_PATH=/` (ou `/<repo>/` para Pages)
+
+2. Build local
+   ```bash
+   npm ci
+   npm run types:gen:local
+   npm run test:run
+   npm run build
+   ```
+
+3. CI/CD (GitHub Actions)
+   - Workflow `CI` já criado: lint → migrações → testes → build
+   - Workflow `Deploy to GitHub Pages` (opcional) já criado
+
+4. Secrets no repositório (Settings → Secrets and variables → Actions → New repository secret)
+   - Para CI (se necessário):
+     - `VITE_SUPABASE_URL` (ex.: `http://127.0.0.1:54321` para build em CI)
+     - `VITE_SUPABASE_ANON_KEY` (chave demo local)
+     - (opcional) `SUPABASE_ACCESS_TOKEN` e `SUPABASE_PROJECT_ID` se quiseres comandos remotos da CLI
+   - Para Deploy Pages:
+     - `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` conforme o backend escolhido
+
+5. Ativar GitHub Pages (opcional)
+   - Settings → Pages → Build and deployment → Source: GitHub Actions
+   - O workflow `pages.yml` publica a pasta `dist/`

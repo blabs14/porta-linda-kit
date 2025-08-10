@@ -2,14 +2,36 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabaseClient';
+import type { Family, FamilyMember, Transaction, Account, Budget, Goal } from '../integrations/supabase/types';
+
+// Tipos com joins usados nas queries de exportação
+type MemberWithProfile = FamilyMember & {
+  profiles?: { id: string; nome?: string | null; foto_url?: string | null } | null;
+};
+
+type TransactionWithJoins = Transaction & {
+  accounts?: { nome?: string | null; tipo?: string | null } | null;
+  categories?: { nome?: string | null; cor?: string | null } | null;
+  profiles?: { nome?: string | null } | null;
+};
+
+type BudgetWithJoins = Budget & {
+  categories?: { nome?: string | null; cor?: string | null } | null;
+  profiles?: { nome?: string | null } | null;
+};
+
+type GoalWithJoins = Goal & {
+  accounts?: { nome?: string | null } | null;
+  profiles?: { nome?: string | null } | null;
+};
 
 export interface FamilyExportData {
-  family: any;
-  members: any[];
-  transactions: any[];
-  accounts: any[];
-  budgets: any[];
-  goals: any[];
+  family: Family;
+  members: MemberWithProfile[];
+  transactions: TransactionWithJoins[];
+  accounts: Account[];
+  budgets: BudgetWithJoins[];
+  goals: GoalWithJoins[];
   dateRange: {
     start: string;
     end: string;
@@ -92,6 +114,7 @@ export const fetchFamilyExportData = async (
   if (accountsError) throw accountsError;
 
   // Buscar orçamentos da família (dos membros)
+  const memberUserIds = (members as Array<{ user_id: string }> | null)?.map(m => m.user_id) || [];
   const { data: budgets, error: budgetsError } = await supabase
     .from('budgets')
     .select(`
@@ -104,7 +127,7 @@ export const fetchFamilyExportData = async (
         nome
       )
     `)
-    .in('user_id', members.map(m => m.user_id))
+    .in('user_id', memberUserIds)
     .gte('mes', dateRange.start.substring(0, 7))
     .lte('mes', dateRange.end.substring(0, 7));
 
@@ -127,12 +150,12 @@ export const fetchFamilyExportData = async (
   if (goalsError) throw goalsError;
 
   return {
-    family,
-    members: members || [],
-    transactions: transactions || [],
-    accounts: accounts || [],
-    budgets: budgets || [],
-    goals: goals || [],
+    family: (family as Family)!,
+    members: (members as MemberWithProfile[]) || [],
+    transactions: (transactions as TransactionWithJoins[]) || [],
+    accounts: (accounts as Account[]) || [],
+    budgets: (budgets as BudgetWithJoins[]) || [],
+    goals: (goals as GoalWithJoins[]) || [],
     dateRange
   };
 };
@@ -152,10 +175,10 @@ export const exportFamilyToPDF = async (
   
   // Informações da família
   doc.setFontSize(14);
-  doc.text(`Família: ${data.family.nome}`, 20, 35);
-  if (data.family.description) {
+  doc.text(`Família: ${String(data.family.nome)}`, 20, 35);
+  if ((data.family as { description?: string }).description) {
     doc.setFontSize(10);
-    doc.text(`Descrição: ${data.family.description}`, 20, 45);
+    doc.text(`Descrição: ${(data.family as { description?: string }).description || ''}`, 20, 45);
   }
   
   // Período
@@ -190,8 +213,8 @@ export const exportFamilyToPDF = async (
     
     const memberData = data.members.map(m => [
       m.profiles?.nome || 'N/A',
-      m.role,
-      new Date(m.joined_at).toLocaleDateString('pt-PT')
+      (m as { role?: string }).role || '-',
+      new Date((m as { joined_at?: string }).joined_at || Date.now()).toLocaleDateString('pt-PT')
     ]);
     
     autoTable(doc, {
@@ -208,7 +231,8 @@ export const exportFamilyToPDF = async (
       },
     });
     
-    currentY = (doc as any).lastAutoTable.finalY + 10;
+    const last = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY;
+    currentY = (typeof last === 'number' ? last : currentY) + 10;
   }
 
   // Transações
@@ -241,7 +265,8 @@ export const exportFamilyToPDF = async (
       },
     });
     
-    currentY = (doc as any).lastAutoTable.finalY + 10;
+    const last = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY;
+    currentY = (typeof last === 'number' ? last : currentY) + 10;
   }
 
   // Orçamentos
@@ -271,7 +296,8 @@ export const exportFamilyToPDF = async (
       },
     });
     
-    currentY = (doc as any).lastAutoTable.finalY + 10;
+    const last = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY;
+    currentY = (typeof last === 'number' ? last : currentY) + 10;
   }
 
   // Objetivos
@@ -285,7 +311,7 @@ export const exportFamilyToPDF = async (
       g.profiles?.nome || 'N/A',
       Number(g.valor_objetivo).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }),
       Number(g.valor_atual || 0).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }),
-      g.status || 'Ativo'
+      (g as { status?: string }).status || 'Ativo'
     ]);
     
     autoTable(doc, {
@@ -317,7 +343,7 @@ export const exportFamilyToCSV = (
   
   // Cabeçalho
   csvData.push('Relatório Familiar');
-  csvData.push(`Família: ${data.family.nome}`);
+  csvData.push(`Família: ${String(data.family.nome)}`);
   csvData.push(`Período: ${new Date(options.dateRange.start).toLocaleDateString('pt-PT')} - ${new Date(options.dateRange.end).toLocaleDateString('pt-PT')}`);
   csvData.push('');
   
@@ -343,7 +369,7 @@ export const exportFamilyToCSV = (
     csvData.push('Membros da Família');
     csvData.push('Nome,Papel,Data de Entrada');
     data.members.forEach(m => {
-      csvData.push(`${m.profiles?.nome || 'N/A'},${m.role},${new Date(m.joined_at).toLocaleDateString('pt-PT')}`);
+      csvData.push(`${m.profiles?.nome || 'N/A'},${(m as { role?: string }).role || '-'},${new Date((m as { joined_at?: string }).joined_at || Date.now()).toLocaleDateString('pt-PT')}`);
     });
     csvData.push('');
   }
@@ -373,7 +399,7 @@ export const exportFamilyToCSV = (
     csvData.push('Objetivos');
     csvData.push('Objetivo,Membro,Meta,Atual,Status');
     data.goals.forEach(g => {
-      csvData.push(`${g.nome},${g.profiles?.nome || 'N/A'},${Number(g.valor_objetivo).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })},${Number(g.valor_atual || 0).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })},${g.status || 'Ativo'}`);
+      csvData.push(`${g.nome},${g.profiles?.nome || 'N/A'},${Number(g.valor_objetivo).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })},${Number(g.valor_atual || 0).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })},${(g as { status?: string }).status || 'Ativo'}`);
     });
   }
   
@@ -393,7 +419,7 @@ export const exportFamilyToExcel = (
   // Resumo
   const summaryData = [
     ['Relatório Familiar'],
-    ['Família', data.family.nome],
+    ['Família', String(data.family.nome)],
     ['Período', `${new Date(options.dateRange.start).toLocaleDateString('pt-PT')} - ${new Date(options.dateRange.end).toLocaleDateString('pt-PT')}`],
     [''],
     ['Resumo Financeiro'],
@@ -411,8 +437,8 @@ export const exportFamilyToExcel = (
       ['Nome', 'Papel', 'Data de Entrada'],
       ...data.members.map(m => [
         m.profiles?.nome || 'N/A',
-        m.role,
-        new Date(m.joined_at).toLocaleDateString('pt-PT')
+        (m as { role?: string }).role || '-',
+        new Date((m as { joined_at?: string }).joined_at || Date.now()).toLocaleDateString('pt-PT')
       ])
     ];
     
@@ -464,7 +490,7 @@ export const exportFamilyToExcel = (
         g.profiles?.nome || 'N/A',
         Number(g.valor_objetivo),
         Number(g.valor_atual || 0),
-        g.status || 'Ativo'
+        (g as { status?: string }).status || 'Ativo'
       ])
     ];
     
@@ -488,7 +514,7 @@ export const exportFamilyReport = async (
   let blob: Blob;
   let filename: string;
   
-  const familyName = data.family.nome.replace(/[^a-zA-Z0-9]/g, '_');
+  const familyName = String(data.family.nome).replace(/[^a-zA-Z0-9]/g, '_');
   const dateRange = `${new Date(options.dateRange.start).toISOString().split('T')[0]}_${new Date(options.dateRange.end).toISOString().split('T')[0]}`;
   
   switch (options.format) {

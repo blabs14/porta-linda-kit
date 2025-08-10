@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCreateFixedExpense, useUpdateFixedExpense } from '../hooks/useFixedExpensesQuery';
-import { useCategories } from '../hooks/useCategoriesQuery';
+import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { useAccounts } from '../hooks/useAccountsQuery';
 import { fixedExpenseSchema } from '../validation/fixedExpenseSchema';
 import { Input } from './ui/input';
@@ -53,7 +53,7 @@ const FixedExpensesForm = ({ initialData, onSuccess, onCancel }: FixedExpenseFor
   const updateFixedExpenseMutation = useUpdateFixedExpense();
   const isSubmitting = createFixedExpenseMutation.isPending || updateFixedExpenseMutation.isPending;
 
-  const { data: categories, isLoading: categoriesLoading } = useCategories();
+  const { data: categories, isLoading: categoriesLoading } = useCategoriesDomain();
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const dataLoading = categoriesLoading || accountsLoading;
 

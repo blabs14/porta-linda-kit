@@ -20,7 +20,7 @@ import {
   Database,
   Loader2
 } from 'lucide-react';
-import { useFamily } from './FamilyProvider';
+import { useFamily } from './FamilyContext';
 import { useToast } from '../../hooks/use-toast';
 import { useConfirmation } from '../../hooks/useConfirmation';
 

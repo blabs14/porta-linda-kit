@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { useFamily } from './FamilyProvider';
+import { useFamily } from './FamilyContext';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,6 +30,9 @@ import {
 } from 'lucide-react';
 import { Suspense } from 'react';
 import { LazyConfirmationDialog, LazyFallback } from './lazy';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
+import { getAuditLogsByRow } from '../../services/audit_logs';
+type AuditEntry = { id: string; timestamp: string; operation: string; old_data?: any; new_data?: any; details?: any };
 
 const roleConfig = {
   admin: {
@@ -306,6 +309,18 @@ const FamilyMembers: React.FC = () => {
                         <span className="text-xs text-muted-foreground">
                           Membro desde {formatDate(member.joined_at)}
                         </span>
+                      </div>
+
+                      {/* Histórico de alterações (Audit Log) */}
+                      <div className="mt-3">
+                        <Accordion type="single" collapsible>
+                          <AccordionItem value={`hist-${member.id}`}>
+                            <AccordionTrigger>Histórico</AccordionTrigger>
+                            <AccordionContent>
+                              <MemberAuditList memberId={member.id} />
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
                       </div>
                     </div>
 
@@ -592,3 +607,67 @@ const FamilyMembers: React.FC = () => {
 };
 
 export default FamilyMembers; 
+
+const MemberAuditList: React.FC<{ memberId: string }> = ({ memberId }) => {
+  const [logs, setLogs] = React.useState<AuditEntry[]>([]);
+  const [loading, setLoading] = React.useState<boolean>(false);
+  const [loaded, setLoaded] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    let active = true;
+    const fetchLogs = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await getAuditLogsByRow('family_members', memberId, 20);
+        if (!active) return;
+        if (error) {
+          console.debug('[MemberAuditList] erro a obter logs:', error);
+          setLogs([]);
+        } else {
+          setLogs(Array.isArray(data) ? (data as unknown as AuditEntry[]) : []);
+        }
+      } catch (e) {
+        console.debug('[MemberAuditList] exceção a obter logs:', e);
+        setLogs([]);
+      } finally {
+        if (active) {
+          setLoading(false);
+          setLoaded(true);
+        }
+      }
+    };
+    if (!loaded) fetchLogs();
+    return () => { active = false; };
+  }, [memberId, loaded]);
+
+  if (loading) return <div className="text-sm text-muted-foreground">A carregar histórico...</div>;
+  if (!logs.length) return <div className="text-sm text-muted-foreground">Sem histórico recente.</div>;
+
+  return (
+    <div className="space-y-2 text-sm">
+      {logs.map((log) => (
+        <div key={log.id} className="rounded border p-2">
+          <div className="flex items-center justify-between">
+            <span className="font-medium">{new Date(log.timestamp).toLocaleString('pt-PT')}</span>
+            <Badge variant="outline">{log.operation}</Badge>
+          </div>
+          {log.old_data && log.new_data && (
+            <div className="mt-1 text-xs text-muted-foreground">
+              <span>Mudanças principais: </span>
+              {typeof log.old_data === 'object' && typeof log.new_data === 'object' && (
+                <>
+                  {('role' in log.old_data || 'role' in log.new_data) && (
+                    <div>Role: {(log.old_data?.role ?? '-') } → {(log.new_data?.role ?? '-')}</div>
+                  )}
+                  {('status' in log.old_data || 'status' in log.new_data) && (
+                    <div>Status: {(log.old_data?.status ?? '-') } → {(log.new_data?.status ?? '-')}</div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}; 

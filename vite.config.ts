@@ -37,6 +37,9 @@ export default defineConfig(({ mode }) => {
       mode === "development" && componentTagger(),
       VitePWA({
         registerType: "autoUpdate",
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.ts',
         manifest: {
           name: "Porta Linda Kit",
           short_name: "PortaLinda",
@@ -64,6 +67,25 @@ export default defineConfig(({ mode }) => {
       alias: {
         "@": path.resolve(__dirname, "./src"),
       },
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: [
+              'react', 'react-dom',
+              '@tanstack/react-query',
+              'recharts',
+              'lucide-react'
+            ],
+            reports: [
+              './src/pages/reports.tsx',
+              './src/components/ReportExport.tsx',
+              './src/components/ReportChart.tsx'
+            ]
+          }
+        }
+      }
     },
     test: {
       globals: true,

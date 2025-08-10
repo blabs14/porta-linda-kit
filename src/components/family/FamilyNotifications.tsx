@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 import { useToast } from '../../hooks/use-toast';
@@ -6,6 +6,10 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Bell, X, Users, UserPlus, UserMinus, AlertTriangle, CheckCircle, DollarSign, Target } from 'lucide-react';
 import { FamilyNotification } from '../../types/family';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { useConfirmation } from '../../hooks/useConfirmation';
+import { ConfirmationDialog } from '../ui/confirmation-dialog';
 
 interface FamilyNotificationsProps {
   familyId: string;
@@ -18,6 +22,16 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [filterType, setFilterType] = useState<'all' | 'info' | 'success' | 'warning' | 'error'>('all');
+  const [filterRead, setFilterRead] = useState<'all' | 'unread' | 'read'>('all');
+  const [filterCategory, setFilterCategory] = useState<'all' | 'invite' | 'member' | 'transaction' | 'budget' | 'goal'>('all');
+  const confirmation = useConfirmation();
+
+  const updateUnreadCount = useCallback((notifList?: FamilyNotification[]) => {
+    const list = notifList || notifications;
+    const unread = list.filter(n => !n.read).length;
+    setUnreadCount(unread);
+  }, [notifications]);
 
   const loadFamilyNotifications = useCallback(async () => {
     if (!user?.id || !familyId) return;
@@ -46,13 +60,7 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, familyId, toast]);
-
-  const updateUnreadCount = useCallback((notifList?: FamilyNotification[]) => {
-    const list = notifList || notifications;
-    const unread = list.filter(n => !n.read).length;
-    setUnreadCount(unread);
-  }, [notifications]);
+  }, [user?.id, familyId, toast, updateUnreadCount]);
 
   const markAsRead = useCallback(async (notificationId: string) => {
     try {
@@ -126,6 +134,21 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
     }
   }, [updateUnreadCount, toast]);
 
+  const confirmAndDelete = useCallback((notificationId: string) => {
+    confirmation.confirm(
+      {
+        title: 'Eliminar Notificação',
+        message: 'Tem a certeza que deseja eliminar esta notificação? Esta ação não pode ser desfeita.',
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+        variant: 'destructive',
+      },
+      async () => {
+        await deleteNotification(notificationId);
+      }
+    );
+  }, [deleteNotification, confirmation]);
+
   const getNotificationIcon = useCallback((category?: string) => {
     switch (category) {
       case 'invite':
@@ -155,6 +178,13 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
         return 'bg-blue-100 text-blue-800 border-blue-200';
     }
   }, []);
+
+  const filteredNotifications = useMemo(() => {
+    return (notifications || [])
+      .filter(n => (filterType === 'all' ? true : n.type === filterType))
+      .filter(n => (filterRead === 'all' ? true : filterRead === 'unread' ? !n.read : n.read))
+      .filter(n => (filterCategory === 'all' ? true : n.category === filterCategory));
+  }, [notifications, filterType, filterRead, filterCategory]);
 
   // Carregar notificações iniciais
   useEffect(() => {
@@ -260,20 +290,67 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
             </div>
           </div>
 
+          <div className="p-3 grid grid-cols-3 gap-2 border-b border-gray-100">
+            <div>
+              <Label className="text-xs">Tipo</Label>
+              <Select value={filterType} onValueChange={(v) => setFilterType(v as any)}>
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="info">Info</SelectItem>
+                  <SelectItem value="success">Sucesso</SelectItem>
+                  <SelectItem value="warning">Aviso</SelectItem>
+                  <SelectItem value="error">Erro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Estado</Label>
+              <Select value={filterRead} onValueChange={(v) => setFilterRead(v as any)}>
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="unread">Por ler</SelectItem>
+                  <SelectItem value="read">Lidas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Categoria</Label>
+              <Select value={filterCategory} onValueChange={(v) => setFilterCategory(v as any)}>
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="invite">Convites</SelectItem>
+                  <SelectItem value="member">Membros</SelectItem>
+                  <SelectItem value="transaction">Transações</SelectItem>
+                  <SelectItem value="budget">Orçamentos</SelectItem>
+                  <SelectItem value="goal">Objetivos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="max-h-80 overflow-y-auto">
             {isLoading ? (
               <div className="p-4 text-center text-gray-500">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                 <p className="mt-2">A carregar notificações...</p>
               </div>
-            ) : notifications.length === 0 ? (
+            ) : filteredNotifications.length === 0 ? (
               <div className="p-4 text-center text-gray-500">
                 <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p>Nenhuma notificação</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {notifications.map((notification) => (
+                {filteredNotifications.map((notification) => (
                   <div
                     key={notification.id}
                     className={`p-4 hover:bg-gray-50 transition-colors ${
@@ -286,8 +363,15 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start">
-                          <p className="text-sm font-medium text-gray-900">
+                          <p className="text-sm font-medium text-gray-900 flex items-center gap-2">
                             {notification.title}
+                            {!notification.read && (
+                              <Badge variant="secondary" className="text-[10px]">Por ler</Badge>
+                            )}
+                            <Badge variant="outline" className="text-[10px] capitalize">{notification.type}</Badge>
+                            {notification.category && (
+                              <Badge variant="outline" className="text-[10px] capitalize">{notification.category}</Badge>
+                            )}
                           </p>
                           <div className="flex gap-1">
                             {!notification.read && (
@@ -303,7 +387,7 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => deleteNotification(notification.id)}
+                              onClick={() => confirmAndDelete(notification.id)}
                               className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"
                             >
                               <X className="h-3 w-3" />
@@ -325,6 +409,19 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={confirmation.isOpen}
+        onClose={confirmation.close}
+        onConfirm={confirmation.onConfirm}
+        onCancel={confirmation.onCancel}
+        title={confirmation.options.title}
+        message={confirmation.options.message}
+        confirmText={confirmation.options.confirmText}
+        cancelText={confirmation.options.cancelText}
+        variant={confirmation.options.variant}
+      />
     </div>
   );
 }; 

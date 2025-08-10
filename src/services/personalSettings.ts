@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import type { Json } from '../integrations/supabase/database.types';
 
 export interface PersonalSettings {
   theme: 'light' | 'dark' | 'system';
@@ -8,6 +9,7 @@ export interface PersonalSettings {
     goal_reminders: boolean;
     budget_alerts: boolean;
     transaction_alerts: boolean;
+    local_reminders?: boolean; // opcional: controlar notificações locais no browser
   };
   appearance: {
     theme: 'light' | 'dark' | 'system';
@@ -40,7 +42,7 @@ export const updatePersonalSettings = async (userId: string, settings: Partial<P
   const { data, error } = await supabase
     .from('profiles')
     .update({ 
-      personal_settings: settings,
+      personal_settings: (settings as unknown) as Json,
       updated_at: new Date().toISOString()
     })
     .eq('user_id', userId)
@@ -82,7 +84,8 @@ export const updateTheme = async (userId: string, theme: 'light' | 'dark' | 'sys
         push: true,
         goal_reminders: true,
         budget_alerts: true,
-        transaction_alerts: false
+        transaction_alerts: false,
+        local_reminders: true,
       },
       appearance: {
         theme,
@@ -96,13 +99,13 @@ export const updateTheme = async (userId: string, theme: 'light' | 'dark' | 'sys
   
   // Atualizar apenas o tema nas configurações existentes
   const updatedSettings = {
-    ...currentSettings.personal_settings,
+    ...(currentSettings as any).personal_settings,
     theme,
     appearance: {
-      ...currentSettings.personal_settings.appearance,
+      ...(currentSettings as any).personal_settings?.appearance,
       theme
     }
-  };
+  } as Partial<PersonalSettings>;
   
   return updatePersonalSettings(userId, updatedSettings);
 };
@@ -126,9 +129,9 @@ export const updateNotificationSettings = async (userId: string, notifications: 
   }
   
   const updatedSettings = {
-    ...currentSettings.personal_settings,
+    ...(currentSettings as any).personal_settings,
     notifications
-  };
+  } as Partial<PersonalSettings>;
   
   return updatePersonalSettings(userId, updatedSettings);
 };
@@ -153,7 +156,8 @@ export const createInitialProfile = async (userId: string, email: string) => {
       push: true,
       goal_reminders: true,
       budget_alerts: true,
-      transaction_alerts: false
+      transaction_alerts: false,
+      local_reminders: true,
     },
     appearance: {
       theme: 'system',
@@ -167,7 +171,7 @@ export const createInitialProfile = async (userId: string, email: string) => {
     .insert({
       user_id: userId,
       nome: email.split('@')[0], // Usar parte do email como nome inicial
-      personal_settings: defaultSettings,
+      personal_settings: (defaultSettings as unknown) as Json,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })

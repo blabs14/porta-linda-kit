@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUpdateAccount } from '../hooks/useAccountsQuery';
+import { useConfirmation } from '../hooks/useConfirmation';
+import { ConfirmationDialog } from './ui/confirmation-dialog';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { FormSubmitButton } from './ui/loading-button';
@@ -37,8 +39,12 @@ const RegularAccountForm = ({ initialData, onSuccess, onCancel }: RegularAccount
   const { user } = useAuth();
   const [form, setForm] = useState<RegularAccountFormData>(initialData);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const initialCurrentBalance = Number(initialData.saldoAtual || 0);
+  const targetChanged = typeof form.saldoAtual === 'number' && Number(form.saldoAtual) !== initialCurrentBalance;
+  const hasManualAdjustment = !!Number(form.ajusteSaldo);
   
   const updateAccountMutation = useUpdateAccount();
+  const confirmation = useConfirmation();
   
   const isSubmitting = updateAccountMutation.isPending;
 
@@ -71,7 +77,11 @@ const RegularAccountForm = ({ initialData, onSuccess, onCancel }: RegularAccount
       // Verificar se é um número válido
       const parsedValue = parseFloat(numericValue);
       if (!isNaN(parsedValue)) {
-        setForm({ ...form, [name]: parsedValue });
+        if (name === 'saldoAtual') {
+          setForm({ ...form, saldoAtual: parsedValue, ajusteSaldo: 0 });
+        } else {
+          setForm({ ...form, ajusteSaldo: parsedValue });
+        }
       } else if (value === '-') {
         // Manter o sinal negativo se o utilizador acabou de digitar
         setForm({ ...form, [name]: value });
@@ -84,6 +94,22 @@ const RegularAccountForm = ({ initialData, onSuccess, onCancel }: RegularAccount
 
   const handleTipoChange = (value: string) => {
     setForm((prev) => ({ ...prev, tipo: value }));
+  };
+
+  const doUpdate = async () => {
+    const numericAjuste = targetChanged ? 0 : (typeof form.ajusteSaldo === 'string' ? (parseFloat(form.ajusteSaldo) || 0) : (Number(form.ajusteSaldo) || 0));
+    const payloadBase: Record<string, unknown> = {
+      nome: form.nome.trim(),
+      tipo: form.tipo,
+    };
+    if ((Number(form.saldoAtual) || 0) !== (Number(initialData.saldoAtual) || 0)) {
+      payloadBase.saldoAtual = Number(form.saldoAtual) || 0;
+    }
+    if (numericAjuste !== 0) {
+      payloadBase.ajusteSaldo = numericAjuste;
+    }
+    const payload = payloadBase;
+    await updateAccountMutation.mutateAsync({ id: form.id, ...(payload as any) });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,22 +133,20 @@ const RegularAccountForm = ({ initialData, onSuccess, onCancel }: RegularAccount
     }
     
     try {
-      // Se apenas nome e tipo foram alterados, enviar apenas esses campos
-      const hasSaldoChanges = form.saldoAtual !== initialData.saldoAtual || 
-                             (form.ajusteSaldo !== undefined && form.ajusteSaldo !== 0);
-      
-      const payload = hasSaldoChanges ? {
-        nome: form.nome.trim(),
-        tipo: form.tipo,
-        saldoAtual: Number(form.saldoAtual) || 0,
-        ajusteSaldo: typeof form.ajusteSaldo === 'string' ? parseFloat(form.ajusteSaldo) || 0 : (Number(form.ajusteSaldo) || 0),
-      } : {
-        nome: form.nome.trim(),
-        tipo: form.tipo,
-      };
-      
-      console.log('[RegularAccountForm] Sending payload:', payload);
-      await updateAccountMutation.mutateAsync({ id: form.id, data: payload });
+      const requiresConfirm = targetChanged || (Number(form.ajusteSaldo) || 0) !== 0;
+      if (requiresConfirm) {
+        confirmation.confirm(
+          {
+            title: 'Aplicar ajuste de saldo',
+            message: 'Será criada uma transação de ajuste pela diferença para refletir a alteração de saldo. Deseja continuar?',
+            confirmText: 'Continuar',
+            cancelText: 'Cancelar',
+          },
+          () => { void doUpdate().then(() => onSuccess?.()); }
+        );
+        return;
+      }
+      await doUpdate();
       onSuccess?.();
     } catch (err: any) {
       console.error('Erro ao guardar conta:', err);
@@ -155,29 +179,47 @@ const RegularAccountForm = ({ initialData, onSuccess, onCancel }: RegularAccount
       </Select>
       {validationErrors.tipo && <div className="text-red-600 text-sm">{validationErrors.tipo}</div>}
       
-      <Input
-        name="saldoAtual"
-        type="text"
-        placeholder="Saldo Atual (€) - Opcional"
-        value={form.saldoAtual?.toString() || ''}
-        onChange={handleChange}
-        className="w-full"
-        aria-invalid={!!validationErrors.saldoAtual}
-        aria-describedby={validationErrors.saldoAtual ? 'saldoAtual-error' : undefined}
-      />
-      {validationErrors.saldoAtual && <div id="saldoAtual-error" className="text-red-600 text-sm">{validationErrors.saldoAtual}</div>}
+      <div className="space-y-1">
+        <Input
+          name="saldoAtual"
+          type="text"
+          placeholder="Saldo Atual (€) - Opcional"
+          value={form.saldoAtual?.toString() || ''}
+          onChange={handleChange}
+          className="w-full"
+          disabled={hasManualAdjustment}
+          aria-invalid={!!validationErrors.saldoAtual}
+          aria-describedby={validationErrors.saldoAtual ? 'saldoAtual-error' : undefined}
+        />
+        {validationErrors.saldoAtual && <div id="saldoAtual-error" className="text-red-600 text-sm">{validationErrors.saldoAtual}</div>}
+        <div className="text-xs text-muted-foreground">
+          Ao guardar, será aplicada uma transação de ajuste pela diferença para atingir este saldo.
+          {targetChanged && (
+            <> Diferença: {((Number(form.saldoAtual) || 0) - initialCurrentBalance).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })}</>
+          )}
+          {hasManualAdjustment && (
+            <span className="block">Desativado porque definiu um ajuste manual.</span>
+          )}
+        </div>
+      </div>
       
-      <Input
-        name="ajusteSaldo"
-        type="text"
-        placeholder="Ajuste de Saldo (+/- €) - Opcional"
-        value={form.ajusteSaldo?.toString() || ''}
-        onChange={handleChange}
-        className="w-full"
-        aria-invalid={!!validationErrors.ajusteSaldo}
-        aria-describedby={validationErrors.ajusteSaldo ? 'ajusteSaldo-error' : undefined}
-      />
-      {validationErrors.ajusteSaldo && <div id="ajusteSaldo-error" className="text-red-600 text-sm">{validationErrors.ajusteSaldo}</div>}
+      <div className="space-y-1">
+        <Input
+          name="ajusteSaldo"
+          type="text"
+          placeholder="Ajuste de Saldo (+/- €) - Opcional"
+          value={form.ajusteSaldo?.toString() || ''}
+          onChange={handleChange}
+          className="w-full"
+          disabled={targetChanged}
+          aria-invalid={!!validationErrors.ajusteSaldo}
+          aria-describedby={validationErrors.ajusteSaldo ? 'ajusteSaldo-error' : undefined}
+        />
+        {validationErrors.ajusteSaldo && <div id="ajusteSaldo-error" className="text-red-600 text-sm">{validationErrors.ajusteSaldo}</div>}
+        <div className="text-xs text-muted-foreground">
+          Aplica um ajuste direto ao saldo atual. {targetChanged && 'Desativado porque definiu um novo saldo alvo.'}
+        </div>
+      </div>
       
       <div className="flex flex-col sm:flex-row gap-2">
         <FormSubmitButton 
@@ -188,6 +230,18 @@ const RegularAccountForm = ({ initialData, onSuccess, onCancel }: RegularAccount
         />
         <Button type="button" variant="outline" onClick={onCancel} className="w-full">Cancelar</Button>
       </div>
+
+      <ConfirmationDialog
+        isOpen={confirmation.isOpen}
+        onClose={confirmation.close}
+        onConfirm={confirmation.onConfirm}
+        onCancel={confirmation.onCancel}
+        title={confirmation.options.title}
+        message={confirmation.options.message}
+        confirmText={confirmation.options.confirmText}
+        cancelText={confirmation.options.cancelText}
+        variant={confirmation.options.variant}
+      />
     </form>
   );
 };

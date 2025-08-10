@@ -232,6 +232,16 @@ const PersonalAccounts: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Aviso: saldo disponível negativo (apenas aviso) */}
+                  {account.saldo_disponivel < 0 && (
+                    <Alert variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        Saldo disponível negativo. Isto é apenas um aviso—as operações continuam permitidas.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
                   {/* Botões de ação - Editar e Eliminar */}
                   <div className="flex gap-2 pt-2">
                     <Button

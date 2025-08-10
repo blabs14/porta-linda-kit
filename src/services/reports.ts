@@ -1,7 +1,10 @@
 import { supabase } from '../lib/supabaseClient';
 
 // Relatório: Total de despesas por categoria (com nome da categoria e filtro opcional por mês)
-export const getExpensesByCategory = async (user_id: string, mes?: string) => {
+export const getExpensesByCategory = async (
+  user_id: string,
+  mes?: string
+): Promise<{ data: { categoria: string; total: number }[]; error: unknown }> => {
   let query = supabase
     .from('transactions')
     .select('valor, categoria_id, categorias:categoria_id(nome)')
@@ -17,8 +20,9 @@ export const getExpensesByCategory = async (user_id: string, mes?: string) => {
   if (error) return { data: [], error };
 
   // Agregar por categoria
-  const agregados: { [categoria: string]: number } = {};
-  data.forEach((t: any) => {
+  const agregados: Record<string, number> = {};
+  const rows = (data as Array<{ valor: number | null; categorias?: { nome?: string | null } }> | null) || [];
+  rows.forEach((t) => {
     const nome = t.categorias?.nome || 'Sem categoria';
     agregados[nome] = (agregados[nome] || 0) + (t.valor || 0);
   });

@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getGoals, createGoal, updateGoal, deleteGoal, allocateFunds, getGoalProgress } from '../services/goals';
+import { getGoals, getGoalsDomain, createGoal, updateGoal, deleteGoal, allocateFunds, getGoalProgress } from '../services/goals';
 import { useAuth } from '../contexts/AuthContext';
+import type { GoalInsert, GoalUpdate } from '../integrations/supabase/types';
+import type { GoalDomain } from '../shared/types/goals';
 
 export const useGoals = () => {
   const { user } = useAuth();
@@ -21,16 +23,32 @@ export const useGoals = () => {
   });
 };
 
+export const useGoalsDomain = () => {
+  const { user } = useAuth();
+  return useQuery<GoalDomain[]>({
+    queryKey: ['goals-domain', user?.id],
+    queryFn: async () => {
+      const { data, error } = await getGoalsDomain(user?.id || '');
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+};
+
 export const useCreateGoal = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: GoalInsert) => {
       const result = await createGoal(data);
       if (result.error) throw result.error;
       return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['goals-domain'] });
       queryClient.invalidateQueries({ queryKey: ['goalProgress'] });
     },
   });
@@ -39,14 +57,18 @@ export const useCreateGoal = () => {
 export const useUpdateGoal = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (variables: any) => {
-      const { id, ...updateData } = variables || {};
+    mutationFn: async (
+      variables: { id: string; data?: GoalUpdate } & Partial<GoalUpdate>
+    ) => {
+      const { id, data, ...maybeFields } = variables;
+      const updateData: GoalUpdate = data ?? (maybeFields as GoalUpdate);
       const result = await updateGoal(id, updateData);
       if (result.error) throw result.error;
       return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['goals-domain'] });
       queryClient.invalidateQueries({ queryKey: ['goalProgress'] });
     }
   });
@@ -62,6 +84,7 @@ export const useDeleteGoal = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['goals-domain'] });
       queryClient.invalidateQueries({ queryKey: ['goalProgress'] });
     }
   });
@@ -77,6 +100,7 @@ export const useAllocateFunds = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['goals-domain'] });
       queryClient.invalidateQueries({ queryKey: ['goalProgress'] });
     }
   });

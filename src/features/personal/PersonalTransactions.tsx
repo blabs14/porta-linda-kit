@@ -22,11 +22,11 @@ import {
 } from 'lucide-react';
 import { LoadingSpinner } from '../../components/ui/loading-states';
 import { useTransactions } from '../../hooks/useTransactionsQuery';
-import { useAccounts } from '../../hooks/useAccountsQuery';
-import { useCategories } from '../../hooks/useCategoriesQuery';
+import { useAccountsDomain } from '../../hooks/useAccountsQuery';
+import { useCategoriesDomain } from '../../hooks/useCategoriesQuery';
 import { useReferenceData } from '../../hooks/useCache';
 import { useAuth } from '../../contexts/AuthContext';
-import { exportReport } from '../../services/exportService';
+// exportReport será carregado dinamicamente no ponto de uso
 import { formatCurrency } from '../../lib/utils';
 import { useToast } from '../../hooks/use-toast';
 import TransactionForm from '../../components/TransactionForm';
@@ -48,8 +48,8 @@ const PersonalTransactions: React.FC = () => {
 
   // Usar os hooks robustos que já funcionam
   const { data: transactions = [], isLoading } = useTransactions();
-  const { data: accounts = [] } = useAccounts();
-  const { data: categories = [] } = useCategories();
+  const { data: accounts = [] } = useAccountsDomain();
+  const { data: categories = [] } = useCategoriesDomain();
   const { accounts: refAccounts, categories: refCategories } = useReferenceData();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -104,6 +104,7 @@ const PersonalTransactions: React.FC = () => {
       const endDate = new Date().toISOString().split('T')[0];
       const startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+      const { exportReport } = await import('../../services/exportService');
       const { blob, filename } = await exportReport(user.id, {
         format: 'excel',
         dateRange: { start: startDate, end: endDate },
@@ -199,13 +200,14 @@ const PersonalTransactions: React.FC = () => {
           const endOfYear = new Date(today.getFullYear(), 11, 31, 23, 59, 59, 999);
           
           switch (dateFilter) {
-            case 'today':
+            case 'today': {
               const startOfDay = new Date(today);
               startOfDay.setHours(0, 0, 0, 0);
               const endOfDay = new Date(today);
               endOfDay.setHours(23, 59, 59, 999);
               matchesDate = transactionDate >= startOfDay && transactionDate <= endOfDay;
               break;
+            }
             case 'this-week':
               matchesDate = transactionDate >= startOfWeek && transactionDate <= endOfWeek;
               break;
@@ -215,7 +217,7 @@ const PersonalTransactions: React.FC = () => {
             case 'this-year':
               matchesDate = transactionDate >= startOfYear && transactionDate <= endOfYear;
               break;
-            case 'last-week':
+            case 'last-week': {
               const lastWeekStart = new Date(startOfWeek);
               lastWeekStart.setDate(startOfWeek.getDate() - 7);
               const lastWeekEnd = new Date(startOfWeek);
@@ -223,11 +225,13 @@ const PersonalTransactions: React.FC = () => {
               lastWeekEnd.setHours(23, 59, 59, 999);
               matchesDate = transactionDate >= lastWeekStart && transactionDate <= lastWeekEnd;
               break;
-            case 'last-month':
+            }
+            case 'last-month': {
               const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
               const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
               matchesDate = transactionDate >= lastMonthStart && transactionDate <= lastMonthEnd;
               break;
+            }
           }
         }
       }
@@ -369,7 +373,7 @@ const PersonalTransactions: React.FC = () => {
                   <SelectItem value="all">Todas as contas</SelectItem>
                   {accounts.map((account) => (
                     <SelectItem key={account.id} value={account.id}>
-                      {account.nome}
+                      {account.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -457,7 +461,7 @@ const PersonalTransactions: React.FC = () => {
               <p className="text-sm text-blue-800">
                 <strong>Filtros ativos:</strong> 
                 {searchTerm && ` Pesquisa: "${searchTerm}"`}
-                {selectedAccount !== 'all' && ` Conta: ${accounts.find(a => a.id === selectedAccount)?.nome}`}
+                {selectedAccount !== 'all' && ` Conta: ${accounts.find(a => a.id === selectedAccount)?.name}`}
                 {selectedCategory !== 'all' && ` Categoria: ${categories.find(c => c.id === selectedCategory)?.nome}`}
                 {selectedType !== 'all' && ` Tipo: ${selectedType === 'receita' ? 'Receitas' : 'Despesas'}`}
                 {dateFilter !== 'all' && ` Data: ${getDateFilterText()}`}
@@ -505,7 +509,7 @@ const PersonalTransactions: React.FC = () => {
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <span>{categories.find(c => c.id === transaction.categoria_id)?.nome || 'Sem categoria'}</span>
                             <span>•</span>
-                            <span>{accounts.find(a => a.id === transaction.account_id)?.nome || 'Conta'}</span>
+                            <span>{accounts.find(a => a.id === transaction.account_id)?.name || 'Conta'}</span>
                             <span>•</span>
                             <span>{new Date(transaction.data).toLocaleDateString('pt-PT')}</span>
                           </div>

@@ -15,7 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from './ui/popover';
-import { useCategories, useCreateCategory } from '../hooks/useCategoriesQuery';
+import { useCategoriesDomain, useCreateCategory } from '../hooks/useCategoriesQuery';
 import { useToast } from '../hooks/use-toast';
 
 interface CategorySelectProps {
@@ -28,7 +28,7 @@ interface CategorySelectProps {
 export function CategorySelect({ value, onValueChange, placeholder = "Selecionar categoria...", disabled = false }: CategorySelectProps) {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
-  const { data: categories = [], isLoading } = useCategories();
+  const { data: categories = [], isLoading } = useCategoriesDomain();
   const createCategoryMutation = useCreateCategory();
   const { toast } = useToast();
 

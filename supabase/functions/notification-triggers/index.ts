@@ -44,7 +44,7 @@ serve(async (req) => {
         };
         break;
 
-      case 'goal_progress':
+      case 'goal_progress': {
         const progress = Math.round((data.currentAmount / data.goalAmount) * 100);
         notification = {
           user_id: userId,
@@ -53,8 +53,9 @@ serve(async (req) => {
           type: 'info',
         };
         break;
+      }
 
-      case 'budget_alert':
+      case 'budget_alert': {
         const percentage = Math.round((data.spent / data.budget) * 100);
         notification = {
           user_id: userId,
@@ -63,6 +64,7 @@ serve(async (req) => {
           type: percentage > 90 ? 'error' : 'warning',
         };
         break;
+      }
 
       case 'budget_exceeded':
         notification = {
@@ -82,7 +84,7 @@ serve(async (req) => {
         };
         break;
 
-      case 'monthly_summary':
+      case 'monthly_summary': {
         const balance = data.income - data.expenses;
         const balanceType = balance >= 0 ? 'positivo' : 'negativo';
         notification = {
@@ -92,6 +94,7 @@ serve(async (req) => {
           type: balance >= 0 ? 'success' : 'warning',
         };
         break;
+      }
 
       case 'family_invite':
         notification = {

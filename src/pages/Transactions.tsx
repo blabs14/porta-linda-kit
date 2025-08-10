@@ -13,22 +13,32 @@ import {
   Calendar
 } from 'lucide-react';
 import { useTransactions } from '../hooks/useTransactionsQuery';
-import { useAccounts } from '../hooks/useAccountsQuery';
-import { useCategories } from '../hooks/useCategoriesQuery';
+import { useAccountsDomain } from '../hooks/useAccountsQuery';
+import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { useAuth } from '../contexts/AuthContext';
-import { exportReport } from '../services/exportService';
+// exportReport será carregado dinamicamente no ponto de uso
 import { formatCurrency } from '../lib/utils';
 import { useToast } from '../hooks/use-toast';
 
+type TransactionItem = {
+  id: string;
+  account_id: string;
+  categoria_id: string;
+  tipo: string;
+  valor: number;
+  descricao: string; // obrigatória para alinhar com TransactionFormData
+  data: string;
+};
+
 const TransactionsPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
-  const [editTx, setEditTx] = useState<any | null>(null);
+  const [editTx, setEditTx] = useState<TransactionItem | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
 
   const { data: transactions = [], isLoading } = useTransactions();
-  const { data: accounts = [] } = useAccounts();
-  const { data: categories = [] } = useCategories();
+  const { data: accounts = [] } = useAccountsDomain();
+  const { data: categories = [] } = useCategoriesDomain();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -44,7 +54,7 @@ const TransactionsPage = () => {
     setModalOpen(true);
   };
 
-  const handleEdit = (tx: any) => {
+  const handleEdit = (tx: TransactionItem) => {
     setEditTx(tx);
     setModalOpen(true);
   };
@@ -70,6 +80,7 @@ const TransactionsPage = () => {
       const endDate = new Date().toISOString().split('T')[0];
       const startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+      const { exportReport } = await import('../services/exportService');
       const { blob, filename } = await exportReport(user.id, {
         format: 'excel',
         dateRange: { start: startDate, end: endDate },
@@ -89,11 +100,12 @@ const TransactionsPage = () => {
         title: 'Exportação concluída',
         description: `Relatório exportado como ${filename}`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro na exportação:', error);
+      const message = (error && typeof error === 'object' && 'message' in error) ? String((error as { message?: string }).message) : 'Ocorreu um erro ao exportar o relatório';
       toast({
         title: 'Erro na exportação',
-        description: error.message || 'Ocorreu um erro ao exportar o relatório',
+        description: message,
         variant: 'destructive',
       });
     } finally {
@@ -222,8 +234,6 @@ const TransactionsPage = () => {
           </CardContent>
         </Card>
       </div>
-
-
 
       {/* Lista de Transações */}
       <Card className="hover:shadow-md transition-shadow">

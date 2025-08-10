@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCreateBudget, useUpdateBudget } from '../hooks/useBudgetsQuery';
-import { useCategories } from '../hooks/useCategoriesQuery';
+import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { budgetSchema } from '../validation/budgetSchema';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -45,7 +45,7 @@ const BudgetForm = ({ initialData, onSuccess, onCancel }: BudgetFormProps) => {
   
   const createBudgetMutation = useCreateBudget();
   const updateBudgetMutation = useUpdateBudget();
-  const { data: categories = [], isLoading: categoriesLoading } = useCategories();
+  const { data: categories = [], isLoading: categoriesLoading } = useCategoriesDomain();
   
   const isSubmitting = createBudgetMutation.isPending || updateBudgetMutation.isPending;
 
@@ -91,10 +91,8 @@ const BudgetForm = ({ initialData, onSuccess, onCancel }: BudgetFormProps) => {
     try {
       const payload = {
         categoria_id: form.categoria_id,
-        valor_limite: form.valor_limite,
-        periodo: form.periodo,
-        mes: form.periodo === 'mensal' ? form.mes : undefined,
-        ano: form.ano,
+        valor: Number(form.valor_limite),
+        mes: `${form.ano}-${String(form.mes).padStart(2, '0')}`,
       };
       
       if (initialData && initialData.id) {

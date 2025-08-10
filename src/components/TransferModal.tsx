@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCreateTransaction } from '../hooks/useTransactionsQuery';
 import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
-import { useCategories } from '../hooks/useCategoriesQuery';
+import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { ensureTransferCategory } from '../services/categories';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -24,6 +24,8 @@ import {
 import { useToast } from '../hooks/use-toast';
 import { formatCurrency } from '../lib/utils';
 import { supabase } from '../lib/supabaseClient';
+import { payCreditCardFromAccount } from '../services/transactions';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface TransferModalProps {
   isOpen: boolean;
@@ -32,9 +34,10 @@ interface TransferModalProps {
 
 const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { mutateAsync: createTransaction, isPending: isCreating } = useCreateTransaction();
   const { data: accounts = [] } = useAccountsWithBalances();
-  const { data: categories = [] } = useCategories();
+  const { data: categories = [] } = useCategoriesDomain();
   const { toast } = useToast();
   
   const [fromAccountId, setFromAccountId] = useState('');
@@ -63,6 +66,9 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
     }
   }, [isOpen]);
 
+  const isCreditCard = (acc?: typeof accounts[number]) => (acc?.tipo || '').toLowerCase() === 'cartão de crédito';
+  const isBankLike = (acc?: typeof accounts[number]) => !isCreditCard(acc);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError('');
@@ -90,15 +96,43 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
     }
 
     try {
-      // Garantir que existe uma categoria de transferências
+      // Pagamento de cartão (origem banco -> destino cartão)
+      if (isBankLike(fromAccount) && isCreditCard(toAccount)) {
+        const { data, error } = await payCreditCardFromAccount(
+          user?.id || '',
+          toAccountId,
+          fromAccountId,
+          numericAmount,
+          new Date().toISOString().split('T')[0],
+          description || `Pagamento de cartão ${toAccount?.nome} a partir de ${fromAccount?.nome}`
+        );
+
+        if (error) {
+          setValidationError((error as { message?: string }).message || 'Erro ao pagar cartão');
+          toast({ title: 'Erro no pagamento', description: (error as { message?: string }).message || 'Erro ao pagar cartão', variant: 'destructive' });
+          return;
+        }
+
+        toast({
+          title: 'Pagamento realizado',
+          description: `Pagamento de ${formatCurrency(numericAmount)} do cartão ${toAccount?.nome} usando ${fromAccount?.nome}.`,
+        });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['transactions'] }),
+          queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] }),
+          queryClient.invalidateQueries({ queryKey: ['creditCardSummary', toAccountId, user?.id] })
+        ]);
+        onClose();
+        return;
+      }
+
+      // Transferência normal
       const { data: transferCat, error: catError } = await ensureTransferCategory(user?.id || '');
       if (catError) {
-        console.error('Erro ao obter categoria de transferência:', catError);
         setValidationError('Erro ao configurar categoria de transferência');
         return;
       }
 
-      // Usar função RPC corrigida para criar APENAS UMA transação de transferência
       const { data: result, error } = await supabase.rpc('create_transfer_transaction', {
         p_from_account_id: fromAccountId,
         p_to_account_id: toAccountId,
@@ -110,26 +144,15 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
       });
 
       if (error) {
-        console.error('Erro ao realizar transferência:', error);
         setValidationError(error.message || 'Erro ao realizar transferência');
-        toast({
-          title: 'Erro na transferência',
-          description: error.message || 'Erro ao realizar transferência',
-          variant: 'destructive',
-        });
+        toast({ title: 'Erro na transferência', description: error.message || 'Erro ao realizar transferência', variant: 'destructive' });
         return;
       }
 
-      // Verificar se o resultado contém erro
       if (result && typeof result === 'object' && 'error' in result) {
-        const errorMessage = (result as any).error;
-        console.error('Erro na transferência:', errorMessage);
+        const errorMessage = (result as { error?: string }).error || 'Erro na transferência';
         setValidationError(errorMessage);
-        toast({
-          title: 'Erro na transferência',
-          description: errorMessage,
-          variant: 'destructive',
-        });
+        toast({ title: 'Erro na transferência', description: errorMessage, variant: 'destructive' });
         return;
       }
 
@@ -137,17 +160,15 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
         title: 'Transferência realizada',
         description: `Transferência de ${formatCurrency(numericAmount)} de ${fromAccount?.nome} para ${toAccount?.nome} realizada com sucesso.`,
       });
-
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['transactions'] }),
+        queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] })
+      ]);
       onClose();
-    } catch (error: any) {
-      console.error('Erro ao realizar transferência:', error);
-      setValidationError(error.message || 'Erro ao realizar transferência');
-      
-      toast({
-        title: 'Erro na transferência',
-        description: error.message || 'Erro ao realizar transferência',
-        variant: 'destructive',
-      });
+    } catch (error) {
+      const msg = (error as { message?: string }).message || 'Erro ao processar operação';
+      setValidationError(msg);
+      toast({ title: 'Erro', description: msg, variant: 'destructive' });
     }
   };
 

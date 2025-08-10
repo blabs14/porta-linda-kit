@@ -27,7 +27,7 @@ export const usePersonalSettings = () => {
     refetch: refetchSettings
   } = useQuery({
     queryKey: ['personalSettings', user?.id],
-    queryFn: () => getPersonalSettings(user?.id!),
+    queryFn: () => getPersonalSettings(user?.id ?? ''),
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000, // 5 minutos
     gcTime: 10 * 60 * 1000, // 10 minutos
@@ -41,7 +41,7 @@ export const usePersonalSettings = () => {
     refetch: refetchProfile
   } = useQuery({
     queryKey: ['profile', user?.id],
-    queryFn: () => getFullProfile(user?.id!),
+    queryFn: () => getFullProfile(user?.id ?? ''),
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -50,7 +50,7 @@ export const usePersonalSettings = () => {
   // Mutation para atualizar configurações
   const updateSettingsMutation = useMutation({
     mutationFn: ({ settings }: { settings: Partial<PersonalSettings> }) =>
-      updatePersonalSettings(user?.id!, settings),
+      updatePersonalSettings(user?.id ?? '', settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['personalSettings', user?.id] });
       toast({
@@ -71,7 +71,7 @@ export const usePersonalSettings = () => {
   // Mutation para atualizar perfil
   const updateProfileMutation = useMutation({
     mutationFn: ({ profileData }: { profileData: ProfileData }) =>
-      updateProfileData(user?.id!, profileData),
+      updateProfileData(user?.id ?? '', profileData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['personalSettings', user?.id] });
@@ -93,7 +93,7 @@ export const usePersonalSettings = () => {
   // Mutation para atualizar tema
   const updateThemeMutation = useMutation({
     mutationFn: ({ theme }: { theme: 'light' | 'dark' | 'system' }) =>
-      updateTheme(user?.id!, theme),
+      updateTheme(user?.id ?? '', theme),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['personalSettings', user?.id] });
       toast({
@@ -114,7 +114,7 @@ export const usePersonalSettings = () => {
   // Mutation para atualizar notificações
   const updateNotificationsMutation = useMutation({
     mutationFn: ({ notifications }: { notifications: PersonalSettings['notifications'] }) =>
-      updateNotificationSettings(user?.id!, notifications),
+      updateNotificationSettings(user?.id ?? '', notifications),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['personalSettings', user?.id] });
       toast({
@@ -132,10 +132,28 @@ export const usePersonalSettings = () => {
     },
   });
 
+  // Mutation dedicada para local_reminders (evita enviar restantes campos)
+  const updateLocalRemindersMutation = useMutation({
+    mutationFn: ({ enabled }: { enabled: boolean }) => {
+      const current = (settings as any)?.data?.personal_settings ?? {};
+      const next: Partial<PersonalSettings> = {
+        ...(current || {}),
+        notifications: {
+          ...(current?.notifications || {}),
+          local_reminders: enabled,
+        } as any,
+      };
+      return updatePersonalSettings(user?.id ?? '', next);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['personalSettings', user?.id] });
+    },
+  });
+
   // Mutation para criar perfil inicial
   const createProfileMutation = useMutation({
     mutationFn: ({ email }: { email: string }) =>
-      createInitialProfile(user?.id!, email),
+      createInitialProfile(user?.id ?? '', email),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['personalSettings', user?.id] });
@@ -166,6 +184,11 @@ export const usePersonalSettings = () => {
     updateNotificationsMutation.mutate({ notifications });
   }, [user?.id, updateNotificationsMutation]);
 
+  const setLocalRemindersEnabledRemote = useCallback((enabled: boolean) => {
+    if (!user?.id) return;
+    updateLocalRemindersMutation.mutate({ enabled });
+  }, [user?.id, updateLocalRemindersMutation]);
+
   const createProfile = useCallback((email: string) => {
     if (!user?.id) return;
     createProfileMutation.mutate({ email });
@@ -176,10 +199,17 @@ export const usePersonalSettings = () => {
 
   // Sincronizar tema local com as configurações
   useEffect(() => {
-    if (settings?.data?.personal_settings?.theme) {
-      setCurrentTheme(settings.data.personal_settings.theme);
+    const settingsObj = settings?.data as unknown;
+    const personal = settingsObj && typeof settingsObj === 'object'
+      ? (settingsObj as Record<string, unknown>)['personal_settings']
+      : undefined;
+    if (personal && typeof personal === 'object') {
+      const maybeTheme = (personal as Record<string, unknown>)['theme'];
+      if (maybeTheme === 'light' || maybeTheme === 'dark' || maybeTheme === 'system') {
+        setCurrentTheme(maybeTheme);
+      }
     }
-  }, [settings?.data?.personal_settings?.theme]);
+  }, [settings?.data]);
 
   // Aplicar tema ao documento
   useEffect(() => {
@@ -210,8 +240,8 @@ export const usePersonalSettings = () => {
 
   return {
     // Dados
-    settings: settings?.data as any,
-    profile: profile?.data as any,
+    settings: settings?.data as unknown,
+    profile: profile?.data as unknown,
     currentTheme,
     
     // Estados de loading
@@ -235,6 +265,7 @@ export const usePersonalSettings = () => {
     updateProfile,
     changeTheme,
     updateNotifications,
+    setLocalRemindersEnabledRemote,
     createProfile,
     refetchSettings,
     refetchProfile,

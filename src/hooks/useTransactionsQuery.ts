@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import * as transactionService from '../services/transactions';
+import type { TransactionUpdate } from '../integrations/supabase/types';
 
 // Hook para buscar transações
 export const useTransactions = (filters?: { account_id?: string }) => {
@@ -67,7 +68,7 @@ export const useUpdateTransaction = () => {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+    mutationFn: async ({ id, data }: { id: string; data: TransactionUpdate }) => {
       console.log('[useUpdateTransaction] Mutation function called with id:', id, 'data:', data);
       const result = await transactionService.updateTransaction(id, data, user?.id || '');
       console.log('[useUpdateTransaction] Service result:', result);
@@ -100,7 +101,7 @@ export const useDeleteTransaction = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       const result = await transactionService.deleteTransaction(id, user?.id || '');
-      if (result.error) throw new Error(result.error.message);
+      if (result.error) throw new Error((result.error as { message?: string }).message || 'Erro');
       return result;
     },
     onSuccess: () => {

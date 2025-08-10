@@ -12,8 +12,11 @@ import {
   PiggyBank,
   AlertCircle,
   CheckCircle,
-  BarChart3
+  BarChart3,
+  Bell
 } from 'lucide-react';
+import { useReminders } from '../../hooks/useRemindersQuery';
+import { formatCurrency } from '../../lib/utils';
 
 const PersonalDashboard: React.FC = () => {
   const { 
@@ -25,6 +28,7 @@ const PersonalDashboard: React.FC = () => {
     personalKPIs, 
     isLoading 
   } = usePersonal();
+  const { data: reminders = [] } = useReminders();
 
   // Loading progressivo - mostrar conteúdo conforme os dados vão carregando
   const isLoadingAny = isLoading.accounts || isLoading.goals || isLoading.budgets || isLoading.transactions || isLoading.kpis;
@@ -32,6 +36,21 @@ const PersonalDashboard: React.FC = () => {
   // Calcular estatísticas - otimizado com useMemo
   const totalAccounts = myAccounts.length;
   const totalCards = myCards.length;
+  
+  // Lembretes de hoje
+  const remindersToday = React.useMemo(() => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    const key = `${y}-${m}-${d}`;
+    return reminders.filter((r: any) => typeof r.date === 'string' && r.date.startsWith(key));
+  }, [reminders]);
+
+  // Orçamentos em excesso
+  const overspentBudgetsCount = React.useMemo(() => {
+    return myBudgets.filter((b: any) => Number(b.valor_gasto || 0) > Number(b.valor_orcamento || 0)).length;
+  }, [myBudgets]);
   
   // Usar useMemo para cálculos pesados
   const { activeGoals, completedGoals, monthlyIncome, monthlyExpenses, cardsInDebt, totalDebt } = React.useMemo(() => {
@@ -58,6 +77,73 @@ const PersonalDashboard: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
 
+      {/* Indicadores rápidos */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Lembretes de Hoje</CardTitle>
+            <Bell className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{remindersToday.length}</div>
+            <p className="text-xs text-muted-foreground">Lembretes com data de hoje</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Orçamentos em Excesso</CardTitle>
+            <AlertCircle className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">{overspentBudgetsCount}</div>
+            <p className="text-xs text-muted-foreground">Categorias acima do orçamento</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* KPIs pessoais via RPC */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Saldo Total</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(personalKPIs.totalBalance || 0)}</div>
+            <p className="text-xs text-muted-foreground">Somatório de contas pessoais</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Poupança Mensal</CardTitle>
+            <PiggyBank className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{formatCurrency(personalKPIs.monthlySavings || 0)}</div>
+            <p className="text-xs text-muted-foreground">Receitas - Despesas (mês atual)</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Progresso de Objetivos</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{(personalKPIs.goalsProgressPercentage || 0).toFixed(1)}%</div>
+            <p className="text-xs text-muted-foreground">Contribuição global</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Orçamento Gasto</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{(personalKPIs.budgetSpentPercentage || 0).toFixed(1)}%</div>
+            <p className="text-xs text-muted-foreground">Percentagem do orçamento gasto</p>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Seção de Contas e Cartões */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -262,40 +348,29 @@ const PersonalDashboard: React.FC = () => {
               ))}
             </div>
           ) : myTransactions.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Nenhuma transação pessoal encontrada
-            </p>
+            <div className="text-center py-8 text-muted-foreground">
+              <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Nenhuma transação encontrada</p>
+            </div>
           ) : (
             <div className="space-y-3">
-              {myTransactions.slice(0, 5).map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between">
+              {myTransactions.slice(0, 5).map((transaction, index) => (
+                <div key={index} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${
-                      transaction.tipo === 'receita' ? 'bg-green-100' : 'bg-red-100'
-                    }`}>
-                      {transaction.tipo === 'receita' ? (
-                        <TrendingUp className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <TrendingDown className="h-4 w-4 text-red-600" />
-                      )}
-                    </div>
+                    <div className={`w-2 h-2 rounded-full ${
+                      transaction.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
+                    }`}></div>
                     <div>
-                      <p className="font-medium">{transaction.descricao || 'Transação'}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {transaction.categoria?.nome || 'Sem categoria'}
-                      </p>
+                      <div className="text-sm font-medium">{transaction.descricao}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(transaction.data).toLocaleDateString('pt-PT')}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`font-bold ${
-                      transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {transaction.tipo === 'receita' ? '+' : '-'}
-                      {(transaction.valor || 0).toFixed(2)}€
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(transaction.data).toLocaleDateString('pt-PT')}
-                    </p>
+                  <div className={`text-sm font-semibold ${
+                    transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {transaction.tipo === 'receita' ? '+' : '-'}{(transaction.valor || 0).toFixed(2)}€
                   </div>
                 </div>
               ))}

@@ -2,14 +2,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   getAccounts, 
+  getAccountsDomain,
   createAccount, 
   updateAccount, 
   deleteAccount, 
-  getAccountsWithBalances 
+  getAccountsWithBalances, 
+  getAccountsWithBalancesDomain
 } from '../services/accounts';
-import { AccountWithBalances } from '../integrations/supabase/types';
+import { getCreditCardSummary } from '../services/transactions';
+import { AccountInsert, AccountUpdateExtended, AccountWithBalances } from '../integrations/supabase/types';
 import { useCrudMutation } from './useMutationWithFeedback';
-import { supabase } from '../lib/supabaseClient';
 
 export const useAccounts = () => {
   const { user } = useAuth();
@@ -17,7 +19,20 @@ export const useAccounts = () => {
   return useQuery({
     queryKey: ['accounts', user?.id],
     queryFn: async () => {
-      const { data, error } = await getAccounts(user?.id as any);
+      const { data, error } = await getAccounts(user?.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id
+  });
+};
+
+export const useAccountsDomain = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['accounts-domain', user?.id],
+    queryFn: async () => {
+      const { data, error } = await getAccountsDomain(user?.id);
       if (error) throw error;
       return data || [];
     },
@@ -28,10 +43,29 @@ export const useAccounts = () => {
 export const useAccountsWithBalances = () => {
   const { user } = useAuth();
   
-  return useQuery({
+  return useQuery<AccountWithBalances[] | []>({
     queryKey: ['accountsWithBalances', user?.id],
     queryFn: async () => {
       const { data, error } = await getAccountsWithBalances(user?.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+  });
+};
+
+export const useAccountsWithBalancesDomain = () => {
+  const { user } = useAuth();
+  
+  return useQuery({
+    queryKey: ['accountsWithBalances-domain', user?.id],
+    queryFn: async () => {
+      const { data, error } = await getAccountsWithBalancesDomain(user?.id);
       if (error) throw error;
       return data || [];
     },
@@ -49,20 +83,20 @@ export const useCreateAccount = () => {
   const queryClient = useQueryClient();
 
   return useCrudMutation(
-    async (data: any) => {
-      const payload = { user_id: user?.id, ...data };
-      const { data: created, error } = await createAccount(payload as any);
-      if (error) {
-        throw error as any;
-      }
-      return created as any;
+    async (data: AccountInsert) => {
+      const payload: AccountInsert = { ...data, user_id: data.user_id ?? (user?.id || '') } as AccountInsert;
+      const { data: created, error } = await createAccount(payload);
+      if (error) throw error;
+      return created;
     },
     {
       operation: 'create',
       entityName: 'Conta',
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['accounts-domain'] });
         queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['accountsWithBalances-domain', user?.id] });
       }
     }
   );
@@ -73,32 +107,29 @@ export const useUpdateAccount = () => {
   const queryClient = useQueryClient();
 
   return useCrudMutation(
-    async (variables: any) => {
-      const { id, ...updateData } = variables || {};
-      const { data: updated, error } = await updateAccount(id as string, updateData as any);
-      if (error) {
-        throw error as any;
-      }
-      return updated as any;
+    async (variables: { id: string } & AccountUpdateExtended) => {
+      const { id, ...updateData } = variables;
+      const { data: updated, error } = await updateAccount(id, updateData as AccountUpdateExtended);
+      if (error) throw error;
+      return updated;
     },
     {
       operation: 'update',
       entityName: 'Conta',
       onSuccess: async () => {
-        console.log('[useUpdateAccount] Invalidating queries...');
-        
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['accounts'] }),
+          queryClient.invalidateQueries({ queryKey: ['accounts-domain'] }),
           queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] }),
+          queryClient.invalidateQueries({ queryKey: ['accountsWithBalances-domain', user?.id] }),
           queryClient.invalidateQueries({ queryKey: ['creditCardSummary'] })
         ]);
-        
+
         await Promise.all([
           queryClient.refetchQueries({ queryKey: ['accountsWithBalances', user?.id] }),
+          queryClient.refetchQueries({ queryKey: ['accountsWithBalances-domain', user?.id] }),
           queryClient.refetchQueries({ queryKey: ['creditCardSummary'] })
         ]);
-        
-        console.log('[useUpdateAccount] Queries invalidated and refetched');
       }
     }
   );
@@ -110,44 +141,38 @@ export const useDeleteAccount = () => {
 
   return useCrudMutation(
     async (id: string) => {
-      const { data, error } = await deleteAccount(id as any);
-      if (error) {
-        throw error as any;
-      }
-      return data as any;
+      const { data, error } = await deleteAccount(id);
+      if (error) throw error;
+      return data;
     },
     {
       operation: 'delete',
       entityName: 'Conta',
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['accounts-domain'] });
         queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['accountsWithBalances-domain', user?.id] });
       }
     }
   );
 };
 
-// TODO: Descomentar quando a função RPC get_credit_card_summary for implementada
-// export const useCreditCardSummary = (accountId: string) => {
-//   const { user } = useAuth();
-//   
-//   return useQuery({
-//     queryKey: ['creditCardSummary', accountId, user?.id],
-//     queryFn: async () => {
-//       if (!user?.id || !accountId) return null;
-//       
-//       const { data, error } = await supabase.rpc('get_credit_card_summary', {
-//         p_user_id: user.id,
-//         p_account_id: accountId
-//       });
-//       
-//       if (error) throw error;
-//       return data;
-//     },
-//     enabled: !!user?.id && !!accountId,
-//     staleTime: 0, // Sempre considerar stale para forçar refetch
-//     gcTime: 5 * 60 * 1000, // 5 minutos de cache,
-//   });
-// };
+export const useCreditCardSummary = (accountId: string) => {
+  const { user } = useAuth();
+  
+  return useQuery<{ saldo: number; total_gastos: number; total_pagamentos: number; status: string; ciclo_inicio: string } | null>({
+    queryKey: ['creditCardSummary', accountId, user?.id],
+    queryFn: async () => {
+      if (!user?.id || !accountId) return null;
+      const { data, error } = await getCreditCardSummary(accountId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id && !!accountId,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+  });
+};
 
  

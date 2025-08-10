@@ -4,8 +4,11 @@ import { PersonalProvider, usePersonal } from '../features/personal/PersonalProv
 import { useTransactions } from '../hooks/useTransactionsQuery';
 import { LoadingSpinner } from '../components/ui/loading-states';
 import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { useRouteChange } from '../hooks/useRouteChange';
+import { useReminders } from '../hooks/useRemindersQuery';
+import { useDailyReminderNotifications } from '../hooks/useDailyReminderNotifications';
 import { 
   Home, 
   Wallet, 
@@ -17,7 +20,8 @@ import {
   Plus,
   CreditCard,
   PiggyBank,
-  TrendingDown
+  TrendingDown,
+  Calendar
 } from 'lucide-react';
 import { useMediaQuery } from '../hooks/use-mobile';
 
@@ -29,6 +33,7 @@ const PersonalBudgets = React.lazy(() => import('../features/personal/PersonalBu
 const PersonalTransactions = React.lazy(() => import('../features/personal/PersonalTransactions'));
 const PersonalInsights = React.lazy(() => import('../features/personal/PersonalInsights'));
 const PersonalSettings = React.lazy(() => import('../features/personal/PersonalSettings'));
+const PersonalReminders = React.lazy(() => import('../features/personal/PersonalReminders'));
 
 // Componente de loading
 const PageLoading = () => (
@@ -42,6 +47,23 @@ const MobileNavigation: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { personalKPIs, isLoading } = usePersonal();
+  const { data: reminders = [] } = useReminders();
+
+  const remindersThisMonth = React.useMemo(() => {
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const start = new Date(year, month, 1, 0, 0, 0, 0);
+      const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+      return (reminders as any[]).filter((r) => {
+        const d = new Date(r.date ?? r.data_lembrete ?? r.data);
+        return d >= start && d <= end && d >= now;
+      }).length;
+    } catch {
+      return 0;
+    }
+  }, [reminders]);
 
   const tabs = [
     { value: '/personal', label: 'Resumo', icon: Home },
@@ -50,6 +72,7 @@ const MobileNavigation: React.FC = () => {
     { value: '/personal/goals', label: 'Objetivos', icon: Target },
     { value: '/personal/budgets', label: 'Orçamentos', icon: BarChart3 },
     { value: '/personal/insights', label: 'Insights', icon: Lightbulb },
+    { value: '/personal/reminders', label: 'Lembretes', icon: Calendar },
     { value: '/personal/settings', label: 'Definições', icon: Settings }
   ];
 
@@ -66,11 +89,18 @@ const MobileNavigation: React.FC = () => {
             </TabsTrigger>
           ))}
         </TabsList>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           {tabs.slice(4).map((tab) => (
             <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col items-center gap-1">
               <tab.icon className="h-4 w-4" />
-              <span className="text-xs">{tab.label}</span>
+              <span className="text-xs flex items-center gap-1">
+                {tab.label}
+                {tab.value === '/personal/reminders' && remindersThisMonth > 0 && (
+                  <Badge variant="secondary" className="text-[10px] px-1 py-0 leading-none">
+                    {remindersThisMonth}
+                  </Badge>
+                )}
+              </span>
             </TabsTrigger>
           ))}
         </TabsList>
@@ -83,6 +113,23 @@ const MobileNavigation: React.FC = () => {
 const DesktopNavigation: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { data: reminders = [] } = useReminders();
+
+  const remindersThisMonth = React.useMemo(() => {
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const start = new Date(year, month, 1, 0, 0, 0, 0);
+      const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+      return (reminders as any[]).filter((r) => {
+        const d = new Date(r.date ?? r.data_lembrete ?? r.data);
+        return d >= start && d <= end && d >= now;
+      }).length;
+    } catch {
+      return 0;
+    }
+  }, [reminders]);
 
   const navItems = [
     { path: '/personal', label: 'Resumo', icon: Home, description: 'Visão geral pessoal' },
@@ -91,6 +138,7 @@ const DesktopNavigation: React.FC = () => {
     { path: '/personal/goals', label: 'Objetivos', icon: Target, description: 'Metas financeiras pessoais' },
     { path: '/personal/budgets', label: 'Orçamentos', icon: BarChart3, description: 'Orçamentos mensais' },
     { path: '/personal/insights', label: 'Insights', icon: Lightbulb, description: 'Análises e dicas' },
+    { path: '/personal/reminders', label: 'Lembretes', icon: Calendar, description: 'Gerir lembretes pessoais' },
     { path: '/personal/settings', label: 'Definições', icon: Settings, description: 'Configurações pessoais' }
   ];
 
@@ -114,7 +162,14 @@ const DesktopNavigation: React.FC = () => {
           >
             <item.icon className="h-5 w-5" />
             <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm">{item.label}</div>
+              <div className="font-medium text-sm flex items-center gap-2">
+                {item.label}
+                {item.path === '/personal/reminders' && remindersThisMonth > 0 && (
+                  <Badge variant="secondary" className="text-[10px] px-1 py-0 leading-none">
+                    {remindersThisMonth}
+                  </Badge>
+                )}
+              </div>
               <div className="text-xs truncate">{item.description}</div>
             </div>
           </button>
@@ -130,6 +185,21 @@ const PersonalHeader: React.FC = () => {
   const navigate = useNavigate();
   const { personalKPIs, isLoading } = usePersonal();
   const isMobile = useMediaQuery('(max-width: 1024px)');
+  const { data: reminders = [] } = useReminders();
+
+  const remindersToday = React.useMemo(() => {
+    try {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      return (reminders as any[]).filter((r) => {
+        const d = new Date(r.date ?? r.data_lembrete ?? r.data);
+        return d >= start && d <= end;
+      }).length;
+    } catch {
+      return 0;
+    }
+  }, [reminders]);
 
   const getPageTitle = () => {
     const path = location.pathname;
@@ -139,6 +209,7 @@ const PersonalHeader: React.FC = () => {
     if (path === '/personal/budgets') return 'Orçamentos';
     if (path === '/personal/transactions') return 'Transações';
     if (path === '/personal/insights') return 'Insights';
+    if (path === '/personal/reminders') return 'Lembretes';
     if (path === '/personal/settings') return 'Definições';
     return 'Área Pessoal';
   };
@@ -175,7 +246,12 @@ const PersonalHeader: React.FC = () => {
         </div>
       </div>
       
-
+      {/* Lembretes que expiram hoje */}
+      {remindersToday > 0 && (
+        <Badge variant="secondary" title="Lembretes para hoje" className="whitespace-nowrap">
+          Hoje: {remindersToday}
+        </Badge>
+      )}
     </div>
   );
 };
@@ -184,6 +260,7 @@ const PersonalHeader: React.FC = () => {
 const QuickKPIs: React.FC = () => {
   const { personalKPIs, isLoading, myGoals } = usePersonal();
   const location = useLocation();
+  const { data: transactions = [] } = useTransactions();
   
   // Calcular objetivos ativos e concluídos
   const activeGoals = myGoals.filter(goal => goal.ativa).length;
@@ -291,9 +368,7 @@ const QuickKPIs: React.FC = () => {
 
   // Se estamos na página de transações, mostrar os 4 cards de métricas de transações
   if (isTransactionsPage) {
-    // Usar dados das transações do contexto
-    const { data: transactions = [] } = useTransactions();
-    
+    // Usar dados das transações obtidas acima
     const totalIncome = transactions
       .filter(t => t.tipo === 'receita')
       .reduce((sum, t) => sum + t.valor, 0);
@@ -465,6 +540,8 @@ const PersonalArea: React.FC = () => {
   
   // Hook para atualizar dados automaticamente quando a rota muda
   useRouteChange();
+  // Ativar notificações de lembretes do dia
+  useDailyReminderNotifications();
 
   return (
     <div className="flex h-screen bg-background">
@@ -490,6 +567,7 @@ const PersonalArea: React.FC = () => {
               <Route path="goals/*" element={<PersonalGoals />} />
               <Route path="budgets/*" element={<PersonalBudgets />} />
               <Route path="transactions/*" element={<PersonalTransactions />} />
+              <Route path="reminders" element={<PersonalReminders />} />
               <Route path="insights" element={<PersonalInsights />} />
               <Route path="settings" element={<PersonalSettings />} />
             </Routes>

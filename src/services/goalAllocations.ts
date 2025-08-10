@@ -5,7 +5,7 @@ import {
   GoalAllocationUpdate 
 } from '../integrations/supabase/types';
 
-export const getGoalAllocations = async (goalId: string): Promise<{ data: GoalAllocation[] | null; error: any }> => {
+export const getGoalAllocations = async (goalId: string): Promise<{ data: GoalAllocation[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('goal_allocations')
@@ -13,26 +13,26 @@ export const getGoalAllocations = async (goalId: string): Promise<{ data: GoalAl
       .eq('goal_id', goalId)
       .order('data_alocacao', { ascending: false });
 
-    return { data, error };
+    return { data: data as GoalAllocation[] | null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const getAllGoalAllocations = async (): Promise<{ data: GoalAllocation[] | null; error: any }> => {
+export const getAllGoalAllocations = async (): Promise<{ data: GoalAllocation[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('goal_allocations')
       .select('*')
       .order('data_alocacao', { ascending: false });
 
-    return { data, error };
+    return { data: data as GoalAllocation[] | null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const createGoalAllocation = async (allocationData: GoalAllocationInsert, userId: string): Promise<{ data: GoalAllocation | null; error: any }> => {
+export const createGoalAllocation = async (allocationData: GoalAllocationInsert, userId: string): Promise<{ data: GoalAllocation | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('goal_allocations')
@@ -40,13 +40,13 @@ export const createGoalAllocation = async (allocationData: GoalAllocationInsert,
       .select()
       .single();
 
-    return { data, error };
+    return { data: data as GoalAllocation | null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const updateGoalAllocation = async (id: string, updates: GoalAllocationUpdate, userId: string): Promise<{ data: GoalAllocation | null; error: any }> => {
+export const updateGoalAllocation = async (id: string, updates: GoalAllocationUpdate, userId: string): Promise<{ data: GoalAllocation | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('goal_allocations')
@@ -56,13 +56,13 @@ export const updateGoalAllocation = async (id: string, updates: GoalAllocationUp
       .select()
       .single();
 
-    return { data, error };
+    return { data: data as GoalAllocation | null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const deleteGoalAllocation = async (id: string, userId: string): Promise<{ data: boolean | null; error: any }> => {
+export const deleteGoalAllocation = async (id: string, userId: string): Promise<{ data: boolean | null; error: unknown }> => {
   try {
     const { error } = await supabase
       .from('goal_allocations')
@@ -76,7 +76,7 @@ export const deleteGoalAllocation = async (id: string, userId: string): Promise<
   }
 };
 
-export const getGoalAllocationsTotal = async (goalId: string, userId: string): Promise<{ data: number | null; error: any }> => {
+export const getGoalAllocationsTotal = async (goalId: string, userId: string): Promise<{ data: number | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('goal_allocations')
@@ -88,14 +88,15 @@ export const getGoalAllocationsTotal = async (goalId: string, userId: string): P
       return { data: null, error };
     }
 
-    const total = data?.reduce((sum, allocation) => sum + (allocation.valor || 0), 0) || 0;
+    const rows = (data as { valor: number | null }[] | null) || [];
+    const total = rows.reduce((sum, allocation) => sum + (allocation.valor || 0), 0);
     return { data: total, error: null };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const getAccountAllocationsTotal = async (accountId: string, userId: string): Promise<{ data: number | null; error: any }> => {
+export const getAccountAllocationsTotal = async (accountId: string, userId: string): Promise<{ data: number | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('goal_allocations')
@@ -107,7 +108,8 @@ export const getAccountAllocationsTotal = async (accountId: string, userId: stri
       return { data: null, error };
     }
 
-    const total = data?.reduce((sum, allocation) => sum + (allocation.valor || 0), 0) || 0;
+    const rows = (data as { valor: number | null }[] | null) || [];
+    const total = rows.reduce((sum, allocation) => sum + (allocation.valor || 0), 0);
     return { data: total, error: null };
   } catch (error) {
     return { data: null, error };

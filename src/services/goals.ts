@@ -5,8 +5,9 @@ import {
   GoalUpdate,
   GoalProgressRPC
 } from '../integrations/supabase/types';
+import { GoalDomain, mapGoalRowToDomain } from '../shared/types/goals';
 
-export const getGoals = async (userId: string): Promise<{ data: Goal[] | null; error: any }> => {
+export const getGoals = async (userId: string): Promise<{ data: Goal[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('goals')
@@ -21,7 +22,12 @@ export const getGoals = async (userId: string): Promise<{ data: Goal[] | null; e
   }
 };
 
-export const getGoal = async (id: string, userId: string): Promise<{ data: Goal | null; error: any }> => {
+export const getGoalsDomain = async (userId: string): Promise<{ data: GoalDomain[]; error: unknown }> => {
+  const { data, error } = await getGoals(userId);
+  return { data: (data || []).map(mapGoalRowToDomain), error };
+};
+
+export const getGoal = async (id: string, userId: string): Promise<{ data: Goal | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('goals')
@@ -36,9 +42,9 @@ export const getGoal = async (id: string, userId: string): Promise<{ data: Goal 
   }
 };
 
-export const createGoal = async (goalData: GoalInsert, userId?: string): Promise<{ data: Goal | null; error: any }> => {
+export const createGoal = async (goalData: GoalInsert, userId?: string): Promise<{ data: Goal | null; error: unknown }> => {
   try {
-    let resolvedUserId = userId ?? (goalData as any)?.user_id;
+    let resolvedUserId: string | undefined = userId ?? (goalData as Partial<GoalInsert>)?.user_id as string | undefined;
     if (!resolvedUserId) {
       const { data: authData } = await supabase.auth.getUser();
       resolvedUserId = authData?.user?.id as string | undefined;
@@ -56,7 +62,7 @@ export const createGoal = async (goalData: GoalInsert, userId?: string): Promise
   }
 };
 
-export const updateGoal = async (id: string, updates: GoalUpdate, userId?: string): Promise<{ data: Goal | null; error: any }> => {
+export const updateGoal = async (id: string, updates: GoalUpdate, userId?: string): Promise<{ data: Goal | null; error: unknown }> => {
   try {
     let query = supabase
       .from('goals')
@@ -73,7 +79,7 @@ export const updateGoal = async (id: string, updates: GoalUpdate, userId?: strin
   }
 };
 
-export const deleteGoal = async (id: string, userId?: string): Promise<{ data: any | null; error: any }> => {
+export const deleteGoal = async (id: string, userId?: string): Promise<{ data: { success: boolean; message?: string } | boolean | null; error: unknown }> => {
   try {
     let resolvedUserId = userId;
     if (!resolvedUserId) {
@@ -86,11 +92,17 @@ export const deleteGoal = async (id: string, userId?: string): Promise<{ data: a
       user_id_param: resolvedUserId
     });
 
-    if (error) {
-      return { data: null, error };
+    if (error) return { data: null, error };
+
+    if (data && typeof data === 'object') {
+      const obj = data as Record<string, unknown>;
+      if ('success' in obj) {
+        return { data: { success: Boolean(obj.success), message: typeof obj.message === 'string' ? obj.message : undefined }, error: null };
+      }
     }
 
-    return { data, error: null };
+    const success = Boolean(data);
+    return { data: success, error: null };
   } catch (error) {
     return { data: null, error };
   }
@@ -102,7 +114,7 @@ export const allocateToGoal = async (
   amount: number, 
   userId: string, 
   description?: string
-): Promise<{ data: any | null; error: any }> => {
+): Promise<{ data: unknown; error: unknown }> => {
   try {
     const { data, error } = await supabase.rpc('allocate_to_goal_with_transaction', {
       goal_id_param: goalId,
@@ -112,10 +124,7 @@ export const allocateToGoal = async (
       description_param: description || 'Alocação para objetivo'
     });
 
-    if (error) {
-      return { data: null, error };
-    }
-
+    if (error) return { data: null, error };
     return { data, error: null };
   } catch (error) {
     return { data: null, error };
@@ -126,12 +135,12 @@ export const allocateToGoal = async (
 export const allocateFunds = async (
   goalId: string,
   amount: number
-): Promise<{ data: any | null; error: any }> => {
+): Promise<{ data: unknown; error: unknown }> => {
   // Implementação real não é usada nos testes (mockada)
   return { data: null, error: null };
 };
 
-export const getGoalProgress = async (): Promise<{ data: GoalProgressRPC[] | null; error: any }> => {
+export const getGoalProgress = async (): Promise<{ data: GoalProgressRPC[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase.rpc('get_user_goal_progress');
     return { data, error };
@@ -140,25 +149,25 @@ export const getGoalProgress = async (): Promise<{ data: GoalProgressRPC[] | nul
   }
 };
 
-export const getPersonalGoals = async (userId: string): Promise<{ data: Goal[] | null; error: any }> => {
+export const getPersonalGoals = async (userId: string): Promise<{ data: Goal[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase.rpc('get_personal_goals', {
       p_user_id: userId
     });
 
-    return { data, error };
+    return { data: data as Goal[] | null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const getFamilyGoals = async (userId: string): Promise<{ data: Goal[] | null; error: any }> => {
+export const getFamilyGoals = async (userId: string): Promise<{ data: Goal[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase.rpc('get_family_goals', {
       p_user_id: userId
     });
 
-    return { data, error };
+    return { data: data as Goal[] | null, error };
   } catch (error) {
     return { data: null, error };
   }

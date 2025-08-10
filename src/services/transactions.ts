@@ -4,35 +4,22 @@ import {
   TransactionInsert, 
   TransactionUpdate 
 } from '../integrations/supabase/types';
+import { TransactionDomain, mapTransactionRowToDomain } from '../shared/types/transactions';
 
-export const getTransactions = async (): Promise<{ data: Transaction[] | null; error: any }> => {
+export const getTransactions = async (): Promise<{ data: Transaction[] | null; error: unknown }> => {
   try {
-    console.log('[getTransactions] Fetching transactions...');
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
       .order('created_at', { ascending: false });
 
-    console.log('[getTransactions] Supabase response - data:', data);
-    console.log('[getTransactions] Supabase response - error:', error);
-    console.log('[getTransactions] Number of transactions:', data?.length || 0);
-    
-    // Mostrar as primeiras 3 transações para verificar ordenação
-    if (data && data.length > 0) {
-      console.log('[getTransactions] First 3 transactions:');
-      data.slice(0, 3).forEach((tx, index) => {
-        console.log(`[getTransactions] ${index + 1}. ID: ${tx.id}, Created: ${tx.created_at}, Data: ${tx.data}, Descrição: ${tx.descricao}`);
-      });
-    }
-
-    return { data, error };
+    return { data: data as Transaction[] | null, error };
   } catch (error) {
-    console.error('[getTransactions] Exception:', error);
     return { data: null, error };
   }
 };
 
-export const getTransaction = async (id: string): Promise<{ data: Transaction | null; error: any }> => {
+export const getTransaction = async (id: string): Promise<{ data: Transaction | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('transactions')
@@ -40,17 +27,14 @@ export const getTransaction = async (id: string): Promise<{ data: Transaction | 
       .eq('id', id)
       .single();
 
-    return { data, error };
+    return { data: data as Transaction | null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const createTransaction = async (transactionData: TransactionInsert, userId: string): Promise<{ data: Transaction | null; error: any }> => {
+export const createTransaction = async (transactionData: TransactionInsert, userId: string): Promise<{ data: Transaction | null; error: unknown }> => {
   try {
-    console.log('[createTransaction] transactionData:', transactionData);
-    console.log('[createTransaction] userId:', userId);
-    
     // Verificar se é uma conta de cartão de crédito
     const { data: account } = await supabase
       .from('accounts')
@@ -59,7 +43,6 @@ export const createTransaction = async (transactionData: TransactionInsert, user
       .single();
     
     if (account?.tipo === 'cartão de crédito') {
-      // Usar lógica específica para cartões de crédito
       const { data, error } = await supabase.rpc('handle_credit_card_transaction', {
         p_user_id: userId,
         p_account_id: transactionData.account_id,
@@ -68,53 +51,48 @@ export const createTransaction = async (transactionData: TransactionInsert, user
         p_categoria_id: transactionData.categoria_id,
         p_tipo: transactionData.tipo,
         p_descricao: transactionData.descricao || null,
-        p_goal_id: transactionData.goal_id || null
+        p_goal_id: transactionData.goal_id ?? null
       });
     
       if (error) {
         return { data: null, error };
       }
     
-      // Buscar a transação criada
-      const result = data as any;
+      const result = (data ?? {}) as { transaction_id?: string };
+      if (!result.transaction_id) return { data: null, error: new Error('Transação não criada') };
+
       const { data: createdTransaction, error: fetchError } = await supabase
         .from('transactions')
         .select('*')
         .eq('id', result.transaction_id)
         .single();
     
-      return { data: createdTransaction, error: fetchError };
+      return { data: createdTransaction as Transaction | null, error: fetchError };
     } else {
-      // Lógica normal para outras contas
-    const { data, error } = await supabase
-      .from('transactions')
-      .insert([{ ...transactionData, user_id: userId }])
-      .select()
-      .single();
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert([{ ...transactionData, user_id: userId }])
+        .select()
+        .single();
 
-    console.log('[createTransaction] Supabase response - data:', data);
-    console.log('[createTransaction] Supabase response - error:', error);
-
-    if (!error && data) {
-      try {
-        // Atualizar saldo da conta
-        await supabase.rpc('update_account_balance', {
-          account_id_param: data.account_id
-        });
-      } catch (balanceError) {
-        console.warn('Erro ao atualizar saldo da conta:', balanceError);
+      if (!error && data) {
+        try {
+          await supabase.rpc('update_account_balance', {
+            account_id_param: (data as Pick<Transaction, 'account_id'>).account_id
+          });
+        } catch (balanceError) {
+          console.warn('Erro ao atualizar saldo da conta:', balanceError);
+        }
       }
-    }
 
-    return { data, error };
+      return { data: data as Transaction | null, error };
     }
   } catch (error) {
-    console.error('[createTransaction] Exception:', error);
     return { data: null, error };
   }
 };
 
-export const updateTransaction = async (id: string, updates: TransactionUpdate, userId: string): Promise<{ data: Transaction | null; error: any }> => {
+export const updateTransaction = async (id: string, updates: TransactionUpdate, userId: string): Promise<{ data: Transaction | null; error: unknown }> => {
   try {
     const { data, error } = await supabase
       .from('transactions')
@@ -125,24 +103,22 @@ export const updateTransaction = async (id: string, updates: TransactionUpdate, 
 
     if (!error && data) {
       try {
-        // Atualizar saldo da conta
         await supabase.rpc('update_account_balance', {
-          account_id_param: data.account_id
+          account_id_param: (data as Pick<Transaction, 'account_id'>).account_id
         });
       } catch (balanceError) {
         console.warn('Erro ao atualizar saldo da conta:', balanceError);
       }
     }
 
-    return { data, error };
+    return { data: data as Transaction | null, error };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const deleteTransaction = async (id: string, userId: string): Promise<{ data: boolean | null; error: any }> => {
+export const deleteTransaction = async (id: string, userId: string): Promise<{ data: boolean | null; error: unknown }> => {
   try {
-    // Buscar a transação antes de apagar para obter account_id
     const { data: transaction } = await supabase
       .from('transactions')
       .select('account_id')
@@ -156,9 +132,8 @@ export const deleteTransaction = async (id: string, userId: string): Promise<{ d
 
     if (!error && transaction) {
       try {
-        // Atualizar saldo da conta
         await supabase.rpc('update_account_balance', {
-          account_id_param: transaction.account_id
+          account_id_param: (transaction as Pick<Transaction, 'account_id'>).account_id
         });
       } catch (balanceError) {
         console.warn('Erro ao atualizar saldo da conta:', balanceError);
@@ -171,34 +146,86 @@ export const deleteTransaction = async (id: string, userId: string): Promise<{ d
   }
 };
 
-export const getPersonalTransactions = async (): Promise<{ data: Transaction[] | null; error: any }> => {
+export const getPersonalTransactions = async (): Promise<{ data: Transaction[] | null; error: unknown }> => {
   try {
-    console.log('[getPersonalTransactions] Fetching personal transactions...');
     const { data, error } = await supabase.rpc('get_personal_transactions');
-
-    console.log('[getPersonalTransactions] RPC response - data:', data);
-    console.log('[getPersonalTransactions] RPC response - error:', error);
-    console.log('[getPersonalTransactions] Number of transactions:', data?.length || 0);
-    
-    return { data, error };
+    return { data: data as Transaction[] | null, error };
   } catch (error) {
-    console.error('[getPersonalTransactions] Exception:', error);
     return { data: null, error };
   }
 };
 
-export const getFamilyTransactions = async (): Promise<{ data: Transaction[] | null; error: any }> => {
+export const getFamilyTransactions = async (): Promise<{ data: Transaction[] | null; error: unknown }> => {
   try {
-    console.log('[getFamilyTransactions] Fetching family transactions...');
     const { data, error } = await supabase.rpc('get_family_transactions');
-
-    console.log('[getFamilyTransactions] RPC response - data:', data);
-    console.log('[getFamilyTransactions] RPC response - error:', error);
-    console.log('[getFamilyTransactions] Number of transactions:', data?.length || 0);
-    
-    return { data, error };
+    return { data: data as Transaction[] | null, error };
   } catch (error) {
-    console.error('[getFamilyTransactions] Exception:', error);
+    return { data: null, error };
+  }
+};
+
+// Versões em domínio (opcionais)
+export const getTransactionsDomain = async (): Promise<{ data: TransactionDomain[] | null; error: unknown }> => {
+  const { data, error } = await getTransactions();
+  return { data: (data || []).map(mapTransactionRowToDomain), error };
+};
+
+export const getTransactionDomain = async (id: string): Promise<{ data: TransactionDomain | null; error: unknown }> => {
+  const { data, error } = await getTransaction(id);
+  return { data: data ? mapTransactionRowToDomain(data) : null, error };
+};
+
+export const createTransactionDomain = async (transactionData: TransactionInsert, userId: string): Promise<{ data: TransactionDomain | null; error: unknown }> => {
+  const { data, error } = await createTransaction(transactionData, userId);
+  return { data: data ? mapTransactionRowToDomain(data) : null, error };
+};
+
+export const updateTransactionDomain = async (id: string, updates: TransactionUpdate, userId: string): Promise<{ data: TransactionDomain | null; error: unknown }> => {
+  const { data, error } = await updateTransaction(id, updates, userId);
+  return { data: data ? mapTransactionRowToDomain(data) : null, error };
+};
+
+export const getCreditCardSummary = async (cardAccountId: string): Promise<{ data: { saldo: number; total_gastos: number; total_pagamentos: number; status: string; ciclo_inicio: string } | null; error: unknown }> => {
+  try {
+    // Alguns tipos gerados podem exigir p_user_id; a função atual só usa p_account_id
+    const { data, error } = await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> }).rpc('get_credit_card_summary', {
+      p_account_id: cardAccountId
+    });
+    if (error) return { data: null, error };
+    const row = Array.isArray(data) ? (data as unknown[])[0] : data;
+    if (!row) return { data: null, error: null };
+    const shaped = {
+      saldo: Number((row as Record<string, unknown>).saldo ?? 0),
+      total_gastos: Number((row as Record<string, unknown>).total_gastos ?? 0),
+      total_pagamentos: Number((row as Record<string, unknown>).total_pagamentos ?? 0),
+      status: String((row as Record<string, unknown>).status ?? ''),
+      ciclo_inicio: String((row as Record<string, unknown>).ciclo_inicio ?? '')
+    };
+    return { data: shaped, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
+export const payCreditCardFromAccount = async (
+  userId: string,
+  cardAccountId: string,
+  bankAccountId: string,
+  amount: number,
+  dateISO: string,
+  descricao?: string
+): Promise<{ data: boolean | null; error: unknown }> => {
+  try {
+    const { data, error } = await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> }).rpc('pay_credit_card_from_account', {
+      p_user_id: userId,
+      p_card_account_id: cardAccountId,
+      p_bank_account_id: bankAccountId,
+      p_amount: amount,
+      p_date: dateISO,
+      p_descricao: descricao ?? null
+    });
+    return { data: Boolean(data), error };
+  } catch (error) {
     return { data: null, error };
   }
 };

@@ -1,5 +1,46 @@
 import { supabase } from '../lib/supabaseClient';
 
+// Tipos de payload aceites (compatibilidade entre UI nova e antiga)
+export type NewReminderFormPayload = {
+  titulo: string;
+  descricao?: string;
+  data_lembrete: string; // YYYY-MM-DD
+  hora_lembrete?: string; // HH:mm (ignorado no backend atual)
+  repetir: 'nenhuma' | 'diario' | 'semanal' | 'mensal' | 'anual';
+  ativo?: boolean;
+  family_id?: string;
+};
+
+export type LegacyReminderPayload = {
+  title: string;
+  description?: string;
+  date: string; // YYYY-MM-DD
+  recurring?: boolean;
+  family_id?: string;
+};
+
+function mapToDbColumns(data: NewReminderFormPayload | LegacyReminderPayload) {
+  // Detectar formato pelo campo chave
+  if ((data as NewReminderFormPayload).titulo !== undefined) {
+    const d = data as NewReminderFormPayload;
+    return {
+      title: d.titulo,
+      description: d.descricao || null,
+      date: d.data_lembrete,
+      recurring: d.repetir && d.repetir !== 'nenhuma',
+      family_id: d.family_id || null,
+    } as const;
+  }
+  const l = data as LegacyReminderPayload;
+  return {
+    title: l.title,
+    description: l.description || null,
+    date: l.date,
+    recurring: Boolean(l.recurring),
+    family_id: l.family_id || null,
+  } as const;
+}
+
 // Exemplo de modelo: id, user_id, family_id, title, description, date, recurring, created_at
 export const getReminders = async (user_id: string) => {
   const { data, error } = await supabase
@@ -10,25 +51,34 @@ export const getReminders = async (user_id: string) => {
   return { data, error };
 };
 
-export const createReminder = async (data: {
-  user_id: string;
-  family_id?: string;
-  title: string;
-  description?: string;
-  date: string;
-  recurring?: boolean;
-}) => {
-  const { data: result, error } = await supabase.from('reminders').insert(data);
+export const createReminder = async (
+  data: (NewReminderFormPayload | LegacyReminderPayload) & { user_id: string }
+) => {
+  const row = mapToDbColumns(data);
+  const { data: result, error } = await supabase.from('reminders').insert({
+    user_id: data.user_id,
+    ...row,
+  });
   return { data: result, error };
 };
 
-export const updateReminder = async (id: string, data: {
-  title?: string;
-  description?: string;
-  date?: string;
-  recurring?: boolean;
-}) => {
-  const { data: result, error } = await supabase.from('reminders').update(data).eq('id', id);
+export const updateReminder = async (
+  id: string,
+  data: Partial<NewReminderFormPayload | LegacyReminderPayload>
+) => {
+  const mapped = mapToDbColumns({
+    // Fallbacks mínimos para satisfazer o mapper
+    titulo: (data as any).titulo ?? (data as any).title ?? '',
+    descricao: (data as any).descricao ?? (data as any).description ?? '',
+    data_lembrete: (data as any).data_lembrete ?? (data as any).date ?? new Date().toISOString().slice(0, 10),
+    repetir: (data as any).repetir ?? ((data as any).recurring ? 'diario' : 'nenhuma'),
+  } as NewReminderFormPayload);
+
+  const { data: result, error } = await supabase
+    .from('reminders')
+    .update(mapped)
+    .eq('id', id)
+    .select();
   return { data: result, error };
 };
 

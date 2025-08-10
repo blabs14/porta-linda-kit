@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 // Componentes Lazy para Finanças Partilhadas
 // Otimização de performance com carregamento sob demanda
 
@@ -20,8 +21,11 @@ const ComponentFallback: React.FC<{ message: string }> = ({ message }) => (
 );
 
 // Função utilitária para criar lazy components com tratamento de erros robusto
-const createSafeLazyComponent = (importPath: string, fallbackMessage: string) => {
-  return lazy(() => 
+const createSafeLazyComponent = (
+  importPath: string,
+  fallbackMessage: string
+): React.LazyExoticComponent<React.ComponentType<Record<string, unknown>>> => {
+  return lazy(() =>
     import(/* @vite-ignore */ importPath).catch(() => ({
       default: () => <ComponentFallback message={fallbackMessage} />
     }))
@@ -109,19 +113,22 @@ export const LazyRealTimeNotifications = createSafeLazyComponent(
 );
 
 // Wrapper para Suspense com fallback otimizado
-export const withLazyLoading = (Component: any, fallback?: React.ReactNode) => {
-  const LazyComponent = lazy(() => Promise.resolve({ default: Component }));
-  
-  return (props: any) => (
+export function withLazyLoading<TProps extends Record<string, unknown>>(
+  Component: React.ComponentType<TProps>,
+  fallback?: React.ReactNode
+): React.FC<TProps> {
+  const LazyComponent = lazy(() => Promise.resolve({ default: Component as unknown as React.ComponentType<unknown> })) as React.LazyExoticComponent<React.ComponentType<unknown>>;
+
+  return (props: TProps) => (
     <Suspense fallback={fallback || <LazyFallback />}>
-      <LazyComponent {...props} />
+      {React.createElement(LazyComponent as unknown as React.ComponentType<TProps>, props)}
     </Suspense>
   );
-};
+}
 
 // Hook personalizado para lazy loading de serviços com tratamento de erros robusto
-export const useLazyService = (serviceImport: () => Promise<any>) => {
-  const [service, setService] = React.useState<any>(null);
+export function useLazyService<T>(serviceImport: () => Promise<T>) {
+  const [service, setService] = React.useState<T | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
@@ -140,39 +147,44 @@ export const useLazyService = (serviceImport: () => Promise<any>) => {
         setError(err as Error);
         setLoading(false);
         // Fornecer um serviço fallback para evitar quebras na aplicação
-        setService({
-          default: () => Promise.reject(new Error('Serviço não disponível'))
-        });
+        setService(null);
       }
     };
 
     loadService();
   }, [serviceImport]);
 
-  return { service, loading, error };
-};
+  return { service, loading, error } as const;
+}
 
 // Wrapper para componentes com loading state
-export const withLoadingState = (Component: any, LoadingComponent?: any) => {
-  return ({ loading, ...props }: any) => {
+export function withLoadingState<TProps extends Record<string, unknown>>(
+  Component: React.ComponentType<TProps>,
+  LoadingComponent?: React.ComponentType
+): React.FC<{ loading: boolean } & TProps> {
+  return ({ loading, ...props }: { loading: boolean } & TProps) => {
     if (loading) {
       return LoadingComponent ? <LoadingComponent /> : <LazyFallback />;
     }
-    return <Component {...props} />;
+    return React.createElement(Component, props as unknown as TProps);
   };
-};
+}
 
 // Função utilitária para criar lazy components com retry
-export const createLazyComponent = (importFn: () => Promise<any>, fallbackComponent?: React.ComponentType) => {
-  return lazy(() => 
+export function createLazyComponent<TProps extends Record<string, unknown>>(
+  importFn: () => Promise<{ default: React.ComponentType<TProps> }>,
+  fallbackComponent?: React.ComponentType
+): React.LazyExoticComponent<React.ComponentType<TProps>> {
+  const lazyComp = lazy(() => 
     importFn().catch((error) => {
       console.warn('Lazy component loading failed:', error);
       return {
-        default: fallbackComponent || (() => <ComponentFallback message="Componente não disponível" />)
+        default: (fallbackComponent || (() => <ComponentFallback message="Componente não disponível" />)) as React.ComponentType<TProps>
       };
     })
-  );
-};
+  ) as React.LazyExoticComponent<React.ComponentType<unknown>>;
+  return lazyComp as unknown as React.LazyExoticComponent<React.ComponentType<TProps>>;
+}
 
 // Hook para monitorizar performance do lazy loading
 export const useLazyLoadingMetrics = () => {
@@ -199,7 +211,7 @@ export const useLazyLoadingMetrics = () => {
     });
   }, []);
 
-  return { metrics, trackComponentLoad };
+  return { metrics, trackComponentLoad } as const;
 };
 
 // Componente de erro boundary para lazy loading

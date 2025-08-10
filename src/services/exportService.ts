@@ -1,6 +1,3 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabaseClient';
 
 export interface ExportData {
@@ -31,6 +28,8 @@ interface CategoryStats {
  * Exporta relatório em formato PDF
  */
 export const exportToPDF = async (data: ExportData, options: ExportOptions): Promise<Blob> => {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
   const doc = new jsPDF();
   
   // Título
@@ -73,7 +72,7 @@ export const exportToPDF = async (data: ExportData, options: ExportOptions): Pro
       t.account_nome || '-',
     ]);
     
-    autoTable(doc, {
+    (autoTable as unknown as (doc: any, options: any) => void)(doc as any, {
       head: [['Data', 'Descrição', 'Tipo', 'Valor', 'Categoria', 'Conta']],
       body: tableData,
       startY: 110,
@@ -113,7 +112,7 @@ export const exportToPDF = async (data: ExportData, options: ExportOptions): Pro
     doc.setFontSize(14);
     doc.text('Estatísticas por Categoria', 20, 20);
     
-    autoTable(doc, {
+    (autoTable as unknown as (doc: any, options: any) => void)(doc as any, {
       head: [['Categoria', 'Receitas', 'Despesas']],
       body: categoryData,
       startY: 30,
@@ -156,7 +155,8 @@ export const exportToCSV = (data: ExportData, options: ExportOptions): Blob => {
 /**
  * Exporta relatório em formato Excel
  */
-export const exportToExcel = (data: ExportData, options: ExportOptions): Blob => {
+export const exportToExcel = async (data: ExportData, options: ExportOptions): Promise<Blob> => {
+  const XLSX: any = await import('xlsx');
   const workbook = XLSX.utils.book_new();
   
   // Planilha de transações
@@ -293,7 +293,7 @@ export const exportReport = async (
       filename = `relatorio_financeiro_${dateRangeStr}.csv`;
       break;
     case 'excel':
-      blob = exportToExcel(data, options);
+      blob = await exportToExcel(data, options);
       filename = `relatorio_financeiro_${dateRangeStr}.xlsx`;
       break;
     default:

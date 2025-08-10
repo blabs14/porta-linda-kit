@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { useFamily } from './FamilyProvider';
+import { useFamily } from './FamilyContext';
 import { formatCurrency } from '../../lib/utils';
 import { 
   Wallet, 
@@ -18,8 +18,11 @@ import {
 } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Progress } from '../../components/ui/progress';
-import { Suspense } from 'react';
+import { Suspense, useMemo } from 'react';
 import { LazyReportChart, LazyChart, LazyFallback } from './lazy';
+
+const monthLabel = (date: Date) =>
+  date.toLocaleDateString('pt-PT', { month: 'short' }).replace('.', '');
 
 const FamilyDashboard: React.FC = () => {
   const { 
@@ -30,26 +33,62 @@ const FamilyDashboard: React.FC = () => {
     familyAccounts, 
     familyGoals, 
     familyBudgets,
+    familyTransactions,
     isLoading 
   } = useFamily();
 
-  // Dados simulados para gráficos (serão substituídos por dados reais)
-  const expensesData = [
-    { month: 'Jan', value: 1200 },
-    { month: 'Fev', value: 1400 },
-    { month: 'Mar', value: 1100 },
-    { month: 'Abr', value: 1600 },
-    { month: 'Mai', value: 1300 },
-    { month: 'Jun', value: 1500 }
-  ];
+  // Construir séries reais a partir das transações (exclui transferências)
+  const { expensesData, categoryData } = useMemo(() => {
+    const txs = (familyTransactions as Array<Record<string, unknown>> | undefined) || [];
+    const filtered = txs.filter((t) => (t?.['tipo'] as string) !== 'transferencia');
 
-  const categoryData = [
-    { category: 'Alimentação', value: 800 },
-    { category: 'Transporte', value: 400 },
-    { category: 'Lazer', value: 300 },
-    { category: 'Saúde', value: 200 },
-    { category: 'Outros', value: 100 }
-  ];
+    // Últimos 6 meses incluindo o atual
+    const now = new Date();
+    const months: { key: string; label: string; total: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.push({ key, label: monthLabel(d), total: 0 });
+    }
+
+    filtered.forEach((t) => {
+      const tipo = String(t?.['tipo'] ?? '');
+      const valor = Number(t?.['valor'] ?? 0);
+      const dataStr = String(t?.['data'] ?? '');
+      if (!dataStr || Number.isNaN(valor)) return;
+      const d = new Date(dataStr);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const m = months.find((m) => m.key === key);
+      if (m && tipo === 'despesa') {
+        m.total += valor;
+      }
+    });
+
+    const expenses = months.map((m) => ({ month: m.label, value: m.total }));
+
+    // Distribuição por categoria (top 5) para os últimos 90 dias
+    const ninetyDaysAgo = new Date(now);
+    ninetyDaysAgo.setDate(now.getDate() - 90);
+    const perCategory: Record<string, number> = {};
+
+    filtered.forEach((t) => {
+      const tipo = String(t?.['tipo'] ?? '');
+      const valor = Number(t?.['valor'] ?? 0);
+      const dataStr = String(t?.['data'] ?? '');
+      if (tipo !== 'despesa' || Number.isNaN(valor) || !dataStr) return;
+      const d = new Date(dataStr);
+      if (d < ninetyDaysAgo) return;
+      const nome = String((t as Record<string, unknown>)['categoria_nome'] ?? (t as Record<string, unknown>)['categoria'] ?? 'Sem categoria');
+      perCategory[nome] = (perCategory[nome] || 0) + valor;
+    });
+
+    const categories = Object.entries(perCategory)
+      .map(([category, value]) => ({ category, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+
+    return { expensesData: expenses, categoryData: categories };
+  }, [familyTransactions]);
 
   if (isLoading.family || isLoading.kpis) {
     return (
@@ -117,7 +156,7 @@ const FamilyDashboard: React.FC = () => {
               {formatCurrency(familyKPIs.totalBalance)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Contas bancárias familiares
+              Somatório das contas familiares
             </p>
           </CardContent>
         </Card>
@@ -147,7 +186,7 @@ const FamilyDashboard: React.FC = () => {
               {formatCurrency(familyKPIs.monthlySavings)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Receitas do mês atual
+              Receitas - Despesas (mês atual)
             </p>
           </CardContent>
         </Card>
@@ -164,6 +203,31 @@ const FamilyDashboard: React.FC = () => {
             <p className="text-xs text-muted-foreground">
               Objetivo principal
             </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* KPIs adicionais via RPC (percentagens globais) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Progresso de Objetivos</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{familyKPIs.goalsProgressPercentage.toFixed(1)}%</div>
+            <p className="text-xs text-muted-foreground">Contribuição global</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Orçamento Gasto</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{familyKPIs.budgetSpentPercentage.toFixed(1)}%</div>
+            <p className="text-xs text-muted-foreground">Percentagem do orçamento gasto</p>
           </CardContent>
         </Card>
       </div>
@@ -354,7 +418,7 @@ const FamilyDashboard: React.FC = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
-              Evolução das Despesas
+              Evolução das Despesas (6 meses)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -365,6 +429,9 @@ const FamilyDashboard: React.FC = () => {
                 height={300}
               />
             </Suspense>
+            {expensesData.every((e) => e.value === 0) && (
+              <p className="text-xs text-muted-foreground mt-2">Sem despesas registadas neste período.</p>
+            )}
           </CardContent>
         </Card>
 
@@ -372,7 +439,7 @@ const FamilyDashboard: React.FC = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
-              Distribuição por Categoria
+              Distribuição por Categoria (90 dias)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -383,6 +450,9 @@ const FamilyDashboard: React.FC = () => {
                 height={300}
               />
             </Suspense>
+            {categoryData.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-2">Sem despesas por categoria nos últimos 90 dias.</p>
+            )}
           </CardContent>
         </Card>
       </div>

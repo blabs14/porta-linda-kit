@@ -21,10 +21,10 @@ export const useUpdateFamilySettings = () => {
   const queryClient = useQueryClient();
   
   return useCrudMutation(
-    async ({ familyId, settings }: { familyId: string; settings: any }) => {
+    async ({ familyId, settings }: { familyId: string; settings: Record<string, unknown> }) => {
       const { data, error } = await updateFamilySettings(familyId, settings);
       if (error) throw error;
-      return data;
+      return data as Record<string, unknown>;
     },
     {
       operation: 'update',

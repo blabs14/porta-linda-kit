@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense, lazy, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -21,18 +21,19 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTransactions } from '../hooks/useTransactionsQuery';
-import { useAccounts } from '../hooks/useAccountsQuery';
-import { useCategories } from '../hooks/useCategoriesQuery';
+import { useAccountsDomain } from '../hooks/useAccountsQuery';
+import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { useGoals } from '../hooks/useGoalsQuery';
-import { ReportExport } from '../components/ReportExport';
+const LazyReportExport = lazy(() => import('../components/ReportExport').then(m => ({ default: m.ReportExport })));
+const LazyReportChart = lazy(() => import('../components/ReportChart').then(m => ({ default: m.default })));
 import { formatCurrency } from '../lib/utils';
 
 const ReportsPage = () => {
   const { user } = useAuth();
   const { data: transactions = [] } = useTransactions();
-  const { data: accounts = [] } = useAccounts();
-  const { data: categories = [] } = useCategories();
-  const { goals = [] } = useGoals();
+  const { data: accounts = [] } = useAccountsDomain();
+  const { data: categories = [] } = useCategoriesDomain();
+  const { data: goals = [] } = useGoals();
   
   const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState({
@@ -43,79 +44,109 @@ const ReportsPage = () => {
   const [selectedAccount, setSelectedAccount] = useState('all');
   const [reportType, setReportType] = useState('monthly');
   const [isLoading, setIsLoading] = useState(false);
+  const [excludeTransfers, setExcludeTransfers] = useState(true);
 
-  // Filtrar transações baseado nos filtros
-  const filteredTransactions = transactions.filter(transaction => {
-    const transactionDate = new Date(transaction.data);
-    const startDate = new Date(dateRange.start);
-    const endDate = new Date(dateRange.end);
-    
-    if (transactionDate < startDate || transactionDate > endDate) return false;
-    if (selectedCategory !== 'all' && transaction.categoria_id !== selectedCategory) return false;
-    if (selectedAccount !== 'all' && transaction.account_id !== selectedAccount) return false;
-    
-    return true;
-  });
+  // Ajustar automaticamente o período quando o tipo muda
+  useEffect(() => {
+    const now = new Date();
+    if (reportType === 'monthly') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      setDateRange({ start: start.toISOString().slice(0,10), end: now.toISOString().slice(0,10) });
+    } else if (reportType === 'quarterly') {
+      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+      const start = new Date(now.getFullYear(), quarterStartMonth, 1);
+      setDateRange({ start: start.toISOString().slice(0,10), end: now.toISOString().slice(0,10) });
+    } else if (reportType === 'yearly') {
+      const start = new Date(now.getFullYear(), 0, 1);
+      setDateRange({ start: start.toISOString().slice(0,10), end: now.toISOString().slice(0,10) });
+    }
+  }, [reportType]);
 
-  // Calcular métricas
-  const totalIncome = filteredTransactions
-    .filter(t => t.tipo === 'receita')
-    .reduce((sum, t) => sum + t.valor, 0);
+  // Filtrar transações baseado nos filtros (memoizado)
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(transaction => {
+      const transactionDate = new Date(transaction.data);
+      const startDate = new Date(dateRange.start);
+      const endDate = new Date(dateRange.end);
+      
+      if (transactionDate < startDate || transactionDate > endDate) return false;
+      if (selectedCategory !== 'all' && transaction.categoria_id !== selectedCategory) return false;
+      if (selectedAccount !== 'all' && transaction.account_id !== selectedAccount) return false;
+      if (excludeTransfers && transaction.tipo === 'transferencia') return false;
+      
+      return true;
+    });
+  }, [transactions, dateRange.start, dateRange.end, selectedCategory, selectedAccount, excludeTransfers]);
 
-  const totalExpenses = filteredTransactions
-    .filter(t => t.tipo === 'despesa')
-    .reduce((sum, t) => sum + t.valor, 0);
-
-  const netBalance = totalIncome - totalExpenses;
-  const transactionCount = filteredTransactions.length;
-
-  // Despesas por categoria
-  const expensesByCategory = categories.map(category => {
-    const categoryExpenses = filteredTransactions
-      .filter(t => t.tipo === 'despesa' && t.categoria_id === category.id)
-      .reduce((sum, t) => sum + t.valor, 0);
-    
-    return {
-      categoria: category.nome,
-      total: categoryExpenses,
-      percentage: totalExpenses > 0 ? (categoryExpenses / totalExpenses) * 100 : 0
-    };
-  }).filter(item => item.total > 0).sort((a, b) => b.total - a.total);
-
-  // Receitas por categoria
-  const incomeByCategory = categories.map(category => {
-    const categoryIncome = filteredTransactions
-      .filter(t => t.tipo === 'receita' && t.categoria_id === category.id)
-      .reduce((sum, t) => sum + t.valor, 0);
-    
-    return {
-      categoria: category.nome,
-      total: categoryIncome,
-      percentage: totalIncome > 0 ? (categoryIncome / totalIncome) * 100 : 0
-    };
-  }).filter(item => item.total > 0).sort((a, b) => b.total - a.total);
-
-  // Evolução mensal
-  const monthlyEvolution = Array.from({ length: 12 }, (_, i) => {
-    const month = new Date();
-    month.setMonth(month.getMonth() - i);
-    const monthStr = month.toISOString().slice(0, 7);
-    
-    const monthTransactions = transactions.filter(t => t.data.startsWith(monthStr));
-    const monthIncome = monthTransactions
+  // Calcular métricas (memoizado)
+  const { totalIncome, totalExpenses, netBalance, transactionCount } = useMemo(() => {
+    const income = filteredTransactions
       .filter(t => t.tipo === 'receita')
       .reduce((sum, t) => sum + t.valor, 0);
-    const monthExpenses = monthTransactions
+    const expenses = filteredTransactions
       .filter(t => t.tipo === 'despesa')
       .reduce((sum, t) => sum + t.valor, 0);
-    
     return {
-      month: month.toLocaleDateString('pt-PT', { month: 'short', year: 'numeric' }),
-      income: monthIncome,
-      expenses: monthExpenses,
-      balance: monthIncome - monthExpenses
+      totalIncome: income,
+      totalExpenses: expenses,
+      netBalance: income - expenses,
+      transactionCount: filteredTransactions.length,
     };
-  }).reverse();
+  }, [filteredTransactions]);
+
+  // Despesas por categoria (memoizado)
+  const expensesByCategory = useMemo(() => {
+    return categories.map(category => {
+      const categoryExpenses = filteredTransactions
+        .filter(t => t.tipo === 'despesa' && t.categoria_id === category.id)
+        .reduce((sum, t) => sum + t.valor, 0);
+      
+      return {
+        categoria: category.nome,
+        total: categoryExpenses,
+        percentage: totalExpenses > 0 ? (categoryExpenses / totalExpenses) * 100 : 0
+      };
+    }).filter(item => item.total > 0).sort((a, b) => b.total - a.total);
+  }, [categories, filteredTransactions, totalExpenses]);
+
+  // Receitas por categoria (memoizado)
+  const incomeByCategory = useMemo(() => {
+    return categories.map(category => {
+      const categoryIncome = filteredTransactions
+        .filter(t => t.tipo === 'receita' && t.categoria_id === category.id)
+        .reduce((sum, t) => sum + t.valor, 0);
+      
+      return {
+        categoria: category.nome,
+        total: categoryIncome,
+        percentage: totalIncome > 0 ? (categoryIncome / totalIncome) * 100 : 0
+      };
+    }).filter(item => item.total > 0).sort((a, b) => b.total - a.total);
+  }, [categories, filteredTransactions, totalIncome]);
+
+  // Evolução mensal (mantém filtro de transferências, memoizado)
+  const monthlyEvolution = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => {
+      const month = new Date();
+      month.setMonth(month.getMonth() - i);
+      const monthStr = month.toISOString().slice(0, 7);
+      
+      const monthTransactions = transactions.filter(t => t.data.startsWith(monthStr) && (!excludeTransfers || t.tipo !== 'transferencia'));
+      const monthIncome = monthTransactions
+        .filter(t => t.tipo === 'receita')
+        .reduce((sum, t) => sum + t.valor, 0);
+      const monthExpenses = monthTransactions
+        .filter(t => t.tipo === 'despesa')
+        .reduce((sum, t) => sum + t.valor, 0);
+      
+      return {
+        month: month.toLocaleDateString('pt-PT', { month: 'short', year: 'numeric' }),
+        income: monthIncome,
+        expenses: monthExpenses,
+        balance: monthIncome - monthExpenses
+      };
+    }).reverse();
+  }, [transactions, excludeTransfers]);
 
   const handleExport = async (format: string, customDateRange?: { start: string; end: string }) => {
     if (!user) return;
@@ -151,6 +182,16 @@ const ReportsPage = () => {
     window.location.reload();
   };
 
+  const selectedCategoryName = useMemo(() => {
+    if (selectedCategory === 'all') return null;
+    return categories.find(c => c.id === selectedCategory)?.nome || null;
+  }, [categories, selectedCategory]);
+
+  const selectedAccountName = useMemo(() => {
+    if (selectedAccount === 'all') return null;
+    return accounts.find(a => a.id === selectedAccount)?.name || null;
+  }, [accounts, selectedAccount]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -166,7 +207,9 @@ const ReportsPage = () => {
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
-          <ReportExport onExport={handleExport} />
+          <Suspense fallback={<div className="h-9 w-24 rounded bg-muted animate-pulse" aria-label="A carregar exportador..." />}> 
+            <LazyReportExport onExport={handleExport} />
+          </Suspense>
         </div>
       </div>
 
@@ -240,22 +283,42 @@ const ReportsPage = () => {
                   <SelectItem value="all">Todas as contas</SelectItem>
                   {accounts.map(account => (
                     <SelectItem key={account.id} value={account.id}>
-                      {account.nome}
+                      {account.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" className="h-4 w-4" checked={excludeTransfers} onChange={(e) => setExcludeTransfers(e.target.checked)} />
+                Excluir transferências
+              </label>
+            </div>
           </div>
 
           {/* Resumo dos filtros */}
-          <div className="mt-4 flex items-center gap-2">
+          <div className="mt-4 flex items-center gap-2 flex-wrap">
             <Badge variant="secondary">
               {filteredTransactions.length} transações encontradas
             </Badge>
             <Badge variant="outline">
               {new Date(dateRange.start).toLocaleDateString('pt-PT')} - {new Date(dateRange.end).toLocaleDateString('pt-PT')}
             </Badge>
+            {excludeTransfers && (
+              <Badge variant="outline">Sem transferências</Badge>
+            )}
+            {selectedCategoryName && (
+              <Badge variant="outline">Categoria: {selectedCategoryName}</Badge>
+            )}
+            {selectedAccountName && (
+              <Badge variant="outline">Conta: {selectedAccountName}</Badge>
+            )}
+            {(selectedAccount !== 'all' || selectedCategory !== 'all' || excludeTransfers || reportType !== 'monthly') && (
+              <Button variant="ghost" size="sm" onClick={() => { setSelectedAccount('all'); setSelectedCategory('all'); setExcludeTransfers(true); setReportType('monthly'); }}>
+                Limpar filtros
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -358,41 +421,20 @@ const ReportsPage = () => {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <PieChart className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Nenhuma despesa encontrada</p>
-                  </div>
+                  <p className="text-sm text-muted-foreground">Sem dados suficientes</p>
                 )}
               </CardContent>
             </Card>
 
-            {/* Receitas por Categoria */}
+            {/* Gráficos (Bar + Pie) */}
             <Card className="hover:shadow-md transition-shadow">
               <CardHeader>
-                <CardTitle>Receitas por Categoria</CardTitle>
+                <CardTitle>Resumo Gráfico</CardTitle>
               </CardHeader>
               <CardContent>
-                {incomeByCategory.length > 0 ? (
-                  <div className="space-y-3">
-                    {incomeByCategory.slice(0, 5).map((item, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                          <span className="text-sm font-medium">{item.categoria}</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-semibold">{formatCurrency(item.total)}</div>
-                          <div className="text-xs text-muted-foreground">{item.percentage.toFixed(1)}%</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <PieChart className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Nenhuma receita encontrada</p>
-                  </div>
-                )}
+                <Suspense fallback={<div className="h-[300px] w-full rounded bg-muted animate-pulse" aria-label="A carregar gráficos..." />}> 
+                  <LazyReportChart data={expensesByCategory.map(({ categoria, total }) => ({ categoria, total }))} />
+                </Suspense>
               </CardContent>
             </Card>
           </div>

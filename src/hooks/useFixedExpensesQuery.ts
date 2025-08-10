@@ -2,16 +2,17 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getFixedExpenses, createFixedExpense, updateFixedExpense, deleteFixedExpense } from '../services/fixed_expenses';
 import { useAuth } from '../contexts/AuthContext';
 import { useCrudMutation } from './useMutationWithFeedback';
+import type { FixedExpense, FixedExpenseInsert, FixedExpenseUpdate } from '../integrations/supabase/types';
 
 export const useFixedExpenses = () => {
   const { user } = useAuth();
 
-  return useQuery({
+  return useQuery<FixedExpense[]>({
     queryKey: ['fixedExpenses'],
     queryFn: async () => {
       const { data, error } = await getFixedExpenses();
       if (error) throw error;
-      return data || [];
+      return (data as FixedExpense[]) || [];
     },
     enabled: !!user,
   });
@@ -21,10 +22,10 @@ export const useCreateFixedExpense = () => {
   const queryClient = useQueryClient();
 
   return useCrudMutation(
-    async (data: any) => {
+    async (data: FixedExpenseInsert) => {
       const { data: result, error } = await createFixedExpense(data);
       if (error) throw error;
-      return result;
+      return result as FixedExpense | null;
     },
     {
       operation: 'create',
@@ -40,10 +41,10 @@ export const useUpdateFixedExpense = () => {
   const queryClient = useQueryClient();
 
   return useCrudMutation(
-    async ({ id, data }: { id: string; data: any }) => {
+    async ({ id, data }: { id: string; data: FixedExpenseUpdate }) => {
       const { data: result, error } = await updateFixedExpense(id, data);
       if (error) throw error;
-      return result;
+      return result as FixedExpense | null;
     },
     {
       operation: 'update',
@@ -62,7 +63,7 @@ export const useDeleteFixedExpense = () => {
     async (id: string) => {
       const { data, error } = await deleteFixedExpense(id);
       if (error) throw error;
-      return data;
+      return data as boolean | null;
     },
     {
       operation: 'delete',

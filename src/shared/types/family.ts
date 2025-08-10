@@ -25,20 +25,31 @@ export type FamilyInviteSummary = {
   invitedBy?: string | null;
 };
 
+function getString(obj: unknown, key: string): string | undefined {
+  if (obj && typeof obj === 'object') {
+    const value = (obj as Record<string, unknown>)[key];
+    if (typeof value === 'string') return value;
+  }
+  return undefined;
+}
+
 export const mapFamilyToSummary = (f: Family): FamilySummary => ({
   id: f.id,
-  name: (f as any).nome ?? (f as any).name ?? '',
-  description: (f as any).description ?? null,
-  createdAt: (f as any).created_at ?? undefined,
+  name: getString(f, 'nome') ?? getString(f, 'name') ?? '',
+  description: ((): string | null => {
+    const v = (f as unknown as Record<string, unknown>)['description'];
+    return typeof v === 'string' ? v : null;
+  })(),
+  createdAt: getString(f, 'created_at'),
 });
 
 export const mapMemberToSummary = (m: FamilyMember): FamilyMemberSummary => ({
   id: m.id,
   userId: m.user_id,
   familyId: m.family_id,
-  role: (m as any).role ?? '',
-  joinedAt: (m as any).joined_at ?? undefined,
-  status: (m as any).status ?? undefined,
+  role: getString(m, 'role') ?? '',
+  joinedAt: getString(m, 'joined_at'),
+  status: getString(m, 'status'),
 });
 
 export const mapInviteToSummary = (i: FamilyInvite): FamilyInviteSummary => ({
@@ -47,5 +58,5 @@ export const mapInviteToSummary = (i: FamilyInvite): FamilyInviteSummary => ({
   email: i.email,
   role: i.role,
   status: i.status,
-  invitedBy: (i as any).invited_by ?? null,
+  invitedBy: getString(i, 'invited_by') ?? null,
 }); 
