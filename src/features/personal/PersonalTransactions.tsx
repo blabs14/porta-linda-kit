@@ -292,6 +292,19 @@ const PersonalTransactions: React.FC = () => {
     };
   }, [showDatePicker]);
 
+  // Atalho de teclado: '/' foca a pesquisa
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        const el = document.querySelector<HTMLInputElement>('#personal-tx-search');
+        el?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -358,11 +371,16 @@ const PersonalTransactions: React.FC = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
+                  id="personal-tx-search"
                   placeholder="Pesquisar transações..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
+                  aria-describedby="personal-tx-search-hint"
                 />
+                <div id="personal-tx-search-hint" className="text-xs text-muted-foreground mt-1">
+                  Dica: pressione <kbd className="px-1 py-0.5 border rounded">/</kbd> para pesquisar
+                </div>
               </div>
             </div>
 
