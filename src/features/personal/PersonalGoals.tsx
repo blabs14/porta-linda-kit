@@ -124,18 +124,7 @@ const PersonalGoals: React.FC = () => {
     return 'A começar';
   };
 
-  // Atalho de teclado: '/' foca o seletor de estado
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
-        e.preventDefault();
-        const el = document.querySelector<HTMLElement>('div[role="combobox"]');
-        el?.focus();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+  // Atalho global '/' coberto por GlobalShortcuts
 
   if (isLoading) {
     return (

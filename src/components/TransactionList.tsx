@@ -185,18 +185,7 @@ const TransactionList = ({
     setCurrentPage(1);
   }, [transactions.length]);
 
-  // Atalho de teclado: '/' foca a pesquisa
-  React.useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === '/' && !(e.target instanceof HTMLInputElement)) {
-        e.preventDefault();
-        const el = document.querySelector<HTMLInputElement>('input[placeholder="Descrição..."]');
-        el?.focus();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+  // Atalho global '/' coberto por GlobalShortcuts
 
   // Fechar date picker quando clicar fora
   React.useEffect(() => {

@@ -60,18 +60,7 @@ const FamilyBudgets: React.FC = () => {
   const { toast } = useToast();
   const confirmation = useConfirmation();
   
-  // Atalho de teclado: '/' foca o filtro de mês
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
-        e.preventDefault();
-        const el = document.querySelector<HTMLInputElement>('#family-budgets-month');
-        el?.focus();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+  // Atalho global '/' coberto por GlobalShortcuts
 
   const handleNew = () => {
     setEditBudget(null);

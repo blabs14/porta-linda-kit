@@ -50,8 +50,14 @@ export const GlobalShortcuts: React.FC = () => {
       } else if (path.startsWith('/family/budgets')) {
         candidates.push('#family-budgets-month');
       } else if (path.startsWith('/family/members')) {
-        // Se o modal já estiver aberto, foca o email
-        candidates.push('#invite-email');
+        // Tentar focar email; se não existir, abrir modal e focar a seguir
+        if (!focusBySelector('#invite-email')) {
+          const openBtn = document.querySelector<HTMLButtonElement>('button[aria-describedby="family-invite-hint"]');
+          openBtn?.click();
+          setTimeout(() => {
+            focusBySelector('#invite-email');
+          }, 0);
+        }
       }
 
       // Fallbacks genéricos

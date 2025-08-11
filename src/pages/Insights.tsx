@@ -87,21 +87,7 @@ export default function Insights() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  // Atalho de teclado: '/' foca o botão Exportar ou o primeiro campo aberto
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
-        e.preventDefault();
-        // tentar focar o primeiro input aberto (modal objetivo ou transação)
-        const modalInput = document.querySelector<HTMLInputElement>('input#nome, form input');
-        if (modalInput) { modalInput.focus(); return; }
-        const exportBtn = document.querySelector<HTMLButtonElement>('#insights-export-btn');
-        exportBtn?.focus();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+  // Atalho global '/' coberto por GlobalShortcuts
 
   // Calcular insights baseados nos dados reais
   const insights = useMemo(() => {

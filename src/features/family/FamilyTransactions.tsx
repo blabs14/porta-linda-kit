@@ -356,18 +356,7 @@ const FamilyTransactions: React.FC = () => {
     };
   }, [showDatePicker]);
 
-  // Atalho de teclado: '/' foca a pesquisa
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
-        e.preventDefault();
-        const el = document.querySelector<HTMLInputElement>('#family-tx-search');
-        el?.focus();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+  // Atalho global '/' coberto por GlobalShortcuts
 
   if (isLoading.transactions) {
     return (

@@ -62,18 +62,7 @@ const ReportsPage = () => {
     }
   }, [reportType]);
 
-  // Atalho de teclado: '/' foca a Data Início
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
-        e.preventDefault();
-        const el = document.querySelector<HTMLInputElement>('#reports-start-date');
-        el?.focus();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+  // Atalho global '/' coberto por GlobalShortcuts
 
   // Filtrar transações baseado nos filtros (memoizado)
   const filteredTransactions = useMemo(() => {

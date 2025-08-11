@@ -56,18 +56,7 @@ const FamilyGoals: React.FC = () => {
   const { toast } = useToast();
   const confirmation = useConfirmation();
 
-  // Atalho de teclado: '/' foca o seletor de estado
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
-        e.preventDefault();
-        const el = document.querySelector<HTMLElement>('div[role="combobox"]');
-        el?.focus();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+  // Atalho global '/' coberto por GlobalShortcuts
 
   const handleCreateGoal = () => {
     setShowCreateModal(true);
