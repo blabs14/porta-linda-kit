@@ -16,6 +16,7 @@ import { useReferenceData } from '../hooks/useCache';
 import { useConfirmation } from '../hooks/useConfirmation';
 import { ConfirmationDialog } from './ui/confirmation-dialog';
 import { useToast } from '../hooks/use-toast';
+import { notifySuccess, notifyError } from '../lib/notify';
 import { Trash2, Edit, Eye, ChevronLeft, ChevronRight, Search, Filter, Calendar, ChevronDown } from 'lucide-react';
 import { Badge } from './ui/badge';
 
@@ -184,6 +185,19 @@ const TransactionList = ({
     setCurrentPage(1);
   }, [transactions.length]);
 
+  // Atalho de teclado: '/' foca a pesquisa
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !(e.target instanceof HTMLInputElement)) {
+        e.preventDefault();
+        const el = document.querySelector<HTMLInputElement>('input[placeholder="Descrição..."]');
+        el?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   // Fechar date picker quando clicar fora
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -282,9 +296,9 @@ const TransactionList = ({
       async () => {
         try {
           await deleteTransactionMutation.mutateAsync(transactionId as any);
-          toast({ title: 'Transação eliminada', description: 'A transação foi eliminada com sucesso.' });
+          notifySuccess({ title: 'Transação eliminada', description: 'A transação foi eliminada com sucesso.' });
         } catch (e) {
-          toast({ title: 'Erro ao eliminar', description: 'Não foi possível eliminar a transação.', variant: 'destructive' });
+          notifyError({ title: 'Erro ao eliminar', description: 'Não foi possível eliminar a transação.' });
         }
       }
     );

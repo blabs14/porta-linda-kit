@@ -28,6 +28,7 @@ import { useReferenceData } from '../../hooks/useCache';
 import { useAuth } from '../../contexts/AuthContext';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { useToast } from '../../hooks/use-toast';
+import { notifySuccess, notifyError } from '../../lib/notify';
 import TransactionForm from '../../components/TransactionForm';
 // exportReport será carregado dinamicamente no ponto de uso
 import { formatCurrency } from '../../lib/utils';
@@ -549,9 +550,9 @@ const PersonalTransactions: React.FC = () => {
                                 async () => {
                                   try {
                                     // TODO: ligar ao mutate de eliminação quando disponível
-                                    toast({ title: 'Transação eliminada', description: 'A transação foi eliminada com sucesso.' });
+                                    notifySuccess({ title: 'Transação eliminada', description: 'A transação foi eliminada com sucesso.' });
                                   } catch (_) {
-                                    toast({ title: 'Erro ao eliminar', description: 'Não foi possível eliminar a transação.', variant: 'destructive' });
+                                    notifyError({ title: 'Erro ao eliminar', description: 'Não foi possível eliminar a transação.' });
                                   }
                                 }
                               );

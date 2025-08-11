@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 import { useToast } from '../../hooks/use-toast';
+import { notifyError, notifyInfo, notifySuccess } from '../../lib/notify';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Bell, X, Users, UserPlus, UserMinus, AlertTriangle, CheckCircle, DollarSign, Target } from 'lucide-react';
@@ -211,11 +212,13 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
           setUnreadCount(prev => prev + 1);
           
           // Mostrar toast para nova notificação
-          toast({
-            title: newNotification.title,
-            description: newNotification.message,
-            variant: newNotification.type === 'error' ? 'destructive' : 'default',
-          });
+          if (newNotification.type === 'error') {
+            notifyError({ title: newNotification.title, description: newNotification.message });
+          } else if (newNotification.type === 'success') {
+            notifySuccess({ title: newNotification.title, description: newNotification.message });
+          } else {
+            notifyInfo({ title: newNotification.title, description: newNotification.message });
+          }
         }
       )
       .on(

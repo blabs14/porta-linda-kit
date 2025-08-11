@@ -26,6 +26,7 @@ import { useReferenceData } from '../../hooks/useCache';
 import { useAuth } from '../../contexts/AuthContext';
 // exportReport será carregado dinamicamente no ponto de uso para reduzir bundle
 import { useToast } from '../../hooks/use-toast';
+import { notifySuccess, notifyError } from '../../lib/notify';
 import TransactionForm from '../../components/TransactionForm';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
@@ -107,16 +108,9 @@ const FamilyTransactions: React.FC = () => {
       await createFamilyTransaction({ ...data, family_id: (familyAccounts?.[0] as { family_id?: string })?.family_id });
       handleClose();
       refetchAll();
-      toast({
-        title: 'Transação criada',
-        description: 'Transação familiar criada com sucesso!',
-      });
+      notifySuccess({ title: 'Transação criada', description: 'Transação familiar criada com sucesso!' });
     } catch {
-      toast({
-        title: 'Erro',
-        description: 'Erro ao criar transação familiar',
-        variant: 'destructive',
-      });
+      notifyError({ title: 'Erro ao criar', description: 'Erro ao criar transação familiar' });
     }
   };
 
@@ -126,17 +120,10 @@ const FamilyTransactions: React.FC = () => {
         await updateFamilyTransaction(editTx.id, data as Partial<TransactionItem>);
         handleClose();
         refetchAll();
-        toast({
-          title: 'Transação atualizada',
-          description: 'Transação familiar atualizada com sucesso!',
-        });
+        notifySuccess({ title: 'Transação atualizada', description: 'Transação familiar atualizada com sucesso!' });
       }
     } catch {
-      toast({
-        title: 'Erro',
-        description: 'Erro ao atualizar transação familiar',
-        variant: 'destructive',
-      });
+      notifyError({ title: 'Erro ao atualizar', description: 'Erro ao atualizar transação familiar' });
     }
   };
 
@@ -153,16 +140,9 @@ const FamilyTransactions: React.FC = () => {
         try {
           await deleteFamilyTransaction(transactionId);
           refetchAll();
-          toast({
-            title: 'Transação eliminada',
-            description: 'Transação familiar eliminada com sucesso!',
-          });
+          notifySuccess({ title: 'Transação eliminada', description: 'Transação familiar eliminada com sucesso!' });
         } catch {
-          toast({
-            title: 'Erro',
-            description: 'Erro ao eliminar transação familiar',
-            variant: 'destructive',
-          });
+          notifyError({ title: 'Erro ao eliminar', description: 'Erro ao eliminar transação familiar' });
         }
       }
     );

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from '../hooks/use-toast';
+import { notifyError, notifyInfo, notifySuccess } from '../lib/notify';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Bell, X } from 'lucide-react';
@@ -102,11 +103,13 @@ export const RealTimeNotifications = () => {
           setUnreadCount(prev => prev + 1);
           
           // Mostrar toast para nova notificação
-          toast({
-            title: typed.title,
-            description: typed.message,
-            variant: typed.type === 'error' ? 'destructive' : 'default',
-          });
+          if (typed.type === 'error') {
+            notifyError({ title: typed.title, description: typed.message });
+          } else if (typed.type === 'success') {
+            notifySuccess({ title: typed.title, description: typed.message });
+          } else {
+            notifyInfo({ title: typed.title, description: typed.message });
+          }
         }
       )
       .on(

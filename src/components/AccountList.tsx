@@ -57,6 +57,19 @@ const AccountList = ({ onEdit }: AccountListProps) => {
     fetchAccounts();
   }, [user?.id, fetchAccounts]);
 
+  // Atalho de teclado: '/' foca a pesquisa
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !(e.target instanceof HTMLInputElement)) {
+        e.preventDefault();
+        const el = document.querySelector<HTMLInputElement>('input[placeholder="Nome da conta..."]');
+        el?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
   };
