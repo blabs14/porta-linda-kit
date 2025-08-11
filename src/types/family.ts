@@ -67,6 +67,9 @@ export interface FamilyKPIs {
   budgetSpentPercentage: number;
   totalMembers: number;
   pendingInvites: number;
+  prevMonthSavings?: number;
+  deltaVsPrev?: number;
+  overspentBudgetsCount?: number;
 }
 
 // Tipos para estados de loading

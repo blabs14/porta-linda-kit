@@ -9,7 +9,8 @@ import {
   updateMemberRole,
   removeFamilyMember,
   updateFamilySettings,
-  getFamilyKPIs
+  getFamilyKPIs,
+  getFamilyKPIsRange
 } from '../../services/family';
 import { 
   getAccountsWithBalances,
@@ -378,31 +379,80 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
 
   // Query para KPIs familiares - otimizada com RPC
   const { data: familyKPIsData, isLoading: kpisLoading } = useQuery({
-    queryKey: ['family', 'kpis', user?.id],
+    queryKey: ['family', 'kpis', user?.id, family?.id],
     queryFn: async () => {
-      const { data, error } = await getFamilyKPIs();
-      if (error) throw error;
-      
-      return {
-        totalBalance: data.total_balance || 0,
-        creditCardDebt: data.credit_card_debt || 0,
-        topGoalProgress: Math.min(data.top_goal_progress || 0, 100),
-        monthlySavings: data.monthly_savings || 0,
-        goalsAccountBalance: data.goals_account_balance || 0,
-        totalGoalsValue: data.total_goals_value || 0,
-        goalsProgressPercentage: Math.min(data.goals_progress_percentage || 0, 100),
-        totalBudgetSpent: data.total_budget_spent || 0,
-        totalBudgetAmount: data.total_budget_amount || 0,
-        budgetSpentPercentage: Math.min(data.budget_spent_percentage || 0, 100),
-        totalMembers: data.total_members || 0,
-        pendingInvites: data.pending_invites || 0
+      if (!family?.id) return {
+        totalBalance: 0,
+        creditCardDebt: 0,
+        topGoalProgress: 0,
+        monthlySavings: 0,
+        goalsAccountBalance: 0,
+        totalGoalsValue: 0,
+        goalsProgressPercentage: 0,
+        totalBudgetSpent: 0,
+        totalBudgetAmount: 0,
+        budgetSpentPercentage: 0,
+        totalMembers: 0,
+        pendingInvites: 0,
+        prevMonthSavings: 0,
+        deltaVsPrev: 0,
+        overspentBudgetsCount: 0,
       };
+
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const dateStart = start.toISOString().slice(0,10);
+      const dateEnd = end.toISOString().slice(0,10);
+
+      try {
+        const { data, error } = await getFamilyKPIsRange(family.id, dateStart, dateEnd, true);
+        if (error) throw error;
+        const d = data || {} as Record<string, unknown>;
+        return {
+          totalBalance: Number(d.total_balance) || 0,
+          creditCardDebt: Number(d.credit_card_debt) || 0,
+          topGoalProgress: Math.min(Number(d.top_goal_progress) || 0, 100),
+          monthlySavings: Number(d.monthly_savings) || 0,
+          goalsAccountBalance: Number(d.goals_account_balance) || 0,
+          totalGoalsValue: Number(d.total_goals_value) || 0,
+          goalsProgressPercentage: Math.min(Number(d.goals_progress_percentage) || 0, 100),
+          totalBudgetSpent: Number(d.total_budget_spent) || 0,
+          totalBudgetAmount: Number(d.total_budget_amount) || 0,
+          budgetSpentPercentage: Math.min(Number(d.budget_spent_percentage) || 0, 100),
+          totalMembers: Number(d.total_members) || 0,
+          pendingInvites: Number(d.pending_invites) || 0,
+          prevMonthSavings: Number(d.prev_month_savings) || 0,
+          deltaVsPrev: Number(d.delta_vs_prev) || 0,
+          overspentBudgetsCount: (Array.isArray(d.overspent_budget_ids) ? (d.overspent_budget_ids as unknown[]).length : Number(d.overspent_budgets_count) || 0),
+        };
+      } catch (e) {
+        // Fallback antigo sem intervalo
+        const { data } = await getFamilyKPIs();
+        return {
+          totalBalance: data.total_balance || 0,
+          creditCardDebt: data.credit_card_debt || 0,
+          topGoalProgress: Math.min(data.top_goal_progress || 0, 100),
+          monthlySavings: data.monthly_savings || 0,
+          goalsAccountBalance: data.goals_account_balance || 0,
+          totalGoalsValue: data.total_goals_value || 0,
+          goalsProgressPercentage: Math.min(data.goals_progress_percentage || 0, 100),
+          totalBudgetSpent: data.total_budget_spent || 0,
+          totalBudgetAmount: data.total_budget_amount || 0,
+          budgetSpentPercentage: Math.min(data.budget_spent_percentage || 0, 100),
+          totalMembers: data.total_members || 0,
+          pendingInvites: data.pending_invites || 0,
+          prevMonthSavings: 0,
+          deltaVsPrev: 0,
+          overspentBudgetsCount: 0,
+        };
+      }
     },
     enabled: !!user?.id,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     refetchOnReconnect: false,
-    staleTime: 30 * 1000, // 30 segundos
+    staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,
   });
 
@@ -418,7 +468,10 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     totalBudgetAmount: 0,
     budgetSpentPercentage: 0,
     totalMembers: 0,
-    pendingInvites: 0
+    pendingInvites: 0,
+    prevMonthSavings: 0,
+    deltaVsPrev: 0,
+    overspentBudgetsCount: 0,
   } as FamilyKPIs;
 
   // Estados de loading

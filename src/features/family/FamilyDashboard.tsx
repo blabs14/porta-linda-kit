@@ -188,7 +188,10 @@ const FamilyDashboard: React.FC = () => {
             <div className="text-2xl font-bold text-green-600">
               {formatCurrency(familyKPIs.monthlySavings)}
             </div>
-            <div className="flex items-center mt-1">
+            <div className="flex items-center justify-between mt-1 text-xs">
+              <span className={((familyKPIs.deltaVsPrev || 0) >= 0) ? 'text-green-600' : 'text-red-600'}>
+                {((familyKPIs.deltaVsPrev || 0) >= 0 ? '+' : '')}{(familyKPIs.deltaVsPrev || 0).toFixed(2)}€ vs mês anterior
+              </span>
               <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/transactions')}>Ver transações</Button>
             </div>
           </CardContent>
@@ -231,7 +234,12 @@ const FamilyDashboard: React.FC = () => {
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{familyKPIs.budgetSpentPercentage.toFixed(1)}%</div>
+            <div className="flex items-center justify-between">
+              <div className="text-2xl font-bold">{familyKPIs.budgetSpentPercentage.toFixed(1)}%</div>
+              {((familyKPIs.overspentBudgetsCount || 0) > 0) && (
+                <Badge variant="destructive" className="text-xs">Ultrapassados: {familyKPIs.overspentBudgetsCount}</Badge>
+              )}
+            </div>
             <div className="flex items-center mt-1">
               <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/budgets')}>Ver orçamentos</Button>
             </div>

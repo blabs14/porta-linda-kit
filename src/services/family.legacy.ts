@@ -112,4 +112,24 @@ export const getFamilyKPIs = async () => {
     },
     error: null,
   };
+};
+
+// Novo: KPIs com parâmetros (family_id e intervalo)
+export const getFamilyKPIsRange = async (
+  familyId: string,
+  dateStart: string,
+  dateEnd: string,
+  excludeTransfers: boolean = true
+) => {
+  const { data, error } = await supabase.rpc('get_family_kpis', {
+    p_family_id: familyId,
+    p_date_start: dateStart,
+    p_date_end: dateEnd,
+    p_exclude_transfers: excludeTransfers,
+  });
+  if (error) {
+    return { data: null as any, error };
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  return { data: row, error: null } as { data: any; error: null };
 }; 

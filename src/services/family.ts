@@ -17,4 +17,5 @@ export {
   unshareGoalFromFamily,
   getFamilyStatistics,
   getFamilyKPIs,
+  getFamilyKPIsRange,
 } from "./family.legacy"; 
