@@ -118,39 +118,52 @@ export const GlobalShortcuts: React.FC = () => {
 
   const items = getShortcutItems(location.pathname);
 
-  if (!showHelp) return null;
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="shortcut-help-title"
-      className="fixed inset-0 z-50 flex items-center justify-center"
-    >
-      <div className="absolute inset-0 bg-black/40" onClick={() => setShowHelp(false)} />
-      <div className="relative bg-white dark:bg-neutral-900 border border-border rounded-lg shadow-xl w-[90vw] max-w-lg p-4">
-        <div className="flex items-center justify-between mb-2">
-          <h2 id="shortcut-help-title" className="text-lg font-semibold">Atalhos de Teclado</h2>
-          <button
-            onClick={() => setShowHelp(false)}
-            aria-label="Fechar ajuda"
-            className="px-2 py-1 text-sm rounded border hover:bg-muted"
-          >
-            Fechar
-          </button>
+    <>
+      {/* Botão flutuante para ajuda */}
+      <button
+        type="button"
+        onClick={() => setShowHelp((v) => !v)}
+        aria-label="Ajuda de atalhos"
+        title="Ajuda de atalhos (?)"
+        className="fixed bottom-4 right-4 z-50 h-10 w-10 rounded-full border bg-background text-foreground shadow hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        ?
+      </button>
+
+      {showHelp && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="shortcut-help-title"
+          className="fixed inset-0 z-50 flex items-center justify-center"
+        >
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowHelp(false)} />
+          <div className="relative bg-white dark:bg-neutral-900 border border-border rounded-lg shadow-xl w-[90vw] max-w-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h2 id="shortcut-help-title" className="text-lg font-semibold">Atalhos de Teclado</h2>
+              <button
+                onClick={() => setShowHelp(false)}
+                aria-label="Fechar ajuda"
+                className="px-2 py-1 text-sm rounded border hover:bg-muted"
+              >
+                Fechar
+              </button>
+            </div>
+            <ul className="space-y-2">
+              {items.map((it, idx) => (
+                <li key={idx} className="flex items-center gap-3">
+                  <kbd className="px-2 py-1 border rounded bg-muted text-sm">{it.key}</kbd>
+                  <span className="text-sm">{it.action}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 text-xs text-muted-foreground">
+              Dica: o atalho "/" é ignorado enquanto estás a escrever num campo.
+            </div>
+          </div>
         </div>
-        <ul className="space-y-2">
-          {items.map((it, idx) => (
-            <li key={idx} className="flex items-center gap-3">
-              <kbd className="px-2 py-1 border rounded bg-muted text-sm">{it.key}</kbd>
-              <span className="text-sm">{it.action}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-3 text-xs text-muted-foreground">
-          Dica: o atalho "/" é ignorado enquanto estás a escrever num campo.
-        </div>
-      </div>
-    </div>
+      )}
+    </>
   );
 }; 
