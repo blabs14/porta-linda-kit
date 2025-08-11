@@ -24,10 +24,11 @@ import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
 import { useGoals, useCreateGoal } from '../hooks/useGoalsQuery';
 import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { useAuth } from '../contexts/AuthContext';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import TransactionForm from '../components/TransactionForm';
 import { useToast } from '../hooks/use-toast';
+import { notifySuccess, notifyError } from '../lib/notify';
 import { goalSchema } from '../validation/goalSchema';
 import { ZodError } from 'zod';
 import * as XLSX from 'xlsx';
@@ -85,6 +86,22 @@ export default function Insights() {
   const [goalErrors, setGoalErrors] = useState<Record<string, string>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Atalho de teclado: '/' foca o botão Exportar ou o primeiro campo aberto
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        // tentar focar o primeiro input aberto (modal objetivo ou transação)
+        const modalInput = document.querySelector<HTMLInputElement>('input#nome, form input');
+        if (modalInput) { modalInput.focus(); return; }
+        const exportBtn = document.querySelector<HTMLButtonElement>('#insights-export-btn');
+        exportBtn?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   // Calcular insights baseados nos dados reais
   const insights = useMemo(() => {
@@ -293,16 +310,9 @@ export default function Insights() {
         categoriesQuery.refetch()
       ]);
       
-      toast({
-        title: "Dados atualizados",
-        description: "Os insights foram atualizados com sucesso!",
-      });
+      notifySuccess({ title: 'Dados atualizados', description: 'Os insights foram atualizados com sucesso!' });
     } catch (error) {
-      toast({
-        title: "Erro ao atualizar",
-        description: "Não foi possível atualizar os dados.",
-        variant: "destructive",
-      });
+      notifyError({ title: 'Erro ao atualizar', description: 'Não foi possível atualizar os dados.' });
     } finally {
       setIsRefreshing(false);
     }
@@ -426,16 +436,9 @@ export default function Insights() {
       // Exportar ficheiro XLSX
       XLSX.writeFile(workbook, fileName);
       
-      toast({
-        title: "Relatório exportado",
-        description: `O relatório foi descarregado como "${fileName}"`,
-      });
+      notifySuccess({ title: 'Relatório exportado', description: `O relatório foi descarregado como "${fileName}"` });
     } catch (error) {
-      toast({
-        title: "Erro ao exportar",
-        description: "Não foi possível exportar o relatório.",
-        variant: "destructive",
-      });
+      notifyError({ title: 'Erro ao exportar', description: 'Não foi possível exportar o relatório.' });
     } finally {
       setIsExporting(false);
     }
@@ -478,11 +481,7 @@ export default function Insights() {
     e.preventDefault();
     
     if (!validateGoalForm()) {
-      toast({
-        title: "Erro de validação",
-        description: "Por favor, corrija os erros no formulário.",
-        variant: "destructive",
-      });
+      notifyError({ title: 'Erro de validação', description: 'Por favor, corrija os erros no formulário.' });
       return;
     }
 
@@ -490,26 +489,20 @@ export default function Insights() {
       const payload = {
         nome: goalForm.nome,
         valor_objetivo: Number(goalForm.valor_objetivo),
-        prazo: goalForm.prazo
+        prazo: goalForm.prazo,
+        user_id: user?.id || ''
       };
 
       await createGoal(payload);
       
-      toast({
-        title: "Objetivo criado",
-        description: "O objetivo foi criado com sucesso!",
-      });
+      notifySuccess({ title: 'Objetivo criado', description: 'O objetivo foi criado com sucesso!' });
       
       setShowGoalModal(false);
       setGoalForm({ nome: '', valor_objetivo: '', valor_atual: '', prazo: '' });
       setGoalErrors({});
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Ocorreu um erro ao criar o objetivo.';
-      toast({
-        title: "Erro ao criar objetivo",
-        description: message,
-        variant: "destructive",
-      });
+      notifyError({ title: 'Erro ao criar objetivo', description: message });
     }
   };
 
@@ -539,7 +532,7 @@ export default function Insights() {
           <p className="text-muted-foreground">Análises inteligentes das suas finanças</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="border-border" onClick={handleExport} disabled={isExporting}>
+          <Button id="insights-export-btn" variant="outline" size="sm" className="border-border" onClick={handleExport} disabled={isExporting}>
             <Download className="h-4 w-4 mr-2" />
             {isExporting ? 'Exportando...' : 'Exportar'}
           </Button>

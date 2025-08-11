@@ -62,6 +62,19 @@ const ReportsPage = () => {
     }
   }, [reportType]);
 
+  // Atalho de teclado: '/' foca a Data Início
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        const el = document.querySelector<HTMLInputElement>('#reports-start-date');
+        el?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   // Filtrar transações baseado nos filtros (memoizado)
   const filteredTransactions = useMemo(() => {
     return transactions.filter(transaction => {
@@ -254,6 +267,7 @@ const ReportsPage = () => {
             <div>
               <label className="text-sm font-medium mb-2 block">Data Início</label>
               <Input
+                id="reports-start-date"
                 type="date"
                 value={dateRange.start}
                 onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
