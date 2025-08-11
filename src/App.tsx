@@ -8,6 +8,7 @@ import RequireAuth from './components/RequireAuth';
 import { MainLayout } from './components/layout/MainLayout';
 import { LoadingSpinner } from './components/ui/loading-states';
 import { Toaster } from './components/ui/toaster';
+import { GlobalShortcuts } from './components/GlobalShortcuts';
 
 // Stagewise toolbar (development only)
 import { StagewiseToolbar } from '@stagewise/toolbar-react';
@@ -43,6 +44,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <Router>
+          <GlobalShortcuts />
           <Routes>
             {/* Páginas públicas */}
             <Route path="/" element={<Index />} />

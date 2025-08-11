@@ -191,6 +191,22 @@ Nunca commits o ficheiro `.env.local`!
 - [x] Contraste de texto/ícones suficiente (verificar com DevTools Lighthouse → Accessibility)
 - [x] Labels para inputs/selects com `label`/`htmlFor` e `aria-*` quando aplicável
 
+## ⌨️ Atalhos de Teclado
+
+- Geral: pressione `/` para focar rapidamente o principal campo/controlo da página atual.
+- Mapeamento atual:
+  - `/personal/transactions`: foca a pesquisa de transações.
+  - `/family/transactions`: foca a pesquisa de transações familiares.
+  - `/reports`: foca a Data Início.
+  - `/insights`: foca o botão Exportar.
+  - `/personal/budgets`: foca o filtro de mês.
+  - `/family/budgets`: foca o filtro de mês.
+  - `/family/members`: abre o modal de convite (se fechado) e foca o email.
+
+Notas:
+- O atalho `/` é ignorado quando estás a escrever em inputs/textarea.
+- Existem dicas visuais junto dos campos com `<kbd>/</kbd>` para lembrar o atalho.
+
 ## Scripts úteis
 - `types:gen`: gera tipos do projeto remoto (requer `project-id`/auth)
 - `types:gen:local`: gera tipos da base local
