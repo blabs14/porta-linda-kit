@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -211,6 +211,27 @@ const FamilyMembers: React.FC = () => {
     }
   };
 
+  // Atalho de teclado: '/' abre o modal e foca o email
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        if (!inviteModalOpen) {
+          setInviteModalOpen(true);
+          setTimeout(() => {
+            const el = document.querySelector<HTMLInputElement>('#invite-email');
+            el?.focus();
+          }, 0);
+        } else {
+          const el = document.querySelector<HTMLInputElement>('#invite-email');
+          el?.focus();
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [inviteModalOpen]);
+
   if (isLoading.members || (isLoading as any).pendingInvites) {
     return (
       <div className="space-y-6 p-6">
@@ -238,10 +259,15 @@ const FamilyMembers: React.FC = () => {
           </p>
         </div>
         {canEdit('member') && (
-          <Button onClick={() => setInviteModalOpen(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Convidar Membro
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setInviteModalOpen(true)} aria-describedby="family-invite-hint">
+              <UserPlus className="h-4 w-4 mr-2" />
+              Convidar Membro
+            </Button>
+            <div id="family-invite-hint" className="text-xs text-muted-foreground">
+              Dica: pressione <kbd className="px-1 py-0.5 border rounded">/</kbd> para convidar
+            </div>
+          </div>
         )}
       </div>
 
@@ -513,14 +539,18 @@ const FamilyMembers: React.FC = () => {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="invite-email">Email</Label>
               <Input
-                id="email"
+                id="invite-email"
                 type="email"
                 placeholder="exemplo@email.com"
                 value={inviteForm.email}
                 onChange={(e) => setInviteForm(prev => ({ ...prev, email: e.target.value }))}
+                aria-describedby="invite-email-hint"
               />
+              <div id="invite-email-hint" className="text-xs text-muted-foreground">
+                Dica: pressione <kbd className="px-1 py-0.5 border rounded">/</kbd> para focar este campo
+              </div>
             </div>
 
             <div className="space-y-2">
