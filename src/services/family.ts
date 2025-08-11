@@ -18,4 +18,5 @@ export {
   getFamilyStatistics,
   getFamilyKPIs,
   getFamilyKPIsRange,
+  getFamilyCategoryBreakdown,
 } from "./family.legacy"; 

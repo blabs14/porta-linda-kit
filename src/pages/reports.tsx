@@ -24,6 +24,8 @@ import { useTransactions } from '../hooks/useTransactionsQuery';
 import { useAccountsDomain } from '../hooks/useAccountsQuery';
 import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { useGoals } from '../hooks/useGoalsQuery';
+import { useFamilyData } from '../hooks/useFamilyQuery';
+import { getFamilyCategoryBreakdown, getFamilyKPIsRange } from '../services/family';
 const LazyReportExport = lazy(() => import('../components/ReportExport').then(m => ({ default: m.ReportExport })));
 const LazyReportChart = lazy(() => import('../components/ReportChart').then(m => ({ default: m.default })));
 import { formatCurrency } from '../lib/utils';
@@ -34,6 +36,13 @@ const ReportsPage = () => {
   const { data: accounts = [] } = useAccountsDomain();
   const { data: categories = [] } = useCategoriesDomain();
   const { data: goals = [] } = useGoals();
+  const { data: familyData } = useFamilyData();
+  const familyId = (familyData as any)?.family?.id as string | undefined;
+  const [rpcExpenses, setRpcExpenses] = useState<Array<{ id: string | null; categoria: string; total: number; percentage: number }> | null>(null);
+  const [rpcIncome, setRpcIncome] = useState<Array<{ id: string | null; categoria: string; total: number; percentage: number }> | null>(null);
+  const [rpcLoading, setRpcLoading] = useState(false);
+  const [overspentCount, setOverspentCount] = useState<number>(0);
+  const [kpiLoading, setKpiLoading] = useState(false);
   
   const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState({
@@ -64,6 +73,59 @@ const ReportsPage = () => {
 
   // Atalho global '/' coberto por GlobalShortcuts
 
+  // Buscar breakdown via RPC quando aplicável (família existente e sem filtro de conta)
+  useEffect(() => {
+    const canUseRPC = !!familyId && selectedAccount === 'all';
+    if (!canUseRPC) {
+      setRpcExpenses(null);
+      setRpcIncome(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        setRpcLoading(true);
+        const [exp, inc] = await Promise.all([
+          getFamilyCategoryBreakdown(familyId!, dateRange.start, dateRange.end, 'despesa'),
+          getFamilyCategoryBreakdown(familyId!, dateRange.start, dateRange.end, 'receita'),
+        ]);
+        if (cancelled) return;
+        const mapRows = (rows: any[]) => rows
+          .filter(r => Number(r.total) > 0)
+          .map(r => ({ id: r.category_id, categoria: r.category_name || 'Sem categoria', total: Number(r.total), percentage: Number(r.percentage) }))
+          .sort((a, b) => b.total - a.total);
+        setRpcExpenses(mapRows(exp.data || []));
+        setRpcIncome(mapRows(inc.data || []));
+      } catch (e) {
+        setRpcExpenses(null);
+        setRpcIncome(null);
+      } finally {
+        if (!cancelled) setRpcLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [familyId, dateRange.start, dateRange.end, selectedAccount]);
+
+  // KPI overspends via RPC (família) para badge rápida
+  useEffect(() => {
+    if (!familyId) { setOverspentCount(0); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        setKpiLoading(true);
+        const { data, error } = await getFamilyKPIsRange(familyId, dateRange.start, dateRange.end, excludeTransfers);
+        if (error || !data) { if (!cancelled) setOverspentCount(0); return; }
+        const count = Array.isArray((data as any).overspent_budget_ids)
+          ? ((data as any).overspent_budget_ids as unknown[]).length
+          : Number((data as any).overspent_budgets_count || 0);
+        if (!cancelled) setOverspentCount(count || 0);
+      } finally {
+        if (!cancelled) setKpiLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [familyId, dateRange.start, dateRange.end, excludeTransfers]);
+
   // Filtrar transações baseado nos filtros (memoizado)
   const filteredTransactions = useMemo(() => {
     return transactions.filter(transaction => {
@@ -79,6 +141,33 @@ const ReportsPage = () => {
       return true;
     });
   }, [transactions, dateRange.start, dateRange.end, selectedCategory, selectedAccount, excludeTransfers]);
+
+  // Intervalo anterior (mesma duração)
+  const previousRange = useMemo(() => {
+    const start = new Date(dateRange.start);
+    const end = new Date(dateRange.end);
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const days = Math.floor((end.getTime() - start.getTime()) / msPerDay) + 1;
+    const prevEnd = new Date(start.getTime() - msPerDay);
+    const prevStart = new Date(prevEnd.getTime() - (days - 1) * msPerDay);
+    return {
+      start: prevStart.toISOString().slice(0,10),
+      end: prevEnd.toISOString().slice(0,10),
+    };
+  }, [dateRange.start, dateRange.end]);
+
+  const prevFilteredTransactions = useMemo(() => {
+    return transactions.filter(transaction => {
+      const dt = new Date(transaction.data);
+      const startDate = new Date(previousRange.start);
+      const endDate = new Date(previousRange.end);
+      if (dt < startDate || dt > endDate) return false;
+      if (selectedCategory !== 'all' && transaction.categoria_id !== selectedCategory) return false;
+      if (selectedAccount !== 'all' && transaction.account_id !== selectedAccount) return false;
+      if (excludeTransfers && transaction.tipo === 'transferencia') return false;
+      return true;
+    });
+  }, [transactions, previousRange.start, previousRange.end, selectedCategory, selectedAccount, excludeTransfers]);
 
   // Calcular métricas (memoizado)
   const { totalIncome, totalExpenses, netBalance, transactionCount } = useMemo(() => {
@@ -96,13 +185,33 @@ const ReportsPage = () => {
     };
   }, [filteredTransactions]);
 
-  // Despesas por categoria (memoizado) — inclui id da categoria para drill-down
+  // Métricas do período anterior e deltas
+  const { prevIncome, prevExpenses, prevNet, incomeDelta, expensesDelta, netDelta } = useMemo(() => {
+    const income = prevFilteredTransactions.filter(t => t.tipo === 'receita').reduce((s, t) => s + t.valor, 0);
+    const expenses = prevFilteredTransactions.filter(t => t.tipo === 'despesa').reduce((s, t) => s + t.valor, 0);
+    const net = income - expenses;
+    return {
+      prevIncome: income,
+      prevExpenses: expenses,
+      prevNet: net,
+      incomeDelta: totalIncome - income,
+      expensesDelta: totalExpenses - expenses,
+      netDelta: netBalance - net,
+    };
+  }, [prevFilteredTransactions, totalIncome, totalExpenses, netBalance]);
+
+  // Despesas por categoria (preferir RPC quando disponível e sem filtro de conta)
   const expensesByCategory = useMemo(() => {
+    if (rpcExpenses && selectedAccount === 'all') {
+      const filtered = (selectedCategory === 'all')
+        ? rpcExpenses
+        : rpcExpenses.filter(r => r.id === selectedCategory);
+      return filtered;
+    }
     return categories.map(category => {
       const categoryExpenses = filteredTransactions
         .filter(t => t.tipo === 'despesa' && t.categoria_id === category.id)
         .reduce((sum, t) => sum + t.valor, 0);
-      
       return {
         id: category.id,
         categoria: category.nome,
@@ -110,15 +219,20 @@ const ReportsPage = () => {
         percentage: totalExpenses > 0 ? (categoryExpenses / totalExpenses) * 100 : 0
       };
     }).filter(item => item.total > 0).sort((a, b) => b.total - a.total);
-  }, [categories, filteredTransactions, totalExpenses]);
+  }, [categories, filteredTransactions, totalExpenses, rpcExpenses, selectedAccount, selectedCategory]);
 
-  // Receitas por categoria (memoizado)
+  // Receitas por categoria (preferir RPC quando disponível e sem filtro de conta)
   const incomeByCategory = useMemo(() => {
+    if (rpcIncome && selectedAccount === 'all') {
+      const filtered = (selectedCategory === 'all')
+        ? rpcIncome
+        : rpcIncome.filter(r => r.id === selectedCategory);
+      return filtered;
+    }
     return categories.map(category => {
       const categoryIncome = filteredTransactions
         .filter(t => t.tipo === 'receita' && t.categoria_id === category.id)
         .reduce((sum, t) => sum + t.valor, 0);
-      
       return {
         id: category.id,
         categoria: category.nome,
@@ -126,7 +240,7 @@ const ReportsPage = () => {
         percentage: totalIncome > 0 ? (categoryIncome / totalIncome) * 100 : 0
       };
     }).filter(item => item.total > 0).sort((a, b) => b.total - a.total);
-  }, [categories, filteredTransactions, totalIncome]);
+  }, [categories, filteredTransactions, totalIncome, rpcIncome, selectedAccount, selectedCategory]);
 
   // Evolução mensal (mantém filtro de transferências, memoizado)
   const monthlyEvolution = useMemo(() => {
@@ -328,6 +442,9 @@ const ReportsPage = () => {
             {excludeTransfers && (
               <Badge variant="outline">Sem transferências</Badge>
             )}
+            {(familyId && overspentCount > 0) && (
+              <Badge variant="destructive" aria-live="polite">Orçamentos ultrapassados: {overspentCount}</Badge>
+            )}
             {selectedCategoryName && (
               <Badge variant="outline">Categoria: {selectedCategoryName}</Badge>
             )}
@@ -338,6 +455,9 @@ const ReportsPage = () => {
               <Button variant="ghost" size="sm" onClick={() => { setSelectedAccount('all'); setSelectedCategory('all'); setExcludeTransfers(true); setReportType('monthly'); }}>
                 Limpar filtros
               </Button>
+            )}
+            {(familyId && overspentCount > 0) && (
+              <Button variant="link" size="sm" onClick={() => window.location.assign('/family/budgets')}>Ver orçamentos</Button>
             )}
           </div>
         </CardContent>
@@ -351,6 +471,9 @@ const ReportsPage = () => {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Receitas</p>
                 <p className="text-2xl font-bold text-green-600">{formatCurrency(totalIncome)}</p>
+                <div className={`text-xs ${incomeDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {(incomeDelta >= 0 ? '+' : '')}{incomeDelta.toFixed(2)}€ vs período anterior
+                </div>
               </div>
               <TrendingUp className="h-8 w-8 text-green-600" />
             </div>
@@ -363,6 +486,9 @@ const ReportsPage = () => {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Despesas</p>
                 <p className="text-2xl font-bold text-red-600">{formatCurrency(totalExpenses)}</p>
+                <div className={`text-xs ${expensesDelta <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {(expensesDelta >= 0 ? '+' : '')}{expensesDelta.toFixed(2)}€ vs período anterior
+                </div>
               </div>
               <TrendingUp className="h-8 w-8 text-red-600" />
             </div>
@@ -377,6 +503,9 @@ const ReportsPage = () => {
                 <p className={`text-2xl font-bold ${netBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {formatCurrency(netBalance)}
                 </p>
+                <div className={`text-xs ${netDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {(netDelta >= 0 ? '+' : '')}{netDelta.toFixed(2)}€ vs período anterior
+                </div>
               </div>
               <DollarSign className="h-8 w-8 text-blue-600" />
             </div>
@@ -425,7 +554,9 @@ const ReportsPage = () => {
                 <CardTitle>Despesas por Categoria</CardTitle>
               </CardHeader>
               <CardContent>
-                {expensesByCategory.length > 0 ? (
+                {(rpcLoading && familyId && selectedAccount === 'all') ? (
+                  <div className="h-[120px] w-full rounded bg-muted animate-pulse" aria-label="A carregar dados (RPC)..." />
+                ) : expensesByCategory.length > 0 ? (
                   <div className="space-y-3">
                     {expensesByCategory.slice(0, 5).map((item, index) => (
                       <div
@@ -474,25 +605,25 @@ const ReportsPage = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {categories.map(category => {
+                {(rpcIncome && selectedAccount === 'all' ? rpcIncome.map(r => ({ id: r.id, nome: r.categoria })) : categories).map(category => {
                   const categoryExpenses = filteredTransactions
-                    .filter(t => t.tipo === 'despesa' && t.categoria_id === category.id)
+                    .filter(t => t.tipo === 'despesa' && t.categoria_id === (category as any).id)
                     .reduce((sum, t) => sum + t.valor, 0);
                   
                   const categoryIncome = filteredTransactions
-                    .filter(t => t.tipo === 'receita' && t.categoria_id === category.id)
+                    .filter(t => t.tipo === 'receita' && t.categoria_id === (category as any).id)
                     .reduce((sum, t) => sum + t.valor, 0);
                   
                   const categoryBalance = categoryIncome - categoryExpenses;
                   
                   return (
                     <div
-                      key={category.id}
+                      key={(category as any).id}
                       className="flex items-center justify-between p-3 border rounded-lg"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                        <span className="font-medium">{category.nome}</span>
+                        <span className="font-medium">{(category as any).nome}</span>
                       </div>
                       <div className="flex items-center gap-6">
                         <div className="text-right">

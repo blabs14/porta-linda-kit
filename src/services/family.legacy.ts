@@ -132,4 +132,24 @@ export const getFamilyKPIsRange = async (
   }
   const row = Array.isArray(data) ? data[0] : data;
   return { data: row, error: null } as { data: any; error: null };
+};
+
+// Breakdown por categoria (despesa/receita) via RPC
+export const getFamilyCategoryBreakdown = async (
+  familyId: string,
+  dateStart: string,
+  dateEnd: string,
+  kind: 'despesa' | 'receita' | 'ambos' = 'despesa'
+) => {
+  const { data, error } = await supabase.rpc('get_family_category_breakdown', {
+    p_family_id: familyId,
+    p_date_start: dateStart,
+    p_date_end: dateEnd,
+    p_kind: kind,
+  });
+  if (error) {
+    return { data: [] as any[], error };
+  }
+  const rows = Array.isArray(data) ? data : [];
+  return { data: rows as Array<{ category_id: string | null; category_name: string | null; total: number; percentage: number }>, error: null };
 }; 
