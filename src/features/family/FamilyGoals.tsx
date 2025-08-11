@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFamily } from './FamilyContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Progress } from '../../components/ui/progress';
@@ -55,6 +55,19 @@ const FamilyGoals: React.FC = () => {
   const { data: accounts = [] } = useAccountsWithBalances();
   const { toast } = useToast();
   const confirmation = useConfirmation();
+
+  // Atalho de teclado: '/' foca o seletor de estado
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        const el = document.querySelector<HTMLElement>('div[role="combobox"]');
+        el?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const handleCreateGoal = () => {
     setShowCreateModal(true);
@@ -264,6 +277,9 @@ const FamilyGoals: React.FC = () => {
               <SelectItem value="done">Concluídos</SelectItem>
             </SelectContent>
           </Select>
+          <div id="family-goals-hint" className="text-xs text-muted-foreground mt-1">
+            Dica: pressione <kbd className="px-1 py-0.5 border rounded">/</kbd> para focar o seletor
+          </div>
         </div>
       </div>
 

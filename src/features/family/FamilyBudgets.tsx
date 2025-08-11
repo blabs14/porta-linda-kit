@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFamily } from './FamilyContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
@@ -59,6 +59,19 @@ const FamilyBudgets: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const confirmation = useConfirmation();
+  
+  // Atalho de teclado: '/' foca o filtro de mês
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        const el = document.querySelector<HTMLInputElement>('#family-budgets-month');
+        el?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const handleNew = () => {
     setEditBudget(null);
@@ -296,8 +309,11 @@ const FamilyBudgets: React.FC = () => {
       {/* Filtros rápidos */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <Label htmlFor="filter-month">Filtrar por mês</Label>
-          <Input id="filter-month" type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} />
+          <Label htmlFor="family-budgets-month">Filtrar por mês</Label>
+          <Input id="family-budgets-month" type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} aria-describedby="family-budgets-month-hint" />
+          <div id="family-budgets-month-hint" className="text-xs text-muted-foreground mt-1">
+            Dica: pressione <kbd className="px-1 py-0.5 border rounded">/</kbd> para focar
+          </div>
         </div>
         <div>
           <Label>Estado</Label>
@@ -332,7 +348,7 @@ const FamilyBudgets: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {familyBudgets
+          {((Array.isArray(familyBudgets) ? (familyBudgets as any[]) : [])
             .filter((b) => !filterMonth || b.mes === filterMonth)
             .filter((b) => {
               const gasto = getGastoForBudget(b);
@@ -342,7 +358,7 @@ const FamilyBudgets: React.FC = () => {
               if (filterStatus === 'over') return pct >= 100;
               return true;
             })
-            .map((budget) => {
+            .map((budget: any) => {
               const gasto = getGastoForBudget(budget);
               const percentage = getProgressPercentage(gasto, budget.valor);
               const progressColor = getProgressColor(percentage);
@@ -451,7 +467,7 @@ const FamilyBudgets: React.FC = () => {
                   </CardContent>
                 </Card>
               );
-            })}
+            }))}
         </div>
       )}
 

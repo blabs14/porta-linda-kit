@@ -124,6 +124,19 @@ const PersonalGoals: React.FC = () => {
     return 'A começar';
   };
 
+  // Atalho de teclado: '/' foca o seletor de estado
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        const el = document.querySelector<HTMLElement>('div[role="combobox"]');
+        el?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -177,6 +190,9 @@ const PersonalGoals: React.FC = () => {
               <SelectItem value="done">Concluídos</SelectItem>
             </SelectContent>
           </Select>
+          <div id="personal-goals-hint" className="text-xs text-muted-foreground mt-1">
+            Dica: pressione <kbd className="px-1 py-0.5 border rounded">/</kbd> para focar o seletor
+          </div>
         </div>
       </div>
 

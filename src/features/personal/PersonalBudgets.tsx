@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePersonal } from './PersonalProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
@@ -50,6 +50,19 @@ const PersonalBudgets: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const confirmation = useConfirmation();
+
+  // Atalho de teclado: '/' foca o filtro de mês
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        const el = document.querySelector<HTMLInputElement>('#personal-budgets-month');
+        el?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const handleNew = () => {
     setEditBudget(null);
@@ -298,8 +311,11 @@ const PersonalBudgets: React.FC = () => {
       {/* Filtros rápidos */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <Label htmlFor="filter-month">Filtrar por mês</Label>
-          <Input id="filter-month" type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} />
+          <Label htmlFor="personal-budgets-month">Filtrar por mês</Label>
+          <Input id="personal-budgets-month" type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} aria-describedby="personal-budgets-month-hint" />
+          <div id="personal-budgets-month-hint" className="text-xs text-muted-foreground mt-1">
+            Dica: pressione <kbd className="px-1 py-0.5 border rounded">/</kbd> para focar
+          </div>
         </div>
         <div>
           <Label>Estado</Label>
