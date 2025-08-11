@@ -179,6 +179,18 @@ Nunca commits o ficheiro `.env.local`!
 - Workflow `ci.yml`: lint → lint migrações → testes → build
 - Workflow `pages.yml`: deploy opcional para GitHub Pages (branch `main`)
 
+## ♿ Checklist de Acessibilidade (A11y)
+- [x] Botões de ícone têm `aria-label` descritivos (editar, eliminar, fechar, marcar como lido, etc.)
+- [x] Diálogos com `role="dialog"`, `aria-modal`, `aria-labelledby`, `aria-describedby`
+- [x] Foco inicial previsível ao abrir diálogos (botão Cancelar focado)
+- [x] Elementos clicáveis com `tabIndex` e handlers de teclado (`Enter`) nos drill-downs
+- [x] Fallbacks de carregamento com `aria-label` em Suspense/placeholders
+- [x] Toasters/alertas usam componentes com `role` apropriado; considerar `aria-live="polite"` se necessário
+- [x] Estados visuais de foco visíveis (classes `focus:ring`, `focus:outline-none` apenas quando combinado com estilos de foco)
+- [x] Ícones apenas decorativos acompanhados por texto visível ou `aria-hidden="true"`
+- [x] Contraste de texto/ícones suficiente (verificar com DevTools Lighthouse → Accessibility)
+- [x] Labels para inputs/selects com `label`/`htmlFor` e `aria-*` quando aplicável
+
 ## Scripts úteis
 - `types:gen`: gera tipos do projeto remoto (requer `project-id`/auth)
 - `types:gen:local`: gera tipos da base local
