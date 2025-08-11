@@ -10,8 +10,10 @@ interface ReminderRow {
   date?: string
 }
 
+const { ORIGIN_ALLOW } = Deno.env.toObject()
+const allowOrigin = ORIGIN_ALLOW && ORIGIN_ALLOW.length > 0 ? ORIGIN_ALLOW : '*'
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': allowOrigin,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
