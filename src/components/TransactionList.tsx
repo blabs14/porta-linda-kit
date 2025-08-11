@@ -342,7 +342,11 @@ const TransactionList = ({
                   }
                 }}
                 className="pl-10"
+                aria-describedby="txlist-search-hint"
               />
+              <div id="txlist-search-hint" className="text-xs text-muted-foreground mt-1">
+                Dica: pressione <kbd className="px-1 py-0.5 border rounded">/</kbd> para pesquisar
+              </div>
             </div>
           </div>
 

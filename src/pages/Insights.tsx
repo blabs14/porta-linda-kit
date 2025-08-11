@@ -532,10 +532,13 @@ export default function Insights() {
           <p className="text-muted-foreground">Análises inteligentes das suas finanças</p>
         </div>
         <div className="flex gap-2">
-          <Button id="insights-export-btn" variant="outline" size="sm" className="border-border" onClick={handleExport} disabled={isExporting}>
+          <Button id="insights-export-btn" variant="outline" size="sm" className="border-border" onClick={handleExport} disabled={isExporting} aria-describedby="insights-export-hint">
             <Download className="h-4 w-4 mr-2" />
             {isExporting ? 'Exportando...' : 'Exportar'}
           </Button>
+          <div id="insights-export-hint" className="self-center text-xs text-muted-foreground">
+            Dica: pressione <kbd className="px-1 py-0.5 border rounded">/</kbd> para focar
+          </div>
         </div>
       </div>
 

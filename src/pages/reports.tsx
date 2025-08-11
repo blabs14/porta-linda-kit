@@ -271,7 +271,11 @@ const ReportsPage = () => {
                 type="date"
                 value={dateRange.start}
                 onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                aria-describedby="reports-start-hint"
               />
+              <div id="reports-start-hint" className="text-xs text-muted-foreground mt-1">
+                Dica: pressione <kbd className="px-1 py-0.5 border rounded">/</kbd> para focar
+              </div>
             </div>
 
             <div>

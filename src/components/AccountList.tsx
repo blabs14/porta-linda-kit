@@ -102,7 +102,11 @@ const AccountList = ({ onEdit }: AccountListProps) => {
             placeholder="Nome da conta..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            aria-describedby="accountlist-search-hint"
           />
+          <div id="accountlist-search-hint" className="text-xs text-muted-foreground mt-1">
+            Dica: pressione <kbd className="px-1 py-0.5 border rounded">/</kbd> para pesquisar
+          </div>
         </div>
         <div className="w-full md:w-64">
           <label className="text-sm font-medium">Tipo</label>
