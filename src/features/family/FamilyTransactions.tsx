@@ -462,7 +462,7 @@ const FamilyTransactions: React.FC = () => {
                   <SelectItem value="all">Todas as contas</SelectItem>
                   {familyAccounts?.map((account) => (
                     <SelectItem key={account.account_id} value={account.account_id}>
-                      {account.nome}
+                      {'' + (account.nome ?? '')}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -479,7 +479,7 @@ const FamilyTransactions: React.FC = () => {
                   <SelectItem value="all">Todas as categorias</SelectItem>
                   {categoriesData.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
-                      {category.nome}
+                      {'' + (category.nome ?? '')}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -550,8 +550,8 @@ const FamilyTransactions: React.FC = () => {
               <p className="text-sm text-blue-800">
                 <strong>Filtros ativos:</strong> 
                 {searchTerm && ` Pesquisa: "${searchTerm}"`}
-                {selectedAccount !== 'all' && ` Conta: ${familyAccounts?.find(a => a.account_id === selectedAccount)?.nome}`}
-                {selectedCategory !== 'all' && ` Categoria: ${categoriesData.find(c => c.id === selectedCategory)?.nome}`}
+                {selectedAccount !== 'all' && ` Conta: ${'' + (familyAccounts?.find(a => a.account_id === selectedAccount)?.nome ?? '')}`}
+                {selectedCategory !== 'all' && ` Categoria: ${'' + (categoriesData.find(c => c.id === selectedCategory)?.nome ?? '')}`}
                 {selectedType !== 'all' && ` Tipo: ${selectedType === 'receita' ? 'Receitas' : 'Despesas'}`}
                 {dateFilter !== 'all' && ` Data: ${getDateFilterText()}`}
               </p>
@@ -620,9 +620,9 @@ const FamilyTransactions: React.FC = () => {
                         <div>
                           <p className="font-medium">{transaction.descricao || 'Transação'}</p>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <span>{categoriesData.find(c => c.id === transaction.categoria_id)?.nome || 'Sem categoria'}</span>
+                            <span>{'' + (categoriesData.find(c => c.id === transaction.categoria_id)?.nome ?? 'Sem categoria')}</span>
                             <span>•</span>
-                            <span>{familyAccounts?.find(a => a.account_id === transaction.account_id)?.nome || 'Conta'}</span>
+                            <span>{'' + (familyAccounts?.find(a => a.account_id === transaction.account_id)?.nome ?? 'Conta')}</span>
                             <span>•</span>
                             <span>{new Date(transaction.data).toLocaleDateString('pt-PT')}</span>
                           </div>
@@ -643,7 +643,7 @@ const FamilyTransactions: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-1">
                           {canEdit('transaction') && (
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(transaction)}>
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(transaction)} aria-label="Editar transação">
                               <Edit className="h-4 w-4" />
                             </Button>
                           )}
@@ -652,6 +652,7 @@ const FamilyTransactions: React.FC = () => {
                               variant="ghost" 
                               size="sm"
                               onClick={() => handleDelete(transaction.id)}
+                              aria-label="Eliminar transação"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

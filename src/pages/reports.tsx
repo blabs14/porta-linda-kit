@@ -94,7 +94,7 @@ const ReportsPage = () => {
     };
   }, [filteredTransactions]);
 
-  // Despesas por categoria (memoizado)
+  // Despesas por categoria (memoizado) — inclui id da categoria para drill-down
   const expensesByCategory = useMemo(() => {
     return categories.map(category => {
       const categoryExpenses = filteredTransactions
@@ -102,6 +102,7 @@ const ReportsPage = () => {
         .reduce((sum, t) => sum + t.valor, 0);
       
       return {
+        id: category.id,
         categoria: category.nome,
         total: categoryExpenses,
         percentage: totalExpenses > 0 ? (categoryExpenses / totalExpenses) * 100 : 0
@@ -117,6 +118,7 @@ const ReportsPage = () => {
         .reduce((sum, t) => sum + t.valor, 0);
       
       return {
+        id: category.id,
         categoria: category.nome,
         total: categoryIncome,
         percentage: totalIncome > 0 ? (categoryIncome / totalIncome) * 100 : 0
@@ -140,7 +142,10 @@ const ReportsPage = () => {
         .reduce((sum, t) => sum + t.valor, 0);
       
       return {
+        key: monthStr,
         month: month.toLocaleDateString('pt-PT', { month: 'short', year: 'numeric' }),
+        year: month.getFullYear(),
+        monthIndex: month.getMonth(),
         income: monthIncome,
         expenses: monthExpenses,
         balance: monthIncome - monthExpenses
@@ -191,6 +196,14 @@ const ReportsPage = () => {
     if (selectedAccount === 'all') return null;
     return accounts.find(a => a.id === selectedAccount)?.name || null;
   }, [accounts, selectedAccount]);
+
+  // Helpers de drill-down
+  const setMonthRange = (year: number, monthIndex: number) => {
+    const start = new Date(year, monthIndex, 1);
+    const end = new Date(year, monthIndex + 1, 0);
+    setDateRange({ start: start.toISOString().slice(0,10), end: end.toISOString().slice(0,10) });
+    setReportType('custom');
+  };
 
   return (
     <div className="space-y-6">
@@ -408,7 +421,14 @@ const ReportsPage = () => {
                 {expensesByCategory.length > 0 ? (
                   <div className="space-y-3">
                     {expensesByCategory.slice(0, 5).map((item, index) => (
-                      <div key={index} className="flex items-center justify-between">
+                      <div
+                        key={item.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => { setSelectedCategory(item.id); setActiveTab('categories'); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { setSelectedCategory(item.id); setActiveTab('categories'); } }}
+                        className="flex items-center justify-between focus:outline-none focus:ring-2 rounded p-1"
+                      >
                         <div className="flex items-center gap-3">
                           <div className="w-3 h-3 rounded-full bg-red-500"></div>
                           <span className="text-sm font-medium">{item.categoria}</span>
@@ -459,7 +479,10 @@ const ReportsPage = () => {
                   const categoryBalance = categoryIncome - categoryExpenses;
                   
                   return (
-                    <div key={category.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div
+                      key={category.id}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-full bg-blue-500"></div>
                         <span className="font-medium">{category.nome}</span>
@@ -495,21 +518,28 @@ const ReportsPage = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {monthlyEvolution.map((month, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="font-medium">{month.month}</div>
+                {monthlyEvolution.map((m, index) => (
+                  <div
+                    key={m.key}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setMonthRange(m.year, m.monthIndex)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') setMonthRange(m.year, m.monthIndex); }}
+                    className="flex items-center justify-between p-3 border rounded-lg focus:outline-none focus:ring-2"
+                  >
+                    <div className="font-medium">{m.month}</div>
                     <div className="flex items-center gap-6">
                       <div className="text-right">
-                        <div className="text-sm text-green-600">+{formatCurrency(month.income)}</div>
+                        <div className="text-sm text-green-600">+{formatCurrency(m.income)}</div>
                         <div className="text-xs text-muted-foreground">Receitas</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm text-red-600">-{formatCurrency(month.expenses)}</div>
+                        <div className="text-sm text-red-600">-{formatCurrency(m.expenses)}</div>
                         <div className="text-xs text-muted-foreground">Despesas</div>
                       </div>
                       <div className="text-right">
-                        <div className={`text-sm font-semibold ${month.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(month.balance)}
+                        <div className={`text-sm font-semibold ${m.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(m.balance)}
                         </div>
                         <div className="text-xs text-muted-foreground">Saldo</div>
                       </div>

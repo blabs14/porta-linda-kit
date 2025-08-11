@@ -207,6 +207,7 @@ export default function Goals() {
                           size="sm"
                           onClick={() => handleAllocateToGoal(goal)}
                           className="h-8 w-8 p-0"
+                          aria-label="Alocar ao objetivo"
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
@@ -234,6 +235,7 @@ export default function Goals() {
                         size="sm"
                         onClick={() => handleEditGoal(goal)}
                         className="h-8 w-8 p-0"
+                        aria-label="Editar objetivo"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -242,6 +244,7 @@ export default function Goals() {
                         size="sm"
                         onClick={() => handleDeleteGoal(goal.goal_id)}
                         className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                        aria-label="Eliminar objetivo"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

@@ -26,10 +26,11 @@ import { useAccountsDomain } from '../../hooks/useAccountsQuery';
 import { useCategoriesDomain } from '../../hooks/useCategoriesQuery';
 import { useReferenceData } from '../../hooks/useCache';
 import { useAuth } from '../../contexts/AuthContext';
-// exportReport será carregado dinamicamente no ponto de uso
-import { formatCurrency } from '../../lib/utils';
+import { useConfirmation } from '../../hooks/useConfirmation';
 import { useToast } from '../../hooks/use-toast';
 import TransactionForm from '../../components/TransactionForm';
+// exportReport será carregado dinamicamente no ponto de uso
+import { formatCurrency } from '../../lib/utils';
 
 const PersonalTransactions: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
@@ -52,6 +53,7 @@ const PersonalTransactions: React.FC = () => {
   const { data: categories = [] } = useCategoriesDomain();
   const { accounts: refAccounts, categories: refCategories } = useReferenceData();
   const { user } = useAuth();
+  const confirmation = useConfirmation();
   const { toast } = useToast();
 
   const accountsData = Array.isArray(refAccounts.data) ? refAccounts.data : [];
@@ -529,17 +531,32 @@ const PersonalTransactions: React.FC = () => {
                           </Badge>
                         </div>
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(transaction)}>
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(transaction)} aria-label="Editar transação">
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
                             size="sm"
                             onClick={() => {
-                              if (confirm('Tem a certeza que pretende eliminar esta transação?')) {
-                                // Implementar eliminação
-                              }
+                              confirmation.confirm(
+                                {
+                                  title: 'Eliminar Transação',
+                                  message: 'Tem a certeza que pretende eliminar esta transação? Esta ação não pode ser desfeita.',
+                                  confirmText: 'Eliminar',
+                                  cancelText: 'Cancelar',
+                                  variant: 'destructive',
+                                },
+                                async () => {
+                                  try {
+                                    // TODO: ligar ao mutate de eliminação quando disponível
+                                    toast({ title: 'Transação eliminada', description: 'A transação foi eliminada com sucesso.' });
+                                  } catch (_) {
+                                    toast({ title: 'Erro ao eliminar', description: 'Não foi possível eliminar a transação.', variant: 'destructive' });
+                                  }
+                                }
+                              );
                             }}
+                            aria-label="Eliminar transação"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

@@ -153,11 +153,11 @@ export default function AccountsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={handleTransfer} variant="outline">
+          <Button onClick={handleTransfer} variant="outline" aria-label="Transferir">
             <ArrowRightLeft className="h-4 w-4 mr-2" />
             Transferir
           </Button>
-          <Button onClick={handleNew}>
+          <Button onClick={handleNew} aria-label="Nova conta">
             <Plus className="h-4 w-4 mr-2" />
             Nova Conta
           </Button>
@@ -211,6 +211,7 @@ export default function AccountsPage() {
                     size="sm"
                     onClick={() => handleEdit(account)}
                     className="flex-1"
+                    aria-label="Editar conta"
                   >
                     <Edit className="h-4 w-4 mr-1" />
                     Editar
@@ -220,6 +221,7 @@ export default function AccountsPage() {
                     size="sm"
                     onClick={() => handleDeleteAccount(account)}
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    aria-label="Eliminar conta"
                     disabled={deleteAccountMutation.isPending}
                   >
                     <Trash2 className="h-4 w-4 mr-1" />

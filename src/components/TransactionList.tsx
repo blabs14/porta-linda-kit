@@ -17,6 +17,7 @@ import { useConfirmation } from '../hooks/useConfirmation';
 import { ConfirmationDialog } from './ui/confirmation-dialog';
 import { useToast } from '../hooks/use-toast';
 import { Trash2, Edit, Eye, ChevronLeft, ChevronRight, Search, Filter, Calendar, ChevronDown } from 'lucide-react';
+import { Badge } from './ui/badge';
 
 type TransactionItem = {
   id: string;
@@ -63,6 +64,7 @@ const TransactionList = ({
   const [dateFilter, setDateFilter] = useState('all');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [excludeTransfers, setExcludeTransfers] = useState(true);
 
   const loading = transactionsLoading || accounts.isLoading || categories.isLoading;
   const accountsData = Array.isArray(accounts.data) ? accounts.data : [];
@@ -82,6 +84,9 @@ const TransactionList = ({
       
       const matchesType = selectedType === 'all' || 
         transaction.tipo === selectedType;
+      
+      // Excluir transferências (opcional)
+      if (excludeTransfers && transaction.tipo === 'transferencia') return false;
       
       // Filtro por data
       let matchesDate = true;
@@ -150,7 +155,7 @@ const TransactionList = ({
       
       return matchesSearch && matchesAccount && matchesCategory && matchesType && matchesDate;
     });
-  }, [transactions, searchTerm, selectedAccount, selectedCategory, selectedType, dateFilter, dateRange]);
+  }, [transactions, searchTerm, selectedAccount, selectedCategory, selectedType, dateFilter, dateRange, excludeTransfers]);
 
   // Calcular paginação
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
@@ -170,7 +175,7 @@ const TransactionList = ({
   // Resetar página quando filtros mudam
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedAccount, selectedCategory, selectedType, dateFilter, dateRange]);
+  }, [searchTerm, selectedAccount, selectedCategory, selectedType, dateFilter, dateRange, excludeTransfers]);
 
   // Resetar página quando o número de transações muda (nova transação criada)
   React.useEffect(() => {
@@ -274,8 +279,13 @@ const TransactionList = ({
         cancelText: 'Cancelar',
         variant: 'destructive',
       },
-      () => {
-        deleteTransactionMutation.mutate(transactionId);
+      async () => {
+        try {
+          await deleteTransactionMutation.mutateAsync(transactionId as any);
+          toast({ title: 'Transação eliminada', description: 'A transação foi eliminada com sucesso.' });
+        } catch (e) {
+          toast({ title: 'Erro ao eliminar', description: 'Não foi possível eliminar a transação.', variant: 'destructive' });
+        }
       }
     );
   };
@@ -515,6 +525,14 @@ const TransactionList = ({
             </div>
           </div>
 
+          {/* Toggle Excluir Transferências */}
+          <div className="space-y-2 flex items-end">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" className="h-4 w-4" checked={excludeTransfers} onChange={(e) => setExcludeTransfers(e.target.checked)} />
+              Excluir transferências
+            </label>
+          </div>
+
           {/* Botão Limpar Filtros */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">&nbsp;</label>
@@ -527,6 +545,7 @@ const TransactionList = ({
                 setSelectedType('all');
                 setDateFilter('all');
                 setDateRange({ start: '', end: '' });
+                setExcludeTransfers(true);
                 setShowDatePicker(false);
               }}
               className="w-full"
@@ -535,6 +554,23 @@ const TransactionList = ({
               Limpar Filtros
             </Button>
           </div>
+        </div>
+
+        {/* Resumo de filtros ativos */}
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          {excludeTransfers && (<Badge variant="outline">Sem transferências</Badge>)}
+          {selectedAccount !== 'all' && (
+            <Badge variant="secondary">Conta filtrada</Badge>
+          )}
+          {selectedCategory !== 'all' && (
+            <Badge variant="secondary">Categoria filtrada</Badge>
+          )}
+          {selectedType !== 'all' && (
+            <Badge variant="secondary">Tipo: {selectedType}</Badge>
+          )}
+          {dateFilter !== 'all' || (dateRange.start && dateRange.end) ? (
+            <Badge variant="outline">Período: {getDateFilterText()}</Badge>
+          ) : null}
         </div>
       </div>
 
@@ -595,6 +631,7 @@ const TransactionList = ({
                             onClick={() => onEdit(transaction)}
                             className="text-gray-500 hover:text-gray-700 p-1"
                             title="Editar"
+                            aria-label="Editar"
                           >
                             <Edit className="h-4 w-4" />
                           </button>
@@ -604,6 +641,7 @@ const TransactionList = ({
                           className="text-red-500 hover:text-red-700 p-1"
                           disabled={deleteTransactionMutation.isPending}
                           title="Eliminar"
+                          aria-label="Eliminar"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

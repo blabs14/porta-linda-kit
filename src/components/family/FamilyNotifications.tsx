@@ -252,6 +252,7 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
         onClick={() => setIsOpen(!isOpen)}
         className="relative"
         disabled={isLoading}
+        aria-label="Notificações da família"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
@@ -284,6 +285,7 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsOpen(false)}
+                aria-label="Fechar"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -380,6 +382,7 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
                                 size="sm"
                                 onClick={() => markAsRead(notification.id)}
                                 className="h-6 w-6 p-0"
+                                aria-label="Marcar como lida"
                               >
                                 <CheckCircle className="h-3 w-3" />
                               </Button>
@@ -389,6 +392,7 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
                               size="sm"
                               onClick={() => confirmAndDelete(notification.id)}
                               className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"
+                              aria-label="Eliminar notificação"
                             >
                               <X className="h-3 w-3" />
                             </Button>

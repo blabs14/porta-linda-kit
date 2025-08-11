@@ -165,11 +165,11 @@ const PersonalAccounts: React.FC = () => {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button onClick={handleTransfer} variant="outline">
+              <Button onClick={handleTransfer} variant="outline" aria-label="Transferir">
                 <ArrowRightLeft className="h-4 w-4 mr-2" />
                 Transferir
               </Button>
-              <Button onClick={handleNew}>
+              <Button onClick={handleNew} aria-label="Nova conta">
                 <Plus className="h-4 w-4 mr-2" />
                 Nova Conta
               </Button>
@@ -249,6 +249,7 @@ const PersonalAccounts: React.FC = () => {
                       size="sm"
                       onClick={() => handleEdit(account)}
                       className="flex-1"
+                      aria-label="Editar conta"
                     >
                       <Edit className="h-4 w-4 mr-1" />
                       Editar
@@ -258,6 +259,7 @@ const PersonalAccounts: React.FC = () => {
                       size="sm"
                       onClick={() => handleDeleteAccount(account)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      aria-label="Eliminar conta"
                     >
                       <Trash2 className="h-4 w-4 mr-1" />
                       Eliminar
@@ -282,7 +284,7 @@ const PersonalAccounts: React.FC = () => {
               Cartões de crédito e débito
             </p>
           </div>
-          <Button onClick={handleNewCreditCard}>
+          <Button onClick={handleNewCreditCard} aria-label="Novo cartão">
             <Plus className="h-4 w-4 mr-2" />
             Novo Cartão
           </Button>
@@ -361,6 +363,7 @@ const PersonalAccounts: React.FC = () => {
                       size="sm"
                       onClick={() => handleEdit(account)}
                       className="flex-1"
+                      aria-label="Editar cartão"
                     >
                       <Edit className="h-4 w-4 mr-1" />
                       Editar
@@ -370,6 +373,7 @@ const PersonalAccounts: React.FC = () => {
                       size="sm"
                       onClick={() => handleDeleteAccount(account)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      aria-label="Eliminar cartão"
                     >
                       <Trash2 className="h-4 w-4 mr-1" />
                       Eliminar

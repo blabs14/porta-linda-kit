@@ -20,6 +20,8 @@ import { Badge } from '../../components/ui/badge';
 import { Progress } from '../../components/ui/progress';
 import { Suspense, useMemo } from 'react';
 import { LazyReportChart, LazyChart, LazyFallback } from './lazy';
+import { Button } from '../../components/ui/button';
+import { useNavigate } from 'react-router-dom';
 
 const monthLabel = (date: Date) =>
   date.toLocaleDateString('pt-PT', { month: 'short' }).replace('.', '');
@@ -36,6 +38,7 @@ const FamilyDashboard: React.FC = () => {
     familyTransactions,
     isLoading 
   } = useFamily();
+  const navigate = useNavigate();
 
   // Construir séries reais a partir das transações (exclui transferências)
   const { expensesData, categoryData } = useMemo(() => {
@@ -146,7 +149,7 @@ const FamilyDashboard: React.FC = () => {
 
       {/* KPIs Principais */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+        <Card role="button" tabIndex={0} onClick={() => navigate('/family/accounts')} onKeyDown={(e) => e.key === 'Enter' && navigate('/family/accounts')} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Saldo Total</CardTitle>
             <Wallet className="h-4 w-4 text-muted-foreground" />
@@ -155,13 +158,13 @@ const FamilyDashboard: React.FC = () => {
             <div className="text-2xl font-bold">
               {formatCurrency(familyKPIs.totalBalance)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Somatório das contas familiares
-            </p>
+            <div className="flex items-center mt-1">
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/accounts')}>Ver contas</Button>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card role="button" tabIndex={0} onClick={() => navigate('/family/accounts')} onKeyDown={(e) => e.key === 'Enter' && navigate('/family/accounts')} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Dívida Cartões</CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
@@ -170,13 +173,13 @@ const FamilyDashboard: React.FC = () => {
             <div className="text-2xl font-bold text-red-600">
               {formatCurrency(familyKPIs.creditCardDebt)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Cartões de crédito familiares
-            </p>
+            <div className="flex items-center mt-1">
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/accounts')}>Gerir cartões</Button>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card role="button" tabIndex={0} onClick={() => navigate('/family/transactions')} onKeyDown={(e) => e.key === 'Enter' && navigate('/family/transactions')} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Poupança Mensal</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -185,13 +188,13 @@ const FamilyDashboard: React.FC = () => {
             <div className="text-2xl font-bold text-green-600">
               {formatCurrency(familyKPIs.monthlySavings)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Receitas - Despesas (mês atual)
-            </p>
+            <div className="flex items-center mt-1">
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/transactions')}>Ver transações</Button>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card role="button" tabIndex={0} onClick={() => navigate('/family/goals')} onKeyDown={(e) => e.key === 'Enter' && navigate('/family/goals')} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Progresso Objetivo</CardTitle>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
@@ -200,34 +203,38 @@ const FamilyDashboard: React.FC = () => {
             <div className="text-2xl font-bold">
               {familyKPIs.topGoalProgress.toFixed(1)}%
             </div>
-            <p className="text-xs text-muted-foreground">
-              Objetivo principal
-            </p>
+            <div className="flex items-center mt-1">
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/goals')}>Ver objetivos</Button>
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {/* KPIs adicionais via RPC (percentagens globais) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+        <Card role="button" tabIndex={0} onClick={() => navigate('/family/goals')} onKeyDown={(e) => e.key === 'Enter' && navigate('/family/goals')} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Progresso de Objetivos</CardTitle>
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{familyKPIs.goalsProgressPercentage.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground">Contribuição global</p>
+            <div className="flex items-center mt-1">
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/goals')}>Detalhar</Button>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card role="button" tabIndex={0} onClick={() => navigate('/family/budgets')} onKeyDown={(e) => e.key === 'Enter' && navigate('/family/budgets')} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Orçamento Gasto</CardTitle>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{familyKPIs.budgetSpentPercentage.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground">Percentagem do orçamento gasto</p>
+            <div className="flex items-center mt-1">
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/budgets')}>Ver orçamentos</Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -276,6 +283,9 @@ const FamilyDashboard: React.FC = () => {
                   +{familyAccounts.length - 3} mais contas
                 </p>
               )}
+              <div className="flex justify-end">
+                <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/accounts')}>Gerir contas</Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -321,6 +331,9 @@ const FamilyDashboard: React.FC = () => {
                   +{familyGoals.length - 2} mais objetivos
                 </p>
               )}
+              <div className="flex justify-end">
+                <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/goals')}>Gerir objetivos</Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -368,6 +381,9 @@ const FamilyDashboard: React.FC = () => {
                     +{members.length - 4} mais membros
                   </p>
                 )}
+                <div className="flex justify-end">
+                  <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/members')}>Gerir membros</Button>
+                </div>
               </div>
             )}
           </CardContent>
@@ -406,6 +422,9 @@ const FamilyDashboard: React.FC = () => {
                       </Badge>
                     </div>
                   ))}
+                <div className="flex justify-end">
+                  <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/members')}>Gerir convites</Button>
+                </div>
               </div>
             )}
           </CardContent>

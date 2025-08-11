@@ -259,6 +259,7 @@ export const RealTimeNotifications = () => {
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
         className="relative"
+        aria-label="Notificações"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
@@ -364,6 +365,7 @@ export const RealTimeNotifications = () => {
                             size="sm"
                             onClick={() => markAsRead(notification.id)}
                             className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
+                            aria-label="Marcar como lida"
                           >
                             ✓
                           </Button>
@@ -373,6 +375,7 @@ export const RealTimeNotifications = () => {
                           size="sm"
                           onClick={() => confirmAndDelete(notification.id)}
                           className="h-6 w-6 p-0 text-gray-400 hover:text-red-600"
+                          aria-label="Eliminar notificação"
                         >
                           <X className="h-3 w-3" />
                         </Button>

@@ -213,6 +213,7 @@ export const PendingInvitesList = ({ familyId, userRole }: PendingInvitesListPro
                             onClick={() => handleAcceptInvite(invite.id)}
                             disabled={acceptInviteMutation.isPending}
                             className="bg-green-600 hover:bg-green-700"
+                            aria-label="Aceitar convite"
                           >
                             <Check className="h-3 w-3 mr-1" />
                             Aceitar
@@ -224,6 +225,7 @@ export const PendingInvitesList = ({ familyId, userRole }: PendingInvitesListPro
                             onClick={() => handleCancelInvite(invite.id, invite.invited_email)}
                             disabled={cancelInviteMutation.isPending}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            aria-label="Cancelar convite"
                           >
                             <X className="h-3 w-3" />
                           </Button>
@@ -235,6 +237,7 @@ export const PendingInvitesList = ({ familyId, userRole }: PendingInvitesListPro
                           onClick={() => handleCancelInvite(invite.id, invite.invited_email)}
                           disabled={cancelInviteMutation.isPending}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          aria-label="Cancelar convite"
                         >
                           <Trash2 className="h-3 w-3 mr-1" />
                           Cancelar

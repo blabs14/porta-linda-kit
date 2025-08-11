@@ -419,6 +419,7 @@ const FamilyBudgets: React.FC = () => {
                           variant="outline"
                           onClick={() => handleEdit(budget)}
                           className="flex-1"
+                          aria-label="Editar orçamento"
                         >
                           <Edit className="h-3 w-3 mr-1" />
                           Editar
@@ -430,6 +431,7 @@ const FamilyBudgets: React.FC = () => {
                           variant="outline"
                           onClick={() => handleDelete(budget.id)}
                           className="text-red-600 hover:text-red-700 flex-1"
+                          aria-label="Eliminar orçamento"
                         >
                           <Trash2 className="h-3 w-3 mr-1" />
                           Eliminar

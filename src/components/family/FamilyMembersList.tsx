@@ -272,6 +272,7 @@ export const FamilyMembersList = ({ familyId, userRole }: FamilyMembersListProps
                               variant="outline"
                               onClick={() => setEditingMember(member.id)}
                               disabled={updateRoleMutation.isPending}
+                              aria-label="Editar membro"
                             >
                               <Edit className="h-3 w-3" />
                             </Button>
@@ -283,6 +284,7 @@ export const FamilyMembersList = ({ familyId, userRole }: FamilyMembersListProps
                             onClick={() => handleRemoveMember(member.user_id, member.profile?.nome || 'este membro')}
                             disabled={removeMemberMutation.isPending}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            aria-label="Remover membro"
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>

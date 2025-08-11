@@ -675,7 +675,7 @@ export default function Insights() {
               <BarChart3 className="h-5 w-5 text-primary" />
               Tendências Mensais
             </CardTitle>
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" aria-label="Selecionar período de 6 meses">
               <Calendar className="h-4 w-4 mr-2" />
               6 meses
             </Button>

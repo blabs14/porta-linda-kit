@@ -99,6 +99,10 @@ export default function Dashboard() {
     percentage: ((account.saldo_atual || 0) / (dashboardData?.totalBalance || 1)) * 100
   }));
 
+  const goToReports = () => navigate('/reports');
+  const goToBudgets = () => navigate('/budgets');
+  const goToTransactions = () => navigate('/personal/transactions');
+
   return (
     <div className="space-y-6">
       {/* Header do Dashboard */}
@@ -110,7 +114,7 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={goToReports} aria-label="Abrir Relatórios">
             <Calendar className="h-4 w-4 mr-2" />
             {selectedPeriod === 'month' ? 'Este Mês' : 'Este Ano'}
           </Button>
@@ -119,7 +123,7 @@ export default function Dashboard() {
 
       {/* Indicadores rápidos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
+        <Card role="button" tabIndex={0} onClick={goToReports} onKeyDown={(e) => e.key === 'Enter' && goToReports()} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Lembretes de Hoje</CardTitle>
             <Bell className="h-4 w-4 text-muted-foreground" />
@@ -129,7 +133,7 @@ export default function Dashboard() {
             <p className="text-xs text-muted-foreground">Lembretes com data de hoje</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card role="button" tabIndex={0} onClick={goToBudgets} onKeyDown={(e) => e.key === 'Enter' && goToBudgets()} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Orçamentos em Excesso</CardTitle>
             <AlertCircle className="h-4 w-4 text-destructive" />
@@ -160,6 +164,7 @@ export default function Dashboard() {
               <span className={balanceChange.isPositive ? 'text-green-600' : 'text-red-600'}>
                 Poupança Mensal: {balanceChange.isPositive ? '+' : '-'}{formatCurrency(balanceChange.value)}
               </span>
+              <Button variant="link" className="ml-auto h-auto p-0 text-xs" onClick={goToReports}>Ver relatórios</Button>
             </div>
           </CardContent>
         </Card>
@@ -174,9 +179,9 @@ export default function Dashboard() {
             <div className="text-2xl font-bold text-green-600">
               {formatCurrency(dashboardData?.monthlyIncome || 0)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              +{formatCurrency(dashboardData?.monthlyIncome || 0)} este mês
-            </p>
+            <div className="flex items-center mt-1">
+              <Button variant="link" className="ml-auto h-auto p-0 text-xs" onClick={goToReports}>Ver relatórios</Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -190,9 +195,9 @@ export default function Dashboard() {
             <div className="text-2xl font-bold text-red-600">
               {formatCurrency(dashboardData?.monthlyExpenses || 0)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              -{formatCurrency(dashboardData?.monthlyExpenses || 0)} este mês
-            </p>
+            <div className="flex items-center mt-1">
+              <Button variant="link" className="ml-auto h-auto p-0 text-xs" onClick={goToReports}>Ver relatórios</Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -204,12 +209,47 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">{activeGoals}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {activeGoals > 0 ? `${activeGoals} objetivos em progresso` : 'Nenhum objetivo ativo'}
-            </p>
+            <div className="flex items-center mt-1">
+              <Button variant="link" className="ml-auto h-auto p-0 text-xs" onClick={() => navigate('/Goals')}>Ver objetivos</Button>
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* KPIs adicionais provenientes do RPC (percentagens) */}
+      {(dashboardData?.goalsProgressPercentage != null || dashboardData?.budgetSpentPercentage != null) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {dashboardData?.goalsProgressPercentage != null && (
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Progresso de Objetivos</CardTitle>
+                <Target className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{dashboardData.goalsProgressPercentage.toFixed(1)}%</div>
+                <Button variant="link" className="h-auto p-0 text-xs mt-1" onClick={() => navigate('/Goals')}>
+                  Ver objetivos
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {dashboardData?.budgetSpentPercentage != null && (
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Orçamento Gasto</CardTitle>
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{dashboardData.budgetSpentPercentage.toFixed(1)}%</div>
+                <Button variant="link" className="h-auto p-0 text-xs mt-1" onClick={goToBudgets}>
+                  Ver orçamentos
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Seção de Gráficos e Análises */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -240,6 +280,9 @@ export default function Dashboard() {
                       </div>
                     </div>
                   ))}
+                <div className="flex justify-end">
+                  <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/accounts')}>Gerir contas</Button>
+                </div>
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
@@ -289,6 +332,9 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
+                <div className="flex justify-end">
+                  <Button variant="link" className="h-auto p-0 text-xs" onClick={goToTransactions}>Ver todas</Button>
+                </div>
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">

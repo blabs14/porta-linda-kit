@@ -40,6 +40,8 @@ export const useDashboardData = () => {
         const rpc = (kpisResult?.data as Record<string, unknown>) || {};
         const totalBalanceFromRPC = Number(rpc.total_balance) || 0;
         const monthlySavingsFromRPC = Number(rpc.monthly_savings) || 0;
+        const goalsProgressPctFromRPC = rpc.goals_progress_percentage != null ? Number(rpc.goals_progress_percentage) : null;
+        const budgetSpentPctFromRPC = rpc.budget_spent_percentage != null ? Number(rpc.budget_spent_percentage) : null;
 
         // Fallbacks locais
         const totalBalanceLocal = accounts.reduce((sum, account) => sum + (Number(account.saldo) || 0), 0);
@@ -81,7 +83,9 @@ export const useDashboardData = () => {
           activeGoals,
           totalGoals,
           topCategories,
-        };
+          goalsProgressPercentage: goalsProgressPctFromRPC, // pode ser null se o RPC não reportar
+          budgetSpentPercentage: budgetSpentPctFromRPC,     // pode ser null se o RPC não reportar
+        } as const;
       } catch (error) {
         console.error('Erro no dashboard query:', error);
         throw error;

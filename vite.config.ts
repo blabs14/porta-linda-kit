@@ -75,13 +75,24 @@ export default defineConfig(({ mode }) => {
             vendor: [
               'react', 'react-dom',
               '@tanstack/react-query',
-              'recharts',
               'lucide-react'
+            ],
+            charts: [
+              'recharts'
             ],
             reports: [
               './src/pages/reports.tsx',
               './src/components/ReportExport.tsx',
               './src/components/ReportChart.tsx'
+            ],
+            pdf: [
+              'jspdf', 'jspdf-autotable'
+            ],
+            excel: [
+              'xlsx'
+            ],
+            html2canvas: [
+              'html2canvas'
             ]
           }
         }

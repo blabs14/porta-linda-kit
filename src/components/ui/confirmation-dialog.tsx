@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +34,15 @@ export const ConfirmationDialog = ({
   cancelText = 'Cancelar',
   variant = 'default',
 }: ConfirmationDialogProps) => {
+  const cancelRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      // foco inicial previsível
+      cancelRef.current?.focus();
+    }
+  }, [isOpen]);
+
   const handleConfirm = () => {
     onConfirm();
     onClose();
@@ -46,18 +55,19 @@ export const ConfirmationDialog = ({
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
-      <AlertDialogContent>
+      <AlertDialogContent role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-desc">
         <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{message}</AlertDialogDescription>
+          <AlertDialogTitle id="confirm-title">{title}</AlertDialogTitle>
+          <AlertDialogDescription id="confirm-desc">{message}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={handleCancel}>
+          <AlertDialogCancel onClick={handleCancel} ref={cancelRef} aria-label={cancelText}>
             {cancelText}
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
             className={variant === 'destructive' ? 'bg-red-600 hover:bg-red-700' : ''}
+            aria-label={confirmText}
           >
             {confirmText}
           </AlertDialogAction>

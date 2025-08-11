@@ -369,6 +369,7 @@ const FamilyMembers: React.FC = () => {
                               size="sm"
                               variant="outline"
                               onClick={() => setEditingMember(member.id)}
+                              aria-label="Editar membro"
                             >
                               <Edit className="h-3 w-3" />
                             </Button>
@@ -386,6 +387,7 @@ const FamilyMembers: React.FC = () => {
                                 setShowDeleteConfirmation(true);
                               }}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              aria-label="Remover membro"
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
@@ -473,6 +475,7 @@ const FamilyMembers: React.FC = () => {
                               setShowCancelInviteConfirmation(true);
                             }}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            aria-label="Cancelar convite"
                           >
                             <X className="h-3 w-3" />
                           </Button>
