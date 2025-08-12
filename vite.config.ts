@@ -40,6 +40,11 @@ export default defineConfig(({ mode }) => {
         strategies: 'injectManifest',
         srcDir: 'src',
         filename: 'sw.ts',
+        devOptions: {
+          enabled: true,
+          suppressWarnings: true,
+          type: 'module',
+        },
         manifest: {
           name: "Porta Linda Kit",
           short_name: "PortaLinda",
