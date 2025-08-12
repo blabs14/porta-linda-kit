@@ -29,6 +29,7 @@ import { getFamilyCategoryBreakdown, getFamilyKPIsRange } from '../services/fami
 const LazyReportExport = lazy(() => import('../components/ReportExport').then(m => ({ default: m.ReportExport })));
 const LazyReportChart = lazy(() => import('../components/ReportChart').then(m => ({ default: m.default })));
 import { formatCurrency } from '../lib/utils';
+import { notifySuccess, notifyError } from '../lib/notify';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
 const ReportsPage = () => {
@@ -62,6 +63,8 @@ const ReportsPage = () => {
     const qsStart = searchParams.get('start');
     const qsEnd = searchParams.get('end');
     const qsCat = searchParams.get('category');
+    const qsAcc = searchParams.get('account');
+    const qsExTr = searchParams.get('excludeTransfers');
     if (qsStart && qsEnd) {
       setDateRange({ start: qsStart, end: qsEnd });
       setReportType('custom');
@@ -69,6 +72,12 @@ const ReportsPage = () => {
     if (qsCat) {
       setSelectedCategory(qsCat);
       setActiveTab('categories');
+    }
+    if (qsAcc) {
+      setSelectedAccount(qsAcc);
+    }
+    if (qsExTr != null) {
+      setExcludeTransfers(qsExTr === '1' || qsExTr === 'true');
     }
   }, []);
 
@@ -324,11 +333,41 @@ const ReportsPage = () => {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      notifySuccess({ title: 'Exportado', description: `Ficheiro ${filename} gerado.` });
     } catch (error) {
       console.error('Erro ao exportar relatório:', error);
+      notifyError({ title: 'Erro ao exportar', description: 'Não foi possível exportar o relatório.' });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCopyLink = async () => {
+    const params = new URLSearchParams();
+    if (dateRange.start) params.set('start', dateRange.start);
+    if (dateRange.end) params.set('end', dateRange.end);
+    if (selectedCategory !== 'all') params.set('category', selectedCategory);
+    if (selectedAccount !== 'all') params.set('account', selectedAccount);
+    if (excludeTransfers) params.set('excludeTransfers', '1');
+    const url = `${window.location.origin}/reports?${params.toString()}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      notifySuccess({ title: 'Ligação copiada', description: 'O link do recorte foi copiado para a área de transferência.' });
+    } catch (e) {
+      notifyError({ title: 'Falha ao copiar', description: 'Não foi possível copiar o link.' });
+    }
+  };
+
+  const handleCurrentMonth = () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
+    const end = new Date().toISOString().slice(0,10);
+    setDateRange({ start, end });
+    setReportType('monthly');
+    setSelectedCategory('all');
+    setSelectedAccount('all');
+    // Limpar query params para estado padrão
+    navigate('/reports', { replace: true });
   };
 
   const handleRefresh = () => {
@@ -368,6 +407,9 @@ const ReportsPage = () => {
           <Button variant="ghost" onClick={() => navigate('/insights')}>
             Voltar a Insights
           </Button>
+          <Button variant="ghost" onClick={handleCurrentMonth}>
+            Mês corrente
+          </Button>
           <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Atualizar
@@ -377,6 +419,9 @@ const ReportsPage = () => {
           </Suspense>
           <Button variant="secondary" onClick={() => handleExport('pdf', dateRange)} disabled={isLoading}>
             Exportar este recorte
+          </Button>
+          <Button variant="outline" onClick={handleCopyLink}>
+            Copiar link deste recorte
           </Button>
         </div>
       </div>
