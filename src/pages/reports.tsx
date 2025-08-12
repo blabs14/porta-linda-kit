@@ -116,10 +116,6 @@ const ReportsPage = () => {
           getFamilyCategoryBreakdown(familyId!, dateRange.start, dateRange.end, 'receita'),
         ]);
         if (cancelled) return;
-        if (import.meta.env.DEV) {
-          // eslint-disable-next-line no-console
-          console.debug('[Reports][RPC][breakdown]', { familyId, dateRange, exp: exp.data, inc: inc.data });
-        }
         const mapRows = (rows: any[]) => rows
           .filter(r => Number(r.total) > 0)
           .map(r => ({ id: r.category_id, categoria: r.category_name || 'Sem categoria', total: Number(r.total), percentage: Number(r.percentage) }))
@@ -127,10 +123,6 @@ const ReportsPage = () => {
         setRpcExpenses(mapRows(exp.data || []));
         setRpcIncome(mapRows(inc.data || []));
       } catch (e) {
-        if (import.meta.env.DEV) {
-          // eslint-disable-next-line no-console
-          console.debug('[Reports][RPC][breakdown][error]', e);
-        }
         setRpcExpenses(null);
         setRpcIncome(null);
       } finally {
@@ -149,10 +141,6 @@ const ReportsPage = () => {
         setKpiLoading(true);
         const { data, error } = await getFamilyKPIsRange(familyId, dateRange.start, dateRange.end, excludeTransfers);
         if (error || !data) { if (!cancelled) setOverspentCount(0); return; }
-        if (import.meta.env.DEV) {
-          // eslint-disable-next-line no-console
-          console.debug('[Reports][RPC][kpis]', { familyId, dateRange, data });
-        }
         const count = Array.isArray((data as any).overspent_budget_ids)
           ? ((data as any).overspent_budget_ids as unknown[]).length
           : Number((data as any).overspent_budgets_count || 0);
