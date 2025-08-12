@@ -25,6 +25,7 @@ import { useGoals, useCreateGoal } from '../hooks/useGoalsQuery';
 import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { useMemo, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import TransactionForm from '../components/TransactionForm';
 import { useToast } from '../hooks/use-toast';
@@ -60,6 +61,7 @@ interface InsightItem {
 
 export default function Insights() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const transactionsQuery = useTransactions();
   const accountsQuery = useAccountsWithBalances();
   const goalsQuery = useGoals();
@@ -254,11 +256,11 @@ export default function Insights() {
 
   // Calcular dados mensais
   const monthlyData = useMemo(() => {
-    if (!transactions.length) return [] as Array<{ month: string; income: number; expenses: number; savings: number }>;
+    if (!transactions.length) return [] as Array<{ month: string; year: number; monthIndex: number; income: number; expenses: number; savings: number }>;
 
     const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const currentYear = new Date().getFullYear();
-    const last6Months: Array<{ month: string; income: number; expenses: number; savings: number }> = [];
+    const last6Months: Array<{ month: string; year: number; monthIndex: number; income: number; expenses: number; savings: number }> = [];
 
     for (let i = 5; i >= 0; i--) {
       const month = new Date(currentYear, new Date().getMonth() - i, 1);
@@ -275,6 +277,8 @@ export default function Insights() {
 
       last6Months.push({
         month: months[month.getMonth()],
+        year: month.getFullYear(),
+        monthIndex: month.getMonth(),
         income: Number(income),
         expenses: Number(expenses),
         savings: Number(savings)
@@ -283,6 +287,19 @@ export default function Insights() {
 
     return last6Months;
   }, [transactions]);
+
+  const monthlyDataWithDeltas = useMemo(() => {
+    return monthlyData.map((m, idx) => {
+      if (idx === 0) return { ...m, incomeDelta: 0, expensesDelta: 0, savingsDelta: 0 };
+      const prev = monthlyData[idx - 1];
+      return {
+        ...m,
+        incomeDelta: m.income - prev.income,
+        expensesDelta: m.expenses - prev.expenses,
+        savingsDelta: m.savings - prev.savings,
+      };
+    });
+  }, [monthlyData]);
 
   // Função para atualizar dados
   const handleRefresh = async () => {
@@ -663,17 +680,46 @@ export default function Insights() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            {monthlyData.length > 0 ? (
-              monthlyData.map((data, index) => (
+            {monthlyDataWithDeltas.length > 0 ? (
+              monthlyDataWithDeltas.map((data, index) => (
                 <div key={data.month} className="space-y-2">
-                  <div className="flex justify-between items-center">
+                  <div
+                    className="flex justify-between items-center cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      const start = new Date(data.year, data.monthIndex, 1).toISOString().slice(0,10);
+                      const end = new Date(data.year, data.monthIndex + 1, 0).toISOString().slice(0,10);
+                      navigate(`/reports?start=${start}&end=${end}`);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const start = new Date(data.year, data.monthIndex, 1).toISOString().slice(0,10);
+                        const end = new Date(data.year, data.monthIndex + 1, 0).toISOString().slice(0,10);
+                        navigate(`/reports?start=${start}&end=${end}`);
+                      }
+                    }}
+                  >
                     <span className="font-medium text-foreground">{data.month}</span>
                     <div className="flex items-center gap-4 text-sm">
-                      <span className="text-success">+€{data.income.toFixed(0)}</span>
-                      <span className="text-destructive">-€{data.expenses.toFixed(0)}</span>
-                      <span className={`font-semibold ${data.savings >= 0 ? 'text-success' : 'text-destructive'}`}>
-                        €{data.savings.toFixed(0)}
-                      </span>
+                      <div className="text-right">
+                        <div className="text-success">+€{data.income.toFixed(0)}</div>
+                        <div className={`text-[11px] ${data.incomeDelta >= 0 ? 'text-success' : 'text-destructive'}`}>
+                          {(data.incomeDelta >= 0 ? '▲ +' : '▼ ')}{data.incomeDelta.toFixed(0)}€
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-destructive">-€{data.expenses.toFixed(0)}</div>
+                        <div className={`text-[11px] ${data.expensesDelta <= 0 ? 'text-success' : 'text-destructive'}`}>
+                          {(data.expensesDelta >= 0 ? '▲ +' : '▼ ')}{data.expensesDelta.toFixed(0)}€
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`font-semibold ${data.savings >= 0 ? 'text-success' : 'text-destructive'}`}>€{data.savings.toFixed(0)}</div>
+                        <div className={`text-[11px] ${data.savingsDelta >= 0 ? 'text-success' : 'text-destructive'}`}>
+                          {(data.savingsDelta >= 0 ? '▲ +' : '▼ ')}{data.savingsDelta.toFixed(0)}€
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div className="w-full bg-accent rounded-full h-2">
@@ -709,7 +755,37 @@ export default function Insights() {
           <CardContent className="space-y-4">
             {categoryData.length > 0 ? (
               categoryData.map((category, index) => (
-                <div key={category.name} className="flex items-center justify-between p-3 bg-accent rounded-lg">
+                <div
+                  key={category.name}
+                  className="flex items-center justify-between p-3 bg-accent rounded-lg cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    const now = new Date();
+                    const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
+                    const end = new Date().toISOString().slice(0,10);
+                    // Encontrar ID da categoria pelo nome
+                    const cat = categories.find(c => c.nome === category.name);
+                    if (cat?.id) {
+                      navigate(`/reports?category=${encodeURIComponent(cat.id)}&start=${start}&end=${end}`);
+                    } else {
+                      navigate(`/reports?start=${start}&end=${end}`);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const now = new Date();
+                      const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
+                      const end = new Date().toISOString().slice(0,10);
+                      const cat = categories.find(c => c.nome === category.name);
+                      if (cat?.id) {
+                        navigate(`/reports?category=${encodeURIComponent(cat.id)}&start=${start}&end=${end}`);
+                      } else {
+                        navigate(`/reports?start=${start}&end=${end}`);
+                      }
+                    }
+                  }}
+                >
                   <div className="flex items-center gap-3">
                     <div className={`w-3 h-3 rounded-full ${category.color}`} />
                     <div>
