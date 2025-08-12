@@ -269,6 +269,22 @@ const ReportsPage = () => {
     }).reverse();
   }, [transactions, excludeTransfers]);
 
+  // Evolução com deltas face ao mês anterior
+  const monthlyEvolutionWithDeltas = useMemo(() => {
+    return monthlyEvolution.map((m, idx) => {
+      if (idx === 0) {
+        return { ...m, incomeDelta: 0, expensesDelta: 0, balanceDelta: 0 };
+      }
+      const prev = monthlyEvolution[idx - 1];
+      return {
+        ...m,
+        incomeDelta: m.income - prev.income,
+        expensesDelta: m.expenses - prev.expenses,
+        balanceDelta: m.balance - prev.balance,
+      };
+    });
+  }, [monthlyEvolution]);
+
   const handleExport = async (format: string, customDateRange?: { start: string; end: string }) => {
     if (!user) return;
     
@@ -656,7 +672,7 @@ const ReportsPage = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {monthlyEvolution.map((m, index) => (
+                {monthlyEvolutionWithDeltas.map((m, index) => (
                   <div
                     key={m.key}
                     role="button"
@@ -669,17 +685,23 @@ const ReportsPage = () => {
                     <div className="flex items-center gap-6">
                       <div className="text-right">
                         <div className="text-sm text-green-600">+{formatCurrency(m.income)}</div>
-                        <div className="text-xs text-muted-foreground">Receitas</div>
+                        <div className={`text-[11px] ${m.incomeDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {(m.incomeDelta >= 0 ? '▲ +' : '▼ ')}{m.incomeDelta.toFixed(2)}€ vs mês ant.
+                        </div>
                       </div>
                       <div className="text-right">
                         <div className="text-sm text-red-600">-{formatCurrency(m.expenses)}</div>
-                        <div className="text-xs text-muted-foreground">Despesas</div>
+                        <div className={`text-[11px] ${m.expensesDelta <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {(m.expensesDelta >= 0 ? '▲ +' : '▼ ')}{m.expensesDelta.toFixed(2)}€ vs mês ant.
+                        </div>
                       </div>
                       <div className="text-right">
                         <div className={`text-sm font-semibold ${m.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           {formatCurrency(m.balance)}
                         </div>
-                        <div className="text-xs text-muted-foreground">Saldo</div>
+                        <div className={`text-[11px] ${m.balanceDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {(m.balanceDelta >= 0 ? '▲ +' : '▼ ')}{m.balanceDelta.toFixed(2)}€ vs mês ant.
+                        </div>
                       </div>
                     </div>
                   </div>
