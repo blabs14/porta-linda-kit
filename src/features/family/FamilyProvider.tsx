@@ -408,6 +408,11 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       try {
         const { data, error } = await getFamilyKPIsRange(family.id, dateStart, dateEnd, true);
         if (error) throw error;
+        if (import.meta.env.DEV) {
+          // Log temporário de debug
+          // eslint-disable-next-line no-console
+          console.debug('[KPIs][RPC][family]', { familyId: family.id, dateStart, dateEnd, data });
+        }
         const d = data || {} as Record<string, unknown>;
         return {
           totalBalance: Number(d.total_balance) || 0,
@@ -427,6 +432,10 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
           overspentBudgetsCount: (Array.isArray(d.overspent_budget_ids) ? (d.overspent_budget_ids as unknown[]).length : Number(d.overspent_budgets_count) || 0),
         };
       } catch (e) {
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.debug('[KPIs][RPC][family][fallback]', e);
+        }
         // Fallback antigo sem intervalo
         const { data } = await getFamilyKPIs();
         return {

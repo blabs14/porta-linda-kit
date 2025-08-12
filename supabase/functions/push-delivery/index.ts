@@ -11,15 +11,31 @@ interface DeliveryRequest {
   }
 }
 
-const { ORIGIN_ALLOW } = Deno.env.toObject()
-const allowOrigin = ORIGIN_ALLOW && ORIGIN_ALLOW.length > 0 ? ORIGIN_ALLOW : '*'
-const corsHeaders = {
-  'Access-Control-Allow-Origin': allowOrigin,
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+const env = Deno.env.toObject()
+const ORIGIN_ALLOW = env.ORIGIN_ALLOW || ''
+
+function resolveCorsOrigin(req: Request): string {
+  const reqOrigin = req.headers.get('Origin') || ''
+  const allowList = ORIGIN_ALLOW.split(',').map(s => s.trim()).filter(Boolean)
+  if (allowList.length === 0) return '*'
+  if (reqOrigin && allowList.includes(reqOrigin)) return reqOrigin
+  // fallback: primeira origem válida para ambientes sem Origin
+  return allowList[0]
+}
+
+function buildCorsHeaders(req: Request) {
+  const origin = resolveCorsOrigin(req)
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Credentials': 'true',
+    'Vary': 'Origin',
+  }
 }
 
 export default async function handler(req: Request): Promise<Response> {
+  const corsHeaders = buildCorsHeaders(req)
   try {
     // OPTIONS preflight
     if (req.method === 'OPTIONS') {
@@ -36,7 +52,7 @@ export default async function handler(req: Request): Promise<Response> {
       return new Response(JSON.stringify({ error: 'Invalid payload' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    const { SUPABASE_URL, SERVICE_ROLE_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = Deno.env.toObject()
+    const { SUPABASE_URL, SERVICE_ROLE_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = env
     if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
       return new Response(JSON.stringify({ error: 'Missing SUPABASE_URL or SERVICE_ROLE_KEY' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }

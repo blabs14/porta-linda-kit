@@ -10,10 +10,6 @@ import { LoadingSpinner } from './components/ui/loading-states';
 import { Toaster } from './components/ui/toaster';
 import { GlobalShortcuts } from './components/GlobalShortcuts';
 
-// Stagewise toolbar (development only)
-import { StagewiseToolbar } from '@stagewise/toolbar-react';
-import ReactPlugin from '@stagewise-plugins/react';
-
 // Lazy loading de páginas
 import {
   Dashboard,
@@ -81,14 +77,6 @@ function App() {
         </Router>
       </AuthProvider>
       <Toaster />
-      
-      {/* Stagewise Toolbar - apenas em desenvolvimento */}
-      {import.meta.env.DEV && (
-        <StagewiseToolbar 
-          config={{ plugins: [ReactPlugin] }}
-        />
-      )}
-      
       {/* <ReactQueryDevtools initialIsOpen={false} /> */}
     </QueryClientProvider>
   );
