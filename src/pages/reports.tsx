@@ -29,6 +29,7 @@ import { getFamilyCategoryBreakdown, getFamilyKPIsRange } from '../services/fami
 const LazyReportExport = lazy(() => import('../components/ReportExport').then(m => ({ default: m.ReportExport })));
 const LazyReportChart = lazy(() => import('../components/ReportChart').then(m => ({ default: m.default })));
 import { formatCurrency } from '../lib/utils';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 const ReportsPage = () => {
   const { user } = useAuth();
@@ -44,6 +45,8 @@ const ReportsPage = () => {
   const [overspentCount, setOverspentCount] = useState<number>(0);
   const [kpiLoading, setKpiLoading] = useState(false);
   
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState({
     start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
@@ -54,6 +57,20 @@ const ReportsPage = () => {
   const [reportType, setReportType] = useState('monthly');
   const [isLoading, setIsLoading] = useState(false);
   const [excludeTransfers, setExcludeTransfers] = useState(true);
+  // Preencher a partir dos query params
+  useEffect(() => {
+    const qsStart = searchParams.get('start');
+    const qsEnd = searchParams.get('end');
+    const qsCat = searchParams.get('category');
+    if (qsStart && qsEnd) {
+      setDateRange({ start: qsStart, end: qsEnd });
+      setReportType('custom');
+    }
+    if (qsCat) {
+      setSelectedCategory(qsCat);
+      setActiveTab('categories');
+    }
+  }, []);
 
   // Ajustar automaticamente o período quando o tipo muda
   useEffect(() => {
@@ -348,6 +365,9 @@ const ReportsPage = () => {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => navigate('/insights')}>
+            Voltar a Insights
+          </Button>
           <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Atualizar
@@ -355,6 +375,9 @@ const ReportsPage = () => {
           <Suspense fallback={<div className="h-9 w-24 rounded bg-muted animate-pulse" aria-label="A carregar exportador..." />}> 
             <LazyReportExport onExport={handleExport} />
           </Suspense>
+          <Button variant="secondary" onClick={() => handleExport('pdf', dateRange)} disabled={isLoading}>
+            Exportar este recorte
+          </Button>
         </div>
       </div>
 
