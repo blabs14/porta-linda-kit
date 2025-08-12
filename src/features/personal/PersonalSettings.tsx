@@ -7,6 +7,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Switch } from '../../components/ui/switch';
 import { Settings, User, Shield, Bell, Palette, Eye, EyeOff, Moon, Sun, Smartphone, Mail, Calendar, Save, BarChart3, TrendingUp } from 'lucide-react';
+import { notifySuccess, notifyError } from '../../lib/notify';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../hooks/use-toast';
 import { usePersonalSettings } from '../../hooks/usePersonalSettings';
@@ -91,6 +92,35 @@ const PersonalSettings: React.FC = () => {
         await unsubscribeFromPush();
       }
     } catch {}
+  };
+
+  const sendTestPush = async () => {
+    try {
+      if (!user?.id) return;
+      const { data: session } = await (await import('../../lib/supabaseClient')).supabase.auth.getSession();
+      const jwt = session.session?.access_token;
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') || '';
+      const url = `${baseUrl}/functions/v1/push-delivery`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': jwt ? `Bearer ${jwt}` : ''
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          payload: {
+            title: 'Teste de Push',
+            body: 'Se estás a ver isto, as notificações push estão a funcionar ��',
+            url: '/insights'
+          }
+        })
+      });
+      if (!res.ok) throw new Error('Falha no envio');
+      notifySuccess({ title: 'Enviado', description: 'Notificação push de teste enviada.' });
+    } catch (e) {
+      notifyError({ title: 'Erro', description: 'Não foi possível enviar a push de teste.' });
+    }
   };
 
   // Atualizar estados locais quando os dados mudarem
@@ -491,7 +521,10 @@ const PersonalSettings: React.FC = () => {
                         <p className="text-xs text-muted-foreground">Recebe lembretes mesmo com a app fechada</p>
                       </div>
                     </div>
-                    <Switch checked={pushEnabled} onCheckedChange={togglePush} />
+                    <div className="flex items-center gap-2">
+                      <Switch checked={pushEnabled} onCheckedChange={togglePush} />
+                      <Button variant="outline" size="sm" onClick={sendTestPush}>Enviar push de teste</Button>
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setIsNotificationsOpen(false)}>
