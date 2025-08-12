@@ -349,7 +349,7 @@ const ReportsPage = () => {
     if (selectedCategory !== 'all') params.set('category', selectedCategory);
     if (selectedAccount !== 'all') params.set('account', selectedAccount);
     if (excludeTransfers) params.set('excludeTransfers', '1');
-    const url = `${window.location.origin}/reports?${params.toString()}`;
+    const url = `${window.location.origin}${window.location.pathname.startsWith('/app') ? '' : '/app'}/reports?${params.toString()}`;
     try {
       await navigator.clipboard.writeText(url);
       notifySuccess({ title: 'Ligação copiada', description: 'O link do recorte foi copiado para a área de transferência.' });
@@ -367,7 +367,7 @@ const ReportsPage = () => {
     setSelectedCategory('all');
     setSelectedAccount('all');
     // Limpar query params para estado padrão
-    navigate('/reports', { replace: true });
+    navigate('/app/reports', { replace: true });
   };
 
   const handleRefresh = () => {
@@ -404,7 +404,7 @@ const ReportsPage = () => {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => navigate('/insights')}>
+          <Button variant="ghost" onClick={() => navigate('/personal/insights')}>
             Voltar a Insights
           </Button>
           <Button variant="ghost" onClick={handleCurrentMonth}>
@@ -774,6 +774,14 @@ const ReportsPage = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+              <div className="mt-3 text-right">
+                <Button variant="outline" size="sm" onClick={() => {
+                  const start = dateRange.start; const end = dateRange.end;
+                  navigate(`/personal/transactions?start=${start}&end=${end}&excludeTransfers=${excludeTransfers ? '1' : '0'}`);
+                }}>
+                  Ver transações do período
+                </Button>
               </div>
             </CardContent>
           </Card>

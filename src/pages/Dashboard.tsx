@@ -99,7 +99,7 @@ export default function Dashboard() {
     percentage: ((account.saldo_atual || 0) / (dashboardData?.totalBalance || 1)) * 100
   }));
 
-  const goToReports = () => navigate('/reports');
+  const goToReports = () => navigate('/app/reports');
   const goToBudgets = () => navigate('/budgets');
   const goToTransactions = () => navigate('/personal/transactions');
 

@@ -5,6 +5,7 @@ import { useTransactions } from '../hooks/useTransactionsQuery';
 import { LoadingSpinner } from '../components/ui/loading-states';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { useRouteChange } from '../hooks/useRouteChange';
 import { useReminders } from '../hooks/useRemindersQuery';
@@ -24,6 +25,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { useMediaQuery } from '../hooks/use-mobile';
+import { useAuth } from '../contexts/AuthContext';
 
 // Componentes lazy loading
 const PersonalDashboard = React.lazy(() => import('../features/personal/PersonalDashboard'));
@@ -76,6 +78,14 @@ const MobileNavigation: React.FC = () => {
     { value: '/personal/settings', label: 'Definições', icon: Settings }
   ];
 
+  const prefetchTab = (path: string) => {
+    try {
+      if (path === '/personal/insights') import('../features/personal/PersonalInsights');
+      if (path === '/personal/transactions') import('../features/personal/PersonalTransactions');
+      if (path === '/personal/budgets') import('../features/personal/PersonalBudgets');
+    } catch {}
+  };
+
   const currentTab = tabs.find(tab => location.pathname === tab.value)?.value || '/personal';
 
   return (
@@ -83,7 +93,7 @@ const MobileNavigation: React.FC = () => {
       <Tabs value={currentTab} onValueChange={(value) => navigate(value)}>
         <TabsList className="grid w-full grid-cols-4 mb-4">
           {tabs.slice(0, 4).map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col items-center gap-1">
+            <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col items-center gap-1" onMouseEnter={() => prefetchTab(tab.value)} onFocus={() => prefetchTab(tab.value)}>
               <tab.icon className="h-4 w-4" />
               <span className="text-xs">{tab.label}</span>
             </TabsTrigger>
@@ -91,7 +101,7 @@ const MobileNavigation: React.FC = () => {
         </TabsList>
         <TabsList className="grid w-full grid-cols-4">
           {tabs.slice(4).map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col items-center gap-1">
+            <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col items-center gap-1" onMouseEnter={() => prefetchTab(tab.value)} onFocus={() => prefetchTab(tab.value)}>
               <tab.icon className="h-4 w-4" />
               <span className="text-xs flex items-center gap-1">
                 {tab.label}
@@ -142,6 +152,14 @@ const DesktopNavigation: React.FC = () => {
     { path: '/personal/settings', label: 'Definições', icon: Settings, description: 'Configurações pessoais' }
   ];
 
+  const prefetchDesktop = (path: string) => {
+    try {
+      if (path === '/personal/insights') import('../features/personal/PersonalInsights');
+      if (path === '/personal/transactions') import('../features/personal/PersonalTransactions');
+      if (path === '/personal/budgets') import('../features/personal/PersonalBudgets');
+    } catch {}
+  };
+
   return (
     <div className="hidden lg:block w-64 bg-card border-r border-border min-h-screen p-4">
       <div className="mb-6">
@@ -154,6 +172,8 @@ const DesktopNavigation: React.FC = () => {
           <button
             key={item.path}
             onClick={() => navigate(item.path)}
+            onMouseEnter={() => prefetchDesktop(item.path)}
+            onFocus={() => prefetchDesktop(item.path)}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 text-left ${
               location.pathname === item.path
                 ? 'bg-primary text-primary-foreground'
@@ -200,6 +220,8 @@ const PersonalHeader: React.FC = () => {
       return 0;
     }
   }, [reminders]);
+
+  // (removido) Carregamento de audit logs foi movido para PersonalArea
 
   const getPageTitle = () => {
     const path = location.pathname;

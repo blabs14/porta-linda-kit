@@ -6,7 +6,8 @@ import {
   Settings, 
   ChevronRight,
   User,
-  Lightbulb
+  Lightbulb,
+  BarChart3
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/useProfilesQuery';
@@ -21,6 +22,12 @@ const navigationItems = [
     href: '/app',
     icon: Home,
     description: 'Visão geral das finanças'
+  },
+  {
+    title: 'Relatórios',
+    href: '/app/reports',
+    icon: BarChart3,
+    description: 'Relatórios e análises'
   },
                 {
                 title: 'Área Pessoal',
@@ -78,6 +85,8 @@ export function NavigationSidebar({ onNavigate }: NavigationSidebarProps) {
             key={item.href}
             to={item.href}
             onClick={onNavigate}
+            onMouseEnter={() => { if (item.href === '/app/reports') { import('../../pages/reports'); } if (item.href === '/personal') { import('../../features/personal/PersonalInsights'); } if (item.href === '/personal/insights') { import('../../features/personal/PersonalInsights'); } }}
+            onFocus={() => { if (item.href === '/app/reports') { import('../../pages/reports'); } if (item.href === '/personal') { import('../../features/personal/PersonalInsights'); } if (item.href === '/personal/insights') { import('../../features/personal/PersonalInsights'); } }}
             className={({ isActive }) =>
               cn(
                 "flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 group",

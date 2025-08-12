@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
+import visualizer from 'vite-bundle-visualizer';
 
 /// <reference types="vitest" />
 
@@ -67,6 +68,8 @@ export default defineConfig(({ mode }) => {
           ],
         },
       }),
+      // Visualizador de bundle (ativar com VISUALIZE=1)
+      process.env.VISUALIZE === '1' && ((visualizer as any)({ template: 'treemap' }) as any),
     ].filter(Boolean),
     resolve: {
       alias: {
@@ -76,32 +79,28 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         output: {
-          manualChunks: {
-            vendor: [
-              'react', 'react-dom',
-              '@tanstack/react-query',
-              'lucide-react'
-            ],
-            charts: [
-              'recharts'
-            ],
-            reports: [
-              './src/pages/reports.tsx',
-              './src/components/ReportExport.tsx',
-              './src/components/ReportChart.tsx'
-            ],
-            pdf: [
-              'jspdf', 'jspdf-autotable'
-            ],
-            excel: [
-              'xlsx'
-            ],
-            html2canvas: [
-              'html2canvas'
-            ]
-          }
-        }
-      }
+          manualChunks(id) {
+            if (id.includes('/node_modules/recharts')) return 'charts';
+            if (id.includes('/node_modules/jspdf')) return 'pdf';
+            if (id.includes('/node_modules/xlsx')) return 'excel';
+            if (id.includes('/node_modules/html2canvas')) return 'html2canvas';
+
+            // Dividir vendor em subgrupos
+            if (id.includes('/node_modules/@tanstack/react-query')) return 'react-query';
+            if (id.includes('/node_modules/lucide-react')) return 'icons';
+            if (id.includes('/node_modules/react-router-dom') || id.includes('/node_modules/react-router')) return 'router';
+            if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/')) return 'react-vendor';
+
+            if (id.includes('/src/pages/reports.tsx') || id.includes('/src/components/ReportExport.tsx') || id.includes('/src/components/ReportChart.tsx')) return 'reports';
+            if (id.includes('/src/features/family/') || id.includes('/src/pages/Family')) return 'family';
+            if (id.includes('/src/features/personal/') || id.includes('/src/pages/Personal')) return 'personal';
+            if (id.includes('/src/pages/Insights.tsx')) return 'insights';
+            if (id.includes('/src/features/personal/PersonalSettings')) return 'settings';
+          },
+        },
+      },
+      // Hints simples de budget (não falham o build): logar quando chunks excedem valores alvo
+      chunkSizeWarningLimit: 700, // ~700KB por chunk (antes de gzip)
     },
     test: {
       globals: true,

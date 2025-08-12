@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { Suspense } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { queryClient } from './lib/queryClient';
@@ -19,6 +19,9 @@ import {
 // Página da Área Pessoal
 import PersonalPage from './pages/Personal';
 import FamilyPage from './pages/Family';
+
+// Página de Relatórios (lazy)
+const ReportsPage = lazy(() => import('./pages/reports'));
 
 // Páginas de autenticação (não lazy loading para melhor UX)
 import Index from './pages/Index';
@@ -54,6 +57,11 @@ function App() {
               <Route index element={
                 <Suspense fallback={<PageLoading />}>
                   <Dashboard />
+                </Suspense>
+              } />
+              <Route path="reports" element={
+                <Suspense fallback={<PageLoading />}>
+                  <ReportsPage />
                 </Suspense>
               } />
 

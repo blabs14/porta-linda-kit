@@ -690,13 +690,13 @@ export default function Insights() {
                     onClick={() => {
                       const start = new Date(data.year, data.monthIndex, 1).toISOString().slice(0,10);
                       const end = new Date(data.year, data.monthIndex + 1, 0).toISOString().slice(0,10);
-                      navigate(`/reports?start=${start}&end=${end}`);
+                      navigate(`/app/reports?start=${start}&end=${end}`);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         const start = new Date(data.year, data.monthIndex, 1).toISOString().slice(0,10);
                         const end = new Date(data.year, data.monthIndex + 1, 0).toISOString().slice(0,10);
-                        navigate(`/reports?start=${start}&end=${end}`);
+                        navigate(`/app/reports?start=${start}&end=${end}`);
                       }
                     }}
                   >
@@ -767,9 +767,9 @@ export default function Insights() {
                     // Encontrar ID da categoria pelo nome
                     const cat = categories.find(c => c.nome === category.name);
                     if (cat?.id) {
-                      navigate(`/reports?category=${encodeURIComponent(cat.id)}&start=${start}&end=${end}`);
+                      navigate(`/app/reports?category=${encodeURIComponent(cat.id)}&start=${start}&end=${end}`);
                     } else {
-                      navigate(`/reports?start=${start}&end=${end}`);
+                      navigate(`/app/reports?start=${start}&end=${end}`);
                     }
                   }}
                   onKeyDown={(e) => {
@@ -779,9 +779,9 @@ export default function Insights() {
                       const end = new Date().toISOString().slice(0,10);
                       const cat = categories.find(c => c.nome === category.name);
                       if (cat?.id) {
-                        navigate(`/reports?category=${encodeURIComponent(cat.id)}&start=${start}&end=${end}`);
+                        navigate(`/app/reports?category=${encodeURIComponent(cat.id)}&start=${start}&end=${end}`);
                       } else {
-                        navigate(`/reports?start=${start}&end=${end}`);
+                        navigate(`/app/reports?start=${start}&end=${end}`);
                       }
                     }
                   }}

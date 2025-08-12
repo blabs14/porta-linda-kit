@@ -76,6 +76,7 @@ const PersonalSettings: React.FC = () => {
     }
   });
   const [pushEnabled, setPushEnabled] = React.useState<boolean>(false);
+  const [pushStatus, setPushStatus] = React.useState<'ativo' | 'inativo' | 'sem-permissao'>('inativo');
   const toggleLocalReminders = (checked: boolean) => {
     setLocalRemindersEnabled(checked);
     try { localStorage.setItem('local_reminders_enabled', checked ? '1' : '0'); } catch {}
@@ -88,11 +89,40 @@ const PersonalSettings: React.FC = () => {
     try {
       if (checked) {
         await subscribeToPush();
+        setPushStatus('ativo');
       } else {
         await unsubscribeFromPush();
+        setPushStatus('inativo');
       }
     } catch {}
   };
+
+  // Inicializar estado real da subscrição push
+  React.useEffect(() => {
+    (async () => {
+      try {
+        if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+          setPushStatus('inativo');
+          setPushEnabled(false);
+          return;
+        }
+        const perm = Notification.permission;
+        if (perm !== 'granted') {
+          setPushStatus('sem-permissao');
+          setPushEnabled(false);
+          return;
+        }
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        const active = !!sub;
+        setPushEnabled(active);
+        setPushStatus(active ? 'ativo' : 'inativo');
+      } catch {
+        setPushEnabled(false);
+        setPushStatus('inativo');
+      }
+    })();
+  }, []);
 
   const sendTestPush = async () => {
     try {
@@ -111,7 +141,7 @@ const PersonalSettings: React.FC = () => {
           user_id: user.id,
           payload: {
             title: 'Teste de Push',
-            body: 'Se estás a ver isto, as notificações push estão a funcionar ��',
+            body: 'Se estás a ver isto, as notificações push estão a funcionar 🚀',
             url: '/insights'
           }
         })
@@ -518,12 +548,14 @@ const PersonalSettings: React.FC = () => {
                       <Smartphone className="h-4 w-4" />
                       <div>
                         <span className="text-sm font-medium">Notificações Push (browser)</span>
-                        <p className="text-xs text-muted-foreground">Recebe lembretes mesmo com a app fechada</p>
+                        <p className="text-xs text-muted-foreground">
+                          Estado: {pushStatus === 'ativo' ? 'ativo' : pushStatus === 'sem-permissao' ? 'sem permissão' : 'inativo'}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Switch checked={pushEnabled} onCheckedChange={togglePush} />
-                      <Button variant="outline" size="sm" onClick={sendTestPush}>Enviar push de teste</Button>
+                      <Button variant="outline" size="sm" onClick={sendTestPush} disabled={!pushEnabled}>Enviar push de teste</Button>
                     </div>
                   </div>
                   <div className="flex justify-end gap-2">

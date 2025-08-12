@@ -22,6 +22,7 @@ import { Suspense, useMemo } from 'react';
 import { LazyReportChart, LazyChart, LazyFallback } from './lazy';
 import { Button } from '../../components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 
 const monthLabel = (date: Date) =>
   date.toLocaleDateString('pt-PT', { month: 'short' }).replace('.', '');
@@ -148,10 +149,18 @@ const FamilyDashboard: React.FC = () => {
       </div>
 
       {/* KPIs Principais */}
+      <TooltipProvider>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card role="button" tabIndex={0} onClick={() => navigate('/family/accounts')} onKeyDown={(e) => e.key === 'Enter' && navigate('/family/accounts')} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Saldo Total</CardTitle>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <CardTitle className="text-sm font-medium cursor-help">Saldo Total</CardTitle>
+              </TooltipTrigger>
+              <TooltipContent>
+                Soma dos saldos de todas as contas da família (inclui contas de objetivos).
+              </TooltipContent>
+            </Tooltip>
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -166,7 +175,14 @@ const FamilyDashboard: React.FC = () => {
 
         <Card role="button" tabIndex={0} onClick={() => navigate('/family/accounts')} onKeyDown={(e) => e.key === 'Enter' && navigate('/family/accounts')} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Dívida Cartões</CardTitle>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <CardTitle className="text-sm font-medium cursor-help">Dívida Cartões</CardTitle>
+              </TooltipTrigger>
+              <TooltipContent>
+                Saldo agregado das contas de tipo cartão de crédito.
+              </TooltipContent>
+            </Tooltip>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -181,7 +197,14 @@ const FamilyDashboard: React.FC = () => {
 
         <Card role="button" tabIndex={0} onClick={() => navigate('/family/transactions')} onKeyDown={(e) => e.key === 'Enter' && navigate('/family/transactions')} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Poupança Mensal</CardTitle>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <CardTitle className="text-sm font-medium cursor-help">Poupança Mensal</CardTitle>
+              </TooltipTrigger>
+              <TooltipContent>
+                Receitas menos despesas no período atual. Delta compara com o mês anterior.
+              </TooltipContent>
+            </Tooltip>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -199,7 +222,14 @@ const FamilyDashboard: React.FC = () => {
 
         <Card role="button" tabIndex={0} onClick={() => navigate('/family/goals')} onKeyDown={(e) => e.key === 'Enter' && navigate('/family/goals')} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Progresso Objetivo</CardTitle>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <CardTitle className="text-sm font-medium cursor-help">Progresso Objetivo</CardTitle>
+              </TooltipTrigger>
+              <TooltipContent>
+                Maior progresso entre os objetivos ativos (em %).
+              </TooltipContent>
+            </Tooltip>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -212,6 +242,7 @@ const FamilyDashboard: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+      </TooltipProvider>
 
       {/* KPIs adicionais via RPC (percentagens globais) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
