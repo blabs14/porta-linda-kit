@@ -23,7 +23,8 @@ import {
   CreditCard,
   PiggyBank,
   TrendingDown,
-  Users
+  Users,
+  Calendar
 } from 'lucide-react';
 import { useMediaQuery } from '../hooks/use-mobile';
 
@@ -35,6 +36,8 @@ const FamilyAccounts = React.lazy(() => import('../features/family/FamilyAccount
 const FamilyTransactions = React.lazy(() => import('../features/family/FamilyTransactions'));
 const FamilyMembers = React.lazy(() => import('../features/family/FamilyMembers'));
 const FamilySettings = React.lazy(() => import('../features/family/FamilySettings'));
+const RecurrentsPage = React.lazy(() => import('./recurrents'));
+const ImporterPage = React.lazy(() => import('./importer'));
 
 // Componente de loading
 const PageLoading = () => (
@@ -49,12 +52,26 @@ const MobileNavigation: React.FC = () => {
   const navigate = useNavigate();
   const { familyKPIs, isLoading } = useFamily();
 
+  const prefetchFamily = (path: string) => {
+    try {
+      if (path === '/family/dashboard') import('../features/family/FamilyDashboard');
+      if (path === '/family/accounts') import('../features/family/FamilyAccounts');
+      if (path === '/family/transactions') import('../features/family/FamilyTransactions');
+      if (path === '/family/goals') import('../features/family/FamilyGoals');
+      if (path === '/family/budgets') import('../features/family/FamilyBudgets');
+      if (path === '/family/members') import('../features/family/FamilyMembers');
+      if (path === '/family/settings') import('../features/family/FamilySettings');
+    } catch {}
+  };
+
   const tabs = [
     { value: '/family/dashboard', label: 'Resumo', icon: Home },
     { value: '/family/accounts', label: 'Contas', icon: Wallet },
     { value: '/family/transactions', label: 'Transações', icon: TrendingUp },
     { value: '/family/goals', label: 'Objetivos', icon: Target },
     { value: '/family/budgets', label: 'Orçamentos', icon: BarChart3 },
+    { value: '/family/recorrentes', label: 'Recorrentes', icon: Calendar },
+    { value: '/family/importar', label: 'Importar', icon: Plus },
     { value: '/family/members', label: 'Membros', icon: Users },
     { value: '/family/settings', label: 'Definições', icon: Settings }
   ];
@@ -66,7 +83,7 @@ const MobileNavigation: React.FC = () => {
       <Tabs value={currentTab} onValueChange={(value) => navigate(value)}>
         <TabsList className="grid w-full grid-cols-4 mb-4">
           {tabs.slice(0, 4).map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col items-center gap-1">
+            <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col items-center gap-1" onMouseEnter={() => prefetchFamily(tab.value)} onFocus={() => prefetchFamily(tab.value)}>
               <tab.icon className="h-4 w-4" />
               <span className="text-xs">{tab.label}</span>
             </TabsTrigger>
@@ -74,7 +91,7 @@ const MobileNavigation: React.FC = () => {
         </TabsList>
         <TabsList className="grid w-full grid-cols-3">
           {tabs.slice(4).map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col items-center gap-1">
+            <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col items-center gap-1" onMouseEnter={() => prefetchFamily(tab.value)} onFocus={() => prefetchFamily(tab.value)}>
               <tab.icon className="h-4 w-4" />
               <span className="text-xs">{tab.label}</span>
             </TabsTrigger>
@@ -90,12 +107,26 @@ const DesktopNavigation: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const prefetchFamily = (path: string) => {
+    try {
+      if (path === '/family/dashboard') import('../features/family/FamilyDashboard');
+      if (path === '/family/accounts') import('../features/family/FamilyAccounts');
+      if (path === '/family/transactions') import('../features/family/FamilyTransactions');
+      if (path === '/family/goals') import('../features/family/FamilyGoals');
+      if (path === '/family/budgets') import('../features/family/FamilyBudgets');
+      if (path === '/family/members') import('../features/family/FamilyMembers');
+      if (path === '/family/settings') import('../features/family/FamilySettings');
+    } catch {}
+  };
+
   const navItems = [
     { path: '/family/dashboard', label: 'Resumo', icon: Home, description: 'Visão geral familiar' },
     { path: '/family/accounts', label: 'Contas', icon: Wallet, description: 'Contas e cartões familiares' },
     { path: '/family/transactions', label: 'Transações', icon: TrendingUp, description: 'Histórico de transações' },
     { path: '/family/goals', label: 'Objetivos', icon: Target, description: 'Metas financeiras familiares' },
     { path: '/family/budgets', label: 'Orçamentos', icon: BarChart3, description: 'Orçamentos mensais' },
+    { path: '/family/recorrentes', label: 'Recorrentes', icon: Calendar, description: 'Despesas recorrentes e subscrições' },
+    { path: '/family/importar', label: 'Importar', icon: Plus, description: 'CSV/Recibos' },
     { path: '/family/members', label: 'Membros', icon: Users, description: 'Gestão de membros' },
     { path: '/family/settings', label: 'Definições', icon: Settings, description: 'Configurações familiares' }
   ];
@@ -114,6 +145,8 @@ const DesktopNavigation: React.FC = () => {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
+              onMouseEnter={() => prefetchFamily(item.path)}
+              onFocus={() => prefetchFamily(item.path)}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                 isActive
                   ? 'bg-primary text-primary-foreground'
@@ -428,7 +461,10 @@ const FamilyArea: React.FC = () => {
       
       {/* Conteúdo principal */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <FamilyHeader />
+        <FamilyHeader 
+          onPrimaryAction={() => {}}
+          primaryActionLabel={useLocation().pathname === '/family/recorrentes' ? 'Nova Regra' : undefined as any}
+        />
         
         {/* KPIs rápidos (apenas em desktop) - removido apenas da página de definições */}
         {!isMobile && location.pathname !== '/family/settings' && <QuickKPIs />}
@@ -446,6 +482,8 @@ const FamilyArea: React.FC = () => {
               <Route path="/goals/*" element={<FamilyGoals />} />
               <Route path="/budgets/*" element={<FamilyBudgets />} />
               <Route path="/transactions/*" element={<FamilyTransactions />} />
+              <Route path="/recorrentes" element={<RecurrentsPage />} />
+              <Route path="/importar" element={<ImporterPage />} />
               <Route path="/members/*" element={<FamilyMembers />} />
               <Route path="/settings" element={<FamilySettings />} />
             </Routes>

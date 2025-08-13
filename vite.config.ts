@@ -92,7 +92,15 @@ export default defineConfig(({ mode }) => {
             if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/')) return 'react-vendor';
 
             if (id.includes('/src/pages/reports.tsx') || id.includes('/src/components/ReportExport.tsx') || id.includes('/src/components/ReportChart.tsx')) return 'reports';
-            if (id.includes('/src/features/family/') || id.includes('/src/pages/Family')) return 'family';
+            // Family: chunks por sub-rotas
+            if (id.includes('/src/pages/Family.tsx')) return 'family-shell';
+            if (id.includes('/src/features/family/FamilyDashboard.tsx')) return 'family-dashboard';
+            if (id.includes('/src/features/family/FamilyAccounts.tsx')) return 'family-accounts';
+            if (id.includes('/src/features/family/FamilyTransactions.tsx')) return 'family-transactions';
+            if (id.includes('/src/features/family/FamilyGoals.tsx')) return 'family-goals';
+            if (id.includes('/src/features/family/FamilyBudgets.tsx')) return 'family-budgets';
+            if (id.includes('/src/features/family/FamilyMembers.tsx')) return 'family-members';
+            if (id.includes('/src/features/family/FamilySettings.tsx')) return 'family-settings';
             if (id.includes('/src/features/personal/') || id.includes('/src/pages/Personal')) return 'personal';
             if (id.includes('/src/pages/Insights.tsx')) return 'insights';
             if (id.includes('/src/features/personal/PersonalSettings')) return 'settings';

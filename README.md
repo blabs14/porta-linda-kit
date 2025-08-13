@@ -244,3 +244,36 @@ Notas:
 5. Ativar GitHub Pages (opcional)
    - Settings → Pages → Build and deployment → Source: GitHub Actions
    - O workflow `pages.yml` publica a pasta `dist/`
+
+## EP1 — Despesas Recorrentes & Subscrições (MVP)
+
+- Migrações: criam `recurring_rules` e `recurring_instances` com RLS para pessoal/familiar.
+- Edge Function: `recurrents_run` — gera instâncias (idempotente via `unique(rule_id, period_key)`).
+- UI: `/personal/recorrentes` e `/family/recorrentes` (mobile-first).
+
+### Setup
+
+1) Aplicar migrações:
+```bash
+supabase db push
+```
+
+2) Deploy da função:
+```bash
+supabase functions deploy recurrents_run --no-verify-jwt
+```
+
+3) Scheduler diário (03:00 UTC):
+- Exigir extensões `pg_net` e `pg_cron` ativas. A migração `20250812010100_scheduler_recurrents.sql` cria `run_recurrents_now()` e agenda com `cron.schedule`.
+
+4) Desenvolvimento local:
+- Endpoint preview: `POST /recurrents_run?preview=1&days=30`
+
+5) Testes
+```bash
+npm run test -s
+```
+
+### Notas
+- RLS: pessoal por `user_id=auth.uid()`, familiar por helpers `is_member_of_family` e `is_family_editor`.
+- Próximos passos: filtros/ações avançadas, ligação a contas/cartões, proration e multi-moeda.

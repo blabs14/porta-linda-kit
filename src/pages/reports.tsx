@@ -31,6 +31,15 @@ const LazyReportChart = lazy(() => import('../components/ReportChart').then(m =>
 import { formatCurrency } from '../lib/utils';
 import { notifySuccess, notifyError } from '../lib/notify';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import React from 'react';
+
+// Prefetch oportunista de módulos pesados quando ocioso
+if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+  (window as any).requestIdleCallback?.(() => {
+    import('../components/ReportExport');
+    import('../components/ReportChart');
+  });
+}
 
 const ReportsPage = () => {
   const { user } = useAuth();
@@ -132,6 +141,10 @@ const ReportsPage = () => {
     return () => { cancelled = true; };
   }, [familyId, dateRange.start, dateRange.end, selectedAccount]);
 
+  // Memoização extra dos arrays RPC para manter referências estáveis
+  const rpcExpensesMemo = useMemo(() => rpcExpenses ? [...rpcExpenses] : null, [rpcExpenses?.length, rpcExpenses?.[0]?.id]);
+  const rpcIncomeMemo = useMemo(() => rpcIncome ? [...rpcIncome] : null, [rpcIncome?.length, rpcIncome?.[0]?.id]);
+
   // KPI overspends via RPC (família) para badge rápida
   useEffect(() => {
     if (!familyId) { setOverspentCount(0); return; }
@@ -228,10 +241,10 @@ const ReportsPage = () => {
 
   // Despesas por categoria (preferir RPC quando disponível e sem filtro de conta)
   const expensesByCategory = useMemo(() => {
-    if (rpcExpenses && selectedAccount === 'all') {
+    if (rpcExpensesMemo && selectedAccount === 'all') {
       const filtered = (selectedCategory === 'all')
-        ? rpcExpenses
-        : rpcExpenses.filter(r => r.id === selectedCategory);
+        ? rpcExpensesMemo
+        : rpcExpensesMemo.filter(r => r.id === selectedCategory);
       return filtered;
     }
     return categories.map(category => {
@@ -245,14 +258,14 @@ const ReportsPage = () => {
         percentage: totalExpenses > 0 ? (categoryExpenses / totalExpenses) * 100 : 0
       };
     }).filter(item => item.total > 0).sort((a, b) => b.total - a.total);
-  }, [categories, filteredTransactions, totalExpenses, rpcExpenses, selectedAccount, selectedCategory]);
+  }, [categories, filteredTransactions, totalExpenses, rpcExpensesMemo, selectedAccount, selectedCategory]);
 
   // Receitas por categoria (preferir RPC quando disponível e sem filtro de conta)
   const incomeByCategory = useMemo(() => {
-    if (rpcIncome && selectedAccount === 'all') {
+    if (rpcIncomeMemo && selectedAccount === 'all') {
       const filtered = (selectedCategory === 'all')
-        ? rpcIncome
-        : rpcIncome.filter(r => r.id === selectedCategory);
+        ? rpcIncomeMemo
+        : rpcIncomeMemo.filter(r => r.id === selectedCategory);
       return filtered;
     }
     return categories.map(category => {
@@ -266,7 +279,7 @@ const ReportsPage = () => {
         percentage: totalIncome > 0 ? (categoryIncome / totalIncome) * 100 : 0
       };
     }).filter(item => item.total > 0).sort((a, b) => b.total - a.total);
-  }, [categories, filteredTransactions, totalIncome, rpcIncome, selectedAccount, selectedCategory]);
+  }, [categories, filteredTransactions, totalIncome, rpcIncomeMemo, selectedAccount, selectedCategory]);
 
   // Evolução mensal (mantém filtro de transferências, memoizado)
   const monthlyEvolution = useMemo(() => {
@@ -374,6 +387,12 @@ const ReportsPage = () => {
     // Forçar refresh dos dados
     window.location.reload();
   };
+
+  // Prefetch por hover nos tabs (componentes de gráficos/export)
+  const prefetchHeavy = React.useCallback(() => {
+    import('../components/ReportChart');
+    import('../components/ReportExport');
+  }, []);
 
   const selectedCategoryName = useMemo(() => {
     if (selectedCategory === 'all') return null;
@@ -612,19 +631,19 @@ const ReportsPage = () => {
       {/* Tabs de Relatórios */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
+          <TabsTrigger value="overview" className="flex items-center gap-2" onMouseEnter={prefetchHeavy} onFocus={prefetchHeavy}>
             <BarChart3 className="h-4 w-4" />
             Visão Geral
           </TabsTrigger>
-          <TabsTrigger value="categories" className="flex items-center gap-2">
+          <TabsTrigger value="categories" className="flex items-center gap-2" onMouseEnter={prefetchHeavy} onFocus={prefetchHeavy}>
             <PieChart className="h-4 w-4" />
             Categorias
           </TabsTrigger>
-          <TabsTrigger value="evolution" className="flex items-center gap-2">
+          <TabsTrigger value="evolution" className="flex items-center gap-2" onMouseEnter={prefetchHeavy} onFocus={prefetchHeavy}>
             <TrendingUp className="h-4 w-4" />
             Evolução
           </TabsTrigger>
-          <TabsTrigger value="goals" className="flex items-center gap-2">
+          <TabsTrigger value="goals" className="flex items-center gap-2" onMouseEnter={prefetchHeavy} onFocus={prefetchHeavy}>
             <Target className="h-4 w-4" />
             Objetivos
           </TabsTrigger>

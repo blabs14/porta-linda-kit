@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useReminders } from '../../hooks/useRemindersQuery';
 import { formatCurrency } from '../../lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 
 const PersonalDashboard: React.FC = () => {
   const { 
@@ -81,7 +82,14 @@ const PersonalDashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Lembretes de Hoje</CardTitle>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CardTitle className="text-sm font-medium cursor-help">Lembretes de Hoje</CardTitle>
+                </TooltipTrigger>
+                <TooltipContent>Lembretes com data igual a hoje.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Bell className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -91,7 +99,14 @@ const PersonalDashboard: React.FC = () => {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Orçamentos em Excesso</CardTitle>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CardTitle className="text-sm font-medium cursor-help">Orçamentos em Excesso</CardTitle>
+                </TooltipTrigger>
+                <TooltipContent>Número de categorias cujo gasto ultrapassa o orçamento definido.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <AlertCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
@@ -105,7 +120,14 @@ const PersonalDashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Saldo Total</CardTitle>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CardTitle className="text-sm font-medium cursor-help">Saldo Total</CardTitle>
+                </TooltipTrigger>
+                <TooltipContent>Somatório de saldos de todas as contas pessoais.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -115,7 +137,14 @@ const PersonalDashboard: React.FC = () => {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Poupança Mensal</CardTitle>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CardTitle className="text-sm font-medium cursor-help">Poupança Mensal</CardTitle>
+                </TooltipTrigger>
+                <TooltipContent>Receitas menos despesas no mês corrente. Delta compara com o mês anterior.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <PiggyBank className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -125,7 +154,14 @@ const PersonalDashboard: React.FC = () => {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Progresso de Objetivos</CardTitle>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CardTitle className="text-sm font-medium cursor-help">Progresso de Objetivos</CardTitle>
+                </TooltipTrigger>
+                <TooltipContent>Percentagem agregada de progresso dos objetivos pessoais.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -135,7 +171,14 @@ const PersonalDashboard: React.FC = () => {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Orçamento Gasto</CardTitle>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CardTitle className="text-sm font-medium cursor-help">Orçamento Gasto</CardTitle>
+                </TooltipTrigger>
+                <TooltipContent>Percentagem do total orçamentado já consumido.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>

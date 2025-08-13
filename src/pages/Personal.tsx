@@ -36,6 +36,7 @@ const PersonalTransactions = React.lazy(() => import('../features/personal/Perso
 const PersonalInsights = React.lazy(() => import('../features/personal/PersonalInsights'));
 const PersonalSettings = React.lazy(() => import('../features/personal/PersonalSettings'));
 const PersonalReminders = React.lazy(() => import('../features/personal/PersonalReminders'));
+const RecurrentsPage = React.lazy(() => import('./recurrents'));
 
 // Componente de loading
 const PageLoading = () => (
@@ -74,6 +75,8 @@ const MobileNavigation: React.FC = () => {
     { value: '/personal/goals', label: 'Objetivos', icon: Target },
     { value: '/personal/budgets', label: 'Orçamentos', icon: BarChart3 },
     { value: '/personal/insights', label: 'Insights', icon: Lightbulb },
+    { value: '/personal/recorrentes', label: 'Recorrentes', icon: Calendar },
+    { value: '/personal/importar', label: 'Importar', icon: Plus },
     { value: '/personal/reminders', label: 'Lembretes', icon: Calendar },
     { value: '/personal/settings', label: 'Definições', icon: Settings }
   ];
@@ -148,6 +151,8 @@ const DesktopNavigation: React.FC = () => {
     { path: '/personal/goals', label: 'Objetivos', icon: Target, description: 'Metas financeiras pessoais' },
     { path: '/personal/budgets', label: 'Orçamentos', icon: BarChart3, description: 'Orçamentos mensais' },
     { path: '/personal/insights', label: 'Insights', icon: Lightbulb, description: 'Análises e dicas' },
+    { path: '/personal/recorrentes', label: 'Recorrentes', icon: Calendar, description: 'Despesas recorrentes e subscrições' },
+    { path: '/personal/importar', label: 'Importar', icon: Plus, description: 'CSV/Recibos' },
     { path: '/personal/reminders', label: 'Lembretes', icon: Calendar, description: 'Gerir lembretes pessoais' },
     { path: '/personal/settings', label: 'Definições', icon: Settings, description: 'Configurações pessoais' }
   ];
@@ -241,6 +246,7 @@ const PersonalHeader: React.FC = () => {
     if (path === '/personal/goals') return { label: 'Novo Objetivo', action: () => navigate('/personal/goals/new') };
     if (path === '/personal/budgets') return { label: 'Novo Orçamento', action: () => navigate('/personal/budgets/new') };
     if (path === '/personal/transactions') return { label: 'Nova Transação', action: () => navigate('/personal/transactions/new') };
+    if (path === '/personal/recorrentes') return { label: 'Nova Regra', action: () => navigate('/personal/recorrentes') };
     return null;
   };
 
@@ -589,6 +595,12 @@ const PersonalArea: React.FC = () => {
               <Route path="goals/*" element={<PersonalGoals />} />
               <Route path="budgets/*" element={<PersonalBudgets />} />
               <Route path="transactions/*" element={<PersonalTransactions />} />
+              <Route path="recorrentes" element={<RecurrentsPage />} />
+              <Route path="importar" element={
+                <Suspense fallback={<PageLoading />}>
+                  {React.createElement(React.lazy(()=> import('./importer')))}
+                </Suspense>
+              } />
               <Route path="reminders" element={<PersonalReminders />} />
               <Route path="insights" element={<PersonalInsights />} />
               <Route path="settings" element={<PersonalSettings />} />

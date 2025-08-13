@@ -131,6 +131,7 @@ const FamilyDashboard: React.FC = () => {
   }
 
   return (
+    <TooltipProvider>
     <div className="space-y-6 p-6">
       {/* Header da Família */}
       <div className="flex items-center justify-between">
@@ -248,7 +249,14 @@ const FamilyDashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card role="button" tabIndex={0} onClick={() => navigate('/family/goals')} onKeyDown={(e) => e.key === 'Enter' && navigate('/family/goals')} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Progresso de Objetivos</CardTitle>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <CardTitle className="text-sm font-medium cursor-help">Progresso de Objetivos</CardTitle>
+              </TooltipTrigger>
+              <TooltipContent>
+                Percentagem de progresso agregado dos objetivos ativos. Inclui saldo na conta de objetivos.
+              </TooltipContent>
+            </Tooltip>
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -261,7 +269,14 @@ const FamilyDashboard: React.FC = () => {
 
         <Card role="button" tabIndex={0} onClick={() => navigate('/family/budgets')} onKeyDown={(e) => e.key === 'Enter' && navigate('/family/budgets')} className="hover:shadow-md transition-shadow focus:outline-none focus:ring-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Orçamento Gasto</CardTitle>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <CardTitle className="text-sm font-medium cursor-help">Orçamento Gasto</CardTitle>
+              </TooltipTrigger>
+              <TooltipContent>
+                Percentagem do total orçamentado já consumido. {familyKPIs.overspentBudgetsCount > 0 ? `Categorias acima do limite: ${familyKPIs.overspentBudgetsCount}.` : 'Sem categorias acima do limite.'}
+              </TooltipContent>
+            </Tooltip>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -515,6 +530,7 @@ const FamilyDashboard: React.FC = () => {
         </Card>
       </div>
     </div>
+    </TooltipProvider>
   );
 };
 
