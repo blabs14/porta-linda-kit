@@ -115,3 +115,54 @@ export const getAccountAllocationsTotal = async (accountId: string, userId: stri
     return { data: null, error };
   }
 }; 
+
+export const deallocateFromGoal = async (
+  goalId: string,
+  accountId: string,
+  amount: number,
+  userId: string
+): Promise<{ data: { amountReleased: number } | null; error: unknown }> => {
+  try {
+    const amountRequested = Math.abs(amount);
+    // Buscar alocações existentes para este objetivo/conta do utilizador, mais recentes primeiro
+    const { data: rows, error: fetchErr } = await supabase
+      .from('goal_allocations')
+      .select('id, valor')
+      .eq('goal_id', goalId)
+      .eq('account_id', accountId)
+      .eq('user_id', userId)
+      .order('data_alocacao', { ascending: false });
+    if (fetchErr) return { data: null, error: fetchErr };
+
+    let remaining = amountRequested;
+    for (const row of (rows as { id: string; valor: number | null }[]) || []) {
+      if (remaining <= 0) break;
+      const current = Math.max(0, Number(row.valor || 0));
+      if (current <= 0) continue;
+      if (current <= remaining) {
+        // Apagar a linha inteira
+        const { error: delErr } = await supabase
+          .from('goal_allocations')
+          .delete()
+          .eq('id', row.id)
+          .eq('user_id', userId);
+        if (delErr) return { data: null, error: delErr };
+        remaining -= current;
+      } else {
+        // Reduzir parcialmente
+        const { error: updErr } = await supabase
+          .from('goal_allocations')
+          .update({ valor: current - remaining })
+          .eq('id', row.id)
+          .eq('user_id', userId);
+        if (updErr) return { data: null, error: updErr };
+        remaining = 0;
+      }
+    }
+
+    const amountReleased = amountRequested - remaining;
+    return { data: { amountReleased }, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}; 

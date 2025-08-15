@@ -64,4 +64,8 @@ export async function listRecurringInstances(ruleId?: string) {
   let q = sb.from('recurring_instances').select('*').order('due_date');
   if (ruleId) q = q.eq('rule_id', ruleId);
   return q;
+}
+
+export async function deleteRecurringRule(id: string) {
+  return sb.from('recurring_rules').delete().eq('id', id);
 } 

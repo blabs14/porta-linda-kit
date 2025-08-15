@@ -5,6 +5,7 @@ import StagingTable from '@/features/importer/StagingTable';
 import { useAuth } from '@/contexts/AuthContext';
 import { FamilyContext } from '@/features/family/FamilyContext';
 import { createIngestionJob, listStaging, updateNormalized, edgeIngestCSV, edgePostStaging, uploadToBucket, insertIngestionFile } from '@/services/importer';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ImporterPage(){
   const { user } = useAuth();
@@ -18,6 +19,9 @@ export default function ImporterPage(){
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [uploadType, setUploadType] = React.useState<'csv'|'receipt'>('csv');
   const [file, setFile] = React.useState<File|null>(null);
+  const [summary, setSummary] = React.useState<{ total:number; unique:number; duplicate:number; posted:number }|null>(null);
+  const [posting, setPosting] = React.useState(false);
+  const { toast } = useToast();
 
   const startJob = async () => {
     if (!user) return;
@@ -25,10 +29,18 @@ export default function ImporterPage(){
     setJob(data);
   };
 
+  const loadSummary = async (jobId: string) => {
+    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/v_ingestion_job_summary?job_id=eq.${jobId}&select=*`, { headers: { 'Authorization': `Bearer ${key}`, 'apikey': key }});
+    const arr = await res.json();
+    setSummary(arr?.[0] || { total: 0, unique: 0, duplicate: 0, posted: 0 });
+  };
+
   const ingestNow = async () => {
     if (uploadType==='csv') await edgeIngestCSV(job.id, mapping);
     const { data } = await listStaging(job.id);
     setRows(data||[]);
+    await loadSummary(job.id);
     setStep('review');
   };
 
@@ -47,7 +59,29 @@ export default function ImporterPage(){
   };
 
   const postSelected = async () => {
-    await edgePostStaging(job.id, Array.from(selected));
+    if (!job || selected.size===0) return;
+    try {
+      setPosting(true);
+      const res = await edgePostStaging(job.id, Array.from(selected));
+      const posted = Number(res?.posted||0);
+      const errors = Array.isArray(res?.errors) ? res.errors : [];
+      if (posted>0 && errors.length===0) {
+        toast({ title: 'Transações adicionadas', description: `${posted} transação(ões) adicionada(s) com sucesso.` });
+      } else if (posted>0 && errors.length>0) {
+        toast({ title: 'Parcialmente concluído', description: `${posted} adicionadas, ${errors.length} com erro.`, variant: 'default' });
+      } else {
+        toast({ title: 'Nenhuma transação adicionada', description: errors[0]?.error ? String(errors[0].error) : 'Verifique os campos obrigatórios (conta e categoria).', variant: 'destructive' });
+      }
+    } catch (e:any) {
+      toast({ title: 'Erro ao adicionar', description: String(e?.message||e), variant: 'destructive' });
+    } finally {
+      // Refresh lista/summary e limpar seleção
+      const { data } = await listStaging(job.id);
+      setRows(data||[]);
+      await loadSummary(job.id);
+      setSelected(new Set());
+      setPosting(false);
+    }
   };
 
   return (
@@ -63,11 +97,10 @@ export default function ImporterPage(){
             <input type="file" onChange={(e)=>setFile(e.target.files?.[0]||null)} />
             <Button onClick={async()=>{
               if (!user || !file) return;
-              if (!job) await startJob();
-              const j = job || (await createIngestionJob({ scope: scope as any, user_id: user.id, family_id: familyId, source: uploadType==='csv'?'csv':'receipt' })).data;
+              const j = job ?? (await createIngestionJob({ scope: scope as any, user_id: user.id, family_id: familyId, source: uploadType==='csv'?'csv':'receipt' })).data;
               setJob(j);
               const bucket = uploadType==='csv' ? 'imports' : 'receipts';
-              const path = `${bucket}/${user.id}/${Date.now()}_${file.name}`;
+              const path = `${user.id}/${Date.now()}_${file.name}`;
               await uploadToBucket(bucket as any, path, file);
               await insertIngestionFile(j.id, bucket, path, file);
               setStep(uploadType==='csv'?'mapping':'review');
@@ -83,8 +116,17 @@ export default function ImporterPage(){
       )}
       {step==='review' && (
         <div className="space-y-2">
-          <StagingTable rows={rows} onEdit={(id,patch)=>onEdit(id,patch)} onSelectAll={onSelectAll} onSelect={onSelect} selectedIds={selected} />
-          <Button onClick={postSelected}>Adicionar {selected.size} transações</Button>
+          {summary && (
+            <div className="text-sm text-muted-foreground">Total: {summary.total} · Únicos: {summary.unique} · Duplicados: {summary.duplicate} · Postados: {summary.posted}</div>
+          )}
+          <StagingTable rows={rows} onEdit={(id,patch)=>onEdit(id,patch)} onSelectAll={onSelectAll} onSelect={onSelect} selectedIds={selected} onRefreshDedupe={async ()=>{
+            const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+            await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/refresh_staging_dedupe`, { method: 'POST', headers: { 'Authorization': `Bearer ${key}`, 'apikey': key, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_job_id: job.id })});
+            const { data } = await listStaging(job.id);
+            setRows(data||[]);
+            await loadSummary(job.id);
+          }} />
+          <Button disabled={selected.size===0 || posting} onClick={async ()=>{ await postSelected(); }}>Adicionar {selected.size} transações</Button>
         </div>
       )}
     </div>

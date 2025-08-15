@@ -15,6 +15,8 @@ import { LoadingSpinner } from '../../components/ui/loading-states';
 import { useToast } from '../../hooks/use-toast';
 import { formatCurrency } from '../../lib/utils';
 import GoalForm from '../../components/GoalForm';
+import { GoalFundingSection } from '../../components/GoalFundingSection';
+import { GoalDeallocationModal } from '../../components/GoalDeallocationModal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
@@ -28,6 +30,7 @@ const FamilyGoals: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAllocationModal, setShowAllocationModal] = useState(false);
+  const [showDeallocationModal, setShowDeallocationModal] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<any>(null);
   const [editingGoal, setEditingGoal] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'progress' | 'warn' | 'done'>('all');
@@ -118,6 +121,11 @@ const FamilyGoals: React.FC = () => {
     setAllocationDescription('');
     setAllocationError('');
     setShowAllocationModal(true);
+  };
+
+  const handleDeallocateFromGoal = (goal: any) => {
+    setSelectedGoal(goal);
+    setShowDeallocationModal(true);
   };
 
   const handleAllocationSubmit = async (e: React.FormEvent) => {
@@ -340,6 +348,17 @@ const FamilyGoals: React.FC = () => {
                           </Tooltip>
                         </TooltipProvider>
                       )}
+                      {!isCompleted && canEdit('goal') && (Number(goal.total_alocado || 0) > 0) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeallocateFromGoal(goal)}
+                          className="h-8 w-8 p-0"
+                          aria-label="Desalocar"
+                        >
+                          –
+                        </Button>
+                      )}
                       {canEdit('goal') && (
                         <Button
                           variant="outline"
@@ -560,6 +579,16 @@ const FamilyGoals: React.FC = () => {
             </form>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Deallocation Modal */}
+      {selectedGoal && (
+        <GoalDeallocationModal
+          isOpen={showDeallocationModal}
+          onClose={() => setShowDeallocationModal(false)}
+          goalId={selectedGoal.id}
+          goalName={selectedGoal.nome}
+        />
       )}
 
       {/* Confirmation Dialog */}

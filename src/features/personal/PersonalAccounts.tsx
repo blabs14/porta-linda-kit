@@ -350,8 +350,8 @@ const PersonalAccounts: React.FC = () => {
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Status</span>
-                      <Badge variant={account.saldo_atual <= 0 ? "default" : "destructive"} className="text-xs">
-                        {account.saldo_atual <= 0 ? 'Em Dia' : 'Em Dívida'}
+                      <Badge variant={account.saldo_atual < 0 ? "destructive" : "default"} className="text-xs">
+                        {account.saldo_atual < 0 ? 'Em Dívida' : 'Em Dia'}
                       </Badge>
                     </div>
                   </div>

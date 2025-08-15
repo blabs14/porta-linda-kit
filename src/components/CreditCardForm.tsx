@@ -40,10 +40,6 @@ const CreditCardForm = ({ initialData, onSuccess, onCancel }: CreditCardFormProp
   const isEditing = Boolean(initialData.id);
   const isSubmitting = isEditing ? updateAccountMutation.isPending : createAccountMutation.isPending;
 
-  console.log('[CreditCardForm] initialData:', initialData);
-  console.log('[CreditCardForm] form state:', form);
-  console.log('[CreditCardForm] isSubmitting:', isSubmitting);
-
   const fetchAccountBalance = useCallback(async () => {
     try {
       if (!initialData.id) return; // evitar uuid inválido
@@ -63,17 +59,16 @@ const CreditCardForm = ({ initialData, onSuccess, onCancel }: CreditCardFormProp
   }, [initialData.id]);
 
   useEffect(() => {
-    console.log('[CreditCardForm] useEffect triggered with initialData:', initialData);
     if (initialData) {
-      console.log('[CreditCardForm] Setting form data:', initialData);
       setForm(initialData);
-      
       // Para cartões de crédito, buscar o saldo correto da conta
       if (initialData.tipo === 'cartão de crédito' && isEditing && initialData.id) {
         void fetchAccountBalance();
       }
     }
   }, [initialData, fetchAccountBalance]);
+
+  const toNegative = (n: number) => (n > 0 ? -n : n);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -83,20 +78,18 @@ const CreditCardForm = ({ initialData, onSuccess, onCancel }: CreditCardFormProp
         setForm({ ...form, [name]: value === '' ? 0 : value });
         return;
       }
-      
       // Permitir números negativos, positivos e vírgula/ponto
       const numericValue = value.replace(/[^\d.,-]/g, '').replace(',', '.');
-      
-      // Verificar se é um número válido
       const parsedValue = parseFloat(numericValue);
       if (!isNaN(parsedValue)) {
+        const normalized = toNegative(parsedValue);
         if (name === 'saldoAtual') {
-          setForm({ ...form, saldoAtual: parsedValue, ajusteSaldo: 0 });
+          setForm({ ...form, saldoAtual: normalized, ajusteSaldo: 0 });
         } else {
+          // No ajuste permitimos positivo ou negativo
           setForm({ ...form, ajusteSaldo: parsedValue });
         }
       } else if (value === '-') {
-        // Manter o sinal negativo se o utilizador acabou de digitar
         setForm({ ...form, [name]: value });
       }
     } else {
@@ -107,80 +100,53 @@ const CreditCardForm = ({ initialData, onSuccess, onCancel }: CreditCardFormProp
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationErrors({});
-    
-    // Validação manual para campos obrigatórios
     const errors: Record<string, string> = {};
-    
     if (!form.nome.trim()) {
       errors.nome = 'Nome obrigatório';
     }
-    
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
       return;
     }
-    
+
     try {
-      // Simplificar o parsing dos valores
+      // Parsing seguro e normalização
       let saldoAtual = 0;
       let ajusteSaldo = 0;
-      
       if (form.saldoAtual !== undefined && form.saldoAtual !== null) {
-        if (typeof form.saldoAtual === 'string') {
-          saldoAtual = parseFloat(form.saldoAtual) || 0;
-        } else {
-          saldoAtual = Number(form.saldoAtual) || 0;
-        }
+        saldoAtual = typeof form.saldoAtual === 'string' ? (parseFloat(form.saldoAtual) || 0) : (Number(form.saldoAtual) || 0);
       }
-      
       if (form.ajusteSaldo !== undefined && form.ajusteSaldo !== null) {
-        if (typeof form.ajusteSaldo === 'string') {
-          ajusteSaldo = parseFloat(form.ajusteSaldo) || 0;
-        } else {
-          ajusteSaldo = Number(form.ajusteSaldo) || 0;
-        }
+        ajusteSaldo = typeof form.ajusteSaldo === 'string' ? (parseFloat(form.ajusteSaldo) || 0) : (Number(form.ajusteSaldo) || 0);
       }
-      
+      saldoAtual = toNegative(saldoAtual);
+      // ajuste pode ser positivo ou negativo
+      // Se o resultado final (saldoAtual + ajuste) ficar > 0, limitar o ajuste para não passar de 0
+      let saldoFinal = saldoAtual + ajusteSaldo;
+      if (saldoFinal > 0) {
+        ajusteSaldo = -saldoAtual; // para que saldoFinal = 0
+        saldoFinal = 0;
+      }
+      if (saldoAtual > 0) saldoAtual = 0; // cartões nunca positivos
+
       const payload = {
         nome: form.nome.trim(),
         tipo: 'cartão de crédito',
-      };
-      
-      console.log('[CreditCardForm] Form values:', form);
-      console.log('[CreditCardForm] Parsed values - saldoAtual:', saldoAtual, 'ajusteSaldo:', ajusteSaldo);
-      console.log('[CreditCardForm] Submitting payload:', payload);
-      console.log('[CreditCardForm] Is editing:', isEditing);
-      console.log('[CreditCardForm] Account ID:', form.id);
-      
-      let result;
+      } as const;
+
       if (isEditing) {
-        // Em edição: atualizar nome/tipo; aplicar saldo/ajuste via update incremental
-        await updateAccountMutation.mutateAsync({ id: form.id, nome: payload.nome, tipo: payload.tipo });
-        if (saldoAtual !== 0) {
-          await updateAccountMutation.mutateAsync({ id: form.id, saldoAtual });
-        }
-        if (ajusteSaldo !== 0) {
-          await updateAccountMutation.mutateAsync({ id: form.id, ajusteSaldo });
-        }
-        result = { id: form.id };
+        // Enviar sempre ambos num único update para garantir saldo final correto (inclui caso 0)
+        const base: any = { id: form.id, nome: payload.nome, tipo: payload.tipo };
+        await updateAccountMutation.mutateAsync(base);
+        await updateAccountMutation.mutateAsync({ id: form.id, saldoAtual, ajusteSaldo });
       } else {
         const created = await createAccountMutation.mutateAsync(payload as any);
-        // Após criar, aplicar saldo/ajuste se fornecidos
         if (created?.id) {
-          if (saldoAtual !== 0) {
-            await updateAccountMutation.mutateAsync({ id: created.id, saldoAtual });
-          }
-          if (ajusteSaldo !== 0) {
-            await updateAccountMutation.mutateAsync({ id: created.id, ajusteSaldo });
-          }
+          await updateAccountMutation.mutateAsync({ id: created.id, saldoAtual, ajusteSaldo });
         }
-        result = created;
       }
-      console.log('[CreditCardForm] Update result:', result);
-      
-      // Aguardar um pouco para garantir que as queries foram atualizadas
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
+      await new Promise(resolve => setTimeout(resolve, 500));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] }),
         queryClient.invalidateQueries({ queryKey: ['personal', 'accounts', user?.id] }),
@@ -250,7 +216,6 @@ const CreditCardForm = ({ initialData, onSuccess, onCancel }: CreditCardFormProp
           value={form.ajusteSaldo?.toString() || ''}
           onChange={handleChange}
           className="w-full"
-          disabled={targetChanged}
           aria-invalid={!!validationErrors.ajusteSaldo}
           aria-describedby={validationErrors.ajusteSaldo ? 'ajusteSaldo-error' : undefined}
         />

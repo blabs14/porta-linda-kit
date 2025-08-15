@@ -131,14 +131,16 @@ const FamilyBudgets: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      const monthStr = (form.mes || '').slice(0, 7);
       const payload = {
         categoria_id: form.categoria_id,
         valor: parseFloat(form.valor),
-        mes: form.mes,
+        mes: monthStr,
       };
 
       if (editBudget) {
-        await updateFamilyBudget(editBudget.id, payload);
+        const res = await updateFamilyBudget(editBudget.id, payload);
+        if ((res as any)?.error) throw (res as any).error;
         toast({
           title: "Sucesso",
           description: "Orçamento familiar atualizado com sucesso",
@@ -146,7 +148,8 @@ const FamilyBudgets: React.FC = () => {
         handleClose();
         refetchAll();
       } else {
-        await createFamilyBudget(payload);
+        const res = await createFamilyBudget(payload);
+        if ((res as any)?.error) throw (res as any).error;
         toast({
           title: "Sucesso",
           description: "Orçamento familiar criado com sucesso",
@@ -157,7 +160,7 @@ const FamilyBudgets: React.FC = () => {
     } catch (error) {
       toast({
         title: "Erro",
-        description: "Erro inesperado",
+        description: (error as any)?.message || 'Erro ao guardar orçamento',
         variant: "destructive",
       });
     } finally {

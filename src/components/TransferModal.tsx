@@ -113,10 +113,14 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
           return;
         }
 
-        toast({
-          title: 'Pagamento realizado',
-          description: `Pagamento de ${formatCurrency(numericAmount)} do cartão ${toAccount?.nome} usando ${fromAccount?.nome}.`,
-        });
+        const efetivo = data?.amountPaid ?? 0;
+        if (efetivo <= 0) {
+          toast({ title: 'Sem pagamento necessário', description: 'O cartão já estava liquidado.' });
+        } else if (efetivo < numericAmount) {
+          toast({ title: 'Pagamento ajustado', description: `Pago ${formatCurrency(efetivo)} (ajustado ao necessário).` });
+        } else {
+          toast({ title: 'Pagamento realizado', description: `Pagamento de ${formatCurrency(numericAmount)} do cartão ${toAccount?.nome} usando ${fromAccount?.nome}.` });
+        }
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['transactions'] }),
           queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] }),
@@ -183,7 +187,7 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
   const availableAccounts = accounts.filter(account => account.saldo_disponivel > 0);
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open)=>{ if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Transferir entre Contas</DialogTitle>

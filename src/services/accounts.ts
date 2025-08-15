@@ -166,10 +166,11 @@ export const updateAccount = async (id: string, updates: AccountUpdateExtended, 
         .single();
 
       if ((accountData as { tipo?: string } | null)?.tipo === 'cartão de crédito') {
+        const target = (updates.saldoAtual || 0) + (Number((updates as any).ajusteSaldo) || 0);
         const { error: rpcError } = await supabase.rpc('manage_credit_card_balance', {
           p_user_id: resolvedUserId,
           p_account_id: id,
-          p_new_balance: updates.saldoAtual || 0
+          p_new_balance: target
         });
 
         if (rpcError) {
@@ -310,6 +311,15 @@ export const updateAccount = async (id: string, updates: AccountUpdateExtended, 
           // Ignorar erro de RPC em ambientes onde não exista
         }
       }
+    }
+
+    if (Object.keys(otherUpdates).length === 0) {
+      const { data: acc, error: fetchErr } = await supabase
+        .from('accounts')
+        .select('*')
+        .eq('id', id)
+        .single();
+      return { data: acc as Account, error: fetchErr };
     }
 
     let updateQuery = supabase

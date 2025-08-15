@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useGoals } from '../hooks/useGoalsQuery';
+import { useGoalAllocations } from '../hooks/useGoalAllocations';
 import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -37,7 +37,7 @@ const GoalAllocationModal = ({
   targetAmount 
 }: GoalAllocationModalProps) => {
   const { user } = useAuth();
-  const { allocateToGoal, isAllocating } = useGoals();
+  const { allocateToGoal, isAllocating } = useGoalAllocations();
   const { data: accounts = [] } = useAccountsWithBalances();
   
   console.log('[GoalAllocationModal] Props:', { isOpen, goalId, goalName, currentProgress, targetAmount });

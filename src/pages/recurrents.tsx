@@ -197,6 +197,15 @@ export default function RecurrentsPage() {
                       load();
                     });
                   }}>Cancelar no fim</Button>
+                  <Button size="sm" variant="destructive" onClick={()=>{
+                    confirm({ title: 'Eliminar subscrição?', message: 'Isto remove a regra e as execuções futuras. As transações passadas não são alteradas.', variant: 'destructive', confirmText: 'Eliminar' }, async ()=>{
+                      const { deleteRecurringRule } = await import('@/services/recurrents');
+                      const { error } = await deleteRecurringRule(r.id);
+                      if (error) toast({ title: 'Erro ao eliminar', description: String(error.message||error), variant: 'destructive' });
+                      else toast({ title: 'Subscrição eliminada' });
+                      load();
+                    });
+                  }}>Eliminar</Button>
                 </div>
               </CardContent>
             </Card>

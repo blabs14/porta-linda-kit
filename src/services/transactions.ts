@@ -43,28 +43,59 @@ export const createTransaction = async (transactionData: TransactionInsert, user
       .single();
     
     if (account?.tipo === 'cartão de crédito') {
-      const { data, error } = await supabase.rpc('handle_credit_card_transaction', {
+      // Enviar valor sempre positivo; o tipo controla o sentido
+      const valorNorm = Math.abs(Number(transactionData.valor || 0));
+      const rpcPayload: {
+        p_user_id: string;
+        p_account_id: string;
+        p_valor: number;
+        p_data: string;
+        p_categoria_id: string | null;
+        p_tipo: string;
+        p_descricao?: string | null;
+        p_goal_id?: string;
+      } = {
         p_user_id: userId,
         p_account_id: transactionData.account_id,
-        p_valor: transactionData.valor,
+        p_valor: valorNorm,
         p_data: transactionData.data,
-        p_categoria_id: transactionData.categoria_id,
+        p_categoria_id: transactionData.categoria_id || null,
         p_tipo: transactionData.tipo,
         p_descricao: transactionData.descricao || null,
-        p_goal_id: transactionData.goal_id ?? null
-      });
+      };
+      if ((transactionData as any).goal_id) rpcPayload.p_goal_id = (transactionData as any).goal_id;
+      
+      const { data, error } = await (supabase as unknown as { rpc: (fn: string, args: typeof rpcPayload) => Promise<{ data: unknown; error: unknown }> }).rpc('cc_tx_v1', rpcPayload);
     
       if (error) {
-        return { data: null, error };
+        // Fallback genérico: inserir diretamente e atualizar saldo
+        const { data: inserted, error: insErr } = await supabase
+          .from('transactions')
+          .insert([{ 
+            account_id: transactionData.account_id,
+            user_id: userId,
+            categoria_id: transactionData.categoria_id || null,
+            valor: valorNorm,
+            tipo: transactionData.tipo,
+            data: transactionData.data,
+            descricao: transactionData.descricao || null
+          }])
+          .select()
+          .single();
+        if (!insErr && inserted) {
+          try { await supabase.rpc('update_account_balance', { account_id_param: transactionData.account_id }); } catch {}
+          return { data: inserted as Transaction, error: null };
+        }
+        return { data: null, error: insErr || error };
       }
     
-      const result = (data ?? {}) as { transaction_id?: string };
-      if (!result.transaction_id) return { data: null, error: new Error('Transação não criada') };
+      const createdId = (data as unknown) as string | null;
+      if (!createdId) return { data: null, error: new Error('Transação não criada') };
 
       const { data: createdTransaction, error: fetchError } = await supabase
         .from('transactions')
         .select('*')
-        .eq('id', result.transaction_id)
+        .eq('id', createdId)
         .single();
     
       return { data: createdTransaction as Transaction | null, error: fetchError };
@@ -214,17 +245,47 @@ export const payCreditCardFromAccount = async (
   amount: number,
   dateISO: string,
   descricao?: string
-): Promise<{ data: boolean | null; error: unknown }> => {
+): Promise<{ data: { amountPaid: number } | null; error: unknown }> => {
   try {
+    // Obter saldo atual do cartão para calcular teto de pagamento (até 0)
+    const { data: cardAcc, error: cardErr } = await supabase
+      .from('account_balances')
+      .select('saldo_atual')
+      .eq('account_id', cardAccountId)
+      .single();
+    if (cardErr) return { data: null, error: cardErr };
+
+    const currentBalance = Number((cardAcc as { saldo_atual?: number })?.saldo_atual || 0);
+    const currentDebt = Math.max(0, -currentBalance); // dívida é o valor positivo em falta
+    const requested = Math.abs(amount);
+    const amountToPay = Math.min(requested, currentDebt);
+
+    // Nada a pagar (cartão já liquidado)
+    if (amountToPay <= 0) {
+      return { data: { amountPaid: 0 }, error: null };
+    }
+
     const { data, error } = await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> }).rpc('pay_credit_card_from_account', {
       p_user_id: userId,
       p_card_account_id: cardAccountId,
       p_bank_account_id: bankAccountId,
-      p_amount: amount,
+      p_amount: amountToPay,
       p_date: dateISO,
       p_descricao: descricao ?? null
     });
-    return { data: Boolean(data), error };
+
+    if (!error) {
+      try {
+        await Promise.all([
+          supabase.rpc('update_account_balance', { account_id_param: bankAccountId }),
+          supabase.rpc('update_account_balance', { account_id_param: cardAccountId })
+        ]);
+      } catch (balanceError) {
+        console.warn('Erro ao recalcular saldos após pagamento de cartão:', balanceError);
+      }
+    }
+
+    return { data: { amountPaid: amountToPay }, error };
   } catch (error) {
     return { data: null, error };
   }

@@ -7,7 +7,7 @@ export const useReferenceData = () => {
   const { user } = useAuth();
 
   const categories = useQuery({
-    queryKey: ['categories'],
+    queryKey: ['categories', user?.id],
     queryFn: async () => {
       console.log('[useReferenceData] Fetching categories...');
       const { data, error } = await getCategories();
@@ -20,15 +20,15 @@ export const useReferenceData = () => {
   });
 
   const accounts = useQuery({
-    queryKey: ['accountsWithBalances'],
+    queryKey: ['accountsWithBalances', user?.id],
     queryFn: async () => {
       console.log('[useReferenceData] Fetching accounts...');
-      const { data, error } = await getAccountsWithBalances();
+      const { data, error } = await getAccountsWithBalances(user?.id || '');
       if (error) throw error;
       console.log('[useReferenceData] Accounts result:', data);
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!user?.id,
     staleTime: 5 * 60 * 1000,
   });
 

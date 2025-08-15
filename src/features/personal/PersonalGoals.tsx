@@ -11,6 +11,7 @@ import { useGoals, useGoalProgress, useCreateGoal, useUpdateGoal, useDeleteGoal 
 import { useToast } from '../../hooks/use-toast';
 import { formatCurrency } from '../../lib/utils';
 import { GoalAllocationModal } from '../../components/GoalAllocationModal';
+import { GoalDeallocationModal } from '../../components/GoalDeallocationModal';
 import GoalForm from '../../components/GoalForm';
 import { GoalProgress } from '../../integrations/supabase/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
@@ -20,12 +21,16 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '..
 import { getAuditLogsByRow } from '../../services/audit_logs';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { GoalFundingSection } from '../../components/GoalFundingSection';
+import { ErrorBoundary } from '../../components/ErrorBoundary';
+import { LazyWrapper } from '../../components/ui/lazy-wrapper';
 type AuditEntry = { id: string; timestamp: string; operation: string; old_data?: any; new_data?: any; details?: any };
 
 const PersonalGoals: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAllocationModal, setShowAllocationModal] = useState(false);
+  const [showDeallocationModal, setShowDeallocationModal] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<GoalProgress | null>(null);
   const [editingGoal, setEditingGoal] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'progress' | 'warn' | 'done'>('all');
@@ -56,6 +61,11 @@ const PersonalGoals: React.FC = () => {
   const handleAllocateToGoal = (goal: GoalProgress) => {
     setSelectedGoal(goal);
     setShowAllocationModal(true);
+  };
+
+  const handleDeallocateFromGoal = (goal: GoalProgress) => {
+    setSelectedGoal(goal);
+    setShowDeallocationModal(true);
   };
 
   const handleEditGoal = (goal: any) => {
@@ -222,15 +232,28 @@ const PersonalGoals: React.FC = () => {
                     </CardTitle>
                     <div className="flex gap-1">
                       {!isCompleted ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleAllocateToGoal(goal)}
-                          className="h-8 w-8 p-0"
-                          aria-label="Alocar ao objetivo"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleAllocateToGoal(goal)}
+                            className="h-8 w-8 p-0"
+                            aria-label="Alocar ao objetivo"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                          {goal.total_alocado > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeallocateFromGoal(goal)}
+                              className="h-8 w-8 p-0"
+                              aria-label="Desalocar do objetivo"
+                            >
+                              –
+                            </Button>
+                          )}
+                        </>
                       ) : (
                         <TooltipProvider>
                           <Tooltip>
@@ -321,6 +344,13 @@ const PersonalGoals: React.FC = () => {
                     </span>
                   </div>
                 </div>
+
+                {/* Funding automático */}
+                <ErrorBoundary>
+                  <LazyWrapper fallback={<div className="text-sm text-muted-foreground">A carregar funding…</div>}>
+                    <GoalFundingSection goalId={goal.goal_id} />
+                  </LazyWrapper>
+                </ErrorBoundary>
 
                 {/* Histórico de alterações (Audit Log) */}
                 <Accordion type="single" collapsible className="pt-2">
@@ -416,6 +446,16 @@ const PersonalGoals: React.FC = () => {
           goalName={selectedGoal.nome}
           currentProgress={selectedGoal.total_alocado}
           targetAmount={selectedGoal.valor_objetivo}
+        />
+      )}
+
+      {/* Deallocation Modal */}
+      {selectedGoal && (
+        <GoalDeallocationModal
+          isOpen={showDeallocationModal}
+          onClose={() => { setShowDeallocationModal(false); setSelectedGoal(null); }}
+          goalId={selectedGoal.goal_id}
+          goalName={selectedGoal.nome}
         />
       )}
 

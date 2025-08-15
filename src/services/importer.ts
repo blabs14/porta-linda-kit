@@ -42,24 +42,64 @@ export async function updateNormalized(id: string, patch: any){
 }
 
 export async function edgeIngestCSV(jobId: string, mapping?: any){
-  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ingest_csv?job_id=${jobId}`;
+  const { data, error } = await (supabase as any).functions.invoke('ingest_csv', {
+    body: { job_id: jobId, mapping }
+  });
+  if (error) throw error;
+  // Trigger dedupe RPC explicitamente (idempotente)
   const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${key}`, 'Content-Type':'application/json' }, body: JSON.stringify({ mapping })});
-  return res.json();
+  await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/refresh_staging_dedupe`, {
+    method: 'POST', headers: { 'Authorization': `Bearer ${key}`, 'apikey': key, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_job_id: jobId })
+  });
+  return data;
 }
 
 export async function edgeIngestReceipt(jobId: string, fileId: string){
-  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ingest_receipt?job_id=${jobId}&file_id=${fileId}`;
+  const { data, error } = await (supabase as any).functions.invoke('ingest_receipt', {
+    body: { job_id: jobId, file_id: fileId }
+  });
+  if (error) throw error;
   const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${key}` }});
-  return res.json();
+  await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/refresh_staging_dedupe`, {
+    method: 'POST', headers: { 'Authorization': `Bearer ${key}`, 'apikey': key, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_job_id: jobId })
+  });
+  return data;
 }
 
 export async function edgePostStaging(jobId: string, ids: string[]){
-  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/post_staging`;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${key}`, 'Content-Type':'application/json' }, body: JSON.stringify({ job_id: jobId, ids })});
-  return res.json();
+  // Tentar primeiro com JWT do utilizador
+  const { data, error } = await (supabase as any).functions.invoke('post_staging', {
+    body: { job_id: jobId, ids }
+  });
+  if (!error && data?.posted>0) return data;
+
+  // Fallback: se não postou nada mas há linhas únicas selecionadas, tentar via RPC com sessão do utilizador
+  if (Array.isArray(ids) && ids.length>0) {
+    const { data: staging } = await (supabase as any).from('staging_transactions').select('*').in('id', ids);
+    if (Array.isArray(staging) && staging.length>0) {
+      let posted = 0; const errors: any[] = [];
+      for (const r of staging) {
+        if (r.dedupe_status==='duplicate') continue;
+        const n = r.normalized_json || {};
+        if (!n.account_id || !n.category_id || !n.date || !n.amount_cents) { errors.push({ id: r.id, error:'missing_fields' }); continue; }
+        const payload = {
+          p_user_id: (await (supabase as any).auth.getUser()).data?.user?.id,
+          p_account_id: n.account_id,
+          p_categoria_id: n.category_id,
+          p_valor: Math.abs(Number(n.amount_cents)/100.0),
+          p_descricao: n.description || n.merchant || null,
+          p_data: n.date,
+          p_tipo: (n.tipo && String(n.tipo)) || (Number(n.amount_cents)>=0 ? 'despesa':'receita')
+        };
+        const { data: created, error: rpcErr } = await (supabase as any).rpc('create_regular_transaction', payload);
+        if (rpcErr || !created || !(created as any).transaction_id) { errors.push({ id: r.id, error: String(rpcErr||'insert_failed'), payload }); continue; }
+        await (supabase as any).from('staging_transactions').update({ posted_txn_id: (created as any).transaction_id }).eq('id', r.id);
+        posted++;
+      }
+      return { ok: true, posted, errors, fallback: true };
+    }
+  }
+  return data || { ok: false, posted: 0, errors: [{ error: String(error||'unknown') }] };
 }
 
 export async function uploadToBucket(bucket: 'imports'|'receipts', path: string, file: File){

@@ -90,7 +90,6 @@ const TransactionForm = ({ initialData, onSuccess, onCancel, submitMode = 'inter
       const newCategory = await createCategoryMutation.mutateAsync({
         nome: newCategoryName.trim(),
         cor: newCategoryColor
-        // Removido descricao - não existe na tabela categories
       });
       
       // Selecionar a nova categoria criada
@@ -123,7 +122,7 @@ const TransactionForm = ({ initialData, onSuccess, onCancel, submitMode = 'inter
     const { name, value } = e.target;
     if (name === 'valor') {
       // Permitir apenas números e vírgula/ponto
-      const numericValue = value.replace(/[^\d.,]/g, '').replace(',', '.');
+      const numericValue = value.replace(/[^\d.,-]/g, '').replace(',', '.');
       setForm(prev => ({ ...prev, [name]: numericValue ? parseFloat(numericValue) || 0 : 0 }));
     } else {
       setForm(prev => ({ ...prev, [name]: value }));
@@ -187,7 +186,7 @@ const TransactionForm = ({ initialData, onSuccess, onCancel, submitMode = 'inter
           user?.id || '',
           form.account_id,
           fromBankAccountId,
-          form.valor,
+          Math.abs(form.valor),
           form.data,
           form.descricao || undefined
         );
@@ -197,7 +196,12 @@ const TransactionForm = ({ initialData, onSuccess, onCancel, submitMode = 'inter
           setValidationErrors({ submit: message });
           return;
         }
-        if (data) {
+        const efetivo = data?.amountPaid ?? 0;
+        if (efetivo <= 0) {
+          toast({ title: 'Sem pagamento necessário', description: 'O cartão já estava liquidado.' });
+        } else if (efetivo < Math.abs(form.valor)) {
+          toast({ title: 'Pagamento ajustado', description: `Foram pagos €${efetivo.toFixed(2)} (ajustado ao necessário).` });
+        } else {
           toast({ title: 'Pagamento realizado', description: 'Pagamento do cartão efetuado com sucesso.' });
         }
         await Promise.all([
@@ -225,11 +229,18 @@ const TransactionForm = ({ initialData, onSuccess, onCancel, submitMode = 'inter
         }
       }
       
+      // Normalizar sinal para cartões (compra -> valor positivo, pagamento -> valor positivo)
+      // O sentido é controlado pelo campo "tipo"; a BD impõe valor >= 0
+      let normalizedValor = form.valor;
+      if (isSelectedAccountCreditCard) {
+        normalizedValor = Math.abs(form.valor);
+      }
+
       // Preparar payload da transação
       const payload: TransactionFormData & { user_id: string } = {
         account_id: form.account_id,
         categoria_id: categoriaId,
-        valor: form.valor,
+        valor: normalizedValor,
         // Para compras no cartão, forçar 'despesa'
         tipo: isSelectedAccountCreditCard ? 'despesa' : form.tipo,
         data: form.data,
@@ -238,7 +249,7 @@ const TransactionForm = ({ initialData, onSuccess, onCancel, submitMode = 'inter
       };
       
       if (submitMode === 'external') {
-        onSuccess?.(payload);
+        onSuccess?.({ ...(payload as any), __meta: { operation, fromBankAccountId } } as any);
         return;
       }
       
@@ -246,7 +257,7 @@ const TransactionForm = ({ initialData, onSuccess, onCancel, submitMode = 'inter
         const updatePayload = {
           account_id: form.account_id,
           categoria_id: categoriaId,
-          valor: form.valor,
+          valor: normalizedValor,
           // Para compras no cartão, forçar 'despesa'
           tipo: isSelectedAccountCreditCard ? 'despesa' : form.tipo,
           data: form.data,
@@ -428,7 +439,6 @@ const TransactionForm = ({ initialData, onSuccess, onCancel, submitMode = 'inter
           <SelectContent>
             <SelectItem value="despesa">Despesa</SelectItem>
             <SelectItem value="receita">Receita</SelectItem>
-            <SelectItem value="transferencia">Transferência</SelectItem>
           </SelectContent>
         </Select>
         {validationErrors.tipo && <div className="text-red-600 text-sm">{validationErrors.tipo}</div>}

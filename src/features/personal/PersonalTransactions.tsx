@@ -21,7 +21,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { LoadingSpinner } from '../../components/ui/loading-states';
-import { useTransactions } from '../../hooks/useTransactionsQuery';
+import { useTransactions, useDeleteTransaction } from '../../hooks/useTransactionsQuery';
 import { useAccountsDomain } from '../../hooks/useAccountsQuery';
 import { useCategoriesDomain } from '../../hooks/useCategoriesQuery';
 import { useReferenceData } from '../../hooks/useCache';
@@ -32,6 +32,7 @@ import { notifySuccess, notifyError } from '../../lib/notify';
 import TransactionForm from '../../components/TransactionForm';
 // exportReport será carregado dinamicamente no ponto de uso
 import { formatCurrency } from '../../lib/utils';
+import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
 
 const PersonalTransactions: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
@@ -50,6 +51,7 @@ const PersonalTransactions: React.FC = () => {
 
   // Usar os hooks robustos que já funcionam
   const { data: transactions = [], isLoading } = useTransactions();
+  const deleteTransaction = useDeleteTransaction();
   const { data: accounts = [] } = useAccountsDomain();
   const { data: categories = [] } = useCategoriesDomain();
   const { accounts: refAccounts, categories: refCategories } = useReferenceData();
@@ -383,7 +385,7 @@ const PersonalTransactions: React.FC = () => {
                   <SelectItem value="all">Todas as contas</SelectItem>
                   {accounts.map((account) => (
                     <SelectItem key={account.id} value={account.id}>
-                      {account.name}
+                      {account.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -470,11 +472,11 @@ const PersonalTransactions: React.FC = () => {
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
                 <strong>Filtros ativos:</strong> 
-                {searchTerm && ` Pesquisa: "${searchTerm}"`}
-                {selectedAccount !== 'all' && ` Conta: ${accounts.find(a => a.id === selectedAccount)?.name}`}
-                {selectedCategory !== 'all' && ` Categoria: ${categories.find(c => c.id === selectedCategory)?.nome}`}
-                {selectedType !== 'all' && ` Tipo: ${selectedType === 'receita' ? 'Receitas' : 'Despesas'}`}
-                {dateFilter !== 'all' && ` Data: ${getDateFilterText()}`}
+                                 {searchTerm && ` Pesquisa: "${searchTerm}"`}
+                 {selectedAccount !== 'all' && ` Conta: ${accounts.find(a => a.id === selectedAccount)?.nome}`}
+                 {selectedCategory !== 'all' && ` Categoria: ${categories.find(c => c.id === selectedCategory)?.nome}`}
+                 {selectedType !== 'all' && ` Tipo: ${selectedType === 'receita' ? 'Receitas' : 'Despesas'}`}
+                 {dateFilter !== 'all' && ` Data: ${getDateFilterText()}`}
               </p>
             </div>
           )}
@@ -519,7 +521,7 @@ const PersonalTransactions: React.FC = () => {
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <span>{categories.find(c => c.id === transaction.categoria_id)?.nome || 'Sem categoria'}</span>
                             <span>•</span>
-                            <span>{accounts.find(a => a.id === transaction.account_id)?.name || 'Conta'}</span>
+                                                         <span>{accounts.find(a => a.id === transaction.account_id)?.nome || 'Conta'}</span>
                             <span>•</span>
                             <span>{new Date(transaction.data).toLocaleDateString('pt-PT')}</span>
                           </div>
@@ -556,9 +558,9 @@ const PersonalTransactions: React.FC = () => {
                                 },
                                 async () => {
                                   try {
-                                    // TODO: ligar ao mutate de eliminação quando disponível
+                                    await deleteTransaction.mutateAsync(transaction.id);
                                     notifySuccess({ title: 'Transação eliminada', description: 'A transação foi eliminada com sucesso.' });
-                                  } catch (_) {
+                                  } catch (e) {
                                     notifyError({ title: 'Erro ao eliminar', description: 'Não foi possível eliminar a transação.' });
                                   }
                                 }
@@ -601,6 +603,18 @@ const PersonalTransactions: React.FC = () => {
           />
         </DialogContent>
       </Dialog>
+
+      <ConfirmationDialog
+        isOpen={confirmation.isOpen}
+        onClose={confirmation.close}
+        onConfirm={confirmation.onConfirm}
+        onCancel={confirmation.onCancel}
+        title={confirmation.options.title}
+        message={confirmation.options.message}
+        confirmText={confirmation.options.confirmText}
+        cancelText={confirmation.options.cancelText}
+        variant={confirmation.options.variant}
+      />
     </div>
   );
 };

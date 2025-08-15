@@ -35,7 +35,7 @@ export default function MappingForm({ headers, value, onChange, onConfirm }: Map
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <Input placeholder="Formato data (ex.: DD/MM/YYYY)" value={local.date_fmt||''} onChange={(e)=>update('date_fmt', e.target.value)} />
           <Input placeholder="Separador decimal (ex.: , ou .)" value={local.decimal||''} onChange={(e)=>update('decimal', e.target.value)} />
-          <Input placeholder="Sinal débito (ex.: -1)" value={local.debit_sign||''} onChange={(e)=>update('debit_sign', Number(e.target.value||0))} />
+          <Input type="text" placeholder="Sinal débito (ex.: -1)" value={String(local.debit_sign||'')} onChange={(e)=>update('debit_sign', Number(e.target.value||0))} />
         </div>
         <Button onClick={onConfirm}>Confirmar</Button>
       </CardContent>

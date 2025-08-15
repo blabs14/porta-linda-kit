@@ -32,9 +32,10 @@ export const useAccountsDomain = () => {
   return useQuery({
     queryKey: ['accounts-domain', user?.id],
     queryFn: async () => {
-      const { data, error } = await getAccountsDomain(user?.id);
-      if (error) throw error;
-      return data || [];
+      const { data, error } = await getAccountsWithBalances(user?.id);
+      if (error) throw error as any;
+      const rows = (data || []) as any[];
+      return rows.map(r=> ({ id: r.account_id, nome: r.nome })) as any[];
     },
     enabled: !!user?.id
   });

@@ -28,6 +28,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../hooks/use-toast';
 import { notifySuccess, notifyError } from '../../lib/notify';
 import TransactionForm from '../../components/TransactionForm';
+import { payCreditCardFromAccount } from '../../services/transactions';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
 
@@ -671,10 +672,44 @@ const FamilyTransactions: React.FC = () => {
           <TransactionForm 
             initialData={editTx ? { ...editTx, descricao: editTx.descricao || '' } : undefined} 
             onSuccess={(payload) => {
+              const p: any = payload || {};
+              const meta = p.__meta || {};
+              const account = familyAccounts?.find(a => a.account_id === p.account_id);
+              const isCard = (account?.tipo || '').toLowerCase() === 'cartão de crédito';
+              const op = meta.operation as 'compra' | 'pagamento' | undefined;
+
+              if (!editTx && isCard && op === 'pagamento' && meta.fromBankAccountId) {
+                (async () => {
+                  const { data, error } = await payCreditCardFromAccount(
+                    user?.id || '',
+                    p.account_id,
+                    meta.fromBankAccountId,
+                    Math.abs(Number(p.valor || 0)),
+                    p.data,
+                    p.descricao || undefined
+                  );
+                  if (error) {
+                    notifyError({ title: 'Erro no pagamento', description: (error as any)?.message || 'Falha ao pagar cartão' });
+                    return;
+                  }
+                  const efetivo = data?.amountPaid ?? 0;
+                  if (efetivo <= 0) {
+                    notifySuccess({ title: 'Sem pagamento necessário', description: 'O cartão já estava liquidado.' });
+                  } else if (efetivo < Math.abs(Number(p.valor || 0))) {
+                    notifySuccess({ title: 'Pagamento ajustado', description: `Foram pagos €${efetivo.toFixed(2)} (ajustado ao necessário).` });
+                  } else {
+                    notifySuccess({ title: 'Pagamento realizado', description: 'Pagamento do cartão efetuado com sucesso.' });
+                  }
+                  refetchAll();
+                  handleClose();
+                })();
+                return;
+              }
+
               if (editTx) {
-                void handleEditSuccess(payload as Partial<TransactionItem>);
+                void handleEditSuccess(p as Partial<TransactionItem>);
               } else {
-                void handleCreateSuccess(payload as TransactionFormPayload);
+                void handleCreateSuccess(p as TransactionFormPayload);
               }
             }} 
             onCancel={handleClose} 

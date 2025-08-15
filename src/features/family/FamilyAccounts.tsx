@@ -11,6 +11,7 @@ import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
 import { Alert, AlertDescription } from '../../components/ui/alert';
 import AccountForm from '../../components/AccountForm';
 import RegularAccountForm from '../../components/RegularAccountForm';
+import CreditCardForm from '../../components/CreditCardForm';
 const LazyTransferModal = React.lazy(() => import('../../components/TransferModal').then(m => ({ default: m.TransferModal })));
 import { LazyWrapper } from '../../components/ui/lazy-wrapper';
 import { useToast } from '../../hooks/use-toast';

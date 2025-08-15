@@ -122,10 +122,11 @@ const PersonalBudgets: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      const monthStr = (form.mes || '').slice(0, 7); // garantir YYYY-MM
       const payload = {
         categoria_id: form.categoria_id,
         valor: parseFloat(form.valor),
-        mes: form.mes,
+        mes: monthStr,
       } as const;
 
       if (editBudget) {
@@ -133,9 +134,10 @@ const PersonalBudgets: React.FC = () => {
         if (result.error) {
           toast({
             title: "Erro",
-            description: "Erro ao atualizar orçamento",
+            description: (result.error as any)?.message || 'Erro ao atualizar orçamento',
             variant: "destructive",
           });
+          console.error('[PersonalBudgets] update budget error:', result.error);
         } else {
           toast({
             title: "Sucesso",
@@ -148,9 +150,10 @@ const PersonalBudgets: React.FC = () => {
         if (result.error) {
           toast({
             title: "Erro",
-            description: "Erro ao criar orçamento",
+            description: (result.error as any)?.message || 'Erro ao criar orçamento',
             variant: "destructive",
           });
+          console.error('[PersonalBudgets] create budget error:', result.error);
         } else {
           toast({
             title: "Sucesso",
@@ -162,9 +165,11 @@ const PersonalBudgets: React.FC = () => {
     } catch (error) {
       toast({
         title: "Erro",
-        description: "Erro inesperado",
+        description: (error as any)?.message || "Erro inesperado",
         variant: "destructive",
       });
+      setIsSubmitting(false);
+      return;
     } finally {
       setIsSubmitting(false);
     }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useGoals } from '../hooks/useGoalsQuery';
+import { useCreateGoal, useUpdateGoal } from '../hooks/useGoalsQuery';
 import { goalSchema } from '../validation/goalSchema';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -33,7 +33,8 @@ interface GoalFormProps {
 
 const GoalForm = ({ initialData, onSuccess, onCancel }: GoalFormProps) => {
   const { user } = useAuth();
-  const { createGoal, updateGoal, isCreating, isUpdating } = useGoals();
+  const createGoalMutation = useCreateGoal();
+  const updateGoalMutation = useUpdateGoal();
   const [form, setForm] = useState<GoalFormData>({
     nome: '',
     valor_objetivo: 0,
@@ -42,7 +43,7 @@ const GoalForm = ({ initialData, onSuccess, onCancel }: GoalFormProps) => {
   });
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   
-  const isSubmitting = isCreating || isUpdating;
+  const isSubmitting = createGoalMutation.isPending || updateGoalMutation.isPending;
 
   useEffect(() => {
     if (initialData) {
@@ -92,12 +93,18 @@ const GoalForm = ({ initialData, onSuccess, onCancel }: GoalFormProps) => {
         valor_objetivo: form.valor_objetivo,
         prazo: form.prazo || null, // Opcional
         valor_atual: 0, // Inicializar com 0
-      };
+        user_id: user?.id || ''
+      } as const;
       
       if (initialData && initialData.id) {
-        await updateGoal({ id: initialData.id, data: payload });
+        const updatePayload = {
+          nome: form.nome,
+          valor_objetivo: form.valor_objetivo,
+          prazo: form.prazo || null
+        };
+        await updateGoalMutation.mutateAsync({ id: initialData.id, data: updatePayload });
       } else {
-        await createGoal(payload);
+        await createGoalMutation.mutateAsync(payload);
       }
       
       if (onSuccess) onSuccess();
