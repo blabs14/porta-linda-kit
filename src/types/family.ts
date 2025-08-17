@@ -125,6 +125,9 @@ export interface FamilyMethods {
   updateFamilyAccount: (id: string, data: UnknownRecord) => Promise<unknown>;
   deleteFamilyAccount: (id: string) => Promise<unknown>;
   
+  // Nova mutação específica
+  updateAccountReservePercentage: (accountId: string, percent: number) => Promise<unknown>;
+  
   createFamilyGoal: (data: UnknownRecord) => Promise<unknown>;
   updateFamilyGoal: (id: string, data: UnknownRecord) => Promise<unknown>;
   deleteFamilyGoal: (id: string) => Promise<unknown>;
@@ -136,8 +139,9 @@ export interface FamilyMethods {
   createFamilyTransaction: (data: UnknownRecord) => Promise<unknown>;
   updateFamilyTransaction: (id: string, data: UnknownRecord) => Promise<unknown>;
   deleteFamilyTransaction: (id: string) => Promise<unknown>;
-  
-  // Métodos específicos
+}
+
+// Métodos específicos
   payCreditCard: (accountId: string, amount: number) => Promise<unknown>;
   allocateToGoal: (goalId: string, amount: number, accountId: string) => Promise<unknown>;
   
@@ -148,4 +152,4 @@ export interface FamilyMethods {
 }
 
 // Tipo completo do contexto
-export interface FamilyContextType extends FamilyData, FamilyMethods {} 
+export interface FamilyContextType extends FamilyData, FamilyMethods {}

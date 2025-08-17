@@ -3,6 +3,8 @@ import type { Json } from '../integrations/supabase/database.types';
 
 export interface PersonalSettings {
   theme: 'light' | 'dark' | 'system';
+  language: 'pt-PT' | 'en-US';
+  currency: string; // EUR, USD, etc.
   notifications: {
     email: boolean;
     push: boolean;
@@ -79,6 +81,8 @@ export const updateTheme = async (userId: string, theme: 'light' | 'dark' | 'sys
     // Se não existem configurações, criar com valores padrão
     const defaultSettings: PersonalSettings = {
       theme,
+      language: 'pt-PT',
+      currency: 'EUR',
       notifications: {
         email: true,
         push: true,
@@ -117,6 +121,8 @@ export const updateNotificationSettings = async (userId: string, notifications: 
   if (!currentSettings?.personal_settings) {
     const defaultSettings: PersonalSettings = {
       theme: 'system',
+      language: 'pt-PT',
+      currency: 'EUR',
       notifications,
       appearance: {
         theme: 'system',
@@ -151,6 +157,8 @@ export const getFullProfile = async (userId: string) => {
 export const createInitialProfile = async (userId: string, email: string) => {
   const defaultSettings: PersonalSettings = {
     theme: 'system',
+    language: 'pt-PT',
+    currency: 'EUR',
     notifications: {
       email: true,
       push: true,
@@ -179,4 +187,4 @@ export const createInitialProfile = async (userId: string, email: string) => {
     .single();
   
   return { data, error };
-}; 
+};

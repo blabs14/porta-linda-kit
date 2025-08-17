@@ -41,12 +41,7 @@ BEGIN
   IF NOT exists (
     select 1 from pg_policies where schemaname = 'public' and tablename = 'family_members' and policyname = 'family_members_insert_own'
   ) THEN
-    execute $$create policy "family_members_insert_own"
-      on public.family_members
-      for insert to authenticated
-      with check (
-        auth.uid() is not null and user_id = auth.uid() and public.is_member_of_family(family_id, auth.uid())
-      )$$;
+    execute 'create policy "family_members_insert_own" on public.family_members for insert to authenticated with check (auth.uid() is not null and user_id = auth.uid() and public.is_member_of_family(family_id, auth.uid()))';
   END IF;
   IF NOT exists (
     select 1 from pg_policies where schemaname = 'public' and tablename = 'family_members' and policyname = 'family_members_update_own'
@@ -71,4 +66,4 @@ BEGIN
         auth.uid() is not null and public.is_member_of_family(family_id, auth.uid())
       )$$;
   END IF;
-END$$; 
+END$$;

@@ -22,6 +22,8 @@ export const appearanceSettingsSchema = z.object({
 // Schema para configurações pessoais completas
 export const personalSettingsSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']).default('system'),
+  language: z.enum(['pt-PT', 'en-US']).default('pt-PT'),
+  currency: z.string().min(3).max(3).default('EUR'),
   notifications: notificationSettingsSchema,
   appearance: appearanceSettingsSchema,
 });
@@ -124,4 +126,4 @@ export const validateAndFormatPhone = (phone: string): string | null => {
   const result = phoneRegex.test(formatted);
   
   return result ? formatted : null;
-}; 
+};

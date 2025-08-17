@@ -17,7 +17,8 @@ import {
   getFamilyAccountsWithBalances,
   createAccount,
   updateAccount,
-  deleteAccount
+  deleteAccount,
+  setAccountReservePercentage
 } from '../../services/accounts';
 import { 
   getGoals, 
@@ -559,6 +560,29 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     }
   );
 
+  // Mutação específica: atualizar percentagem de reserva da conta (apenas contas bancárias)
+  const updateAccountReservePercentageMutation = useCrudMutation(
+    async ({ accountId, percent }: { accountId: string; percent: number }) => {
+      // percent vem como 0-100 (com 2 casas), converter para basis points (x100)
+      const percentBp = Math.round(Math.max(0, Math.min(100, percent)) * 100);
+      const { error } = await (async () => {
+        const res = await setAccountReservePercentage(accountId, percentBp);
+        return res.error;
+      })();
+      if (error) throw error as unknown as Error;
+      return true as const;
+    },
+    {
+      operation: 'update',
+      entityName: 'Percentagem de Reserva',
+      onSuccess: () => {
+        // Invalidar caches relevantes: contas (saldos reservados/disp.), KPIs
+        queryClient.invalidateQueries({ queryKey: ['family', 'accounts', user?.id, family?.id] });
+        queryClient.invalidateQueries({ queryKey: ['family', 'kpis', family?.id] });
+      }
+    }
+  );
+
   const deleteFamilyAccountMutation = useCrudMutation(
     (id: string) => deleteAccount(id, user?.id || ''),
     {
@@ -869,6 +893,10 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     createFamilyTransaction: (data: UnknownRecord) => createFamilyTransactionMutation.mutateAsync(data),
     updateFamilyTransaction: (id: string, data: UnknownRecord) => updateFamilyTransactionMutation.mutateAsync({ id, data }),
     deleteFamilyTransaction: (id: string) => deleteFamilyTransactionMutation.mutateAsync(id),
+
+    // Nova API específica
+    updateAccountReservePercentage: (accountId: string, percent: number) =>
+      updateAccountReservePercentageMutation.mutateAsync({ accountId, percent }),
     
     // Métodos específicos
     payCreditCard,
@@ -885,4 +913,4 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       {children}
     </FamilyContext.Provider>
   );
-}; 
+};

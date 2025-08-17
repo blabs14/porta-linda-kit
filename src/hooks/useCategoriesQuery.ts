@@ -3,6 +3,7 @@ import { getCategories, getCategoriesDomain, createCategory, updateCategory, del
 import { useAuth } from '../contexts/AuthContext';
 import type { CategoryDomain } from '../shared/types/categories';
 import type { Category, CategoryInsert, CategoryUpdate } from '../integrations/supabase/types';
+import { showError } from '../lib/utils';
 
 export const useCategories = (tipo?: string) => {
   const { user } = useAuth();
@@ -37,11 +38,23 @@ export const useCategoriesDomain = (tipo?: string) => {
   return useQuery<CategoryDomain[]>({
     queryKey: ['categories-domain', user?.id, tipo],
     queryFn: async () => {
-      // defaults + user
-      const d1 = await getCategories(undefined, undefined);
-      const d2 = await getCategories(user?.id || '', undefined);
-      const all = [ ...(d1.data||[]), ...(d2.data||[]) ];
-      return all.map((row: any) => ({ id: row.id, nome: row.nome, cor: row.cor }));
+      try {
+        // defaults + user
+        const d1 = await getCategories(undefined, undefined);
+        const d2 = await getCategories(user?.id || '', undefined);
+        
+        // Verificar se houve erros nas queries
+        if (d1.error && d2.error) {
+          throw d1.error || d2.error;
+        }
+        
+        const all = [ ...(d1.data||[]), ...(d2.data||[]) ];
+        return all.map((row: any) => ({ id: row.id, nome: row.nome, cor: row.cor }));
+      } catch (err: any) {
+        console.error('Failed to fetch categories domain', err);
+        showError(err?.message || 'Falha ao obter categorias');
+        return [] as CategoryDomain[];
+      }
     },
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000,

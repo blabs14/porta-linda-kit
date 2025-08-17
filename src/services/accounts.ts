@@ -390,6 +390,26 @@ export const getAccountReserved = async (): Promise<{ data: AccountReserved[] | 
   }
 };
 
+export const getFamilyAccountsWithBalances = async (userId?: string): Promise<{ data: AccountWithBalances[] | null; error: unknown }> => {
+  try {
+    if (!userId) {
+      return { data: [], error: null };
+    }
+
+    const { data, error } = await supabase.rpc('get_family_accounts_with_balances', {
+      p_user_id: userId
+    });
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    return { data: (data as AccountWithBalances[]) || [], error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+};
+
 export const getAccountsWithBalances = async (userId?: string): Promise<{ data: AccountWithBalances[] | null; error: unknown }> => {
   try {
     if (!userId) {
@@ -415,38 +435,41 @@ export const getAccountsWithBalancesDomain = async (userId?: string): Promise<{ 
   return { data: (data || []).map(mapAccountWithBalancesToDomain), error };
 };
 
-export const getPersonalAccountsWithBalances = async (userId?: string): Promise<{ data: AccountWithBalances[] | null; error: unknown }> => {
+export const getAccountReservePercentage = async (accountId: string): Promise<{ data: number | null; error: unknown }> => {
   try {
-    const { data, error } = await supabase.rpc('get_user_accounts_with_balances', {
-      p_user_id: userId || null
+    const { data, error } = await supabase.rpc('get_account_reserve_percentage', {
+      p_account_id: accountId
     });
 
     if (error) {
       return { data: null, error };
     }
 
-    // Nota: o retorno RPC não inclui family_id; devolvemos a lista completa
-    const rows = (data as AccountWithBalances[]) || [];
-    return { data: rows, error: null };
+    // RPC devolve valor em basis points, converter para percentagem (0-100)
+    const percentageBp = Number(data) || 0;
+    const percentage = percentageBp / 100; // de basis points para percentagem
+
+    return { data: percentage, error: null };
   } catch (error) {
     return { data: null, error };
   }
 };
 
-export const getFamilyAccountsWithBalances = async (userId?: string): Promise<{ data: AccountWithBalances[] | null; error: unknown }> => {
+export const setAccountReservePercentage = async (accountId: string, percentBp: number): Promise<{ data: boolean | null; error: unknown }> => {
   try {
-    if (!userId) return { data: [], error: null };
-    const { data, error } = await supabase.rpc('get_family_accounts_with_balances', { p_user_id: userId });
-    if (error) return { data: null, error };
-    return { data: (data as AccountWithBalances[]) || [], error: null };
+    const { data, error } = await supabase.rpc('set_account_reserve_percentage', {
+      p_account_id: accountId,
+      p_percent_bp: percentBp
+    });
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    return { data: true, error: null };
   } catch (error) {
     return { data: null, error };
   }
-};
-
-export const getFamilyAccountsWithBalancesDomain = async (userId?: string): Promise<{ data: AccountWithBalancesDomain[]; error: unknown }> => {
-  const { data, error } = await getFamilyAccountsWithBalances(userId);
-  return { data: (data || []).map(mapAccountWithBalancesToDomain), error };
 };
 
 export const getPersonalKPIs = async () => {

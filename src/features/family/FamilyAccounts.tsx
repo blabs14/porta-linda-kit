@@ -12,6 +12,9 @@ import { Alert, AlertDescription } from '../../components/ui/alert';
 import AccountForm from '../../components/AccountForm';
 import RegularAccountForm from '../../components/RegularAccountForm';
 import CreditCardForm from '../../components/CreditCardForm';
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import { Input } from '../../components/ui/input';
+import { Slider } from '../../components/ui/slider';
 const LazyTransferModal = React.lazy(() => import('../../components/TransferModal').then(m => ({ default: m.TransferModal })));
 import { LazyWrapper } from '../../components/ui/lazy-wrapper';
 import { useToast } from '../../hooks/use-toast';
@@ -29,7 +32,8 @@ const FamilyAccounts: React.FC = () => {
     createFamilyAccount,
     updateFamilyAccount,
     deleteFamilyAccount,
-    refetchAll
+    refetchAll,
+    updateAccountReservePercentage
   } = useFamily();
   
   const { toast } = useToast();
@@ -212,16 +216,23 @@ const FamilyAccounts: React.FC = () => {
 
                   {/* Saldo Reservado */}
                   {account.total_reservado > 0 && (
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground flex items-center gap-1">
-                          <Target className="h-3 w-3" />
-                          Reservado
-                        </span>
-                        <Badge variant="secondary" className="text-xs text-blue-600 bg-blue-50 border-blue-200">
-                          {formatCurrency(account.total_reservado)}
-                        </Badge>
-                      </div>
+                    <div className="text-sm text-muted-foreground flex items-center gap-2">
+                      <span className="font-medium">Reservado</span>
+                      <span className="tabular-nums">{formatCurrency(account.total_reservado)}</span>
+                    </div>
+                  )}
+
+                  {/* Percentagem de Reserva - Inline Editor (apenas contas bancárias) */}
+                  {account.tipo !== 'cartão de crédito' && (
+                    <div className="text-sm text-muted-foreground">
+                      <InlineReserveEditor
+                        accountId={account.id}
+                        value={Number(account.reserve_percentage ?? 0)}
+                        disabled={!canEdit('account')}
+                        onSave={async (pct) => {
+                          await updateAccountReservePercentage(account.id, pct);
+                        }}
+                      />
                     </div>
                   )}
 
@@ -555,3 +566,70 @@ const AccountAuditList: React.FC<{ accountId: string }> = ({ accountId }) => {
 };
 
 export default FamilyAccounts; 
+
+// Inline editor component local para percentagem de reserva
+function InlineReserveEditor({
+  accountId,
+  value,
+  disabled,
+  onSave,
+}: {
+  accountId: string;
+  value: number;
+  disabled?: boolean;
+  onSave: (pct: number) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState<string>(() => (Number.isFinite(value) ? Number(value).toFixed(2) : '0.00'));
+  const pctNumber = Math.max(0, Math.min(100, Number(inputValue.replace(',', '.')) || 0));
+  const displayValue = isNaN(pctNumber) ? 0 : pctNumber;
+
+  const handleConfirm = async () => {
+    const rounded = Math.round(displayValue * 100) / 100; // 2 casas decimais
+    await onSave(rounded);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" disabled={disabled} aria-label={`Editar percentagem de reserva da conta ${accountId}`}>
+          {displayValue.toFixed(2)}%
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72" align="start">
+        <div className="space-y-3" aria-live="polite">
+          <label htmlFor={`reserve-input-${accountId}`} className="text-sm font-medium">Percentagem de reserva</label>
+          <div className="flex items-center gap-2">
+            <Input
+              id={`reserve-input-${accountId}`}
+              type="number"
+              min={0}
+              max={100}
+              step={0.01}
+              inputMode="decimal"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              aria-describedby={`reserve-help-${accountId}`}
+              className="w-28"
+            />
+            <span className="text-sm">%</span>
+            <Button size="sm" onClick={handleConfirm} disabled={disabled || displayValue < 0 || displayValue > 100}>Guardar</Button>
+          </div>
+          <p id={`reserve-help-${accountId}`} className="text-xs text-muted-foreground">Introduza um valor entre 0 e 100%. Arredonda ao mais próximo.</p>
+          <div className="pt-1">
+            <Slider
+              value={[displayValue]}
+              min={0}
+              max={100}
+              step={0.25}
+              onValueChange={(v) => setInputValue((v?.[0] ?? 0).toFixed(2))}
+              aria-label="Ajustar percentagem de reserva"
+            />
+            <div className="mt-1 text-xs text-right tabular-nums">{displayValue.toFixed(2)}%</div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}

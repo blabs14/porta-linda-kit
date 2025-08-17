@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Switch } from '../../components/ui/switch';
-import { Settings, User, Shield, Bell, Palette, Eye, EyeOff, Moon, Sun, Smartphone, Mail, Calendar, Save, BarChart3, TrendingUp } from 'lucide-react';
+import { Settings, User, Shield, Bell, Palette, Eye, EyeOff, Moon, Sun, Smartphone, Mail, Calendar, Save, BarChart3, TrendingUp, Globe, DollarSign } from 'lucide-react';
 import { notifySuccess, notifyError } from '../../lib/notify';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../hooks/use-toast';
@@ -14,7 +14,18 @@ import { usePersonalSettings } from '../../hooks/usePersonalSettings';
 import { LoadingSpinner } from '../../components/ui/loading-states';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
 import { getAuditLogsByRow } from '../../services/audit_logs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { getCurrencies } from '../../services/currencies';
+
 type AuditEntry = { id: string; timestamp: string; operation: string; old_data?: any; new_data?: any; details?: any };
+
+type Currency = {
+  id: string;
+  code: string;
+  name: string;
+  symbol: string;
+  rate_to_eur: number;
+};
 
 const PersonalSettings: React.FC = () => {
   const { user } = useAuth();
@@ -30,6 +41,7 @@ const PersonalSettings: React.FC = () => {
     updateProfile,
     changeTheme,
     updateNotifications,
+    updateSettings,
     setLocalRemindersEnabledRemote
   } = usePersonalSettings();
 
@@ -41,7 +53,12 @@ const PersonalSettings: React.FC = () => {
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isAppearanceOpen, setIsAppearanceOpen] = useState(false);
+  const [isPersonalOpen, setIsPersonalOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Estados para moedas
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [loadingCurrencies, setLoadingCurrencies] = useState(false);
 
   // Estados para formulários
   const [profileData, setProfileData] = useState({
@@ -65,6 +82,12 @@ const PersonalSettings: React.FC = () => {
     transactionAlerts: typedSettings?.personal_settings?.notifications?.transaction_alerts ?? false
   });
 
+  // Estados para configurações pessoais (idioma e moeda)
+  const [personalData, setPersonalData] = useState({
+    language: typedSettings?.personal_settings?.language || 'pt-PT',
+    currency: typedSettings?.personal_settings?.currency || 'EUR'
+  });
+
   // Toggle de notificações locais de lembretes (persistência local)
   const [localRemindersEnabled, setLocalRemindersEnabled] = React.useState<boolean>(() => {
     try {
@@ -77,6 +100,7 @@ const PersonalSettings: React.FC = () => {
   });
   const [pushEnabled, setPushEnabled] = React.useState<boolean>(false);
   const [pushStatus, setPushStatus] = React.useState<'ativo' | 'inativo' | 'sem-permissao'>('inativo');
+  
   const toggleLocalReminders = (checked: boolean) => {
     setLocalRemindersEnabled(checked);
     try { localStorage.setItem('local_reminders_enabled', checked ? '1' : '0'); } catch {}
@@ -95,6 +119,41 @@ const PersonalSettings: React.FC = () => {
         setPushStatus('inativo');
       }
     } catch {}
+  };
+
+  // Carregar moedas quando o modal pessoal abrir
+  React.useEffect(() => {
+    if (isPersonalOpen && currencies.length === 0) {
+      loadCurrencies();
+    }
+  }, [isPersonalOpen]);
+
+  const loadCurrencies = async () => {
+    setLoadingCurrencies(true);
+    try {
+      const { data, error } = await getCurrencies();
+      if (error) {
+        console.error('Erro ao carregar moedas:', error);
+        // Fallback para moedas básicas
+        setCurrencies([
+          { id: '1', code: 'EUR', name: 'Euro', symbol: '€', rate_to_eur: 1 },
+          { id: '2', code: 'USD', name: 'Dólar Americano', symbol: '$', rate_to_eur: 0.85 },
+          { id: '3', code: 'GBP', name: 'Libra Esterlina', symbol: '£', rate_to_eur: 1.15 }
+        ]);
+      } else {
+        setCurrencies(data || []);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar moedas:', error);
+      // Fallback para moedas básicas
+      setCurrencies([
+        { id: '1', code: 'EUR', name: 'Euro', symbol: '€', rate_to_eur: 1 },
+        { id: '2', code: 'USD', name: 'Dólar Americano', symbol: '$', rate_to_eur: 0.85 },
+        { id: '3', code: 'GBP', name: 'Libra Esterlina', symbol: '£', rate_to_eur: 1.15 }
+      ]);
+    } finally {
+      setLoadingCurrencies(false);
+    }
   };
 
   // Inicializar estado real da subscrição push
@@ -183,6 +242,13 @@ const PersonalSettings: React.FC = () => {
         try { localStorage.setItem('local_reminders_enabled', remoteLocalReminders ? '1' : '0'); } catch {}
       }
     }
+    // Atualizar configurações pessoais
+    if (ps) {
+      setPersonalData({
+        language: ps.language || 'pt-PT',
+        currency: ps.currency || 'EUR'
+      });
+    }
   }, [settings]);
 
   // Função para salvar dados do perfil
@@ -254,6 +320,28 @@ const PersonalSettings: React.FC = () => {
     }
   };
 
+  // Função para salvar configurações pessoais (idioma e moeda)
+  const handlePersonalSettings = async () => {
+    try {
+      await updateSettings({
+        language: personalData.language,
+        currency: personalData.currency
+      });
+      setIsPersonalOpen(false);
+      toast({
+        title: "Configurações atualizadas",
+        description: "Idioma e moeda foram atualizados com sucesso.",
+      });
+    } catch (error) {
+      console.error('Erro ao salvar configurações pessoais:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar as configurações.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
@@ -275,6 +363,82 @@ const PersonalSettings: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Pessoais - Nova secção */}
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="flex items-center gap-3">
+              <Globe className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <h3 className="font-medium">Pessoais</h3>
+                <p className="text-sm text-muted-foreground">
+                  Idioma e moeda preferidos
+                </p>
+              </div>
+            </div>
+            <Dialog open={isPersonalOpen} onOpenChange={setIsPersonalOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">Configurar</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Configurações Pessoais</DialogTitle>
+                  <DialogDescription>
+                    Configure seu idioma e moeda preferidos
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="language">Idioma</Label>
+                    <Select
+                      value={personalData.language}
+                      onValueChange={(value) => setPersonalData(prev => ({ ...prev, language: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o idioma" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pt-PT">🇵🇹 Português (Portugal)</SelectItem>
+                        <SelectItem value="en-US">🇺🇸 English (US)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="currency">Moeda</Label>
+                    <Select
+                      value={personalData.currency}
+                      onValueChange={(value) => setPersonalData(prev => ({ ...prev, currency: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a moeda" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {loadingCurrencies ? (
+                          <div className="p-2 text-center">
+                            <LoadingSpinner size="sm" />
+                          </div>
+                        ) : (
+                          currencies.map((currency) => (
+                            <SelectItem key={currency.code} value={currency.code}>
+                              {currency.symbol} {currency.code} - {currency.name}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsPersonalOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handlePersonalSettings}>
+                      <Save className="h-4 w-4 mr-2" />
+                      Guardar
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
           {/* Perfil */}
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="flex items-center gap-3">
@@ -496,7 +660,7 @@ const PersonalSettings: React.FC = () => {
                       <Calendar className="h-4 w-4" />
                       <div>
                         <span className="text-sm font-medium">Lembretes de Objetivos</span>
-                        <p className="text-xs text-muted-foreground">Alertas sobre progresso dos objetivos</p>
+                        <p className="text-xs text-muted-foreground">Alertas sobre progresso de objetivos</p>
                       </div>
                     </div>
                     <Switch
@@ -506,23 +670,10 @@ const PersonalSettings: React.FC = () => {
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      <div>
-                        <span className="text-sm font-medium">Notificações locais de lembretes</span>
-                        <p className="text-xs text-muted-foreground">Mostra notificações no browser no dia/hora dos lembretes</p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={localRemindersEnabled}
-                      onCheckedChange={toggleLocalReminders}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
                       <BarChart3 className="h-4 w-4" />
                       <div>
                         <span className="text-sm font-medium">Alertas de Orçamento</span>
-                        <p className="text-xs text-muted-foreground">Avisos quando ultrapassar limites</p>
+                        <p className="text-xs text-muted-foreground">Avisos quando exceder limites</p>
                       </div>
                     </div>
                     <Switch
@@ -535,7 +686,7 @@ const PersonalSettings: React.FC = () => {
                       <TrendingUp className="h-4 w-4" />
                       <div>
                         <span className="text-sm font-medium">Alertas de Transações</span>
-                        <p className="text-xs text-muted-foreground">Notificações sobre transações importantes</p>
+                        <p className="text-xs text-muted-foreground">Notificações de movimentos importantes</p>
                       </div>
                     </div>
                     <Switch
@@ -545,17 +696,33 @@ const PersonalSettings: React.FC = () => {
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Smartphone className="h-4 w-4" />
+                      <Bell className="h-4 w-4" />
                       <div>
-                        <span className="text-sm font-medium">Notificações Push (browser)</span>
-                        <p className="text-xs text-muted-foreground">
-                          Estado: {pushStatus === 'ativo' ? 'ativo' : pushStatus === 'sem-permissao' ? 'sem permissão' : 'inativo'}
-                        </p>
+                        <span className="text-sm font-medium">Lembretes Locais</span>
+                        <p className="text-xs text-muted-foreground">Notificações no dispositivo</p>
                       </div>
                     </div>
+                    <Switch
+                      checked={localRemindersEnabled}
+                      onCheckedChange={toggleLocalReminders}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Switch checked={pushEnabled} onCheckedChange={togglePush} />
-                      <Button variant="outline" size="sm" onClick={sendTestPush} disabled={!pushEnabled}>Enviar push de teste</Button>
+                      <Smartphone className="h-4 w-4" />
+                      <div>
+                        <span className="text-sm font-medium">Push Notifications</span>
+                        <p className="text-xs text-muted-foreground">Status: {pushStatus}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Switch
+                        checked={pushEnabled}
+                        onCheckedChange={togglePush}
+                      />
+                      <Button size="sm" variant="outline" onClick={sendTestPush}>
+                        Testar
+                      </Button>
                     </div>
                   </div>
                   <div className="flex justify-end gap-2">
@@ -583,7 +750,7 @@ const PersonalSettings: React.FC = () => {
               <div>
                 <h3 className="font-medium">Aparência</h3>
                 <p className="text-sm text-muted-foreground">
-                  Tema e personalização da interface
+                  Tema e personalização visual
                 </p>
               </div>
             </div>
@@ -595,44 +762,41 @@ const PersonalSettings: React.FC = () => {
                 <DialogHeader>
                   <DialogTitle>Configurações de Aparência</DialogTitle>
                   <DialogDescription>
-                    Escolha o tema da interface
+                    Personalize a aparência da aplicação
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    <Button
-                      variant={currentTheme === 'light' ? 'default' : 'outline'}
-                      className="flex flex-col items-center gap-2 h-20"
-                      onClick={() => changeTheme('light')}
-                      disabled={isUpdatingTheme}
-                    >
-                      <Sun className="h-5 w-5" />
-                      <span className="text-xs">Claro</span>
-                    </Button>
-                    <Button
-                      variant={currentTheme === 'dark' ? 'default' : 'outline'}
-                      className="flex flex-col items-center gap-2 h-20"
-                      onClick={() => changeTheme('dark')}
-                      disabled={isUpdatingTheme}
-                    >
-                      <Moon className="h-5 w-5" />
-                      <span className="text-xs">Escuro</span>
-                    </Button>
-                    <Button
-                      variant={currentTheme === 'system' ? 'default' : 'outline'}
-                      className="flex flex-col items-center gap-2 h-20"
-                      onClick={() => changeTheme('system')}
-                      disabled={isUpdatingTheme}
-                    >
-                      <Settings className="h-5 w-5" />
-                      <span className="text-xs">Sistema</span>
-                    </Button>
-                  </div>
-                  <div className="p-4 bg-muted rounded-lg">
-                    <h4 className="font-medium mb-2">Tema Atual: {currentTheme === 'system' ? 'Sistema' : currentTheme === 'dark' ? 'Escuro' : 'Claro'}</h4>
-                    <p className="text-sm text-muted-foreground">
-                      O tema será aplicado imediatamente à interface.
-                    </p>
+                  <div>
+                    <Label>Tema</Label>
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      <Button
+                        variant={currentTheme === 'light' ? 'default' : 'outline'}
+                        onClick={() => changeTheme('light')}
+                        className="flex items-center gap-2"
+                        disabled={isUpdatingTheme}
+                      >
+                        <Sun className="h-4 w-4" />
+                        Claro
+                      </Button>
+                      <Button
+                        variant={currentTheme === 'dark' ? 'default' : 'outline'}
+                        onClick={() => changeTheme('dark')}
+                        className="flex items-center gap-2"
+                        disabled={isUpdatingTheme}
+                      >
+                        <Moon className="h-4 w-4" />
+                        Escuro
+                      </Button>
+                      <Button
+                        variant={currentTheme === 'system' ? 'default' : 'outline'}
+                        onClick={() => changeTheme('system')}
+                        className="flex items-center gap-2"
+                        disabled={isUpdatingTheme}
+                      >
+                        <Settings className="h-4 w-4" />
+                        Sistema
+                      </Button>
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setIsAppearanceOpen(false)}>
@@ -754,4 +918,4 @@ const ProfileAuditList: React.FC<{ profileRowId: string }> = ({ profileRowId }) 
       })}
     </div>
   );
-}; 
+};

@@ -24,9 +24,27 @@ export const GoalFundingSection = ({ goalId }: Props) => {
   const [percentBp, setPercentBp] = useState('');
   const [fixedCents, setFixedCents] = useState('');
   const [dayOfMonth, setDayOfMonth] = useState('1');
-  const [categoryId, setCategoryId] = useState('');
+  // Usar um valor sentinela não-vazio para representar "todas" as categorias, evitando erro do Radix Select
+  const [categoryId, setCategoryId] = useState<string>('all');
   const [minCents, setMinCents] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Formatação segura de datas que respeita o locale do utilizador e força relógio 24h
+  const formatDateTime = (value?: string | Date | null) => {
+    if (!value) return '';
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    try {
+      const locale = (typeof navigator !== 'undefined' && navigator.language) ? navigator.language : 'pt-PT';
+      return d.toLocaleString(locale, { hour12: false });
+    } catch {
+      try {
+        return d.toLocaleString('pt-PT', { hour12: false });
+      } catch {
+        return '';
+      }
+    }
+  };
 
   const previewIncome = useMemo(() => {
     // 2.000€ => 200000 cents
@@ -61,7 +79,8 @@ export const GoalFundingSection = ({ goalId }: Props) => {
         payload.fixed_cents = Number(fixedCents) || 0;
         payload.day_of_month = Number(dayOfMonth) || 1;
       }
-      if (categoryId) payload.category_id = categoryId;
+      // Só enviar category_id quando uma categoria específica for selecionada
+      if (categoryId && categoryId !== 'all') payload.category_id = categoryId;
       if (minCents) payload.min_amount_cents = Number(minCents) || null;
       const { error } = await createRule.mutateAsync(payload);
       if (error) throw error;
@@ -125,7 +144,7 @@ export const GoalFundingSection = ({ goalId }: Props) => {
               <Select value={categoryId} onValueChange={setCategoryId}>
                 <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas</SelectItem>
+                  <SelectItem value="all">Todas</SelectItem>
                   {(Array.isArray(categories) ? categories : []).map(c=> (
                     <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                   ))}
@@ -160,7 +179,7 @@ export const GoalFundingSection = ({ goalId }: Props) => {
               <Select value={categoryId} onValueChange={setCategoryId}>
                 <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas</SelectItem>
+                  <SelectItem value="all">Todas</SelectItem>
                   {(Array.isArray(categories) ? categories : []).map(c=> (
                     <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                   ))}
@@ -204,7 +223,7 @@ export const GoalFundingSection = ({ goalId }: Props) => {
               <div key={c.id} className="text-sm border rounded p-2 flex items-center justify-between">
                 <div>
                   <div><b>Origem:</b> {c.description || c.source_type}</div>
-                  <div className="text-muted-foreground">{new Date(c.created_at).toLocaleString('pt-PT')}</div>
+                  <div className="text-muted-foreground">{formatDateTime(c?.created_at)}</div>
                 </div>
                 <div className="font-medium">{(c.amount_cents/100).toFixed(2)}€</div>
               </div>
@@ -214,4 +233,4 @@ export const GoalFundingSection = ({ goalId }: Props) => {
       </CardContent>
     </Card>
   );
-}; 
+};

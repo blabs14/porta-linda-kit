@@ -9,6 +9,7 @@ import { MainLayout } from './components/layout/MainLayout';
 import { LoadingSpinner } from './components/ui/loading-states';
 import { Toaster } from './components/ui/toaster';
 import { GlobalShortcuts } from './components/GlobalShortcuts';
+import { LocaleProvider } from './contexts/LocaleProvider';
 
 // Lazy loading de páginas
 import {
@@ -42,47 +43,49 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Router>
-          <GlobalShortcuts />
-          <Routes>
-            {/* Páginas públicas */}
-            <Route path="/" element={<Index />} />
-            <Route path="/test" element={<TestPage />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            
-            {/* Páginas protegidas com lazy loading */}
-            <Route path="/app" element={<RequireAuth><MainLayout /></RequireAuth>}>
-              <Route index element={
-                <Suspense fallback={<PageLoading />}>
-                  <Dashboard />
-                </Suspense>
-              } />
-              <Route path="reports" element={
-                <Suspense fallback={<PageLoading />}>
-                  <ReportsPage />
-                </Suspense>
-              } />
+        <LocaleProvider>
+          <Router>
+            <GlobalShortcuts />
+            <Routes>
+              {/* Páginas públicas */}
+              <Route path="/" element={<Index />} />
+              <Route path="/test" element={<TestPage />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              
+              {/* Páginas protegidas com lazy loading */}
+              <Route path="/app" element={<RequireAuth><MainLayout /></RequireAuth>}>
+                <Route index element={
+                  <Suspense fallback={<PageLoading />}>
+                    <Dashboard />
+                  </Suspense>
+                } />
+                <Route path="reports" element={
+                  <Suspense fallback={<PageLoading />}>
+                    <ReportsPage />
+                  </Suspense>
+                } />
 
 
-              <Route path="profile" element={
-                <Suspense fallback={<PageLoading />}>
-                  <ProfilePage />
-                </Suspense>
-              } />
-            </Route>
-            
-            {/* Área Pessoal */}
-            <Route path="/personal/*" element={<RequireAuth><PersonalPage /></RequireAuth>} />
-            
-            {/* Finanças Partilhadas */}
-            <Route path="/family/*" element={<RequireAuth><FamilyPage /></RequireAuth>} />
-            
-            {/* Página 404 */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Router>
+                <Route path="profile" element={
+                  <Suspense fallback={<PageLoading />}>
+                    <ProfilePage />
+                  </Suspense>
+                } />
+              </Route>
+              
+              {/* Área Pessoal */}
+              <Route path="/personal/*" element={<RequireAuth><PersonalPage /></RequireAuth>} />
+              
+              {/* Finanças Partilhadas */}
+              <Route path="/family/*" element={<RequireAuth><FamilyPage /></RequireAuth>} />
+              
+              {/* Página 404 */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Router>
+        </LocaleProvider>
       </AuthProvider>
       <Toaster />
       {/* <ReactQueryDevtools initialIsOpen={false} /> */}
