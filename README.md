@@ -114,7 +114,51 @@ Nunca commits o ficheiro `.env.local`!
 - `npm run dev` — Iniciar ambiente de desenvolvimento
 - `npm run build` — Build de produção
 - `npm run lint` — Linting do código
-- `npm run test` — Testes (quando disponíveis)
+- `npm run test` — Executar todos os testes
+- `npm run test:unit` — Executar apenas testes unitários
+- `npm run test:integration` — Executar apenas testes de integração
+- `npm run test:e2e` — Executar testes E2E com Cypress
+- `npm run test:coverage` — Executar testes com relatório de cobertura
+- `npm run test:watch` — Executar testes em modo watch
+- `npm run test:ui` — Interface visual para testes (Vitest UI)
+
+---
+
+## 🧪 Testes
+
+O projeto utiliza uma estrutura de testes organizada e abrangente:
+
+### Estrutura de Testes
+- `tests/unit/` — Testes unitários (hooks, serviços, componentes)
+- `tests/integration/` — Testes de integração com Supabase
+- `tests/e2e/` — Testes end-to-end com Cypress
+- `tests/manual/` — Scripts de teste manual e depuração
+- `tests/config/` — Configurações e utilitários de teste
+
+### Ferramentas Utilizadas
+- **Vitest** — Framework de testes unitários e de integração
+- **React Testing Library** — Testes de componentes React
+- **Cypress** — Testes end-to-end
+- **Jest DOM** — Matchers adicionais para testes DOM
+
+### Executar Testes
+```sh
+# Todos os testes
+npm run test
+
+# Testes específicos
+npm run test:unit
+npm run test:integration
+npm run test:e2e
+
+# Com interface visual
+npm run test:ui
+
+# Com cobertura
+npm run test:coverage
+```
+
+Para mais detalhes, consulte [tests/README.md](./tests/README.md).
 
 ---
 

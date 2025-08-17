@@ -21,11 +21,11 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  INSERT INTO public.profiles (id, username, full_name)
+  INSERT INTO public.profiles (id, nome, user_id)
   VALUES (
     NEW.id,
-    COALESCE(split_part(NEW.email, '@', 1), ''),
-    COALESCE(NEW.raw_user_meta_data->>'full_name', '')
+    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+    NEW.id
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
@@ -37,4 +37,4 @@ AFTER INSERT ON auth.users
 FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
 
 REVOKE ALL ON FUNCTION public.handle_new_auth_user() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.handle_new_auth_user() TO service_role; 
+GRANT EXECUTE ON FUNCTION public.handle_new_auth_user() TO service_role;

@@ -9,8 +9,8 @@
   - `.github/workflows/deploy.yml` — Deploy GitHub Pages (build + 404 fallback)
 
 - Scripts úteis:
-  - `scripts/prebuild-check.js` — valida envs obrigatórias do build
-  - `scripts/validate-base-path.js` — valida `VITE_BASE_PATH` (/, /<repo>/)
+  - `scripts/prebuild-check.cjs` — valida envs obrigatórias do build
+  - `scripts/validate-base-path.cjs` — valida `VITE_BASE_PATH` (/, /<repo>/)
 
 - Variáveis de ambiente (Secrets GitHub):
   - `VITE_SUPABASE_URL`
@@ -34,4 +34,4 @@ npm run db:lint -s
 npm run db:migrations -s
 npm run test:run -s
 npm run build -s
-``` 
+```
