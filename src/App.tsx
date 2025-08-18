@@ -10,6 +10,7 @@ import { LoadingSpinner } from './components/ui/loading-states';
 import { Toaster } from './components/ui/toaster';
 import { GlobalShortcuts } from './components/GlobalShortcuts';
 import { LocaleProvider } from './contexts/LocaleProvider';
+import { Navigate } from 'react-router-dom';
 
 // Lazy loading de páginas
 import {
@@ -23,6 +24,9 @@ import FamilyPage from './pages/Family';
 
 // Página de Relatórios (lazy)
 const ReportsPage = lazy(() => import('./pages/reports'));
+
+// Página de Fluxo de Caixa (lazy)
+const CashflowPage = lazy(() => import('./pages/cashflow'));
 
 // Páginas de autenticação (não lazy loading para melhor UX)
 import Index from './pages/Index';
@@ -53,6 +57,8 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              {/* Redirecionamento legacy/alias */}
+              <Route path="/cashflow" element={<Navigate to="/app/cashflow" replace />} />
               
               {/* Páginas protegidas com lazy loading */}
               <Route path="/app" element={<RequireAuth><MainLayout /></RequireAuth>}>
@@ -64,6 +70,11 @@ function App() {
                 <Route path="reports" element={
                   <Suspense fallback={<PageLoading />}>
                     <ReportsPage />
+                  </Suspense>
+                } />
+                <Route path="cashflow" element={
+                  <Suspense fallback={<PageLoading />}>
+                    <CashflowPage />
                   </Suspense>
                 } />
 

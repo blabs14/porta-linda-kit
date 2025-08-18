@@ -7,7 +7,8 @@ import {
   ChevronRight,
   User,
   Lightbulb,
-  BarChart3
+  BarChart3,
+  Calendar
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/useProfilesQuery';
@@ -28,6 +29,12 @@ const navigationItems = [
     href: '/app/reports',
     icon: BarChart3,
     description: 'Relatórios e análises'
+  },
+  {
+    title: 'Calendário de Fluxos',
+    href: '/app/cashflow',
+    icon: Calendar,
+    description: 'Previsões e fluxos de caixa'
   },
                 {
                 title: 'Área Pessoal',

@@ -1,6 +1,8 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
-  Home
+  Home,
+  Calendar,
+  BarChart3
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -10,9 +12,16 @@ const tabItems = [
     href: '/app',
     icon: Home
   },
-
-
-
+  {
+    title: 'Relatórios',
+    href: '/app/reports',
+    icon: BarChart3
+  },
+  {
+    title: 'Fluxos',
+    href: '/app/cashflow',
+    icon: Calendar
+  }
 ];
 
 export function BottomTabBar() {
