@@ -1,4 +1,7 @@
 import { supabase } from '../lib/supabaseClient';
+import { CashflowEvent, DailyCashflowSummary } from '../types/cashflow';
+import { format } from 'date-fns';
+import { pt } from 'date-fns/locale';
 
 export interface ExportData {
   transactions: any[];
@@ -17,6 +20,15 @@ export interface ExportOptions {
     end: string;
   };
   includeCharts?: boolean;
+}
+
+export interface CashflowExportOptions {
+  format: 'csv' | 'ics';
+  filename?: string;
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
 }
 
 interface CategoryStats {
@@ -301,4 +313,193 @@ export const exportReport = async (
   }
   
   return { blob, filename };
-}; 
+};
+
+// ===== FUNCIONALIDADES DE EXPORTAÇÃO DO CALENDÁRIO DE FLUXOS =====
+
+/**
+ * Converte eventos de fluxo de caixa para formato CSV
+ */
+export function exportCashflowToCsv(events: CashflowEvent[], summaries: DailyCashflowSummary[]): string {
+  const headers = [
+    'Data',
+    'Tipo',
+    'Descrição',
+    'Categoria',
+    'Valor',
+    'Moeda',
+    'Conta',
+    'Escopo',
+    'Saldo Diário',
+    'Receitas Diárias',
+    'Despesas Diárias'
+  ];
+
+  const rows = events.map(event => {
+    const eventDate = format(new Date(event.date), 'dd/MM/yyyy', { locale: pt });
+    const summary = summaries.find(s => s.date === event.date);
+    
+    return [
+      eventDate,
+      getCashflowEventTypeLabel(event.type),
+      event.description,
+      event.category || '',
+      (event.amount_cents / 100).toFixed(2),
+      event.currency,
+      event.account_name || '',
+      event.scope === 'personal' ? 'Pessoal' : 'Família',
+      summary ? (summary.net_balance_cents / 100).toFixed(2) : '0.00',
+      summary ? (summary.total_income_cents / 100).toFixed(2) : '0.00',
+      summary ? (summary.total_expenses_cents / 100).toFixed(2) : '0.00'
+    ];
+  });
+
+  const csvContent = [headers, ...rows]
+    .map(row => row.map(field => `"${field}"`).join(','))
+    .join('\n');
+
+  return csvContent;
+}
+
+/**
+ * Converte eventos de fluxo de caixa para formato ICS (iCalendar)
+ */
+export function exportCashflowToIcs(events: CashflowEvent[]): string {
+  const now = new Date();
+  const timestamp = format(now, "yyyyMMdd'T'HHmmss'Z'");
+  
+  let icsContent = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//FinanceApp//Cashflow Calendar//PT',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'X-WR-CALNAME:Fluxo de Caixa',
+    'X-WR-CALDESC:Calendário de previsões financeiras'
+  ].join('\r\n');
+
+  events.forEach((event, index) => {
+    const eventDate = format(new Date(event.date), 'yyyyMMdd');
+    const uid = `cashflow-${event.id || index}-${timestamp}@financeapp.local`;
+    const summary = `${getCashflowEventTypeLabel(event.type)}: ${event.description}`;
+    const description = [
+      `Tipo: ${getCashflowEventTypeLabel(event.type)}`,
+      `Valor: ${(event.amount_cents / 100).toFixed(2)} ${event.currency}`,
+      event.category ? `Categoria: ${event.category}` : '',
+      event.account_name ? `Conta: ${event.account_name}` : '',
+      `Escopo: ${event.scope === 'personal' ? 'Pessoal' : 'Família'}`
+    ].filter(Boolean).join('\\n');
+
+    icsContent += '\r\n' + [
+      'BEGIN:VEVENT',
+      `UID:${uid}`,
+      `DTSTAMP:${timestamp}`,
+      `DTSTART;VALUE=DATE:${eventDate}`,
+      `SUMMARY:${summary}`,
+      `DESCRIPTION:${description}`,
+      `CATEGORIES:${event.type.includes('income') || event.amount_cents > 0 ? 'RECEITA' : 'DESPESA'}`,
+      'STATUS:TENTATIVE',
+      'TRANSP:TRANSPARENT',
+      'END:VEVENT'
+    ].join('\r\n');
+  });
+
+  icsContent += '\r\nEND:VCALENDAR';
+  return icsContent;
+}
+
+/**
+ * Faz download de um arquivo
+ */
+export function downloadFile(content: string, filename: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.style.display = 'none';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Exporta eventos de fluxo de caixa
+ */
+export function exportCashflowData(
+  events: CashflowEvent[],
+  summaries: DailyCashflowSummary[],
+  options: CashflowExportOptions
+): void {
+  const timestamp = format(new Date(), 'yyyy-MM-dd_HH-mm-ss');
+  const baseFilename = options.filename || `fluxo-caixa_${timestamp}`;
+  
+  let content: string;
+  let filename: string;
+  let mimeType: string;
+  
+  if (options.format === 'csv') {
+    content = exportCashflowToCsv(events, summaries);
+    filename = `${baseFilename}.csv`;
+    mimeType = 'text/csv;charset=utf-8';
+  } else if (options.format === 'ics') {
+    content = exportCashflowToIcs(events);
+    filename = `${baseFilename}.ics`;
+    mimeType = 'text/calendar;charset=utf-8';
+  } else {
+    throw new Error(`Formato de exportação não suportado: ${options.format}`);
+  }
+  
+  downloadFile(content, filename, mimeType);
+}
+
+/**
+ * Obtém o rótulo legível para um tipo de evento de fluxo de caixa
+ */
+function getCashflowEventTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    'recurring_income': 'Receita Recorrente',
+    'recurring_expense': 'Despesa Recorrente',
+    'subscription': 'Subscrição',
+    'goal_funding': 'Funding de Objetivo',
+    'credit_card_payment': 'Pagamento Cartão',
+    'credit_card_due': 'Vencimento Cartão',
+    'scheduled_transaction': 'Transação Agendada',
+    'income': 'Receita',
+    'expense': 'Despesa'
+  };
+  
+  return labels[type] || type;
+}
+
+/**
+ * Filtra eventos por intervalo de datas
+ */
+export function filterCashflowEventsByDateRange(
+  events: CashflowEvent[],
+  startDate: Date,
+  endDate: Date
+): CashflowEvent[] {
+  return events.filter(event => {
+    const eventDate = new Date(event.date);
+    return eventDate >= startDate && eventDate <= endDate;
+  });
+}
+
+/**
+ * Filtra resumos por intervalo de datas
+ */
+export function filterCashflowSummariesByDateRange(
+  summaries: DailyCashflowSummary[],
+  startDate: Date,
+  endDate: Date
+): DailyCashflowSummary[] {
+  return summaries.filter(summary => {
+    const summaryDate = new Date(summary.date);
+    return summaryDate >= startDate && summaryDate <= endDate;
+  });
+}

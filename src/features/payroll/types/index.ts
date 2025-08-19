@@ -1,0 +1,281 @@
+// Tipos para o módulo de folha de pagamento
+// Baseado nas tabelas criadas na migração payroll_migration_studio.sql
+
+export interface PayrollContract {
+  id: string;
+  user_id: string;
+  family_id?: string;
+  name: string;
+  base_salary_cents: number;
+  currency: string;
+  schedule_json: Record<string, any>;
+  meal_allowance_cents_per_day: number;
+  meal_on_worked_days: boolean;
+  vacation_bonus_mode: string;
+  christmas_bonus_mode: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollOTPolicy {
+  id: string;
+  user_id: string;
+  name: string;
+  threshold_hours: number;
+  multiplier: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollHoliday {
+  id: string;
+  user_id: string;
+  name: string;
+  date: string;
+  holiday_type: string;
+  is_paid: boolean;
+  affects_overtime: boolean;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollTimeEntry {
+  id: string;
+  user_id: string;
+  contract_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  break_minutes: number;
+  description?: string;
+  is_overtime: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollMileagePolicy {
+  id: string;
+  user_id: string;
+  name: string;
+  rate_per_km_cents: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollMileageTrip {
+  id: string;
+  user_id: string;
+  policy_id: string;
+  date: string;
+  origin: string;
+  destination: string;
+  distance_km: number;
+  purpose: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollPeriod {
+  id: string;
+  user_id: string;
+  contract_id: string;
+  year: number;
+  month: number;
+  start_date: string;
+  end_date: string;
+  status: 'draft' | 'calculated' | 'approved' | 'paid';
+  total_hours: number;
+  overtime_hours: number;
+  total_amount_cents: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollItem {
+  id: string;
+  user_id: string;
+  period_id: string;
+  type: 'salary' | 'overtime' | 'bonus' | 'mileage' | 'deduction';
+  description: string;
+  amount_cents: number;
+  quantity?: number;
+  rate_cents?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollPayslip {
+  id: string;
+  user_id: string;
+  period_id: string;
+  employee_name: string;
+  period_start: string;
+  period_end: string;
+  gross_pay_cents: number;
+  deductions_cents: number;
+  net_pay_cents: number;
+  generated_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Tipos para cálculos
+export interface TimeSegment {
+  start: Date;
+  end: Date;
+  isOvertime: boolean;
+  hours: number;
+}
+
+export interface PlannedSchedule {
+  date: string;
+  plannedHours: number;
+  isHoliday: boolean;
+  holidayName?: string;
+}
+
+export interface PayrollCalculation {
+  regularHours: number;
+  overtimeHours: number;
+  regularPay: number;
+  overtimePay: number;
+  mileageReimbursement: number;
+  bonuses: number;
+  grossPay: number;
+  deductions: number;
+  netPay: number;
+}
+
+// Tipos para UI
+export interface TimesheetEntry {
+  date: string;
+  startTime: string;
+  endTime: string;
+  breakMinutes: number;
+  notes: string;
+  isHoliday: boolean;
+  isSick: boolean;
+  isException?: boolean;
+}
+
+export interface WeeklyTimesheet {
+  weekStart: string;
+  weekEnd: string;
+  entries: TimesheetEntry[];
+  totalHours: number;
+  overtimeHours: number;
+}
+
+export interface MileageEntry {
+  date: string;
+  origin: string;
+  destination: string;
+  distance: number;
+  purpose: string;
+  rate: number;
+  amount: number;
+}
+
+// Enums
+export enum PayrollItemType {
+  SALARY = 'salary',
+  OVERTIME = 'overtime',
+  BONUS = 'bonus',
+  MILEAGE = 'mileage',
+  DEDUCTION = 'deduction'
+}
+
+export enum PayrollPeriodStatus {
+  DRAFT = 'draft',
+  CALCULATED = 'calculated',
+  APPROVED = 'approved',
+  PAID = 'paid'
+}
+
+// Tipos para formulários
+export interface ContractFormData {
+  name: string;
+  base_salary_cents: number;
+  schedule_json: Record<string, any>;
+  meal_allowance_cents_per_day: number;
+  meal_on_worked_days: boolean;
+  vacation_bonus_mode: string;
+  christmas_bonus_mode: string;
+  is_active: boolean;
+}
+
+export interface OTPolicyFormData {
+  name: string;
+  threshold_hours: number;
+  multiplier: number;
+}
+
+export interface PayrollHolidayFormData {
+  name: string;
+  date: string;
+  holiday_type: string;
+  is_paid: boolean;
+  affects_overtime: boolean;
+  description?: string;
+}
+
+export interface HolidayFormData {
+  name: string;
+  date: string;
+  is_paid: boolean;
+}
+
+export interface MileagePolicyFormData {
+  name: string;
+  rate_per_km: number; // em euros, será convertido para cents
+}
+
+export interface PayrollContractFormData {
+  name: string;
+  base_salary_cents: number;
+  schedule_json: Record<string, any>;
+  meal_allowance_cents_per_day: number;
+  meal_on_worked_days: boolean;
+  vacation_bonus_mode: string;
+  christmas_bonus_mode: string;
+  is_active: boolean;
+}
+
+// Interfaces para o sistema de férias
+export interface PayrollVacation {
+  id: string;
+  user_id: string;
+  family_id?: string;
+  start_date: string;
+  end_date: string;
+  days_count: number;
+  year: number;
+  description?: string;
+  is_approved: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollVacationFormData {
+  start_date: string;
+  end_date: string;
+  description?: string;
+}
+
+// Interface para configuração de subsídio de alimentação
+export interface PayrollMealAllowanceConfig {
+  id: string;
+  user_id: string;
+  family_id?: string;
+  excluded_months: number[]; // Array de meses (1-12) onde não há pagamento
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollMealAllowanceConfigFormData {
+  excluded_months: number[];
+}

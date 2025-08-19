@@ -22,7 +22,8 @@ import {
   CreditCard,
   PiggyBank,
   TrendingDown,
-  Calendar
+  Calendar,
+  Clock
 } from 'lucide-react';
 import { useMediaQuery } from '../hooks/use-mobile';
 import { useAuth } from '../contexts/AuthContext';
@@ -37,6 +38,7 @@ const PersonalInsights = React.lazy(() => import('../features/personal/PersonalI
 const PersonalSettings = React.lazy(() => import('../features/personal/PersonalSettings'));
 const PersonalReminders = React.lazy(() => import('../features/personal/PersonalReminders'));
 const RecurrentsPage = React.lazy(() => import('./recurrents'));
+const PayrollModule = React.lazy(() => import('../features/payroll/components/PayrollModule'));
 
 // Componente de loading
 const PageLoading = () => (
@@ -74,6 +76,7 @@ const MobileNavigation: React.FC = () => {
     { value: '/personal/transactions', label: 'Transações', icon: TrendingUp },
     { value: '/personal/goals', label: 'Objetivos', icon: Target },
     { value: '/personal/budgets', label: 'Orçamentos', icon: BarChart3 },
+    { value: '/personal/payroll', label: 'Folha Pagamento', icon: Clock },
     { value: '/personal/insights', label: 'Insights', icon: Lightbulb },
     { value: '/personal/recorrentes', label: 'Recorrentes', icon: Calendar },
     { value: '/personal/importar', label: 'Importar', icon: Plus },
@@ -150,6 +153,7 @@ const DesktopNavigation: React.FC = () => {
     { path: '/personal/transactions', label: 'Transações', icon: TrendingUp, description: 'Histórico de transações' },
     { path: '/personal/goals', label: 'Objetivos', icon: Target, description: 'Metas financeiras pessoais' },
     { path: '/personal/budgets', label: 'Orçamentos', icon: BarChart3, description: 'Orçamentos mensais' },
+    { path: '/personal/payroll', label: 'Folha Pagamento', icon: Clock, description: 'Gestão de horários e salários' },
     { path: '/personal/insights', label: 'Insights', icon: Lightbulb, description: 'Análises e dicas' },
     { path: '/personal/recorrentes', label: 'Recorrentes', icon: Calendar, description: 'Despesas recorrentes e subscrições' },
     { path: '/personal/importar', label: 'Importar', icon: Plus, description: 'CSV/Recibos' },
@@ -595,6 +599,7 @@ const PersonalArea: React.FC = () => {
               <Route path="goals/*" element={<PersonalGoals />} />
               <Route path="budgets/*" element={<PersonalBudgets />} />
               <Route path="transactions/*" element={<PersonalTransactions />} />
+              <Route path="payroll/*" element={<PayrollModule />} />
               <Route path="recorrentes" element={<RecurrentsPage />} />
               <Route path="importar" element={
                 <Suspense fallback={<PageLoading />}>
@@ -621,4 +626,4 @@ const PersonalPage: React.FC = () => {
   );
 };
 
-export default PersonalPage; 
+export default PersonalPage;

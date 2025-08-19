@@ -28,6 +28,8 @@ const ReportsPage = lazy(() => import('./pages/reports'));
 // Página de Fluxo de Caixa (lazy)
 const CashflowPage = lazy(() => import('./pages/cashflow'));
 
+
+
 // Páginas de autenticação (não lazy loading para melhor UX)
 import Index from './pages/Index';
 import Login from './pages/login';
@@ -77,7 +79,6 @@ function App() {
                     <CashflowPage />
                   </Suspense>
                 } />
-
 
                 <Route path="profile" element={
                   <Suspense fallback={<PageLoading />}>

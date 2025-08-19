@@ -50,8 +50,8 @@ export const GoalFundingSection = ({ goalId }: Props) => {
     // 2.000€ => 200000 cents
     const cents = 200000;
     if (type === 'income_percent') {
-      const bp = Number(percentBp) || 0;
-      return Math.floor((cents * bp) / 10000);
+      const percentage = Number(percentBp) || 0;
+      return Math.floor((cents * percentage) / 100);
     }
     return 0;
   }, [type, percentBp]);
@@ -74,7 +74,7 @@ export const GoalFundingSection = ({ goalId }: Props) => {
         enabled,
         currency: 'EUR'
       };
-      if (type === 'income_percent') payload.percent_bp = Number(percentBp) || 0;
+      if (type === 'income_percent') payload.percent_bp = (Number(percentBp) || 0) * 100;
       if (type === 'fixed_monthly') {
         payload.fixed_cents = Number(fixedCents) || 0;
         payload.day_of_month = Number(dayOfMonth) || 1;
@@ -136,8 +136,8 @@ export const GoalFundingSection = ({ goalId }: Props) => {
         {type === 'income_percent' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label>Percentagem (basis points)</Label>
-              <Input value={percentBp} onChange={(e)=>setPercentBp(e.target.value.replace(/[^\d]/g,''))} placeholder="ex.: 1000 = 10%" />
+              <Label>Percentagem (%)</Label>
+              <Input value={percentBp} onChange={(e)=>setPercentBp(e.target.value.replace(/[^\d]/g,''))} placeholder="ex.: 10" />
             </div>
             <div>
               <Label>Categoria (opcional)</Label>
@@ -205,7 +205,7 @@ export const GoalFundingSection = ({ goalId }: Props) => {
               <div key={r.id} className="flex items-center justify-between border rounded p-2">
                 <div className="text-sm">
                   <div><b>Tipo:</b> {r.type} {r.enabled ? '' : '(paused)'}</div>
-                  <div><b>Config:</b> {r.type==='income_percent' ? `${r.percent_bp} bp` : r.type==='fixed_monthly' ? `${(r.fixed_cents||0)/100}€ dia ${r.day_of_month}` : 'round-up'}</div>
+                  <div><b>Config:</b> {r.type==='income_percent' ? `${(r.percent_bp/100).toFixed(1)}%` : r.type==='fixed_monthly' ? `${(r.fixed_cents||0)/100}€ dia ${r.day_of_month}` : 'round-up'}</div>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={()=>updateRule.mutate({ id: r.id, updates: { enabled: !r.enabled }})}>{r.enabled ? 'Pausar' : 'Ativar'}</Button>

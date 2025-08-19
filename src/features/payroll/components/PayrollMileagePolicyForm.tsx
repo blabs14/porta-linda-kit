@@ -1,0 +1,303 @@
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, Save, X, Car, Euro } from 'lucide-react';
+import { PayrollMileagePolicy } from '../types';
+import { payrollService } from '../services/payrollService';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { formatCurrency, centsToEuros, eurosToCents } from '../lib/calc';
+
+interface PayrollMileagePolicyFormProps {
+  policy?: PayrollMileagePolicy;
+  onSave: (policy: PayrollMileagePolicy) => void;
+  onCancel: () => void;
+}
+
+export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMileagePolicyFormProps) {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    rate_per_km_cents: 0,
+    max_km_per_month: null as number | null,
+    requires_receipt: false,
+    is_active: true,
+    notes: ''
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (policy) {
+      setFormData({
+        name: policy.name,
+        rate_per_km_cents: policy.rate_per_km_cents,
+        max_km_per_month: policy.max_km_per_month,
+        requires_receipt: policy.requires_receipt,
+        is_active: policy.is_active,
+        notes: policy.notes || ''
+      });
+    }
+  }, [policy]);
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'Nome é obrigatório';
+    }
+
+    if (formData.rate_per_km_cents <= 0) {
+      newErrors.rate_per_km_cents = 'Taxa por KM deve ser maior que zero';
+    }
+
+    if (formData.max_km_per_month !== null && formData.max_km_per_month <= 0) {
+      newErrors.max_km_per_month = 'Limite mensal deve ser maior que zero';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm() || !user?.id) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const policyData = {
+        ...formData,
+        notes: formData.notes || null
+      };
+
+      let savedPolicy: PayrollMileagePolicy;
+      
+      if (policy) {
+        savedPolicy = await payrollService.updateMileagePolicy(policy.id, policyData);
+        toast({
+          title: 'Política Atualizada',
+          description: 'A política de quilometragem foi atualizada com sucesso.'
+        });
+      } else {
+        savedPolicy = await payrollService.createMileagePolicy(user.id, policyData);
+        toast({
+          title: 'Política Criada',
+          description: 'A política de quilometragem foi criada com sucesso.'
+        });
+      }
+
+      onSave(savedPolicy);
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Erro ao salvar política de quilometragem.',
+        variant: 'destructive'
+      });
+      console.error('Error saving mileage policy:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRateChange = (value: string) => {
+    const euros = parseFloat(value) || 0;
+    setFormData(prev => ({
+      ...prev,
+      rate_per_km_cents: eurosToCents(euros)
+    }));
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Car className="h-5 w-5" />
+            Informações Básicas
+          </CardTitle>
+          <CardDescription>
+            Configure os detalhes da política de quilometragem.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="name">Nome da Política *</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Ex: Política Padrão de KM"
+                className={errors.name ? 'border-red-500' : ''}
+              />
+              {errors.name && (
+                <p className="text-sm text-red-500 mt-1">{errors.name}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="rate_per_km">Taxa por KM (€) *</Label>
+              <div className="relative">
+                <Euro className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="rate_per_km"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={centsToEuros(formData.rate_per_km_cents).toFixed(2)}
+                  onChange={(e) => handleRateChange(e.target.value)}
+                  placeholder="0.36"
+                  className={`pl-10 ${errors.rate_per_km_cents ? 'border-red-500' : ''}`}
+                />
+              </div>
+              {errors.rate_per_km_cents && (
+                <p className="text-sm text-red-500 mt-1">{errors.rate_per_km_cents}</p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Taxa padrão em Portugal: €0.36/km (2024)
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="max_km_per_month">Limite Mensal de KM</Label>
+              <Input
+                id="max_km_per_month"
+                type="number"
+                min="0"
+                value={formData.max_km_per_month || ''}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  max_km_per_month: e.target.value ? parseInt(e.target.value) : null
+                }))}
+                placeholder="Ex: 2000"
+                className={errors.max_km_per_month ? 'border-red-500' : ''}
+              />
+              {errors.max_km_per_month && (
+                <p className="text-sm text-red-500 mt-1">{errors.max_km_per_month}</p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Deixe vazio para sem limite
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="requires_receipt"
+                  checked={formData.requires_receipt}
+                  onCheckedChange={(checked) => setFormData(prev => ({
+                    ...prev,
+                    requires_receipt: checked
+                  }))}
+                />
+                <Label htmlFor="requires_receipt">Requer Comprovativo</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="is_active"
+                  checked={formData.is_active}
+                  onCheckedChange={(checked) => setFormData(prev => ({
+                    ...prev,
+                    is_active: checked
+                  }))}
+                />
+                <Label htmlFor="is_active">Política Ativa</Label>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="notes">Notas</Label>
+            <Textarea
+              id="notes"
+              value={formData.notes}
+              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+              placeholder="Notas adicionais sobre a política..."
+              rows={3}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Exemplo de Cálculo */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Exemplo de Cálculo</CardTitle>
+          <CardDescription>
+            Veja como será calculado o reembolso com esta política.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+            <div className="flex justify-between">
+              <span>100 km × {formatCurrency(formData.rate_per_km_cents)}/km</span>
+              <span className="font-medium">
+                {formatCurrency(formData.rate_per_km_cents * 100)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>500 km × {formatCurrency(formData.rate_per_km_cents)}/km</span>
+              <span className="font-medium">
+                {formatCurrency(formData.rate_per_km_cents * 500)}
+              </span>
+            </div>
+            {formData.max_km_per_month && (
+              <div className="pt-2 border-t">
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Limite mensal: {formData.max_km_per_month} km</span>
+                  <span>
+                    Máximo: {formatCurrency(formData.rate_per_km_cents * formData.max_km_per_month)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Informações Legais */}
+      <Alert>
+        <Car className="h-4 w-4" />
+        <AlertDescription>
+          <div className="space-y-1">
+            <p className="font-medium">Informações Legais (Portugal 2024):</p>
+            <ul className="list-disc list-inside text-sm space-y-1">
+              <li>Taxa padrão: €0.36 por quilómetro</li>
+              <li>Isento de IRS até ao limite legal</li>
+              <li>Requer registo de viagens para fins fiscais</li>
+              <li>Aplicável apenas a deslocações em serviço</li>
+            </ul>
+          </div>
+        </AlertDescription>
+      </Alert>
+
+      {/* Ações */}
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          <X className="mr-2 h-4 w-4" />
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="mr-2 h-4 w-4" />
+          )}
+          {loading ? 'Salvando...' : (policy ? 'Atualizar' : 'Criar')} Política
+        </Button>
+      </div>
+    </form>
+  );
+}
