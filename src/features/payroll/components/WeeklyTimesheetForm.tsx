@@ -13,7 +13,8 @@ import { PayrollTimeEntry, PayrollContract, TimesheetEntry, WeeklyTimesheet } fr
 import { payrollService } from '../services/payrollService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { calculateHours, formatCurrency } from '../lib/calc';
+import { formatCurrency } from '@/lib/utils';
+import { calculateHours } from '../lib/calc';
 
 interface WeeklyTimesheetFormProps {
   weekStart: Date;

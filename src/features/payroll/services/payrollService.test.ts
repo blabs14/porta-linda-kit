@@ -98,7 +98,7 @@ describe('PayrollService Integration Tests', () => {
     date: '2024-01-15',
     origin: 'Home',
     destination: 'Office',
-    distance_km: 25,
+    km: 25,
     purpose: 'Work commute'
   };
 

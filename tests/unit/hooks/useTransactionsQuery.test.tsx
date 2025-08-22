@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 vi.mock('@/services/transactions');
 vi.mock('@/contexts/AuthContext');
 
-const mockTransactionService = vi.mocked(transactionService);
+const mockTransactionService = vi.mocked(transactionsService);
 const mockUseAuth = vi.mocked(useAuth);
 
 // Wrapper para QueryClient

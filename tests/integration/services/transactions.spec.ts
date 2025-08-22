@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import * as svc from './transactions';
+import * as svc from '@/services/transactions';
 
 // Mock do supabase
 vi.mock('../lib/supabaseClient', () => ({

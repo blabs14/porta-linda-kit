@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { Loader2, Settings, Users, Clock, Calendar, Plus, Edit, Trash2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { PayrollContract, PayrollOTPolicy, PayrollHoliday, PayrollVacation, PayrollMealAllowanceConfig as PayrollMealAllowanceConfigType } from '../types';
 import { payrollService } from '../services/payrollService';
@@ -15,12 +16,15 @@ import { PayrollVacationsManager } from './PayrollVacationsManager';
 import { PayrollMealAllowanceConfig } from './PayrollMealAllowanceConfig';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { formatCurrency, calculateHourlyRate } from '../lib/calc';
+import { useConfirmation } from '@/hooks/useConfirmation';
+import { formatCurrency } from '@/lib/utils';
+import { calculateHourlyRate } from '../lib/calc';
 
 export function PayrollSetupPage() {
-  const { toast } = useToast();
   const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+  const confirmation = useConfirmation();
+  const [loading, setLoading] = useState(true);
   const [contracts, setContracts] = useState<PayrollContract[]>([]);
   const [otPolicies, setOTPolicies] = useState<PayrollOTPolicy[]>([]);
   const [holidays, setHolidays] = useState<PayrollHoliday[]>([]);
@@ -78,27 +82,36 @@ export function PayrollSetupPage() {
     setEditingOTPolicy(null);
   };
 
-  const handleDeleteContract = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este contrato?')) return;
-
-    setLoading(true);
-    try {
-      await payrollService.deleteContract(id);
-      toast({
-        title: 'Contrato excluído',
-        description: 'O contrato foi excluído com sucesso.'
-      });
-      await loadData();
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Erro ao excluir contrato.',
-        variant: 'destructive'
-      });
-      console.error('Error deleting contract:', error);
-    } finally {
-      setLoading(false);
-    }
+  const handleDeleteContract = (contract: PayrollContract) => {
+    confirmation.confirm(
+      {
+        title: 'Eliminar Contrato',
+        message: `Tem a certeza que deseja eliminar o contrato "${contract.name}"? Esta ação não pode ser desfeita.`,
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+        variant: 'destructive',
+      },
+      async () => {
+        setLoading(true);
+        try {
+          await payrollService.deleteContract(contract.id);
+          toast({
+            title: 'Contrato eliminado',
+            description: 'O contrato foi eliminado com sucesso.'
+          });
+          await loadData();
+        } catch (error) {
+          toast({
+            title: 'Erro',
+            description: 'Erro ao eliminar contrato.',
+            variant: 'destructive'
+          });
+          console.error('Error deleting contract:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    );
   };
 
   const handleDeleteOTPolicy = async (id: string) => {
@@ -124,8 +137,8 @@ export function PayrollSetupPage() {
     }
   };
 
-  const openContractDialog = (contract?: PayrollContract) => {
-    setEditingContract(contract || null);
+  const openContractDialog = (contract: PayrollContract) => {
+    setEditingContract(contract);
     setContractDialogOpen(true);
   };
 
@@ -239,38 +252,30 @@ export function PayrollSetupPage() {
         <TabsContent value="contracts">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Contratos de Trabalho</CardTitle>
-                  <CardDescription>
-                    Gerencie os contratos dos funcionários, incluindo salários e horários de trabalho.
-                  </CardDescription>
-                </div>
-                <Dialog open={contractDialogOpen} onOpenChange={setContractDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button onClick={() => openContractDialog()}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Novo Contrato
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>
-                        {editingContract ? 'Editar Contrato' : 'Novo Contrato'}
-                      </DialogTitle>
-                      <DialogDescription>
-                        Configure os detalhes do contrato de trabalho.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <PayrollContractForm
-                      contract={editingContract || undefined}
-                      onSave={handleContractSave}
-                      onCancel={() => setContractDialogOpen(false)}
-                    />
-                  </DialogContent>
-                </Dialog>
+              <div>
+                <CardTitle>Contratos de Trabalho</CardTitle>
+                <CardDescription>
+                  Visualize e gerencie os contratos de trabalho dos funcionários.
+                </CardDescription>
               </div>
             </CardHeader>
+            <Dialog open={contractDialogOpen} onOpenChange={setContractDialogOpen}>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>
+                    Editar Contrato
+                  </DialogTitle>
+                  <DialogDescription>
+                    Configure os detalhes do contrato de trabalho.
+                  </DialogDescription>
+                </DialogHeader>
+                <PayrollContractForm
+                  contract={editingContract || undefined}
+                  onSave={handleContractSave}
+                  onCancel={() => setContractDialogOpen(false)}
+                />
+              </DialogContent>
+            </Dialog>
             <CardContent>
               {contracts.length === 0 ? (
                 <Alert>
@@ -294,11 +299,11 @@ export function PayrollSetupPage() {
                     {contracts.map((contract) => (
                       <TableRow key={contract.id}>
                         <TableCell className="font-medium">{contract.name}</TableCell>
-                        <TableCell>{formatCurrency(contract.base_salary_cents)}</TableCell>
+                        <TableCell>{formatCurrency(contract.base_salary_cents, 'pt-PT', contract.currency || 'EUR')}</TableCell>
                         <TableCell>
                           {(() => {
                             const hourlyRate = calculateHourlyRate(contract.base_salary_cents, contract.schedule_json || {});
-                            return hourlyRate > 0 ? formatCurrency(hourlyRate) : '-';
+                            return hourlyRate > 0 ? formatCurrency(hourlyRate, 'pt-PT', contract.currency || 'EUR') : '-';
                           })()}
                         </TableCell>
                         <TableCell>
@@ -318,7 +323,7 @@ export function PayrollSetupPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleDeleteContract(contract.id)}
+                              onClick={() => handleDeleteContract(contract)}
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
@@ -443,6 +448,19 @@ export function PayrollSetupPage() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={confirmation.isOpen}
+        onClose={confirmation.close}
+        onConfirm={confirmation.onConfirm}
+        onCancel={confirmation.onCancel}
+        title={confirmation.options.title}
+        message={confirmation.options.message}
+        confirmText={confirmation.options.confirmText}
+        cancelText={confirmation.options.cancelText}
+        variant={confirmation.options.variant}
+      />
     </div>
   );
 }

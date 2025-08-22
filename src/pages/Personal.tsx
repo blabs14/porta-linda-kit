@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useMediaQuery } from '../hooks/use-mobile';
 import { useAuth } from '../contexts/AuthContext';
+import { FamilyProvider } from '../features/family/FamilyProvider';
 
 // Componentes lazy loading
 const PersonalDashboard = React.lazy(() => import('../features/personal/PersonalDashboard'));
@@ -599,7 +600,7 @@ const PersonalArea: React.FC = () => {
               <Route path="goals/*" element={<PersonalGoals />} />
               <Route path="budgets/*" element={<PersonalBudgets />} />
               <Route path="transactions/*" element={<PersonalTransactions />} />
-              <Route path="payroll/*" element={<PayrollModule />} />
+              <Route path="payroll/*" element={<FamilyProvider><PayrollModule /></FamilyProvider>} />
               <Route path="recorrentes" element={<RecurrentsPage />} />
               <Route path="importar" element={
                 <Suspense fallback={<PageLoading />}>

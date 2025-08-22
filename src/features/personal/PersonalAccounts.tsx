@@ -5,7 +5,7 @@ import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Wallet, Plus, Edit, Trash2, ArrowRightLeft, Target, CreditCard, AlertTriangle } from 'lucide-react';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency } from '@/lib/utils';
 import { AccountWithBalances } from '../../integrations/supabase/types';
 import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
 import { Alert, AlertDescription } from '../../components/ui/alert';

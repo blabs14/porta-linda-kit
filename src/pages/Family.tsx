@@ -5,7 +5,7 @@ import { useFamily } from '../features/family/FamilyContext';
 import FamilyHeader from '../features/family/FamilyHeader';
 import FamilySidebar from '../features/family/FamilySidebar';
 import FamilyTabBar from '../features/family/FamilyTabBar';
-import { LoadingSpinner } from '../components/ui/loading-spinner';
+import { LoadingSpinner } from '../components/ui/loading-states';
 import { LoadingSpinner as LoadingSpinnerUI } from '../components/ui/loading-states';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';

@@ -19,6 +19,7 @@ import { useToast } from '../hooks/use-toast';
 import { notifySuccess, notifyError } from '../lib/notify';
 import { Trash2, Edit, Eye, ChevronLeft, ChevronRight, Search, Filter, Calendar, ChevronDown } from 'lucide-react';
 import { Badge } from './ui/badge';
+import { formatCurrency } from '../lib/utils';
 
 type TransactionItem = {
   id: string;
@@ -225,9 +226,7 @@ const TransactionList = ({
     }
   }, [filteredTransactions, onMetricsUpdate]);
 
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
-  };
+
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-PT');
@@ -628,7 +627,7 @@ const TransactionList = ({
                       }`}>
                         {transaction.tipo === 'transferencia' ? '' :
                           (transaction.tipo === 'receita' ? '+' : '-')
-                        }{formatCurrency(transaction.valor)}
+                        }{formatCurrency(transaction.valor, 'pt-PT', 'EUR')}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">

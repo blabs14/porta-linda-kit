@@ -169,7 +169,7 @@ export function calcMileage(
   ratePerKmCents: number
 ): number {
   return trips.reduce((total, trip) => {
-    return total + Math.round(trip.distance_km * ratePerKmCents);
+    return total + Math.round(trip.km * ratePerKmCents);
   }, 0);
 }
 
@@ -265,24 +265,7 @@ export function centsToEuros(cents: number): number {
   return cents / 100;
 }
 
-/**
- * Formata valor em centavos para string monetária
- * @param cents Valor em centavos
- * @param locale Localização (padrão: pt-PT)
- * @param currency Moeda (padrão: EUR)
- * @returns String formatada
- */
-export function formatCurrency(
-  cents: number, 
-  locale: string = 'pt-PT', 
-  currency: string = 'EUR'
-): string {
-  const euros = centsToEuros(cents);
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currency
-  }).format(euros);
-}
+
 
 /**
  * Calcula o número de horas entre duas datas/horas

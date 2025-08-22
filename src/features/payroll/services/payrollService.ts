@@ -54,13 +54,16 @@ export async function getActiveContract(userId: string): Promise<PayrollContract
 
 export async function createContract(
   userId: string,
-  contractData: ContractFormData
+  contractData: ContractFormData,
+  familyId?: string
 ): Promise<PayrollContract> {
   const insertData = {
     user_id: userId,
+    family_id: familyId || null,
     name: contractData.name,
     base_salary_cents: contractData.base_salary_cents,
-    currency: 'EUR',
+    currency: contractData.currency,
+    weekly_hours: contractData.weekly_hours,
     schedule_json: contractData.schedule_json,
     meal_allowance_cents_per_day: contractData.meal_allowance_cents_per_day,
     meal_on_worked_days: contractData.meal_on_worked_days,
@@ -83,6 +86,9 @@ export async function updateContract(
   id: string,
   contractData: Partial<ContractFormData>
 ): Promise<PayrollContract> {
+  console.log('🔍 DEBUG updateContract: ID:', id);
+  console.log('🔍 DEBUG updateContract: contractData:', contractData);
+  
   const { data, error } = await supabase
     .from('payroll_contracts')
     .update(contractData)
@@ -90,7 +96,15 @@ export async function updateContract(
     .select()
     .single();
 
-  if (error) throw error;
+  console.log('🔍 DEBUG updateContract: Supabase response data:', data);
+  console.log('🔍 DEBUG updateContract: Supabase response error:', error);
+
+  if (error) {
+    console.error('❌ DEBUG updateContract: Erro do Supabase:', error);
+    throw error;
+  }
+  
+  console.log('✅ DEBUG updateContract: Sucesso, retornando:', data);
   return data;
 }
 
@@ -98,6 +112,15 @@ export async function deactivateContract(id: string): Promise<void> {
   const { error } = await supabase
     .from('payroll_contracts')
     .update({ is_active: false })
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+export async function deleteContract(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('payroll_contracts')
+    .delete()
     .eq('id', id);
 
   if (error) throw error;
@@ -156,6 +179,23 @@ export async function updateOTPolicy(
     .from('payroll_ot_policies')
     .update(policyData)
     .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function upsertOTPolicy(
+  userId: string,
+  policyData: OTPolicyFormData
+): Promise<PayrollOTPolicy> {
+  const { data, error } = await supabase
+    .from('payroll_ot_policies')
+    .upsert({
+      user_id: userId,
+      ...policyData
+    })
     .select()
     .single();
 
@@ -291,6 +331,41 @@ export async function deleteVacation(id: string): Promise<void> {
     .from('payroll_vacations')
     .delete()
     .eq('id', id);
+
+  if (error) throw error;
+}
+
+// Funções para períodos de férias
+export async function upsertVacationPeriods(
+  userId: string,
+  periods: any[]
+): Promise<any[]> {
+  // Primeiro, remover todos os períodos existentes do utilizador
+  await supabase
+    .from('payroll_vacation_periods')
+    .delete()
+    .eq('user_id', userId);
+
+  // Depois, inserir os novos períodos
+  const periodsWithUserId = periods.map(period => ({
+    user_id: userId,
+    ...period
+  }));
+
+  const { data, error } = await supabase
+    .from('payroll_vacation_periods')
+    .insert(periodsWithUserId)
+    .select();
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function deleteVacationPeriods(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('payroll_vacation_periods')
+    .delete()
+    .eq('user_id', userId);
 
   if (error) throw error;
 }
@@ -479,6 +554,23 @@ export async function createMileagePolicy(
   return data;
 }
 
+export async function upsertMileagePolicy(
+  userId: string,
+  policyData: any
+): Promise<PayrollMileagePolicy> {
+  const { data, error } = await supabase
+    .from('payroll_mileage_policies')
+    .upsert({
+      user_id: userId,
+      ...policyData
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
 // ============================================================================
 // VIAGENS DE QUILOMETRAGEM
 // ============================================================================
@@ -638,7 +730,7 @@ export async function recalculatePayroll(
   try {
     // Buscar dados necessários
     const [contract, otPolicy, holidays, timeEntries, mileageTrips, mileagePolicy] = await Promise.all([
-      supabase.from('payroll_contracts').select('*').eq('id', contractId).single(),
+      getActiveContract(userId),
       getActiveOTPolicy(userId),
       getHolidays(userId, year),
       getTimeEntries(userId, `${year}-${month.toString().padStart(2, '0')}-01`, `${year}-${month.toString().padStart(2, '0')}-31`),
@@ -646,7 +738,7 @@ export async function recalculatePayroll(
       getActiveMileagePolicy(userId)
     ]);
 
-    if (contract.error) throw contract.error;
+    if (!contract) throw new Error('Contrato não encontrado');
     if (!otPolicy) throw new Error('Política de horas extras não encontrada');
 
     // Importar função de cálculo
@@ -655,7 +747,7 @@ export async function recalculatePayroll(
     const mileageRate = mileagePolicy?.rate_per_km_cents || 36; // €0.36 padrão
     
     const calculation = calcMonth(
-      contract.data,
+      contract,
       timeEntries,
       otPolicy,
       holidays,
@@ -745,7 +837,8 @@ export const payrollService = {
   updateContract,
   updatePayrollContract: updateContract, // Alias para compatibilidade com testes
   deactivateContract,
-  deletePayrollContract: deactivateContract, // Alias para compatibilidade com testes
+  deleteContract,
+  deletePayrollContract: deleteContract, // Alias para compatibilidade com testes
   
   // Políticas OT
   getOTPolicies,
@@ -754,6 +847,7 @@ export const payrollService = {
   createOTPolicy,
   createPayrollOTPolicy: createOTPolicy, // Alias para compatibilidade com testes
   updateOTPolicy,
+  upsertOTPolicy,
   
   // Feriados
   getHolidays,
@@ -768,6 +862,8 @@ export const payrollService = {
   createVacation,
   updateVacation,
   deleteVacation,
+  upsertVacationPeriods,
+  deleteVacationPeriods,
   
   // Configuração de subsídio de alimentação
   getMealAllowanceConfig,
@@ -805,6 +901,7 @@ export const payrollService = {
   getActiveMileagePolicy,
   createMileagePolicy,
   createPayrollMileagePolicy: createMileagePolicy, // Alias para compatibilidade com testes
+  upsertMileagePolicy,
   
   // Viagens
   getMileageTrips,

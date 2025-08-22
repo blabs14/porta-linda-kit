@@ -57,7 +57,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   const queryClient = useQueryClient();
 
   // Query para dados da família atual
-  const { data: familyData, isLoading: familyLoading } = useQuery({
+  const familyQuery = useQuery({
     queryKey: ['family', 'current', user?.id],
     queryFn: async () => {
       console.log('[FamilyProvider] Getting family data for user:', user?.id);
@@ -129,6 +129,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     gcTime: 5 * 60 * 1000,
   });
 
+  const { data: familyData, isLoading: familyLoading } = familyQuery || { data: null, isLoading: false };
   const family = (familyData as UnknownRecord | null)?.family as Family | null;
   const myRole = ((familyData as UnknownRecord | null)?.user_role ?? (familyData as UnknownRecord | null)?.myRole) as 'owner' | 'admin' | 'member' | 'viewer' | null;
 
@@ -144,7 +145,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   }, [familyData, family, myRole]);
 
   // Query para membros da família
-  const { data: members = [], isLoading: membersLoading } = useQuery({
+  const membersQuery = useQuery({
     queryKey: ['family', 'members', family?.id],
     queryFn: async () => {
       if (!family?.id) return [] as FamilyMember[];
@@ -158,9 +159,11 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
   });
+  const { data: members = [], isLoading: membersLoading } = membersQuery || { data: [], isLoading: false };
 
   // Query para convites pendentes
-  const { data: pendingInvites = [], isLoading: invitesLoading } = useQuery({
+  const invitesQuery = useQuery({
+
     queryKey: ['family', 'invites', family?.id],
     queryFn: async () => {
       if (!family?.id) return [] as FamilyInvite[];
@@ -174,9 +177,10 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
   });
+  const { data: pendingInvites = [], isLoading: invitesLoading } = invitesQuery || { data: [], isLoading: false };
 
   // Query para contas familiares - usar a função RPC específica para contas familiares
-  const { data: allAccounts = [], isLoading: accountsLoading } = useQuery({
+  const accountsQuery = useQuery({
     queryKey: ['family', 'accounts', user?.id, family?.id],
     queryFn: async () => {
       if (!user?.id) return [] as FamilyAccount[];
@@ -251,6 +255,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
   });
+  const { data: allAccounts = [], isLoading: accountsLoading } = accountsQuery || { data: [], isLoading: false };
 
   // Filtrar contas familiares e normalizar chaves (garantir account_id)
   const familyAccounts: FamilyAccount[] = (allAccounts as unknown[]).map((account) => ({
@@ -260,7 +265,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   const familyCards: FamilyAccount[] = familyAccounts.filter(account => account.tipo === 'cartão de crédito');
 
   // Query para objetivos familiares - usar a função RPC específica para objetivos familiares
-  const { data: allGoals = [], isLoading: goalsLoading } = useQuery({
+  const goalsQuery = useQuery({
     queryKey: ['family', 'goals', user?.id, family?.id],
     queryFn: async () => {
       if (!user?.id || !family?.id) return [] as FamilyGoal[];
@@ -280,6 +285,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
   });
+  const { data: allGoals = [], isLoading: goalsLoading } = goalsQuery || { data: [], isLoading: false };
 
   // Filtrar objetivos familiares
   const familyGoals: FamilyGoal[] = (allGoals as unknown[]).map((goal) => {
@@ -294,7 +300,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   });
 
   // Query para orçamentos familiares - usar a função RPC específica para orçamentos familiares
-  const { data: allBudgets = [], isLoading: budgetsLoading } = useQuery({
+  const budgetsQuery = useQuery({
     queryKey: ['family', 'budgets', user?.id, family?.id],
     queryFn: async () => {
       if (!user?.id || !family?.id) return [] as FamilyBudget[];
@@ -314,12 +320,13 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
   });
+  const { data: allBudgets = [], isLoading: budgetsLoading } = budgetsQuery || { data: [], isLoading: false };
 
   // Filtrar orçamentos familiares
   const familyBudgets: FamilyBudget[] = allBudgets as unknown as FamilyBudget[];
 
   // Query para transações familiares - usar a função RPC específica para transações familiares
-  const { data: allTransactions = [], isLoading: transactionsLoading } = useQuery({
+  const transactionsQuery = useQuery({
     queryKey: ['family', 'transactions', user?.id, family?.id],
     queryFn: async () => {
       if (!user?.id || !family?.id) return [] as FamilyTransaction[];
@@ -334,6 +341,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
   });
+  const { data: allTransactions = [], isLoading: transactionsLoading } = transactionsQuery || { data: [], isLoading: false };
 
   // Filtrar transações familiares
   const familyTransactions: FamilyTransaction[] = allTransactions as unknown as FamilyTransaction[];
@@ -379,7 +387,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   ]);
 
   // Query para KPIs familiares - otimizada com RPC
-  const { data: familyKPIsData, isLoading: kpisLoading } = useQuery({
+  const kpisQuery = useQuery({
     queryKey: ['family', 'kpis', user?.id, family?.id],
     queryFn: async () => {
       if (!family?.id) return {
@@ -456,6 +464,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,
   });
+  const { data: familyKPIsData, isLoading: kpisLoading } = kpisQuery || { data: null, isLoading: false };
 
   const familyKPIs: FamilyKPIs = familyKPIsData || {
     totalBalance: 0,

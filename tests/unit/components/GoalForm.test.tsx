@@ -4,7 +4,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import GoalForm from '@/components/GoalForm';
 import { useAuth } from '@/contexts/AuthContext';
 import * as goalsService from '@/services/goals';
-import { useCreateGoal, useUpdateGoal } from '@/hooks/useGoalsQuery';
+import { useGoals, useCreateGoal, useUpdateGoal } from '@/hooks/useGoalsQuery';
 
 // Mock dos serviços e hooks
 vi.mock('@/contexts/AuthContext');

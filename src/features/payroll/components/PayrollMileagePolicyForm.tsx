@@ -7,11 +7,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Save, X, Car, Euro } from 'lucide-react';
-import { PayrollMileagePolicy } from '../types';
+import { PayrollMileagePolicy, PayrollContract } from '../types';
 import { payrollService } from '../services/payrollService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { formatCurrency, centsToEuros, eurosToCents } from '../lib/calc';
+import { formatCurrency } from '@/lib/utils';
+import { centsToEuros, eurosToCents } from '../lib/calc';
 
 interface PayrollMileagePolicyFormProps {
   policy?: PayrollMileagePolicy;
@@ -23,10 +24,11 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
   const { toast } = useToast();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [contract, setContract] = useState<PayrollContract | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     rate_per_km_cents: 0,
-    max_km_per_month: null as number | null,
+    monthly_cap_cents: null as number | null,
     requires_receipt: false,
     is_active: true,
     notes: ''
@@ -38,13 +40,25 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
       setFormData({
         name: policy.name,
         rate_per_km_cents: policy.rate_per_km_cents,
-        max_km_per_month: policy.max_km_per_month,
-        requires_receipt: policy.requires_receipt,
+        monthly_cap_cents: policy.monthly_cap_cents,
+        requires_receipt: policy.requires_receipt || false,
         is_active: policy.is_active,
         notes: policy.notes || ''
       });
     }
+    loadContract();
   }, [policy]);
+
+  const loadContract = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const contract = await payrollService.getActiveContract(user.id);
+      setContract(contract);
+    } catch (error) {
+      console.error('Erro ao carregar contrato:', error);
+    }
+  };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -57,8 +71,8 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
       newErrors.rate_per_km_cents = 'Taxa por KM deve ser maior que zero';
     }
 
-    if (formData.max_km_per_month !== null && formData.max_km_per_month <= 0) {
-      newErrors.max_km_per_month = 'Limite mensal deve ser maior que zero';
+    if (formData.monthly_cap_cents !== null && formData.monthly_cap_cents <= 0) {
+      newErrors.monthly_cap_cents = 'Limite mensal deve ser maior que zero';
     }
 
     setErrors(newErrors);
@@ -170,24 +184,28 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="max_km_per_month">Limite Mensal de KM</Label>
-              <Input
-                id="max_km_per_month"
-                type="number"
-                min="0"
-                value={formData.max_km_per_month || ''}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  max_km_per_month: e.target.value ? parseInt(e.target.value) : null
-                }))}
-                placeholder="Ex: 2000"
-                className={errors.max_km_per_month ? 'border-red-500' : ''}
-              />
-              {errors.max_km_per_month && (
-                <p className="text-sm text-red-500 mt-1">{errors.max_km_per_month}</p>
+              <Label htmlFor="monthly_cap_cents">Limite Mensal (€) - Opcional</Label>
+              <div className="relative">
+                <Euro className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="monthly_cap_cents"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.monthly_cap_cents ? centsToEuros(formData.monthly_cap_cents).toFixed(2) : ''}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    monthly_cap_cents: e.target.value ? eurosToCents(parseFloat(e.target.value)) : null
+                  }))}
+                  placeholder="Ex: 720.00"
+                  className={`pl-10 ${errors.monthly_cap_cents ? 'border-red-500' : ''}`}
+                />
+              </div>
+              {errors.monthly_cap_cents && (
+                <p className="text-sm text-red-500 mt-1">{errors.monthly_cap_cents}</p>
               )}
               <p className="text-xs text-muted-foreground mt-1">
-                Deixe vazio para sem limite
+                Valor máximo pago por mês. Deixe vazio para sem limite.
               </p>
             </div>
 
@@ -242,23 +260,23 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
         <CardContent>
           <div className="bg-muted/50 p-4 rounded-lg space-y-2">
             <div className="flex justify-between">
-              <span>100 km × {formatCurrency(formData.rate_per_km_cents)}/km</span>
+              <span>100 km × {formatCurrency(formData.rate_per_km_cents, 'pt-PT', contract?.currency || 'EUR')}/km</span>
               <span className="font-medium">
-                {formatCurrency(formData.rate_per_km_cents * 100)}
+                {formatCurrency(formData.rate_per_km_cents * 100, 'pt-PT', contract?.currency || 'EUR')}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>500 km × {formatCurrency(formData.rate_per_km_cents)}/km</span>
+              <span>500 km × {formatCurrency(formData.rate_per_km_cents, 'pt-PT', contract?.currency || 'EUR')}/km</span>
               <span className="font-medium">
-                {formatCurrency(formData.rate_per_km_cents * 500)}
+                {formatCurrency(formData.rate_per_km_cents * 500, 'pt-PT', contract?.currency || 'EUR')}
               </span>
             </div>
-            {formData.max_km_per_month && (
+            {formData.monthly_cap_cents && (
               <div className="pt-2 border-t">
                 <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Limite mensal: {formData.max_km_per_month} km</span>
+                  <span>Limite mensal: {formatCurrency(formData.monthly_cap_cents, 'pt-PT', contract?.currency || 'EUR')}</span>
                   <span>
-                    Máximo: {formatCurrency(formData.rate_per_km_cents * formData.max_km_per_month)}
+                    Máximo: {formatCurrency(formData.monthly_cap_cents, 'pt-PT', contract?.currency || 'EUR')}
                   </span>
                 </div>
               </div>

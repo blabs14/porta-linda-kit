@@ -11,7 +11,8 @@ import { PayrollMileageTrip, PayrollMileagePolicy } from '../types';
 import { payrollService } from '../services/payrollService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { formatCurrency, centsToEuros } from '../lib/calc';
+import { formatCurrency } from '@/lib/utils';
+import { centsToEuros } from '../lib/calc';
 
 interface MileageTripFormProps {
   trip?: PayrollMileageTrip;
@@ -26,10 +27,10 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     policy_id: '',
-    trip_date: '',
+    date: new Date().toISOString().split('T')[0],
     origin: '',
     destination: '',
-    distance_km: 0,
+    km: 0,
     purpose: '',
     notes: ''
   });
@@ -40,18 +41,18 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
   useEffect(() => {
     if (trip) {
       setFormData({
-        policy_id: trip.policy_id,
-        trip_date: trip.trip_date,
-        origin: trip.origin,
-        destination: trip.destination,
-        distance_km: trip.distance_km,
-        purpose: trip.purpose,
-        notes: trip.notes || ''
-      });
+      policy_id: trip.policy_id,
+      date: trip.date,
+      origin: trip.origin,
+      destination: trip.destination,
+      km: trip.km,
+      purpose: trip.purpose,
+      notes: trip.notes || ''
+    });
     } else {
       // Set default date to today
       const today = new Date().toISOString().split('T')[0];
-      setFormData(prev => ({ ...prev, trip_date: today }));
+      setFormData(prev => ({ ...prev, date: today }));
     }
   }, [trip]);
 
@@ -60,8 +61,8 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
       const policy = policies.find(p => p.id === formData.policy_id);
       setSelectedPolicy(policy || null);
       
-      if (policy && formData.distance_km > 0) {
-        setCalculatedAmount(policy.rate_per_km_cents * formData.distance_km);
+      if (policy && formData.km > 0) {
+      setCalculatedAmount(policy.rate_per_km_cents * formData.km);
       } else {
         setCalculatedAmount(0);
       }
@@ -69,7 +70,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
       setSelectedPolicy(null);
       setCalculatedAmount(0);
     }
-  }, [formData.policy_id, formData.distance_km, policies]);
+  }, [formData.policy_id, formData.km, policies]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -78,8 +79,8 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
       newErrors.policy_id = 'Política é obrigatória';
     }
 
-    if (!formData.trip_date) {
-      newErrors.trip_date = 'Data da viagem é obrigatória';
+    if (!formData.date) {
+      newErrors.date = 'Data da viagem é obrigatória';
     }
 
     if (!formData.origin.trim()) {
@@ -90,18 +91,15 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
       newErrors.destination = 'Destino é obrigatório';
     }
 
-    if (formData.distance_km <= 0) {
-      newErrors.distance_km = 'Distância deve ser maior que zero';
+    if (formData.km <= 0) {
+      newErrors.km = 'Distância deve ser maior que zero';
     }
 
     if (!formData.purpose.trim()) {
       newErrors.purpose = 'Propósito da viagem é obrigatório';
     }
 
-    // Check policy limits
-    if (selectedPolicy?.max_km_per_month && formData.distance_km > selectedPolicy.max_km_per_month) {
-      newErrors.distance_km = `Distância excede o limite da política (${selectedPolicy.max_km_per_month} km)`;
-    }
+    // Policy limits validation removed - max_km_per_month field no longer exists
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -189,16 +187,16 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
             </div>
 
             <div>
-              <Label htmlFor="trip_date">Data da Viagem *</Label>
-              <Input
-                id="trip_date"
-                type="date"
-                value={formData.trip_date}
-                onChange={(e) => setFormData(prev => ({ ...prev, trip_date: e.target.value }))}
-                className={errors.trip_date ? 'border-red-500' : ''}
-              />
-              {errors.trip_date && (
-                <p className="text-sm text-red-500 mt-1">{errors.trip_date}</p>
+              <Label htmlFor="date">Data da Viagem *</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                  className={errors.date ? 'border-red-500' : ''}
+                />
+                {errors.date && (
+                  <p className="text-sm text-red-500 mt-1">{errors.date}</p>
               )}
             </div>
           </div>
@@ -235,22 +233,22 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="distance_km">Distância (km) *</Label>
+              <Label htmlFor="km">Distância (km) *</Label>
               <Input
-                id="distance_km"
+                id="km"
                 type="number"
                 step="0.1"
                 min="0"
-                value={formData.distance_km || ''}
+                value={formData.km || ''}
                 onChange={(e) => setFormData(prev => ({
                   ...prev,
-                  distance_km: parseFloat(e.target.value) || 0
+                  km: parseFloat(e.target.value) || 0
                 }))}
                 placeholder="Ex: 125.5"
-                className={errors.distance_km ? 'border-red-500' : ''}
+                className={errors.km ? 'border-red-500' : ''}
               />
-              {errors.distance_km && (
-                <p className="text-sm text-red-500 mt-1">{errors.distance_km}</p>
+              {errors.km && (
+                <p className="text-sm text-red-500 mt-1">{errors.km}</p>
               )}
               <p className="text-xs text-muted-foreground mt-1">
                 Distância total da viagem (ida e volta se aplicável)
@@ -286,7 +284,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
       </Card>
 
       {/* Cálculo do Reembolso */}
-      {selectedPolicy && formData.distance_km > 0 && (
+      {selectedPolicy && formData.km > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -306,7 +304,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
               </div>
               <div className="flex justify-between items-center">
                 <span>Distância:</span>
-                <span className="font-medium">{formData.distance_km} km</span>
+                <span className="font-medium">{formData.km} km</span>
               </div>
               <div className="border-t pt-2">
                 <div className="flex justify-between items-center text-lg font-semibold">
@@ -317,14 +315,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
                 </div>
               </div>
               
-              {selectedPolicy.max_km_per_month && (
-                <div className="text-sm text-muted-foreground pt-2 border-t">
-                  <p>Limite mensal da política: {selectedPolicy.max_km_per_month} km</p>
-                  {formData.distance_km > selectedPolicy.max_km_per_month && (
-                    <p className="text-red-500">⚠️ Distância excede o limite da política</p>
-                  )}
-                </div>
-              )}
+              {/* Monthly limit display removed - max_km_per_month field no longer exists */}
               
               {selectedPolicy.requires_receipt && (
                 <Alert>

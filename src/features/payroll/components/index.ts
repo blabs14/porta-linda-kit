@@ -1,23 +1,23 @@
 // Main module component
 export { PayrollModule } from './PayrollModule';
+export { PayrollNavigation } from './PayrollNavigation';
 
 // Setup and configuration components
 export { PayrollSetupPage } from './PayrollSetupPage';
+export { PayrollOnboardingWizard } from './PayrollOnboardingWizard';
 export { PayrollContractForm } from './PayrollContractForm';
 export { PayrollOTPolicyForm } from './PayrollOTPolicyForm';
 export { PayrollHolidaysManager } from './PayrollHolidaysManager';
 
 // Timesheet components
-export { PayrollTimesheetPage } from './PayrollTimesheetPage';
 export { WeeklyTimesheetForm } from './WeeklyTimesheetForm';
 
 // Mileage components
-export { PayrollMileagePage } from './PayrollMileagePage';
 export { PayrollMileagePolicyForm } from './PayrollMileagePolicyForm';
 export { MileageTripForm } from './MileageTripForm';
 
 // Period management components
-export { PayrollPeriodPage } from './PayrollPeriodPage';
+// PayrollPeriodPage removed - not used in routing
 
 // Re-export types for convenience
 export type {
@@ -59,7 +59,7 @@ export {
   calcMonth,
   centsToEuros,
   eurosToCents,
-  formatCurrency,
+
   calculateHours,
   validateTimeEntry
 } from '../lib/calc';

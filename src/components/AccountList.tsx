@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Filter } from 'lucide-react';
+import { formatCurrency } from '../lib/utils';
 
 export type Account = {
   id: string;
@@ -59,9 +60,7 @@ const AccountList = ({ onEdit }: AccountListProps) => {
 
   // Atalho global '/' coberto por GlobalShortcuts
 
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
-  };
+
 
   const getAvailableBalance = (account: Account) => {
     const balance = account.saldo || 0;
@@ -152,14 +151,14 @@ const AccountList = ({ onEdit }: AccountListProps) => {
                     <Badge variant="outline">{acc.tipo}</Badge>
                   </TableCell>
                   <TableCell className="font-mono">
-                    {formatCurrency(acc.saldo || 0)}
+                    {formatCurrency(acc.saldo || 0, 'pt-PT', 'EUR')}
                   </TableCell>
                   <TableCell className="font-mono text-orange-600">
-                    {reserved > 0 ? formatCurrency(reserved) : '-'}
+                    {reserved > 0 ? formatCurrency(reserved, 'pt-PT', 'EUR') : '-'}
                   </TableCell>
                   <TableCell className="font-mono">
                     <span className={available < 0 ? 'text-red-600' : 'text-green-600'}>
-                      {formatCurrency(available)}
+                      {formatCurrency(available, 'pt-PT', 'EUR')}
                     </span>
                   </TableCell>
                   <TableCell>

@@ -12,6 +12,7 @@ import { GlobalShortcuts } from './components/GlobalShortcuts';
 import { LocaleProvider } from './contexts/LocaleProvider';
 import { Navigate } from 'react-router-dom';
 
+
 // Lazy loading de páginas
 import {
   Dashboard,
@@ -27,6 +28,9 @@ const ReportsPage = lazy(() => import('./pages/reports'));
 
 // Página de Fluxo de Caixa (lazy)
 const CashflowPage = lazy(() => import('./pages/cashflow'));
+
+// Página de Payroll (lazy)
+const PayrollPage = lazy(() => import('./features/payroll/components/PayrollModule'));
 
 
 
@@ -51,7 +55,7 @@ function App() {
       <AuthProvider>
         <LocaleProvider>
           <Router>
-            <GlobalShortcuts />
+        <GlobalShortcuts />
             <Routes>
               {/* Páginas públicas */}
               <Route path="/" element={<Index />} />
@@ -77,6 +81,11 @@ function App() {
                 <Route path="cashflow" element={
                   <Suspense fallback={<PageLoading />}>
                     <CashflowPage />
+                  </Suspense>
+                } />
+                <Route path="payroll/*" element={
+                  <Suspense fallback={<PageLoading />}>
+                    <PayrollPage />
                   </Suspense>
                 } />
 

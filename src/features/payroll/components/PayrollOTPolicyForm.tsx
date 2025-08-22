@@ -21,7 +21,7 @@ interface PayrollOTPolicyFormProps {
 
 const OT_TYPES = [
   { value: 'daily', label: 'Horas Extras Diárias', description: 'Aplicado quando excede horas diárias' },
-  { value: 'weekly', label: 'Horas Extras Semanais', description: 'Aplicado quando excede horas semanais' },
+  { value: 'weekly', label: 'Horas Extras por Semana', description: 'Aplicado quando excede horas por semana' },
   { value: 'holiday', label: 'Trabalho em Feriados', description: 'Aplicado em dias feriados' },
   { value: 'weekend', label: 'Trabalho ao Fim de Semana', description: 'Aplicado aos sábados e domingos' },
   { value: 'night', label: 'Trabalho Noturno', description: 'Aplicado durante período noturno' }

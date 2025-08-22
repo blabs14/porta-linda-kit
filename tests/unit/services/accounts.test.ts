@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabaseClient';
 import {
   getAccounts,
   getAccount,
@@ -8,7 +8,7 @@ import {
   deleteAccount,
 } from '@/services/accounts';
 // Mock do Supabase
-vi.mock('@/lib/supabase', () => ({
+vi.mock('@/lib/supabaseClient', () => ({
   supabase: {
     from: vi.fn(),
     rpc: vi.fn(),

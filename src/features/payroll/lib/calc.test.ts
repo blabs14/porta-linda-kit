@@ -9,10 +9,10 @@ import {
   calcMonth,
   centsToEuros,
   eurosToCents,
-  formatCurrency,
   calculateHours,
   validateTimeEntry
 } from './calc';
+import { formatCurrency } from '@/lib/utils';
 import type { 
   PayrollContract, 
   PayrollOTPolicy, 
@@ -95,7 +95,7 @@ describe('Payroll Calculation Functions', () => {
     date: '2024-01-15',
     from_location: 'Home',
     to_location: 'Office',
-    distance_km: 25,
+    km: 25,
     purpose: 'Work commute',
     has_receipt: false,
     receipt_url: null,

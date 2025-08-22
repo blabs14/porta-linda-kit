@@ -14,11 +14,16 @@ export function showSuccess(message: string) {
   sonnerToast.success(message, { duration: 4000 });
 }
 
-export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-PT', {
+export function formatCurrency(
+  valueInCents: number, 
+  locale: string = 'pt-PT', 
+  currency: string = 'EUR'
+): string {
+  const valueInUnits = valueInCents / 100;
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: 'EUR'
-  }).format(value);
+    currency: currency
+  }).format(valueInUnits);
 }
 
 // Função para obter ícone baseado no nome da categoria

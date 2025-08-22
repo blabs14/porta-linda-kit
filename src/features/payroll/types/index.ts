@@ -8,6 +8,7 @@ export interface PayrollContract {
   name: string;
   base_salary_cents: number;
   currency: string;
+  weekly_hours: number;
   schedule_json: Record<string, any>;
   meal_allowance_cents_per_day: number;
   meal_on_worked_days: boolean;
@@ -61,6 +62,9 @@ export interface PayrollMileagePolicy {
   user_id: string;
   name: string;
   rate_per_km_cents: number;
+  monthly_cap_cents?: number | null;
+  requires_receipt?: boolean;
+  notes?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -73,8 +77,9 @@ export interface PayrollMileageTrip {
   date: string;
   origin: string;
   destination: string;
-  distance_km: number;
+  km: number;
   purpose: string;
+  notes?: string;
   created_at: string;
   updated_at: string;
 }
@@ -200,12 +205,14 @@ export enum PayrollPeriodStatus {
 export interface ContractFormData {
   name: string;
   base_salary_cents: number;
+  weekly_hours: number;
   schedule_json: Record<string, any>;
   meal_allowance_cents_per_day: number;
   meal_on_worked_days: boolean;
   vacation_bonus_mode: string;
   christmas_bonus_mode: string;
   is_active: boolean;
+  currency: string;
 }
 
 export interface OTPolicyFormData {
@@ -237,12 +244,14 @@ export interface MileagePolicyFormData {
 export interface PayrollContractFormData {
   name: string;
   base_salary_cents: number;
+  weekly_hours: number;
   schedule_json: Record<string, any>;
   meal_allowance_cents_per_day: number;
   meal_on_worked_days: boolean;
   vacation_bonus_mode: string;
   christmas_bonus_mode: string;
   is_active: boolean;
+  currency: string;
 }
 
 // Interfaces para o sistema de férias

@@ -27,6 +27,7 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": ["warn", { ignoreRestArgs: true }],
       "@typescript-eslint/no-empty-object-type": "off",
       "@typescript-eslint/no-non-null-asserted-optional-chain": "warn",
+      "@typescript-eslint/no-unused-expressions": ["error", { allowShortCircuit: true, allowTernary: true }],
       "no-case-declarations": "error",
     },
   }
