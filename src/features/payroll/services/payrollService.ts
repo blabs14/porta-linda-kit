@@ -89,9 +89,49 @@ export async function updateContract(
   console.log('🔍 DEBUG updateContract: ID:', id);
   console.log('🔍 DEBUG updateContract: contractData:', contractData);
   
+  // Verificar utilizador autenticado
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  console.log('🔍 DEBUG updateContract: Utilizador autenticado:', user?.id);
+  console.log('🔍 DEBUG updateContract: Erro de autenticação:', authError);
+  
+  // Verificar se o contrato existe e pertence ao utilizador
+  const { data: existingContract, error: fetchError } = await supabase
+    .from('payroll_contracts')
+    .select('id, user_id, name')
+    .eq('id', id)
+    .single();
+  
+  console.log('🔍 DEBUG updateContract: Contrato existente:', existingContract);
+  console.log('🔍 DEBUG updateContract: Erro ao buscar contrato:', fetchError);
+  
+  if (fetchError) {
+    console.error('❌ DEBUG updateContract: Erro ao buscar contrato:', fetchError);
+    throw new Error(`Erro ao buscar contrato: ${fetchError.message}`);
+  }
+  
+  if (!existingContract) {
+    console.error('❌ DEBUG updateContract: Contrato não encontrado');
+    throw new Error('Contrato não encontrado');
+  }
+  
+  if (existingContract.user_id !== user?.id) {
+    console.error('❌ DEBUG updateContract: Utilizador não autorizado');
+    console.error('❌ DEBUG updateContract: Contract user_id:', existingContract.user_id);
+    console.error('❌ DEBUG updateContract: Auth user_id:', user?.id);
+    throw new Error('Não autorizado a editar este contrato');
+  }
+  
+  // Adicionar updated_at explicitamente
+  const updateData = {
+    ...contractData,
+    updated_at: new Date().toISOString()
+  };
+  
+  console.log('🔍 DEBUG updateContract: updateData com timestamp:', updateData);
+  
   const { data, error } = await supabase
     .from('payroll_contracts')
-    .update(contractData)
+    .update(updateData)
     .eq('id', id)
     .select()
     .single();
