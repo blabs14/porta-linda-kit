@@ -121,13 +121,21 @@ export async function updateContract(
     throw new Error('Não autorizado a editar este contrato');
   }
   
-  // Adicionar updated_at explicitamente
-  const updateData = {
+  // Preparar dados com conversões de tipo adequadas
+  const updateData: any = {
     ...contractData,
     updated_at: new Date().toISOString()
   };
   
-  console.log('🔍 DEBUG updateContract: updateData com timestamp:', updateData);
+  // Garantir que weekly_hours é um número
+  if (updateData.weekly_hours !== undefined) {
+    updateData.weekly_hours = typeof updateData.weekly_hours === 'string' 
+      ? parseFloat(updateData.weekly_hours) 
+      : updateData.weekly_hours;
+  }
+  
+  console.log('🔍 DEBUG updateContract: updateData com timestamp e conversões:', updateData);
+  console.log('🔍 DEBUG updateContract: weekly_hours tipo:', typeof updateData.weekly_hours, 'valor:', updateData.weekly_hours);
   
   const { data, error } = await supabase
     .from('payroll_contracts')
