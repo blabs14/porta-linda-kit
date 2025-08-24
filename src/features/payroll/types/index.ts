@@ -7,6 +7,7 @@ export interface PayrollContract {
   family_id?: string;
   name: string;
   base_salary_cents: number;
+  hourly_rate_cents: number;
   currency: string;
   weekly_hours: number;
   schedule_json: Record<string, any>;
@@ -25,6 +26,16 @@ export interface PayrollOTPolicy {
   name: string;
   threshold_hours: number;
   multiplier: number;
+  daily_limit_hours: number; // Limite diário de horas extras (padrão: 2h)
+  annual_limit_hours: number; // Limite anual de horas extras (150h/175h/200h)
+  weekly_limit_hours: number; // Limite semanal total incluindo extras (48h)
+  day_multiplier: number; // Multiplicador primeira hora dia útil (1.5 = 50%)
+  night_multiplier: number; // Multiplicador horas seguintes (1.75 = 75%)
+  weekend_multiplier: number; // Multiplicador fim de semana (2.0 = 100%)
+  holiday_multiplier: number; // Multiplicador feriados (2.0 = 100%)
+  night_start_time: string; // Início período noturno
+  night_end_time: string; // Fim período noturno
+  rounding_minutes: number; // Arredondamento em minutos
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -53,6 +64,10 @@ export interface PayrollTimeEntry {
   break_minutes: number;
   description?: string;
   is_overtime: boolean;
+  is_holiday?: boolean;
+  is_sick?: boolean;
+  is_vacation?: boolean;
+  is_exception?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -63,8 +78,8 @@ export interface PayrollMileagePolicy {
   name: string;
   rate_per_km_cents: number;
   monthly_cap_cents?: number | null;
-  requires_receipt?: boolean;
-  notes?: string | null;
+  requires_purpose?: boolean;
+  requires_origin_destination?: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -79,7 +94,6 @@ export interface PayrollMileageTrip {
   destination: string;
   km: number;
   purpose: string;
-  notes?: string;
   created_at: string;
   updated_at: string;
 }
@@ -148,11 +162,19 @@ export interface PayrollCalculation {
   overtimeHours: number;
   regularPay: number;
   overtimePay: number;
+  overtimePayDay?: number; // Pagamento horas extras dia útil
+  overtimePayNight?: number; // Pagamento horas extras noturnas
+  overtimePayWeekend?: number; // Pagamento horas extras fim de semana
+  overtimePayHoliday?: number; // Pagamento horas extras feriados
   mileageReimbursement: number;
   bonuses: number;
   grossPay: number;
   deductions: number;
+  irsDeduction?: number; // Desconto de IRS
+  socialSecurityDeduction?: number; // Desconto de Segurança Social
   netPay: number;
+  validationErrors?: string[]; // Erros de validação de limites
+  mealAllowance?: number; // Subsídio de refeição
 }
 
 // Tipos para UI
@@ -161,9 +183,10 @@ export interface TimesheetEntry {
   startTime: string;
   endTime: string;
   breakMinutes: number;
-  notes: string;
+  description: string;
   isHoliday: boolean;
   isSick: boolean;
+  isVacation?: boolean;
   isException?: boolean;
 }
 
@@ -275,16 +298,41 @@ export interface PayrollVacationFormData {
   description?: string;
 }
 
+// Tipos para método de pagamento do subsídio de alimentação
+export type MealAllowancePaymentMethod = 'cash' | 'card';
+
 // Interface para configuração de subsídio de alimentação
 export interface PayrollMealAllowanceConfig {
   id: string;
   user_id: string;
   family_id?: string;
+  contract_id: string;
+  daily_amount_cents: number;
   excluded_months: number[]; // Array de meses (1-12) onde não há pagamento
+  payment_method: MealAllowancePaymentMethod; // Método de pagamento: 'cash' ou 'card'
   created_at: string;
   updated_at: string;
 }
 
 export interface PayrollMealAllowanceConfigFormData {
+  dailyAmount: number;
   excluded_months: number[];
+  paymentMethod: MealAllowancePaymentMethod;
+}
+
+// Interface para configuração de descontos (IRS e Segurança Social)
+export interface PayrollDeductionConfig {
+  id: string;
+  user_id: string;
+  family_id?: string;
+  contract_id: string;
+  irs_percentage: number; // Percentagem de IRS (0-100)
+  social_security_percentage: number; // Percentagem de Segurança Social (0-100)
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollDeductionConfigFormData {
+  irsPercentage: number;
+  socialSecurityPercentage: number;
 }

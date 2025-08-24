@@ -7,6 +7,7 @@ import {
   PayrollHoliday, 
   PayrollTimeEntry, 
   PayrollMileageTrip,
+  PayrollVacation,
   TimeSegment, 
   PlannedSchedule, 
   PayrollCalculation 
@@ -109,35 +110,102 @@ export function segmentEntry(
 
 /**
  * Calcula o pagamento por horas trabalhadas
- * @param hours Número de horas
+ * @param hours Número de horas trabalhadas
  * @param hourlyRateCents Taxa horária em centavos
  * @param isOvertime Se são horas extras
- * @param otMultiplier Multiplicador de horas extras
- * @returns Valor em centavos
+ * @param isWeekend Se é fim de semana
+ * @param isHoliday Se é feriado
+ * @param isNightShift Se é turno noturno
+ * @param isFirstOvertimeHour Se é a primeira hora extra do dia
+ * @returns Pagamento em centavos
  */
 export function calcHourly(
   hours: number,
   hourlyRateCents: number,
   isOvertime: boolean = false,
-  otMultiplier: number = 1.5
+  isWeekend: boolean = false,
+  isHoliday: boolean = false,
+  isNightShift: boolean = false,
+  isFirstOvertimeHour: boolean = false
 ): number {
-  const rate = isOvertime ? hourlyRateCents * otMultiplier : hourlyRateCents;
-  return Math.round(hours * rate);
+  let multiplier = 1.0;
+  
+  if (isOvertime) {
+    if (isHoliday || isWeekend) {
+      multiplier = 2.0; // 100% para feriados e fins de semana
+    } else if (isFirstOvertimeHour) {
+      multiplier = 1.5; // 50% para primeira hora extra em dia útil
+    } else {
+      multiplier = 1.75; // 75% para horas extras seguintes em dia útil
+    }
+  } else if (isNightShift) {
+    multiplier = 1.25; // 25% adicional para trabalho noturno
+  }
+  
+  return Math.round(hours * hourlyRateCents * multiplier);
 }
 
 /**
- * Calcula subsídio de refeição baseado nas horas trabalhadas
+ * Calcula subsídio de refeição baseado nas horas trabalhadas e regras de precedência
+ * @param date Data do dia (formato YYYY-MM-DD)
+ * @param regularHours Horas regulares trabalhadas no dia
  * @param totalHours Total de horas trabalhadas no dia
  * @param mealAllowanceCents Valor do subsídio de refeição em centavos
- * @param minimumHours Horas mínimas para ter direito ao subsídio (padrão: 6h)
+ * @param excludedMonths Array de meses (1-12) onde não há pagamento de subsídio
+ * @param isHoliday Se o dia é feriado
+ * @param isVacation Se o dia é férias
+ * @param isException Se é uma exceção (permite pagamento em feriados/férias)
+ * @param minimumRegularHours Horas regulares mínimas para ter direito ao subsídio (padrão: 4h)
+ * @param paymentMethod Método de pagamento: 'cash' (€6.00/dia) ou 'card' (€10.20/dia)
  * @returns Valor do subsídio em centavos
  */
 export function calcMeal(
+  date: string,
+  regularHours: number,
   totalHours: number,
-  mealAllowanceCents: number = 600, // €6.00 padrão
-  minimumHours: number = 6
+  mealAllowanceCents: number = 1020, // €10.20 padrão conforme legislação 2025
+  excludedMonths: number[] = [],
+  isHoliday: boolean = false,
+  isVacation: boolean = false,
+  isException: boolean = false,
+  minimumRegularHours: number = 4,
+  paymentMethod: 'cash' | 'card' = 'card'
 ): number {
-  return totalHours >= minimumHours ? mealAllowanceCents : 0;
+  // Regra 0: Se o valor do subsídio é 0, não há pagamento
+  if (mealAllowanceCents === 0) {
+    return 0;
+  }
+
+  // Regra 1: Meses excluídos nunca pagam subsídio
+  const month = parseInt(date.split('-')[1], 10);
+  if (excludedMonths.includes(month)) {
+    return 0;
+  }
+
+  // Aplicar limites de isenção fiscal baseados no método de pagamento (2025)
+  const maxExemptionCash = 600; // €6.00/dia em centavos
+  const maxExemptionCard = 1020; // €10.20/dia em centavos
+  const maxExemption = paymentMethod === 'cash' ? maxExemptionCash : maxExemptionCard;
+  
+  // Aplicar o limite máximo de isenção ao valor configurado
+  const effectiveAllowance = Math.min(mealAllowanceCents, maxExemption);
+
+  // Regra 2: Feriados e férias só pagam com isException e horas regulares ≥ 4h
+  if (isHoliday || isVacation) {
+    if (!isException || regularHours < minimumRegularHours) {
+      return 0;
+    }
+    return effectiveAllowance;
+  }
+
+  // Regra 3: Fins-de-semana pagam com horas regulares ≥ 4h
+  const dayOfWeek = new Date(date).getDay(); // 0 = domingo, 6 = sábado
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    return regularHours >= minimumRegularHours ? effectiveAllowance : 0;
+  }
+
+  // Regra 4: Dias normais pagam com horas regulares ≥ 4h
+  return regularHours >= minimumRegularHours ? effectiveAllowance : 0;
 }
 
 /**
@@ -181,6 +249,8 @@ export function calcMileage(
  * @param holidays Feriados do mês
  * @param mileageTrips Viagens do mês
  * @param mileageRateCents Taxa de quilometragem em centavos
+ * @param mealAllowanceConfig Configuração de subsídio de alimentação
+ * @param vacations Períodos de férias
  * @returns Cálculo completo da folha de pagamento
  */
 export function calcMonth(
@@ -189,8 +259,29 @@ export function calcMonth(
   otPolicy: PayrollOTPolicy,
   holidays: PayrollHoliday[],
   mileageTrips: PayrollMileageTrip[] = [],
-  mileageRateCents: number = 36 // €0.36 por km padrão
+  mileageRateCents: number = 40, // €0.40 por km padrão (2025)
+  mealAllowanceConfig?: { excluded_months: number[]; daily_amount_cents?: number },
+  vacations: PayrollVacation[] = [],
+  weeklyHours?: number,
+  annualOvertimeHours?: number,
+  deductionConfig?: { irs_percentage: number; social_security_percentage: number }
 ): PayrollCalculation {
+  // Validar limites semanais e anuais se fornecidos
+  const validationErrors: string[] = [];
+  
+  if (weeklyHours !== undefined && annualOvertimeHours !== undefined) {
+    const limitsValidation = validateOvertimeLimits(
+      weeklyHours,
+      annualOvertimeHours,
+      otPolicy.weekly_limit_hours || 48,
+      otPolicy.annual_limit_hours || 150
+    );
+    
+    if (!limitsValidation.isValid) {
+      validationErrors.push(...limitsValidation.errors);
+    }
+  }
+  
   let regularHours = 0;
   let overtimeHours = 0;
 
@@ -207,13 +298,111 @@ export function calcMonth(
     });
   });
 
-  // Calcular pagamentos
+  // Calcular pagamentos com multiplicadores corretos
   const regularPay = calcHourly(regularHours, contract.hourly_rate_cents);
-  const overtimePay = calcHourly(overtimeHours, contract.hourly_rate_cents, true, otPolicy.multiplier);
   
-  // Calcular subsídios de refeição (assumindo 1 por dia trabalhado)
-  const workingDays = new Set(timeEntries.map(entry => entry.date)).size;
-  const mealAllowance = workingDays * calcMeal(8, contract.meal_allowance_cents); // Assumindo 8h por dia para subsídio
+  // Para horas extras, precisamos calcular por segmento para aplicar multiplicadores corretos
+  let overtimePay = 0;
+  let overtimePayDay = 0;
+  let overtimePayNight = 0;
+  let overtimePayWeekend = 0;
+  let overtimePayHoliday = 0;
+  
+  timeEntries.forEach(entry => {
+    const entryDate = new Date(entry.date);
+    const isWeekend = entryDate.getDay() === 0 || entryDate.getDay() === 6;
+    const isHoliday = holidays.some(h => h.date === entry.date);
+    
+    const segments = segmentEntry(entry, otPolicy);
+    let dailyOvertimeHours = 0;
+    
+    segments.forEach(segment => {
+      if (segment.isOvertime) {
+        const isFirstOvertimeHour = dailyOvertimeHours === 0;
+        const segmentPay = calcHourly(
+          segment.hours,
+          contract.hourly_rate_cents,
+          true,
+          isWeekend,
+          isHoliday,
+          segment.isNightShift,
+          isFirstOvertimeHour
+        );
+        
+        overtimePay += segmentPay;
+        
+        // Categorizar por tipo de hora extra
+        if (isHoliday) {
+          overtimePayHoliday += segmentPay;
+        } else if (isWeekend) {
+          overtimePayWeekend += segmentPay;
+        } else if (segment.isNightShift) {
+          overtimePayNight += segmentPay;
+        } else {
+          overtimePayDay += segmentPay;
+        }
+        
+        dailyOvertimeHours += segment.hours;
+      }
+    });
+  });
+  
+  // Calcular subsídios de refeição por dia trabalhado
+  let mealAllowance = 0;
+  const processedDates = new Set<string>();
+  
+  timeEntries.forEach(entry => {
+    if (!processedDates.has(entry.date)) {
+      processedDates.add(entry.date);
+      
+      // Calcular horas regulares e totais para este dia
+      const dayEntries = timeEntries.filter(e => e.date === entry.date);
+      let dayRegularHours = 0;
+      let dayTotalHours = 0;
+      
+      dayEntries.forEach(dayEntry => {
+        const segments = segmentEntry(dayEntry, otPolicy);
+        segments.forEach(segment => {
+          if (segment.isOvertime) {
+            dayTotalHours += segment.hours;
+          } else {
+            dayRegularHours += segment.hours;
+            dayTotalHours += segment.hours;
+          }
+        });
+      });
+      
+      // Verificar se é feriado
+      const isHoliday = holidays.some(h => h.date === entry.date);
+      
+      // Verificar se é férias
+      const isVacation = vacations.some(v => {
+        const entryDate = new Date(entry.date);
+        const startDate = new Date(v.start_date);
+        const endDate = new Date(v.end_date);
+        return entryDate >= startDate && entryDate <= endDate;
+      });
+      
+      // Por agora, assumimos que não há exceções (será implementado na UI)
+      const isException = false;
+      
+      // Usar meses excluídos da configuração
+      const excludedMonths = mealAllowanceConfig?.excluded_months || [];
+      
+      mealAllowance += calcMeal(
+        entry.date,
+        dayRegularHours,
+        dayTotalHours,
+        mealAllowanceConfig?.daily_amount_cents ?? contract.meal_allowance_cents ?? 1020,
+        excludedMonths,
+        isHoliday,
+        isVacation,
+        isException,
+        4, // minimumRegularHours
+        mealAllowanceConfig?.payment_method || 'card' // paymentMethod
+      );
+    }
+  });
   
   // Calcular quilometragem
   const mileageReimbursement = calcMileage(mileageTrips, mileageRateCents);
@@ -227,9 +416,13 @@ export function calcMonth(
 
   const grossPay = regularPay + overtimePay + mealAllowance + mileageReimbursement + punctualityBonus;
   
-  // Deduções (exemplo: 11% para Segurança Social)
-  const socialSecurityDeduction = Math.round(grossPay * 0.11);
-  const deductions = socialSecurityDeduction;
+  // Calcular deduções usando as percentagens configuradas
+  const irsPercentage = (deductionConfig?.irs_percentage || 0) / 100;
+  const socialSecurityPercentage = (deductionConfig?.social_security_percentage || 11) / 100; // Default 11% se não configurado
+  
+  const irsDeduction = Math.round(grossPay * irsPercentage);
+  const socialSecurityDeduction = Math.round(grossPay * socialSecurityPercentage);
+  const deductions = irsDeduction + socialSecurityDeduction;
   
   const netPay = grossPay - deductions;
 
@@ -238,12 +431,19 @@ export function calcMonth(
     overtimeHours,
     regularPay,
     overtimePay,
+    overtimePayDay,
+    overtimePayNight,
+    overtimePayWeekend,
+    overtimePayHoliday,
     mealAllowance,
     mileageReimbursement,
     bonuses: punctualityBonus,
     grossPay,
     deductions,
-    netPay
+    irsDeduction,
+    socialSecurityDeduction,
+    netPay,
+    validationErrors: validationErrors.length > 0 ? validationErrors : undefined
   };
 }
 
@@ -361,9 +561,15 @@ export function calculateHourlyRate(
 /**
  * Valida se uma entrada de tempo é válida
  * @param entry Entrada de tempo
+ * @param contractHours Horas contratuais diárias (padrão: 8h)
+ * @param maxOvertimeHours Máximo de horas extras diárias permitidas (padrão: 2h)
  * @returns Objeto com resultado da validação e mensagens de erro
  */
-export function validateTimeEntry(entry: Partial<PayrollTimeEntry>): {
+export function validateTimeEntry(
+  entry: Partial<PayrollTimeEntry>,
+  contractHours: number = 8,
+  maxOvertimeHours: number = 2
+): {
   isValid: boolean;
   errors: string[];
 } {
@@ -393,6 +599,12 @@ export function validateTimeEntry(entry: Partial<PayrollTimeEntry>): {
     if (totalHours > 16) {
       errors.push('Não é possível trabalhar mais de 16 horas por dia');
     }
+
+    // Validar limite diário de horas extras (legislação portuguesa: máximo 2h/dia)
+    const overtimeHours = Math.max(0, totalHours - contractHours);
+    if (overtimeHours > maxOvertimeHours) {
+      errors.push(`As horas extras não podem exceder ${maxOvertimeHours} horas por dia (atual: ${overtimeHours.toFixed(2)}h)`);
+    }
   }
 
   if (entry.break_minutes !== undefined) {
@@ -412,8 +624,69 @@ export function validateTimeEntry(entry: Partial<PayrollTimeEntry>): {
     }
   }
 
+  return { isValid: errors.length === 0, errors };
+}
+
+/**
+ * Verifica se é necessário descanso compensatório para trabalho em domingo
+ * @param workDate Data do trabalho
+ * @param hoursWorked Horas trabalhadas
+ * @returns Objeto indicando se é necessário descanso compensatório
+ */
+export function checkCompensatoryRest(
+  workDate: Date,
+  hoursWorked: number
+): {
+  isRequired: boolean;
+  reason: string;
+  compensatoryHours: number;
+} {
+  const dayOfWeek = workDate.getDay(); // 0 = domingo, 6 = sábado
+  
+  // Trabalho em domingo requer descanso compensatório obrigatório
+  if (dayOfWeek === 0 && hoursWorked > 0) {
+    return {
+      isRequired: true,
+      reason: 'Trabalho em domingo requer descanso compensatório obrigatório',
+      compensatoryHours: hoursWorked
+    };
+  }
+  
   return {
-    isValid: errors.length === 0,
-    errors
+    isRequired: false,
+    reason: '',
+    compensatoryHours: 0
   };
+}
+
+/**
+ * Valida limites semanais e anuais de horas extras
+ * @param weeklyHours Total de horas trabalhadas na semana
+ * @param annualOvertimeHours Total de horas extras no ano
+ * @param maxWeeklyHours Limite semanal total (padrão: 48h)
+ * @param maxAnnualOvertimeHours Limite anual de horas extras (padrão: 150h)
+ * @returns Objeto com resultado da validação e mensagens de erro
+ */
+export function validateOvertimeLimits(
+  weeklyHours: number,
+  annualOvertimeHours: number,
+  maxWeeklyHours: number = 48,
+  maxAnnualOvertimeHours: number = 150
+): {
+  isValid: boolean;
+  errors: string[];
+} {
+  const errors: string[] = [];
+
+  // Validar limite semanal de 48 horas totais
+  if (weeklyHours > maxWeeklyHours) {
+    errors.push(`O limite semanal de ${maxWeeklyHours} horas foi excedido (atual: ${weeklyHours.toFixed(2)}h)`);
+  }
+
+  // Validar limite anual de horas extras
+  if (annualOvertimeHours > maxAnnualOvertimeHours) {
+    errors.push(`O limite anual de ${maxAnnualOvertimeHours} horas extras foi excedido (atual: ${annualOvertimeHours.toFixed(2)}h)`);
+  }
+
+  return { isValid: errors.length === 0, errors };
 }

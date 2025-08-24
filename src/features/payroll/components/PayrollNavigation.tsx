@@ -2,13 +2,15 @@ import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
+import { ContractSelector } from './ContractSelector';
 import {
   Calculator,
   Clock,
   Car,
   Settings,
   FileText,
-  BarChart3
+  BarChart3,
+  Table
 } from 'lucide-react';
 
 interface PayrollNavigationProps {
@@ -27,10 +29,10 @@ export function PayrollNavigation({ className }: PayrollNavigationProps) {
       description: 'Visão geral do mês'
     },
     {
-      path: '/personal/payroll/horas',
-      label: 'Horas',
+      path: '/personal/payroll/timesheet',
+      label: 'Timesheet',
       icon: Clock,
-      description: 'Timesheet semanal'
+      description: 'Registo de horas semanal'
     },
     {
       path: '/personal/payroll/km',
@@ -61,6 +63,7 @@ export function PayrollNavigation({ className }: PayrollNavigationProps) {
             <h2 className="text-lg font-semibold text-foreground">Folha de Pagamento</h2>
             <p className="text-sm text-muted-foreground">Gestão de horários e salários</p>
           </div>
+          <ContractSelector />
         </div>
         
         <nav className="flex flex-wrap gap-2">

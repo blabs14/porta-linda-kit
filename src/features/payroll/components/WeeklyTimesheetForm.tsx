@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Clock, Save, Upload, Download, Calendar, Plus, Trash2, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Loader2, Clock, Save, Upload, Download, Calendar, Trash2, AlertTriangle, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PayrollTimeEntry, PayrollContract, TimesheetEntry, WeeklyTimesheet } from '../types';
 import { payrollService } from '../services/payrollService';
 import { useToast } from '@/hooks/use-toast';
@@ -17,24 +17,36 @@ import { formatCurrency } from '@/lib/utils';
 import { calculateHours } from '../lib/calc';
 
 interface WeeklyTimesheetFormProps {
-  weekStart: Date;
+  initialWeekStart?: Date;
   contractId?: string;
   onSave?: (entries: PayrollTimeEntry[]) => void;
 }
 
-export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTimesheetFormProps) {
+export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: WeeklyTimesheetFormProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [contracts, setContracts] = useState<PayrollContract[]>([]);
   const [selectedContractId, setSelectedContractId] = useState(contractId || '');
+  const [selectedWeek, setSelectedWeek] = useState(
+    (initialWeekStart || new Date()).toISOString().split('T')[0]
+  );
   const [timesheet, setTimesheet] = useState<WeeklyTimesheet>({ entries: [] });
   const [existingEntries, setExistingEntries] = useState<PayrollTimeEntry[]>([]);
 
+  // Função para calcular o número da semana
+  const getWeekNumber = (date: Date): number => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  };
+
   // Gerar os 7 dias da semana
   const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date(weekStart);
+    const date = new Date(selectedWeek);
     date.setDate(date.getDate() + i);
     return date;
   });
@@ -49,25 +61,26 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
     if (selectedContractId) {
       loadExistingEntries();
     }
-  }, [selectedContractId, weekStart]);
+  }, [selectedContractId, selectedWeek]);
 
   const loadContracts = async () => {
     if (!user?.id) return;
     
     try {
       const data = await payrollService.getContracts(user.id);
-      setContracts(data.filter(c => c.is_active));
+      const activeContracts = data.filter(c => c.is_active);
+      setContracts(activeContracts);
       
-      if (!selectedContractId && data.length > 0) {
-        setSelectedContractId(data[0].id);
+      if (!selectedContractId && activeContracts.length > 0) {
+        setSelectedContractId(activeContracts[0].id);
       }
     } catch (error) {
+      console.error('Erro ao carregar contratos:', error);
       toast({
         title: 'Erro',
-        description: 'Erro ao carregar contratos.',
-        variant: 'destructive'
+        description: 'Não foi possível carregar os contratos.',
+        variant: 'destructive',
       });
-      console.error('Error loading contracts:', error);
     }
   };
 
@@ -76,14 +89,14 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
 
     setLoading(true);
     try {
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekEnd.getDate() + 6);
-      
-      const entries = await payrollService.getTimeEntries(
-        user.id,
-        weekStart.toISOString().split('T')[0],
-        weekEnd.toISOString().split('T')[0]
-      );
+      const weekEnd = new Date(selectedWeek);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    
+    const entries = await payrollService.getTimeEntries(
+      user.id,
+      selectedWeek,
+      weekEnd.toISOString().split('T')[0]
+    );
       
       setExistingEntries(entries);
       
@@ -91,21 +104,22 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
       const timesheetEntries: TimesheetEntry[] = weekDays.map(date => {
         const dateStr = date.toISOString().split('T')[0];
         const dayEntries = entries.filter(e => 
-          e.entry_date.toISOString().split('T')[0] === dateStr
+          e.date === dateStr
         );
         
         if (dayEntries.length > 0) {
           const entry = dayEntries[0];
           return {
-          date: dateStr,
-          startTime: entry.start_time || '',
-          endTime: entry.end_time || '',
-          breakMinutes: entry.break_minutes || 0,
-          notes: entry.notes || '',
-          isHoliday: entry.is_holiday || false,
-          isSick: entry.is_sick || false,
-          isException: false
-        };
+        date: dateStr,
+        startTime: entry.start_time || '',
+        endTime: entry.end_time || '',
+        breakMinutes: entry.break_minutes || 0,
+        description: entry.description || '',
+        isHoliday: entry.is_holiday || false,
+        isSick: entry.is_sick || false,
+        isVacation: false,
+        isException: false
+      };
         }
         
         return {
@@ -113,9 +127,10 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
         startTime: '',
         endTime: '',
         breakMinutes: 0,
-        notes: '',
+        description: '',
         isHoliday: false,
         isSick: false,
+        isVacation: false,
         isException: false
       };
       });
@@ -135,23 +150,58 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
 
   const updateEntry = (index: number, field: keyof TimesheetEntry, value: any) => {
     const newEntries = [...timesheet.entries];
-    newEntries[index] = { ...newEntries[index], [field]: value };
+    const entry = { ...newEntries[index] };
+    
+    // Aplicar precedências: feriado > férias > doente
+    if (field === 'isHoliday' && value) {
+      // Feriado tem precedência sobre tudo
+      entry.isVacation = false;
+      entry.isSick = false;
+      // Limpar horas se não for exceção
+      if (!entry.isException) {
+        entry.startTime = '';
+        entry.endTime = '';
+        entry.breakMinutes = 0;
+      }
+    } else if (field === 'isVacation' && value) {
+      // Férias só pode ser marcado se não for feriado
+      if (!entry.isHoliday) {
+        entry.isSick = false;
+        // Limpar horas se não for exceção
+        if (!entry.isException) {
+          entry.startTime = '';
+          entry.endTime = '';
+          entry.breakMinutes = 0;
+        }
+      } else {
+        // Não permitir marcar férias se já for feriado
+        return;
+      }
+    } else if (field === 'isSick' && value) {
+      // Doente só pode ser marcado se não for feriado nem férias
+      if (!entry.isHoliday && !entry.isVacation) {
+        // Limpar horas se não for exceção
+        if (!entry.isException) {
+          entry.startTime = '';
+          entry.endTime = '';
+          entry.breakMinutes = 0;
+        }
+      } else {
+        // Não permitir marcar doente se já for feriado ou férias
+        return;
+      }
+    } else if (field === 'isException') {
+      // isException permite editar horas mesmo em feriados/férias/doente
+      entry[field] = value;
+    } else {
+      entry[field] = value;
+    }
+    
+    newEntries[index] = entry;
     setTimesheet({ entries: newEntries });
   };
 
-  const addEmptyEntry = () => {
-    const newEntry: TimesheetEntry = {
-      date: weekDays[0].toISOString().split('T')[0],
-      startTime: '',
-      endTime: '',
-      breakMinutes: 0,
-      notes: '',
-      isHoliday: false,
-      isSick: false,
-      isException: false
-    };
-    setTimesheet({ entries: [...timesheet.entries, newEntry] });
-  };
+
 
   const fillNormalWeek = () => {
     if (!selectedContract?.schedule_json) {
@@ -164,23 +214,25 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
     }
 
     const schedule = selectedContract.schedule_json;
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    
     const newEntries: TimesheetEntry[] = weekDays.map((date, index) => {
       const dateStr = date.toISOString().split('T')[0];
       const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const dayName = dayNames[dayOfWeek];
+      const daySchedule = schedule[dayName];
       
-      // Convert to our schedule format (Monday = 0, Sunday = 6)
-      const scheduleIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      const daySchedule = schedule[scheduleIndex];
-      
-      if (daySchedule?.enabled) {
+      // Verificar se o dia tem horário definido (start e end não são null)
+      if (daySchedule && daySchedule.start && daySchedule.end) {
         return {
            date: dateStr,
-           startTime: daySchedule.start_time || '',
-           endTime: daySchedule.end_time || '',
+           startTime: daySchedule.start,
+           endTime: daySchedule.end,
            breakMinutes: daySchedule.break_minutes || 0,
-           notes: '',
+           description: '',
            isHoliday: false,
            isSick: false,
+           isVacation: false,
            isException: false
          };
       } else {
@@ -189,9 +241,10 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
            startTime: '',
            endTime: '',
            breakMinutes: 0,
-           notes: '',
+           description: '',
            isHoliday: false,
            isSick: false,
+           isVacation: false,
            isException: false
          };
        }
@@ -205,13 +258,85 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
     });
   };
 
-  const removeEntry = (index: number) => {
-    const newEntries = timesheet.entries.filter((_, i) => i !== index);
-    setTimesheet({ entries: newEntries });
+  // Apagar entrada individual de um dia específico
+  const clearDayEntry = async (index: number) => {
+    const entry = timesheet.entries[index];
+    const dateStr = entry.date;
+    
+    // Encontrar entrada existente para este dia
+    const existingEntry = existingEntries.find(e => 
+      e.date.toISOString().split('T')[0] === dateStr
+    );
+    
+    if (existingEntry) {
+      try {
+        await payrollService.deleteTimeEntry(existingEntry.id);
+        toast({
+          title: 'Entrada apagada',
+          description: 'A entrada de tempo foi apagada com sucesso.'
+        });
+        // Recarregar entradas
+        await loadExistingEntries();
+      } catch (error) {
+        toast({
+          title: 'Erro',
+          description: 'Erro ao apagar entrada de tempo.',
+          variant: 'destructive'
+        });
+        console.error('Error deleting time entry:', error);
+      }
+    } else {
+      // Se não existe entrada salva, apenas limpar localmente
+      const newEntries = [...timesheet.entries];
+      newEntries[index] = {
+        date: dateStr,
+        startTime: '',
+        endTime: '',
+        breakMinutes: 0,
+        description: '',
+        isHoliday: false,
+        isSick: false,
+        isVacation: false,
+        isException: false
+      };
+      setTimesheet({ entries: newEntries });
+    }
+  };
+
+  // Apagar todas as entradas da semana
+  const clearWeekEntries = async () => {
+    if (!confirm('Tem certeza que deseja apagar todas as entradas de tempo desta semana?')) {
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      // Apagar todas as entradas existentes da semana
+      for (const existingEntry of existingEntries) {
+        await payrollService.deleteTimeEntry(existingEntry.id);
+      }
+      
+      toast({
+        title: 'Entradas apagadas',
+        description: 'Todas as entradas de tempo da semana foram apagadas.'
+      });
+      
+      // Recarregar entradas
+      await loadExistingEntries();
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Erro ao apagar entradas de tempo.',
+        variant: 'destructive'
+      });
+      console.error('Error deleting week entries:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const calculateDayHours = (entry: TimesheetEntry): number => {
-    if (!entry.startTime || !entry.endTime || entry.isHoliday || entry.isSick) {
+    if (!entry.startTime || !entry.endTime || (entry.isHoliday && !entry.isException) || (entry.isSick && !entry.isException) || (entry.isVacation && !entry.isException)) {
       return 0;
     }
     
@@ -280,13 +405,14 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
           .filter(entry => entry.startTime || entry.endTime || entry.isHoliday || entry.isSick)
           .map(entry => ({
             contract_id: selectedContractId,
-            entry_date: new Date(entry.date),
+            date: new Date(entry.date),
             start_time: entry.startTime || null,
             end_time: entry.endTime || null,
             break_minutes: entry.breakMinutes || 0,
-            notes: entry.notes || null,
+            description: entry.notes || null,
             is_holiday: entry.isHoliday || false,
-            is_sick: entry.isSick || false
+            is_sick: entry.isSick || false,
+            is_vacation: entry.isVacation || false
           }));
 
       // Deletar entradas existentes da semana
@@ -297,7 +423,7 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
       // Criar novas entradas
       const savedEntries: PayrollTimeEntry[] = [];
       for (const entry of timeEntries) {
-        const saved = await payrollService.createTimeEntry(user.id, entry);
+        const saved = await payrollService.createTimeEntry(user.id, selectedContractId!, entry);
         savedEntries.push(saved);
       }
 
@@ -345,9 +471,10 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
             startTime: startTime || '',
             endTime: endTime || '',
             breakMinutes: parseInt(breakMinutes) || 0,
-            notes: notes || '',
+            description: notes || '',
             isHoliday: isHoliday === 'true' || isHoliday === '1',
             isSick: isSick === 'true' || isSick === '1',
+            isVacation: false, // Não importar férias do CSV por agora
             isException: isException === 'true' || isException === '1'
           });
         }
@@ -373,15 +500,16 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
   };
 
   const exportToCSV = () => {
-    const headers = ['data', 'inicio', 'fim', 'pausa_minutos', 'notas', 'feriado', 'doente', 'excecao'];
+    const headers = ['data', 'inicio', 'fim', 'pausa_minutos', 'notas', 'feriado', 'doente', 'ferias', 'excecao'];
     const rows = timesheet.entries.map(entry => [
       entry.date,
       entry.startTime,
       entry.endTime,
       entry.breakMinutes.toString(),
-      entry.notes,
+      entry.description,
       entry.isHoliday ? '1' : '0',
       entry.isSick ? '1' : '0',
+      entry.isVacation ? '1' : '0',
       entry.isException ? '1' : '0'
     ]);
     
@@ -393,7 +521,7 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `timesheet_${weekStart.toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `timesheet_${selectedWeek}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -426,7 +554,7 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
                 Timesheet Semanal
               </CardTitle>
               <CardDescription>
-                Semana de {weekStart.toLocaleDateString('pt-PT')} a {weekDays[6].toLocaleDateString('pt-PT')}
+                Semana de {weekDays[0].toLocaleDateString('pt-PT')} a {weekDays[6].toLocaleDateString('pt-PT')}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -459,18 +587,18 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="contract">Contrato</Label>
-              <Select value={selectedContractId} onValueChange={setSelectedContractId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um contrato" />
-                </SelectTrigger>
-                <SelectContent>
-                  {contracts.map(contract => (
-                    <SelectItem key={contract.id} value={contract.id}>
-                      {contract.employee_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Select value={selectedContractId || ''} onValueChange={setSelectedContractId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um contrato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contracts.map((contract) => (
+                      <SelectItem key={contract.id} value={contract.id}>
+                        {contract.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
             </div>
             <div>
               <Label>Total da Semana</Label>
@@ -494,7 +622,36 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Entradas de Tempo</CardTitle>
+            <div className="flex items-center gap-4">
+              <CardTitle>Entradas de Tempo</CardTitle>
+              <div className="flex items-center gap-2">
+                <Button 
+                  onClick={() => {
+                    const currentDate = new Date(selectedWeek);
+                    currentDate.setDate(currentDate.getDate() - 7);
+                    setSelectedWeek(currentDate.toISOString().split('T')[0]);
+                  }}
+                  variant="outline" 
+                  size="sm"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm font-medium min-w-[120px] text-center">
+                  Semana {getWeekNumber(new Date(selectedWeek))}
+                </span>
+                <Button 
+                  onClick={() => {
+                    const currentDate = new Date(selectedWeek);
+                    currentDate.setDate(currentDate.getDate() + 7);
+                    setSelectedWeek(currentDate.toISOString().split('T')[0]);
+                  }}
+                  variant="outline" 
+                  size="sm"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
             <div className="flex gap-2">
               <Button 
                 onClick={fillNormalWeek} 
@@ -505,10 +662,16 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
                 <Calendar className="mr-2 h-4 w-4" />
                 Preencher Semana Normal
               </Button>
-              <Button onClick={addEmptyEntry} variant="outline" size="sm">
-                <Plus className="mr-2 h-4 w-4" />
-                Adicionar Entrada
+              <Button 
+                onClick={clearWeekEntries} 
+                variant="destructive" 
+                size="sm"
+                disabled={loading || existingEntries.length === 0}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Apagar Semana
               </Button>
+
             </div>
           </div>
         </CardHeader>
@@ -525,8 +688,9 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
                   <TableHead>Horas</TableHead>
                   <TableHead>Exceção</TableHead>
                   <TableHead>Feriado</TableHead>
+                  <TableHead>Férias</TableHead>
                   <TableHead>Doente</TableHead>
-                  <TableHead>Notas</TableHead>
+                  <TableHead>Descrição</TableHead>
                   <TableHead className="w-[50px]">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -566,8 +730,9 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
                           type="time"
                           value={entry.startTime}
                           onChange={(e) => updateEntry(index, 'startTime', e.target.value)}
-                          disabled={entry.isHoliday || entry.isSick}
+                          disabled={(entry.isHoliday || entry.isSick || entry.isVacation) && !entry.isException}
                           className="w-[120px]"
+                          aria-label="Hora de início"
                         />
                       </TableCell>
                       <TableCell>
@@ -575,8 +740,9 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
                           type="time"
                           value={entry.endTime}
                           onChange={(e) => updateEntry(index, 'endTime', e.target.value)}
-                          disabled={entry.isHoliday || entry.isSick}
+                          disabled={(entry.isHoliday || entry.isSick || entry.isVacation) && !entry.isException}
                           className="w-[120px]"
+                          aria-label="Hora de fim"
                         />
                       </TableCell>
                       <TableCell>
@@ -585,14 +751,37 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
                           min="0"
                           value={entry.breakMinutes}
                           onChange={(e) => updateEntry(index, 'breakMinutes', parseInt(e.target.value) || 0)}
-                          disabled={entry.isHoliday || entry.isSick}
+                          disabled={(entry.isHoliday || entry.isSick || entry.isVacation) && !entry.isException}
                           className="w-[80px]"
+                          aria-label="Minutos de pausa"
                         />
                       </TableCell>
                       <TableCell>
-                        <Badge variant={dayHours > 8 ? 'destructive' : 'default'}>
-                          {dayHours.toFixed(2)}h
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant={dayHours > 8 ? 'destructive' : 'default'}>
+                            {dayHours.toFixed(2)}h
+                          </Badge>
+                          {entry.isHoliday && (
+                            <Badge variant="secondary" className="text-xs bg-red-100 text-red-800">
+                              Feriado
+                            </Badge>
+                          )}
+                          {entry.isVacation && (
+                            <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                              Férias
+                            </Badge>
+                          )}
+                          {entry.isSick && (
+                            <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">
+                              Doente
+                            </Badge>
+                          )}
+                          {entry.isException && (
+                            <Badge variant="outline" className="text-xs">
+                              Exceção
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <input
@@ -600,7 +789,8 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
                           checked={entry.isException || false}
                           onChange={(e) => updateEntry(index, 'isException', e.target.checked)}
                           className="h-4 w-4"
-                          title="Marcar como exceção ao horário normal"
+                          aria-label="Marcar como exceção ao horário normal"
+                          title="Permite editar horas mesmo em feriados/férias/doente"
                         />
                       </TableCell>
                       <TableCell>
@@ -609,6 +799,19 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
                           checked={entry.isHoliday}
                           onChange={(e) => updateEntry(index, 'isHoliday', e.target.checked)}
                           className="h-4 w-4"
+                          aria-label="Marcar como feriado"
+                          title="Feriado (precedência máxima)"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={entry.isVacation || false}
+                          onChange={(e) => updateEntry(index, 'isVacation', e.target.checked)}
+                          disabled={entry.isHoliday}
+                          className="h-4 w-4"
+                          aria-label="Marcar como férias"
+                          title={entry.isHoliday ? "Não é possível marcar férias em feriado" : "Marcar como férias"}
                         />
                       </TableCell>
                       <TableCell>
@@ -616,14 +819,17 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
                           type="checkbox"
                           checked={entry.isSick}
                           onChange={(e) => updateEntry(index, 'isSick', e.target.checked)}
+                          disabled={entry.isHoliday || entry.isVacation}
                           className="h-4 w-4"
+                          aria-label="Marcar como doente"
+                          title={entry.isHoliday || entry.isVacation ? "Não é possível marcar doente em feriado ou férias" : "Marcar como doente"}
                         />
                       </TableCell>
                       <TableCell>
                         <Input
-                          value={entry.notes}
-                          onChange={(e) => updateEntry(index, 'notes', e.target.value)}
-                          placeholder="Notas..."
+                          value={entry.description}
+            onChange={(e) => updateEntry(index, 'description', e.target.value)}
+                          placeholder="Descrição..."
                           className="w-[150px]"
                         />
                       </TableCell>
@@ -631,7 +837,8 @@ export function WeeklyTimesheetForm({ weekStart, contractId, onSave }: WeeklyTim
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => removeEntry(index)}
+                          onClick={() => clearDayEntry(index)}
+                          title="Limpar dados da entrada"
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>

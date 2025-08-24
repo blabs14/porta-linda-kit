@@ -68,23 +68,28 @@ export const fetchPayrollExportData = async (
   month: number
 ): Promise<PayrollExportData> => {
   try {
+    // Obter contrato ativo
+    const contractData = await payrollService.getActiveContract(userId);
+    if (!contractData?.id) {
+      throw new Error('Nenhum contrato ativo encontrado');
+    }
+
     // Calcular totais do payroll
-    const payrollResult = await calculatePayroll(userId, year, month);
+    const payrollResult = await calculatePayroll(userId, contractData.id, year, month);
     
     // Buscar horas trabalhadas
     const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
     const endDate = new Date(year, month, 0).toISOString().split('T')[0];
     
-    const hoursData = await payrollService.getHours(userId, startDate, endDate);
+    const hoursData = await payrollService.getTimeEntries(userId, startDate, endDate, contractData.id);
     
     // Buscar viagens de quilometragem
     const mileageData = await payrollService.getMileageTrips(userId, startDate, endDate);
     
     // Buscar configurações
-    const [contractData, overtimePolicyData, mealAllowanceData, mileagePolicyData] = await Promise.all([
-      payrollService.getActiveContract(userId),
+    const [overtimePolicyData, mealAllowanceData, mileagePolicyData] = await Promise.all([
       payrollService.getActiveOTPolicy(userId),
-      payrollService.getMealAllowanceConfig(userId),
+      payrollService.getMealAllowanceConfig(userId, contractData.id),
       payrollService.getActiveMileagePolicy(userId),
     ]);
     
@@ -127,53 +132,112 @@ export const fetchPayrollExportData = async (
 /**
  * Exporta dados do payroll para CSV
  */
+/**
+ * Escapes CSV field content and wraps in quotes if necessary
+ */
+const escapeCsvField = (value: string | number): string => {
+  const strValue = String(value);
+  
+  // If field contains semicolon, quote, or newline, wrap in quotes and escape quotes
+  if (strValue.includes(';') || strValue.includes('"') || strValue.includes('\n') || strValue.includes('\r')) {
+    return `"${strValue.replace(/"/g, '""')}"`;
+  }
+  
+  return strValue;
+};
+
+/**
+ * Formats number for Portuguese locale (comma as decimal separator)
+ */
+const formatNumber = (value: number, decimals: number = 2): string => {
+  return new Intl.NumberFormat('pt-PT', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  }).format(value);
+};
+
+/**
+ * Formats date for Portuguese locale (DD/MM/YYYY)
+ */
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat('pt-PT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  }).format(date);
+};
+
 export const exportPayrollToCSV = (data: PayrollExportData, options: PayrollExportOptions): Blob => {
   const lines: string[] = [];
   
   // Cabeçalho
-  lines.push(`Relatório Payroll - ${data.period.monthName}`);
+  lines.push(escapeCsvField(`Relatório Payroll - ${data.period.monthName}`));
   lines.push('');
   
   // Resumo dos totais
-  lines.push('RESUMO MENSAL');
-  lines.push('Campo,Valor (€)');
-  lines.push(`Salário Base,${data.totals.base.toFixed(2)}`);
-  lines.push(`Horas Extra - Dia,${data.totals.overtimeDay.toFixed(2)}`);
-  lines.push(`Horas Extra - Noite,${data.totals.overtimeNight.toFixed(2)}`);
-  lines.push(`Horas Extra - Fim de semana,${data.totals.overtimeWeekend.toFixed(2)}`);
-  lines.push(`Horas Extra - Feriado,${data.totals.overtimeHoliday.toFixed(2)}`);
-  lines.push(`Subsídio de Alimentação,${data.totals.meal.toFixed(2)}`);
-  lines.push(`Subsídio de Férias,${data.totals.vacation.toFixed(2)}`);
-  lines.push(`Subsídio de Natal,${data.totals.christmas.toFixed(2)}`);
-  lines.push(`Quilometragem,${data.totals.mileage.toFixed(2)}`);
-  lines.push(`Total Bruto,${data.totals.gross.toFixed(2)}`);
-  lines.push(`Total Líquido,${data.totals.net.toFixed(2)}`);
+  lines.push(escapeCsvField('RESUMO MENSAL'));
+  lines.push(`${escapeCsvField('Campo')};${escapeCsvField('Valor (€)')}`);
+  lines.push(`${escapeCsvField('Salário Base')};${escapeCsvField(formatNumber(data.totals.base))}`);
+  lines.push(`${escapeCsvField('Horas Extra - Dia')};${escapeCsvField(formatNumber(data.totals.overtimeDay))}`);
+  lines.push(`${escapeCsvField('Horas Extra - Noite')};${escapeCsvField(formatNumber(data.totals.overtimeNight))}`);
+  lines.push(`${escapeCsvField('Horas Extra - Fim de semana')};${escapeCsvField(formatNumber(data.totals.overtimeWeekend))}`);
+  lines.push(`${escapeCsvField('Horas Extra - Feriado')};${escapeCsvField(formatNumber(data.totals.overtimeHoliday))}`);
+  lines.push(`${escapeCsvField('Subsídio de Alimentação')};${escapeCsvField(formatNumber(data.totals.meal))}`);
+  lines.push(`${escapeCsvField('Subsídio de Férias')};${escapeCsvField(formatNumber(data.totals.vacation))}`);
+  lines.push(`${escapeCsvField('Subsídio de Natal')};${escapeCsvField(formatNumber(data.totals.christmas))}`);
+  lines.push(`${escapeCsvField('Quilometragem')};${escapeCsvField(formatNumber(data.totals.mileage))}`);
+  lines.push(`${escapeCsvField('Total Bruto')};${escapeCsvField(formatNumber(data.totals.gross))}`);
+  lines.push(`${escapeCsvField('Total Líquido')};${escapeCsvField(formatNumber(data.totals.net))}`);
   lines.push('');
   
   // Horas trabalhadas (se incluído)
   if (options.includeHours && data.hours.length > 0) {
-    lines.push('HORAS TRABALHADAS');
-    lines.push('Data,Início,Fim,Pausa (min),Total Horas,Extra Dia,Extra Noite,Extra Fim Semana,Extra Feriado,Notas');
+    lines.push(escapeCsvField('HORAS TRABALHADAS'));
+    lines.push(`${escapeCsvField('Data')};${escapeCsvField('Início')};${escapeCsvField('Fim')};${escapeCsvField('Pausa (min)')};${escapeCsvField('Total Horas')};${escapeCsvField('Extra Dia')};${escapeCsvField('Extra Noite')};${escapeCsvField('Extra Fim Semana')};${escapeCsvField('Extra Feriado')};${escapeCsvField('Notas')}`);
     data.hours.forEach(hour => {
-      const date = new Date(hour.date).toLocaleDateString('pt-PT');
-      lines.push(`${date},${hour.start_time},${hour.end_time},${hour.break_minutes},${hour.total_hours.toFixed(2)},${hour.overtime_day.toFixed(2)},${hour.overtime_night.toFixed(2)},${hour.overtime_weekend.toFixed(2)},${hour.overtime_holiday.toFixed(2)},"${hour.notes || ''}"`);;
+      const date = formatDate(hour.date);
+      lines.push([
+        escapeCsvField(date),
+        escapeCsvField(hour.start_time),
+        escapeCsvField(hour.end_time),
+        escapeCsvField(hour.break_minutes.toString()),
+        escapeCsvField(formatNumber(hour.total_hours)),
+        escapeCsvField(formatNumber(hour.overtime_day)),
+        escapeCsvField(formatNumber(hour.overtime_night)),
+        escapeCsvField(formatNumber(hour.overtime_weekend)),
+        escapeCsvField(formatNumber(hour.overtime_holiday)),
+        escapeCsvField(hour.notes || '')
+      ].join(';'));
     });
     lines.push('');
   }
   
   // Quilometragem (se incluído)
   if (options.includeMileage && data.mileage.length > 0) {
-    lines.push('QUILOMETRAGEM');
-    lines.push('Data,Quilómetros,Origem,Destino,Motivo,Valor (€)');
+    lines.push(escapeCsvField('QUILOMETRAGEM'));
+    lines.push(`${escapeCsvField('Data')};${escapeCsvField('Quilómetros')};${escapeCsvField('Origem')};${escapeCsvField('Destino')};${escapeCsvField('Motivo')};${escapeCsvField('Valor (€)')}`);
     data.mileage.forEach(trip => {
-      const date = new Date(trip.date).toLocaleDateString('pt-PT');
-      lines.push(`${date},${trip.kilometers},"${trip.origin}","${trip.destination}","${trip.purpose}",${trip.amount.toFixed(2)}`);
+      const date = formatDate(trip.date);
+      lines.push([
+        escapeCsvField(date),
+        escapeCsvField(formatNumber(trip.kilometers, 1)),
+        escapeCsvField(trip.origin),
+        escapeCsvField(trip.destination),
+        escapeCsvField(trip.purpose),
+        escapeCsvField(formatNumber(trip.amount))
+      ].join(';'));
     });
     lines.push('');
   }
   
   const csvContent = lines.join('\n');
-  return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  
+  // Add BOM for UTF-8 to ensure proper encoding in Excel
+  const BOM = '\uFEFF';
+  const csvWithBOM = BOM + csvContent;
+  
+  return new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
 };
 
 /**
@@ -197,17 +261,17 @@ export const exportPayrollToPDF = async (data: PayrollExportData, options: Payro
   yPosition += 10;
   
   const summaryData = [
-    ['Salário Base', `${data.totals.base.toFixed(2)} €`],
-    ['Horas Extra - Dia', `${data.totals.overtimeDay.toFixed(2)} €`],
-    ['Horas Extra - Noite', `${data.totals.overtimeNight.toFixed(2)} €`],
-    ['Horas Extra - Fim de semana', `${data.totals.overtimeWeekend.toFixed(2)} €`],
-    ['Horas Extra - Feriado', `${data.totals.overtimeHoliday.toFixed(2)} €`],
-    ['Subsídio de Alimentação', `${data.totals.meal.toFixed(2)} €`],
-    ['Subsídio de Férias', `${data.totals.vacation.toFixed(2)} €`],
-    ['Subsídio de Natal', `${data.totals.christmas.toFixed(2)} €`],
-    ['Quilometragem', `${data.totals.mileage.toFixed(2)} €`],
-    ['Total Bruto', `${data.totals.gross.toFixed(2)} €`],
-    ['Total Líquido', `${data.totals.net.toFixed(2)} €`]
+    ['Salário Base', `${formatNumber(data.totals.base)} €`],
+    ['Horas Extra - Dia', `${formatNumber(data.totals.overtimeDay)} €`],
+    ['Horas Extra - Noite', `${formatNumber(data.totals.overtimeNight)} €`],
+    ['Horas Extra - Fim de semana', `${formatNumber(data.totals.overtimeWeekend)} €`],
+    ['Horas Extra - Feriado', `${formatNumber(data.totals.overtimeHoliday)} €`],
+    ['Subsídio de Alimentação', `${formatNumber(data.totals.meal)} €`],
+    ['Subsídio de Férias', `${formatNumber(data.totals.vacation)} €`],
+    ['Subsídio de Natal', `${formatNumber(data.totals.christmas)} €`],
+    ['Quilometragem', `${formatNumber(data.totals.mileage)} €`],
+    ['Total Bruto', `${formatNumber(data.totals.gross)} €`],
+    ['Total Líquido', `${formatNumber(data.totals.net)} €`]
   ];
   
   (autoTable as any)(doc, {
@@ -232,12 +296,12 @@ export const exportPayrollToPDF = async (data: PayrollExportData, options: Payro
     yPosition += 10;
     
     const hoursData = data.hours.map(hour => [
-      new Date(hour.date).toLocaleDateString('pt-PT'),
+      formatDate(hour.date),
       hour.start_time,
       hour.end_time,
       hour.break_minutes.toString(),
-      hour.total_hours.toFixed(2),
-      hour.overtime_day.toFixed(2),
+      formatNumber(hour.total_hours),
+      formatNumber(hour.overtime_day),
       hour.notes || ''
     ]);
     
@@ -264,12 +328,12 @@ export const exportPayrollToPDF = async (data: PayrollExportData, options: Payro
     yPosition += 10;
     
     const mileageData = data.mileage.map(trip => [
-      new Date(trip.date).toLocaleDateString('pt-PT'),
-      trip.kilometers.toString(),
+      formatDate(trip.date),
+      formatNumber(trip.kilometers, 1),
       trip.origin,
       trip.destination,
       trip.purpose,
-      `${trip.amount.toFixed(2)} €`
+      `${formatNumber(trip.amount)} €`
     ]);
     
     (autoTable as any)(doc, {
@@ -285,6 +349,53 @@ export const exportPayrollToPDF = async (data: PayrollExportData, options: Payro
 };
 
 /**
+ * Clamps the date range to the civil month boundaries based on the start date
+ */
+const clampToMonthBoundaries = (dateRange: { start: string; end: string }) => {
+  const startDate = new Date(dateRange.start);
+  const year = startDate.getFullYear();
+  const month = startDate.getMonth();
+  
+  // First day of the month
+  const monthStart = new Date(year, month, 1);
+  // Last day of the month
+  const monthEnd = new Date(year, month + 1, 0);
+  
+  const requestedStart = new Date(dateRange.start);
+  const requestedEnd = new Date(dateRange.end);
+  
+  // Clamp to month boundaries
+  const clampedStart = requestedStart < monthStart ? monthStart : requestedStart;
+  const clampedEnd = requestedEnd > monthEnd ? monthEnd : requestedEnd;
+  
+  return {
+    start: clampedStart.toISOString().split('T')[0],
+    end: clampedEnd.toISOString().split('T')[0],
+    year,
+    month: month + 1
+  };
+};
+
+/**
+ * Builds filename based on export options
+ */
+const buildFilename = (
+  year: number,
+  month: number,
+  format: string,
+  options: PayrollExportOptions
+): string => {
+  const monthStr = month.toString().padStart(2, '0');
+  let filename = `payroll-${year}-${monthStr}`;
+  
+  if (options.includeHours) filename += '-horas';
+  if (options.includeMileage) filename += '-km';
+  if (options.includeConfig) filename += '-config';
+  
+  return `${filename}.${format}`;
+};
+
+/**
  * Função principal de exportação do payroll
  */
 export const exportPayrollReport = async (
@@ -292,9 +403,14 @@ export const exportPayrollReport = async (
   options: PayrollExportOptions
 ): Promise<{ blob: Blob; filename: string }> => {
   try {
-    const startDate = new Date(options.dateRange.start);
-    const year = startDate.getFullYear();
-    const month = startDate.getMonth() + 1;
+    // Clamp date range to civil month boundaries
+    const { start, end, year, month } = clampToMonthBoundaries(options.dateRange);
+    
+    // Update options with clamped date range
+    const clampedOptions = {
+      ...options,
+      dateRange: { start, end }
+    };
     
     const data = await fetchPayrollExportData(userId, year, month);
     
@@ -303,18 +419,18 @@ export const exportPayrollReport = async (
     
     switch (options.format) {
       case 'csv':
-        blob = exportPayrollToCSV(data, options);
+        blob = exportPayrollToCSV(data, clampedOptions);
         extension = 'csv';
         break;
       case 'pdf':
-        blob = await exportPayrollToPDF(data, options);
+        blob = await exportPayrollToPDF(data, clampedOptions);
         extension = 'pdf';
         break;
       default:
         throw new Error(`Formato não suportado: ${options.format}`);
     }
     
-    const filename = `payroll-${data.period.monthName.replace(' ', '-')}.${extension}`;
+    const filename = buildFilename(year, month, extension, options);
     
     return { blob, filename };
   } catch (error) {

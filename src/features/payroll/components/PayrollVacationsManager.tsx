@@ -6,11 +6,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Calendar, Plus, Edit, Trash2, CalendarDays, CheckCircle, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { PayrollVacation } from '../types';
 import { payrollService } from '../services/payrollService';
 import { PayrollVacationForm } from './PayrollVacationForm';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -23,6 +25,7 @@ interface PayrollVacationsManagerProps {
 export function PayrollVacationsManager({ year, vacations, onVacationsChange }: PayrollVacationsManagerProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVacation, setEditingVacation] = useState<PayrollVacation | null>(null);
@@ -36,7 +39,7 @@ export function PayrollVacationsManager({ year, vacations, onVacationsChange }: 
     
     setLoading(true);
     try {
-      const data = await payrollService.getVacations(user.id, year);
+      const data = await payrollService.getVacations(user.id, undefined, year);
       onVacationsChange(data);
     } catch (error) {
       toast({
@@ -152,13 +155,13 @@ export function PayrollVacationsManager({ year, vacations, onVacationsChange }: 
               <div className="text-sm text-muted-foreground">Aprovados</div>
               <div className="font-semibold text-green-600">{getApprovedVacationDays()} dias</div>
             </div>
+
+            <Button onClick={() => navigate('/personal/payroll/config')}>
+              <Plus className="mr-2 h-4 w-4" />
+              Adicionar Férias
+            </Button>
+
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={() => openDialog()}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Adicionar Férias
-                </Button>
-              </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>
@@ -226,7 +229,7 @@ export function PayrollVacationsManager({ year, vacations, onVacationsChange }: 
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => openDialog(vacation)}
+                        onClick={() => navigate('/personal/payroll/config')}
                       >
                         <Edit className="h-3 w-3" />
                       </Button>

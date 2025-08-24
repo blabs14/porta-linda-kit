@@ -2,14 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Utensils, Save, Info } from 'lucide-react';
-import { PayrollMealAllowanceConfig, PayrollMealAllowanceConfigFormData } from '../types';
+import { Loader2, Utensils, Info, Edit, Euro } from 'lucide-react';
+import { PayrollMealAllowanceConfig } from '../types';
 import { payrollService } from '../services/payrollService';
-import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const MONTHS = [
   { value: 1, label: 'Janeiro' },
@@ -32,11 +30,10 @@ interface PayrollMealAllowanceConfigProps {
 }
 
 export function PayrollMealAllowanceConfig({ config, onConfigChange }: PayrollMealAllowanceConfigProps) {
-  const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [excludedMonths, setExcludedMonths] = useState<number[]>([]);
+  const [activeContractId, setActiveContractId] = useState<string | null>(null);
 
   useEffect(() => {
     loadConfig();
@@ -47,59 +44,33 @@ export function PayrollMealAllowanceConfig({ config, onConfigChange }: PayrollMe
     
     setLoading(true);
     try {
-      const data = await payrollService.getMealAllowanceConfig(user.id);
-      onConfigChange(data);
-      setExcludedMonths(data?.excluded_months || []);
+      const contract = await payrollService.getActiveContract(user.id);
+      const contractId = contract?.id || null;
+      setActiveContractId(contractId);
+      
+      if (contractId) {
+        const data = await payrollService.getMealAllowanceConfig(user.id, contractId);
+        onConfigChange(data);
+      } else {
+        onConfigChange(null);
+      }
     } catch (error) {
       console.error('Error loading meal allowance config:', error);
       // Se não existe configuração, não é erro
       onConfigChange(null);
-      setExcludedMonths([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSave = async () => {
-    if (!user?.id) return;
+  // Função para calcular o valor mensal estimado
+  const calculateMonthlyValue = () => {
+    if (!config) return 0;
     
-    setSaving(true);
-    try {
-      const configData: PayrollMealAllowanceConfigFormData = {
-        excluded_months: excludedMonths
-      };
-      
-      let savedConfig: PayrollMealAllowanceConfig;
-      
-      if (config) {
-        savedConfig = await payrollService.updateMealAllowanceConfig(config.id, configData);
-      } else {
-        savedConfig = await payrollService.createMealAllowanceConfig(user.id, configData);
-      }
-      
-      onConfigChange(savedConfig);
-      toast({
-        title: 'Configuração salva',
-        description: 'As configurações do subsídio de alimentação foram atualizadas com sucesso.'
-      });
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Erro ao salvar configurações do subsídio de alimentação.',
-        variant: 'destructive'
-      });
-      console.error('Error saving meal allowance config:', error);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleMonthToggle = (month: number, checked: boolean) => {
-    if (checked) {
-      setExcludedMonths(prev => [...prev, month].sort());
-    } else {
-      setExcludedMonths(prev => prev.filter(m => m !== month));
-    }
+    const dailyAmount = config.daily_amount_cents / 100; // Converter de cents para euros
+    const workingDaysPerMonth = 22; // Estimativa padrão de dias úteis por mês
+    
+    return dailyAmount * workingDaysPerMonth;
   };
 
   if (loading) {
@@ -116,82 +87,101 @@ export function PayrollMealAllowanceConfig({ config, onConfigChange }: PayrollMe
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Utensils className="h-5 w-5" />
-          Configuração do Subsídio de Alimentação
-        </CardTitle>
-        <CardDescription>
-          Configure os meses em que o subsídio de alimentação não deve ser pago.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            <div className="space-y-2">
-              <p><strong>Regras do subsídio de alimentação:</strong></p>
-              <ul className="list-disc list-inside text-sm space-y-1">
-                <li>Pago apenas em dias trabalhados (não em férias ou feriados)</li>
-                <li>Pode ser excluído de meses específicos (ex: mês de férias)</li>
-                <li>Calculado automaticamente com base no contrato de trabalho</li>
-              </ul>
-            </div>
-          </AlertDescription>
-        </Alert>
-        
-        <div className="space-y-4">
+        <div className="flex items-center justify-between">
           <div>
-            <Label className="text-base font-medium">Meses sem pagamento de subsídio</Label>
-            <p className="text-sm text-muted-foreground mt-1">
-              Selecione os meses em que o subsídio de alimentação não deve ser pago.
-            </p>
+            <CardTitle className="flex items-center gap-2">
+              <Utensils className="h-5 w-5" />
+              Configuração do Subsídio de Alimentação
+            </CardTitle>
+            <CardDescription>
+              Configure os meses em que o subsídio de alimentação não deve ser pago.
+            </CardDescription>
           </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {MONTHS.map((month) => {
-              const isExcluded = excludedMonths.includes(month.value);
-              return (
-                <div key={month.value} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`month-${month.value}`}
-                    checked={isExcluded}
-                    onCheckedChange={(checked) => handleMonthToggle(month.value, checked as boolean)}
-                  />
-                  <Label 
-                    htmlFor={`month-${month.value}`} 
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {month.label}
-                  </Label>
-                </div>
-              );
-            })}
-          </div>
-          
-          {excludedMonths.length > 0 && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Meses excluídos:</Label>
-              <div className="flex flex-wrap gap-2">
-                {excludedMonths.map(monthValue => {
-                  const month = MONTHS.find(m => m.value === monthValue);
-                  return (
-                    <Badge key={monthValue} variant="secondary">
-                      {month?.label}
-                    </Badge>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-        
-        <div className="flex justify-end pt-4">
-          <Button onClick={handleSave} disabled={saving}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            <Save className="mr-2 h-4 w-4" />
-            Salvar Configurações
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/personal/payroll/config')}
+          >
+            <Edit className="mr-2 h-4 w-4" />
+            Editar
           </Button>
         </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {config ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="p-4 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Euro className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">Valor Diário</span>
+                  </div>
+                  <p className="text-2xl font-bold">
+                    €{(config.daily_amount_cents / 100).toFixed(2)}
+                  </p>
+                </div>
+                
+                <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Euro className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium text-primary">Valor Mensal Estimado</span>
+                  </div>
+                  <p className="text-2xl font-bold text-primary">
+                    €{calculateMonthlyValue().toFixed(2)}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Baseado em 22 dias úteis por mês
+                  </p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="space-y-2">
+                      <p><strong>Regras do subsídio de alimentação:</strong></p>
+                      <ul className="list-disc list-inside text-sm space-y-1">
+                        <li>Pago apenas em dias trabalhados</li>
+                        <li>Não pago em férias ou feriados</li>
+                        <li>Calculado automaticamente</li>
+                      </ul>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              </div>
+            </div>
+            
+            {config.excluded_months && config.excluded_months.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Meses excluídos do pagamento:</h4>
+                <div className="flex flex-wrap gap-2">
+                  {config.excluded_months.map(monthValue => {
+                    const month = MONTHS.find(m => m.value === monthValue);
+                    return (
+                      <Badge key={monthValue} variant="secondary">
+                        {month?.label}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-8">
+            <Utensils className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-medium mb-2">Subsídio de Alimentação não configurado</h3>
+            <p className="text-muted-foreground mb-4">
+              Configure o subsídio de alimentação na página de configurações.
+            </p>
+            <Button onClick={() => navigate('/personal/payroll/config')}>
+              <Edit className="mr-2 h-4 w-4" />
+              Configurar Agora
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

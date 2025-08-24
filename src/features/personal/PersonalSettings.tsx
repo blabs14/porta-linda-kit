@@ -908,10 +908,22 @@ const ProfileAuditList: React.FC<{ profileRowId: string }> = ({ profileRowId }) 
               <span className="uppercase text-muted-foreground">{e.operation}</span>
             </div>
             <div className="mt-1 space-y-0.5">
-              {oldFirst !== newFirst && (<div>Nome: {oldFirst ?? '—'} → {newFirst ?? '—'}</div>)}
-              {oldLast !== newLast && (<div>Apelido: {oldLast ?? '—'} → {newLast ?? '—'}</div>)}
-              {oldPhone !== newPhone && (<div>Telefone: {oldPhone ?? '—'} → {newPhone ?? '—'}</div>)}
-              {oldBirth !== newBirth && (<div>Nascimento: {oldBirth ?? '—'} → {newBirth ?? '—'}</div>)}
+              {(() => {
+                const changes = [];
+                if (oldFirst !== newFirst) {
+                  changes.push(<div key="first-name">Nome: {oldFirst ?? '—'} → {newFirst ?? '—'}</div>);
+                }
+                if (oldLast !== newLast) {
+                  changes.push(<div key="last-name">Apelido: {oldLast ?? '—'} → {newLast ?? '—'}</div>);
+                }
+                if (oldPhone !== newPhone) {
+                  changes.push(<div key="phone">Telefone: {oldPhone ?? '—'} → {newPhone ?? '—'}</div>);
+                }
+                if (oldBirth !== newBirth) {
+                  changes.push(<div key="birth-date">Nascimento: {oldBirth ?? '—'} → {newBirth ?? '—'}</div>);
+                }
+                return changes;
+              })()} 
             </div>
           </div>
         );

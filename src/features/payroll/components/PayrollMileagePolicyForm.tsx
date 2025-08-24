@@ -29,9 +29,9 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
     name: '',
     rate_per_km_cents: 0,
     monthly_cap_cents: null as number | null,
-    requires_receipt: false,
-    is_active: true,
-    notes: ''
+    requires_purpose: false,
+    requires_origin_destination: false,
+    is_active: true
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -41,9 +41,9 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
         name: policy.name,
         rate_per_km_cents: policy.rate_per_km_cents,
         monthly_cap_cents: policy.monthly_cap_cents,
-        requires_receipt: policy.requires_receipt || false,
-        is_active: policy.is_active,
-        notes: policy.notes || ''
+        requires_purpose: policy.requires_purpose || false,
+        requires_origin_destination: policy.requires_origin_destination || false,
+        is_active: policy.is_active
       });
     }
     loadContract();
@@ -71,8 +71,9 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
       newErrors.rate_per_km_cents = 'Taxa por KM deve ser maior que zero';
     }
 
+    // monthly_cap_cents é opcional e pode ser null ou qualquer valor positivo
     if (formData.monthly_cap_cents !== null && formData.monthly_cap_cents <= 0) {
-      newErrors.monthly_cap_cents = 'Limite mensal deve ser maior que zero';
+      newErrors.monthly_cap_cents = 'Limite mensal deve ser maior que zero se especificado';
     }
 
     setErrors(newErrors);
@@ -89,8 +90,7 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
     setLoading(true);
     try {
       const policyData = {
-        ...formData,
-        notes: formData.notes || null
+        ...formData
       };
 
       let savedPolicy: PayrollMileagePolicy;
@@ -169,7 +169,7 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
                   min="0"
                   value={centsToEuros(formData.rate_per_km_cents).toFixed(2)}
                   onChange={(e) => handleRateChange(e.target.value)}
-                  placeholder="0.36"
+                  placeholder="0.40"
                   className={`pl-10 ${errors.rate_per_km_cents ? 'border-red-500' : ''}`}
                 />
               </div>
@@ -177,7 +177,7 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
                 <p className="text-sm text-red-500 mt-1">{errors.rate_per_km_cents}</p>
               )}
               <p className="text-xs text-muted-foreground mt-1">
-                Taxa padrão em Portugal: €0.36/km (2024)
+                Taxa padrão em Portugal: €0.40/km (2025)
               </p>
             </div>
           </div>
@@ -212,14 +212,26 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
             <div className="space-y-4">
               <div className="flex items-center space-x-2">
                 <Switch
-                  id="requires_receipt"
-                  checked={formData.requires_receipt}
+                  id="requires_purpose"
+                  checked={formData.requires_purpose}
                   onCheckedChange={(checked) => setFormData(prev => ({
                     ...prev,
-                    requires_receipt: checked
+                    requires_purpose: checked
                   }))}
                 />
-                <Label htmlFor="requires_receipt">Requer Comprovativo</Label>
+                <Label htmlFor="requires_purpose">Requer Propósito da Viagem</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="requires_origin_destination"
+                  checked={formData.requires_origin_destination}
+                  onCheckedChange={(checked) => setFormData(prev => ({
+                    ...prev,
+                    requires_origin_destination: checked
+                  }))}
+                />
+                <Label htmlFor="requires_origin_destination">Requer Origem e Destino</Label>
               </div>
 
               <div className="flex items-center space-x-2">
@@ -234,17 +246,6 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
                 <Label htmlFor="is_active">Política Ativa</Label>
               </div>
             </div>
-          </div>
-
-          <div>
-            <Label htmlFor="notes">Notas</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-              placeholder="Notas adicionais sobre a política..."
-              rows={3}
-            />
           </div>
         </CardContent>
       </Card>

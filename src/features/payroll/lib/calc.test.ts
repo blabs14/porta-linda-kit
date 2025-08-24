@@ -28,8 +28,8 @@ describe('Payroll Calculation Functions', () => {
     id: '1',
     user_id: 'user1',
     employee_name: 'João Silva',
-    base_salary_cents: 120000, // €1200
-    hourly_rate_cents: 800, // €8.00
+    base_salary_cents: 120000, // €1200 (acima do salário mínimo €870)
+  hourly_rate_cents: 800, // €8.00
     overtime_rate_cents: 1200, // €12.00
     meal_allowance_cents: 650, // €6.50
     transport_allowance_cents: 0,
@@ -206,8 +206,51 @@ describe('Payroll Calculation Functions', () => {
     });
 
     it('should calculate meal allowance correctly', () => {
-      const allowance = calcMeal(8, 650); // 8 hours, €6.50 allowance
+      const allowance = calcMeal(
+        '2025-01-15', // date
+        8, // regularHours
+        8, // totalHours
+        650, // mealAllowanceCents (€6.50)
+        [], // excludedMonths
+        false, // isHoliday
+        false, // isVacation
+        false, // isException
+        4, // minimumRegularHours
+        'card' // paymentMethod
+      );
       expect(allowance).toBe(650);
+    });
+
+    it('should apply cash payment method exemption limit (€6.00/day)', () => {
+      const allowance = calcMeal(
+        '2025-01-15', // date
+        8, // regularHours
+        8, // totalHours
+        800, // mealAllowanceCents (€8.00 - exceeds cash limit)
+        [], // excludedMonths
+        false, // isHoliday
+        false, // isVacation
+        false, // isException
+        4, // minimumRegularHours
+        'cash' // paymentMethod
+      );
+      expect(allowance).toBe(600); // Should be capped at €6.00
+    });
+
+    it('should apply card payment method exemption limit (€10.20/day)', () => {
+      const allowance = calcMeal(
+        '2025-01-15', // date
+        8, // regularHours
+        8, // totalHours
+        1200, // mealAllowanceCents (€12.00 - exceeds card limit)
+        [], // excludedMonths
+        false, // isHoliday
+        false, // isVacation
+        false, // isException
+        4, // minimumRegularHours
+        'card' // paymentMethod
+      );
+      expect(allowance).toBe(1020); // Should be capped at €10.20
     });
 
     it('should calculate bonuses correctly', () => {

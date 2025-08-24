@@ -31,8 +31,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
     origin: '',
     destination: '',
     km: 0,
-    purpose: '',
-    notes: ''
+    purpose: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedPolicy, setSelectedPolicy] = useState<PayrollMileagePolicy | null>(null);
@@ -46,8 +45,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
       origin: trip.origin,
       destination: trip.destination,
       km: trip.km,
-      purpose: trip.purpose,
-      notes: trip.notes || ''
+      purpose: trip.purpose
     });
     } else {
       // Set default date to today
@@ -95,7 +93,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
       newErrors.km = 'Distância deve ser maior que zero';
     }
 
-    if (!formData.purpose.trim()) {
+    if (selectedPolicy?.requires_purpose && !formData.purpose.trim()) {
       newErrors.purpose = 'Propósito da viagem é obrigatório';
     }
 
@@ -115,8 +113,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
     setLoading(true);
     try {
       const tripData = {
-        ...formData,
-        notes: formData.notes || null
+        ...formData
       };
 
       let savedTrip: PayrollMileageTrip;
@@ -256,7 +253,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
             </div>
 
             <div>
-              <Label htmlFor="purpose">Propósito da Viagem *</Label>
+              <Label htmlFor="purpose">Propósito da Viagem{selectedPolicy?.requires_purpose ? ' *' : ''}</Label>
               <Input
                 id="purpose"
                 value={formData.purpose}
@@ -270,16 +267,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="notes">Notas Adicionais</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-              placeholder="Notas adicionais sobre a viagem..."
-              rows={3}
-            />
-          </div>
+
         </CardContent>
       </Card>
 
@@ -317,14 +305,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
               
               {/* Monthly limit display removed - max_km_per_month field no longer exists */}
               
-              {selectedPolicy.requires_receipt && (
-                <Alert>
-                  <Euro className="h-4 w-4" />
-                  <AlertDescription>
-                    Esta política requer comprovativo. Certifique-se de guardar os recibos de combustível.
-                  </AlertDescription>
-                </Alert>
-              )}
+
             </div>
           </CardContent>
         </Card>

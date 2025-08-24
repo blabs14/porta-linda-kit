@@ -19,7 +19,7 @@ describe('PayrollCalculationService', () => {
     mockContract = {
       id: 'contract-1',
       user_id: 'user-1',
-      base_salary_cents: 120000, // €1200
+      base_salary_cents: 120000, // €1200 (acima do salário mínimo €870)
       hourly_rate_cents: 750, // €7.50
       weekly_hours: 40,
       meal_allowance_cents: 600, // €6.00
@@ -169,7 +169,7 @@ describe('PayrollCalculationService', () => {
 
     it('deve lançar erro para parâmetros inválidos', async () => {
       const invalidInput: CalculationInput = {
-        contract: { ...mockContract, base_salary_cents: 0 }, // Salário inválido
+        contract: { ...mockContract, base_salary_cents: 50000 }, // Salário abaixo do mínimo (€500 < €870)
         timeEntries: mockTimeEntries,
         otPolicy: mockOTPolicy,
         holidays: mockHolidays
@@ -260,7 +260,7 @@ describe('PayrollCalculationService', () => {
           holidays: mockHolidays
         },
         {
-          contract: { ...mockContract, base_salary_cents: 0 }, // Entrada inválida
+          contract: { ...mockContract, base_salary_cents: 60000 }, // Salário abaixo do mínimo (€600 < €870)
           timeEntries: mockTimeEntries,
           otPolicy: mockOTPolicy,
           holidays: mockHolidays

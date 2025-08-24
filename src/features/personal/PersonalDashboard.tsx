@@ -398,7 +398,7 @@ const PersonalDashboard: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {myTransactions.slice(0, 5).map((transaction, index) => (
-                <div key={index} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
+                <div key={transaction.id || `transaction-${index}`} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
                   <div className="flex items-center gap-3">
                     <div className={`w-2 h-2 rounded-full ${
                       transaction.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
@@ -425,4 +425,4 @@ const PersonalDashboard: React.FC = () => {
   );
 };
 
-export default PersonalDashboard; 
+export default PersonalDashboard;

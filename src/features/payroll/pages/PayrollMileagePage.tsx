@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ import { PayrollMileagePolicyForm } from '../components/PayrollMileagePolicyForm
 import { PayrollMileageTrip, PayrollMileagePolicy, MileagePolicyFormData, PayrollContract } from '../types';
 
 const PayrollMileagePage: React.FC = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -214,15 +216,19 @@ const PayrollMileagePage: React.FC = () => {
     setIsSaving(true);
     try {
       if (selectedPolicy) {
-        // Funcionalidade de atualização ainda não implementada
+        const formData: MileagePolicyFormData = {
+          name: policyData.name,
+          rate_per_km: policyData.rate_per_km_cents / 100
+        };
+        const updatedPolicy = await payrollService.updateMileagePolicy(selectedPolicy.id, formData);
+        setPolicies(prev => prev.map(policy => 
+          policy.id === selectedPolicy.id ? updatedPolicy : policy
+        ));
         toast({
-          title: 'Funcionalidade não disponível',
-          description: 'A atualização de políticas ainda não está implementada.',
-          variant: 'destructive'
+          title: 'Sucesso',
+          description: 'Política atualizada com sucesso.',
+          variant: 'default'
         });
-        setShowPolicyForm(false);
-        setSelectedPolicy(null);
-        return;
       } else {
         const formData: MileagePolicyFormData = {
           name: policyData.name,
@@ -250,12 +256,23 @@ const PayrollMileagePage: React.FC = () => {
   };
 
   const handleDeletePolicy = async (policyId: string) => {
-    // Funcionalidade de remoção ainda não implementada
-    toast({
-      title: 'Funcionalidade não disponível',
-      description: 'A remoção de políticas ainda não está implementada.',
-      variant: 'destructive'
-    });
+    if (!user) return;
+    
+    try {
+      await payrollService.deleteMileagePolicy(policyId);
+      setPolicies(prev => prev.filter(policy => policy.id !== policyId));
+      toast({
+        title: 'Sucesso',
+        description: 'Política removida com sucesso.',
+        variant: 'default'
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Erro ao remover política.',
+        variant: 'destructive'
+      });
+    }
   };
 
   if (authLoading || loading) {
@@ -446,7 +463,7 @@ const PayrollMileagePage: React.FC = () => {
               <div className="flex justify-between items-center">
                 <CardTitle>Políticas de Quilometragem</CardTitle>
                 <Button
-                  onClick={() => setShowPolicyForm(true)}
+                  onClick={() => navigate('/personal/payroll/config')}
                   size="sm"
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -462,7 +479,7 @@ const PayrollMileagePage: React.FC = () => {
                       Nenhuma política de quilometragem configurada. Crie uma política para começar a registar viagens.
                     </AlertDescription>
                   </Alert>
-                  <Button onClick={() => setShowPolicyForm(true)}>
+                  <Button onClick={() => navigate('/personal/payroll/config')}>
                     <Plus className="h-4 w-4 mr-2" />
                     Criar Primeira Política
                   </Button>
@@ -476,9 +493,7 @@ const PayrollMileagePage: React.FC = () => {
                           <span className="font-medium">{policy.name}</span>
                           <span className="text-sm font-medium text-green-600">{formatCurrency(policy.rate_per_km_cents, 'pt-PT', contract?.currency || 'EUR')}/km</span>
                         </div>
-                        {policy.notes && (
-                          <div className="text-sm text-gray-600 mb-2">{policy.notes}</div>
-                        )}
+
                         <div className="text-xs text-gray-500">
                           Criada em {new Date(policy.created_at).toLocaleDateString('pt-PT')}
                         </div>
@@ -487,10 +502,7 @@ const PayrollMileagePage: React.FC = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            setSelectedPolicy(policy);
-                            setShowPolicyForm(true);
-                          }}
+                          onClick={() => navigate('/personal/payroll/config')}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>

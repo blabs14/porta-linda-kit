@@ -1,6 +1,7 @@
 // Main module component
 export { PayrollModule } from './PayrollModule';
 export { PayrollNavigation } from './PayrollNavigation';
+export { ContractSelector } from './ContractSelector';
 
 // Setup and configuration components
 export { PayrollSetupPage } from './PayrollSetupPage';

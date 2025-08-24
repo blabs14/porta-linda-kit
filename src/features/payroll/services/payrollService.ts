@@ -20,10 +20,12 @@ import {
   PayrollHolidayFormData,
   PayrollVacationFormData,
   PayrollMealAllowanceConfigFormData,
+  PayrollDeductionConfig,
+  PayrollDeductionConfigFormData,
   MileagePolicyFormData,
   PayrollCalculation
 } from '../types';
-import { eurosToCents, centsToEuros } from '../lib/calc';
+import { eurosToCents, centsToEuros, calculateHourlyRate } from '../lib/calc';
 
 // ============================================================================
 // CONTRATOS
@@ -37,7 +39,12 @@ export async function getContracts(userId: string): Promise<PayrollContract[]> {
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return (data || []).map((c: any) => ({
+    ...c,
+    weekly_hours: c?.weekly_hours === null || c?.weekly_hours === undefined
+      ? c?.weekly_hours
+      : (typeof c.weekly_hours === 'number' ? c.weekly_hours : parseFloat(c.weekly_hours))
+  }));
 }
 
 export async function getActiveContract(userId: string): Promise<PayrollContract | null> {
@@ -49,7 +56,14 @@ export async function getActiveContract(userId: string): Promise<PayrollContract
     .single();
 
   if (error && error.code !== 'PGRST116') throw error;
-  return data;
+  if (!data) return data;
+  // Normalizar weekly_hours para número
+  return {
+    ...data,
+    weekly_hours: (data as any)?.weekly_hours === null || (data as any)?.weekly_hours === undefined
+      ? (data as any)?.weekly_hours
+      : (typeof (data as any).weekly_hours === 'number' ? (data as any).weekly_hours : parseFloat((data as any).weekly_hours))
+  } as PayrollContract;
 }
 
 export async function createContract(
@@ -57,13 +71,25 @@ export async function createContract(
   contractData: ContractFormData,
   familyId?: string
 ): Promise<PayrollContract> {
+  // Calcular hourly_rate_cents automaticamente
+  const hourlyRateCents = calculateHourlyRate(
+    contractData.base_salary_cents,
+    contractData.weekly_hours
+  );
+
   const insertData = {
     user_id: userId,
     family_id: familyId || null,
     name: contractData.name,
     base_salary_cents: contractData.base_salary_cents,
+    hourly_rate_cents: hourlyRateCents,
     currency: contractData.currency,
-    weekly_hours: contractData.weekly_hours,
+    // Garantir número para weekly_hours
+    weekly_hours: (contractData as any).weekly_hours !== undefined && (contractData as any).weekly_hours !== null
+      ? (typeof (contractData as any).weekly_hours === 'string' 
+        ? parseFloat((contractData as any).weekly_hours)
+        : (contractData as any).weekly_hours)
+      : null,
     schedule_json: contractData.schedule_json,
     meal_allowance_cents_per_day: contractData.meal_allowance_cents_per_day,
     meal_on_worked_days: contractData.meal_on_worked_days,
@@ -79,7 +105,7 @@ export async function createContract(
     .single();
 
   if (error) throw error;
-  return data;
+  return data as PayrollContract;
 }
 
 export async function updateContract(
@@ -132,6 +158,18 @@ export async function updateContract(
     updateData.weekly_hours = typeof updateData.weekly_hours === 'string' 
       ? parseFloat(updateData.weekly_hours) 
       : updateData.weekly_hours;
+  }
+  
+  // Calcular hourly_rate_cents se base_salary_cents ou weekly_hours foram alterados
+  if (updateData.base_salary_cents !== undefined || updateData.weekly_hours !== undefined) {
+    // Obter valores atuais do contrato se não foram fornecidos
+    const baseSalaryCents = updateData.base_salary_cents ?? existingContract.base_salary_cents;
+    const weeklyHours = updateData.weekly_hours ?? existingContract.weekly_hours;
+    
+    if (baseSalaryCents && weeklyHours) {
+      updateData.hourly_rate_cents = calculateHourlyRate(baseSalaryCents, weeklyHours);
+      console.log('🔍 DEBUG updateContract: Calculado hourly_rate_cents:', updateData.hourly_rate_cents);
+    }
   }
   
   console.log('🔍 DEBUG updateContract: updateData com timestamp e conversões:', updateData);
@@ -323,12 +361,17 @@ export async function deleteHoliday(id: string): Promise<void> {
 
 export async function getVacations(
   userId: string,
+  contractId?: string,
   year?: number
 ): Promise<PayrollVacation[]> {
   let query = supabase
     .from('payroll_vacations')
     .select('*')
     .eq('user_id', userId);
+
+  if (contractId) {
+    query = query.eq('contract_id', contractId);
+  }
 
   if (year) {
     const startDate = `${year}-01-01`;
@@ -344,12 +387,14 @@ export async function getVacations(
 
 export async function createVacation(
   userId: string,
+  contractId: string,
   vacationData: PayrollVacationFormData
 ): Promise<PayrollVacation> {
   const { data, error } = await supabase
     .from('payroll_vacations')
     .insert({
       user_id: userId,
+      contract_id: contractId,
       ...vacationData
     })
     .select()
@@ -394,10 +439,13 @@ export async function upsertVacationPeriods(
     .delete()
     .eq('user_id', userId);
 
-  // Depois, inserir os novos períodos
+  // Depois, inserir os novos períodos com mapeamento correto dos campos
   const periodsWithUserId = periods.map(period => ({
     user_id: userId,
-    ...period
+    start_date: period.startDate,
+    end_date: period.endDate,
+    description: period.description,
+    contract_id: period.contract_id // Este será adicionado pelo contexto
   }));
 
   const { data, error } = await supabase
@@ -423,12 +471,14 @@ export async function deleteVacationPeriods(userId: string): Promise<void> {
 // ============================================================================
 
 export async function getMealAllowanceConfig(
-  userId: string
+  userId: string,
+  contractId: string
 ): Promise<PayrollMealAllowanceConfig | null> {
   const { data, error } = await supabase
     .from('payroll_meal_allowance_configs')
     .select('*')
     .eq('user_id', userId)
+    .eq('contract_id', contractId)
     .single();
 
   if (error && error.code !== 'PGRST116') throw error;
@@ -437,13 +487,17 @@ export async function getMealAllowanceConfig(
 
 export async function createMealAllowanceConfig(
   userId: string,
+  contractId: string,
   configData: PayrollMealAllowanceConfigFormData
 ): Promise<PayrollMealAllowanceConfig> {
   const { data, error } = await supabase
     .from('payroll_meal_allowance_configs')
     .insert({
       user_id: userId,
-      ...configData
+      contract_id: contractId,
+      daily_amount_cents: eurosToCents(configData.dailyAmount),
+      excluded_months: configData.excluded_months,
+      payment_method: configData.paymentMethod
     })
     .select()
     .single();
@@ -456,9 +510,21 @@ export async function updateMealAllowanceConfig(
   id: string,
   configData: Partial<PayrollMealAllowanceConfigFormData>
 ): Promise<PayrollMealAllowanceConfig> {
+  const updateData: any = {};
+  
+  if (configData.dailyAmount !== undefined) {
+    updateData.daily_amount_cents = eurosToCents(configData.dailyAmount);
+  }
+  if (configData.excluded_months !== undefined) {
+    updateData.excluded_months = configData.excluded_months;
+  }
+  if (configData.paymentMethod !== undefined) {
+    updateData.payment_method = configData.paymentMethod;
+  }
+  
   const { data, error } = await supabase
     .from('payroll_meal_allowance_configs')
-    .update(configData)
+    .update(updateData)
     .eq('id', id)
     .select()
     .single();
@@ -469,15 +535,104 @@ export async function updateMealAllowanceConfig(
 
 export async function upsertMealAllowanceConfig(
   userId: string,
+  contractId: string,
   configData: PayrollMealAllowanceConfigFormData
 ): Promise<PayrollMealAllowanceConfig> {
   const { data, error } = await supabase
     .from('payroll_meal_allowance_configs')
     .upsert({
       user_id: userId,
-      ...configData
+      contract_id: contractId,
+      daily_amount_cents: eurosToCents(configData.dailyAmount),
+      excluded_months: configData.excluded_months,
+      payment_method: configData.paymentMethod
     }, {
-      onConflict: 'user_id'
+      onConflict: 'user_id,contract_id'
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// ============================================================================
+// CONFIGURAÇÃO DE DESCONTOS
+// ============================================================================
+
+export async function getDeductionConfig(
+  userId: string,
+  contractId: string
+): Promise<PayrollDeductionConfig | null> {
+  const { data, error } = await supabase
+    .from('payroll_deduction_configs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .single();
+
+  if (error && error.code !== 'PGRST116') throw error;
+  return data || null;
+}
+
+export async function createDeductionConfig(
+  userId: string,
+  contractId: string,
+  configData: PayrollDeductionConfigFormData
+): Promise<PayrollDeductionConfig> {
+  const { data, error } = await supabase
+    .from('payroll_deduction_configs')
+    .insert({
+      user_id: userId,
+      contract_id: contractId,
+      irs_percentage: configData.irsPercentage,
+      social_security_percentage: configData.socialSecurityPercentage
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateDeductionConfig(
+  id: string,
+  configData: Partial<PayrollDeductionConfigFormData>
+): Promise<PayrollDeductionConfig> {
+  const updateData: any = {};
+  
+  if (configData.irsPercentage !== undefined) {
+    updateData.irs_percentage = configData.irsPercentage;
+  }
+  if (configData.socialSecurityPercentage !== undefined) {
+    updateData.social_security_percentage = configData.socialSecurityPercentage;
+  }
+  
+  const { data, error } = await supabase
+    .from('payroll_deduction_configs')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function upsertDeductionConfig(
+  userId: string,
+  contractId: string,
+  configData: PayrollDeductionConfigFormData
+): Promise<PayrollDeductionConfig> {
+  const { data, error } = await supabase
+    .from('payroll_deduction_configs')
+    .upsert({
+      user_id: userId,
+      contract_id: contractId,
+      irs_percentage: configData.irsPercentage,
+      social_security_percentage: configData.socialSecurityPercentage
+    }, {
+      onConflict: 'user_id,contract_id'
     })
     .select()
     .single();
@@ -493,12 +648,17 @@ export async function upsertMealAllowanceConfig(
 export async function getTimeEntries(
   userId: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  contractId?: string
 ): Promise<PayrollTimeEntry[]> {
   let query = supabase
     .from('payroll_time_entries')
     .select('*')
     .eq('user_id', userId);
+
+  if (contractId) {
+    query = query.eq('contract_id', contractId);
+  }
 
   if (startDate) {
     query = query.gte('date', startDate);
@@ -511,6 +671,15 @@ export async function getTimeEntries(
 
   if (error) throw error;
   return data || [];
+}
+
+export async function getTimeEntriesByContract(
+  userId: string,
+  contractId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<PayrollTimeEntry[]> {
+  return getTimeEntries(userId, startDate, endDate, contractId);
 }
 
 export async function createTimeEntry(
@@ -565,6 +734,18 @@ export async function getMileagePolicies(userId: string): Promise<PayrollMileage
     .from('payroll_mileage_policies')
     .select('*')
     .eq('user_id', userId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getAllMileagePolicies(userId: string): Promise<PayrollMileagePolicy[]> {
+  const { data, error } = await supabase
+    .from('payroll_mileage_policies')
+    .select('*')
+    .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -606,17 +787,72 @@ export async function upsertMileagePolicy(
   userId: string,
   policyData: any
 ): Promise<PayrollMileagePolicy> {
+  // Verificar se há dados obrigatórios antes de tentar guardar
+  if (!policyData.rate_per_km || policyData.rate_per_km <= 0) {
+    throw new Error('Taxa por quilómetro é obrigatória e deve ser maior que 0');
+  }
+
+  // Mapear campos do formulário para campos da base de dados
+  const dbData = {
+    user_id: userId,
+    name: policyData.name || 'Política de Quilometragem',
+    rate_per_km_cents: eurosToCents(policyData.rate_per_km),
+    monthly_cap_cents: policyData.monthly_cap ? eurosToCents(policyData.monthly_cap) : null,
+    requires_origin_destination: policyData.requires_origin_destination || false,
+    requires_purpose: policyData.requires_purpose || false,
+    is_active: policyData.is_active !== undefined ? policyData.is_active : true
+  };
+
   const { data, error } = await supabase
     .from('payroll_mileage_policies')
-    .upsert({
-      user_id: userId,
-      ...policyData
-    })
+    .upsert(dbData)
     .select()
     .single();
 
   if (error) throw error;
   return data;
+}
+
+export async function deactivateMileagePolicy(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('payroll_mileage_policies')
+    .update({ is_active: false })
+    .eq('user_id', userId);
+
+  if (error) throw error;
+}
+
+export async function updateMileagePolicy(
+  id: string,
+  policyData: Partial<MileagePolicyFormData>
+): Promise<PayrollMileagePolicy> {
+  const updateData: any = {};
+  
+  if (policyData.name !== undefined) {
+    updateData.name = policyData.name;
+  }
+  if (policyData.rate_per_km !== undefined) {
+    updateData.rate_per_km_cents = eurosToCents(policyData.rate_per_km);
+  }
+
+  const { data, error } = await supabase
+    .from('payroll_mileage_policies')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteMileagePolicy(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('payroll_mileage_policies')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
 }
 
 // ============================================================================
@@ -630,8 +866,14 @@ export async function getMileageTrips(
 ): Promise<PayrollMileageTrip[]> {
   let query = supabase
     .from('payroll_mileage_trips')
-    .select('*')
-    .eq('user_id', userId);
+    .select(`
+      *,
+      payroll_mileage_policies!inner(
+        is_active
+      )
+    `)
+    .eq('user_id', userId)
+    .eq('payroll_mileage_policies.is_active', true);
 
   if (startDate) {
     query = query.gte('date', startDate);
@@ -777,13 +1019,15 @@ export async function recalculatePayroll(
   
   try {
     // Buscar dados necessários
-    const [contract, otPolicy, holidays, timeEntries, mileageTrips, mileagePolicy] = await Promise.all([
-      getActiveContract(userId),
-      getActiveOTPolicy(userId),
+    const [contract, otPolicy, holidays, timeEntries, mileageTrips, mileagePolicy, deductionConfig, mealAllowanceConfig] = await Promise.all([
+      getContract(userId, contractId),
+      getOTPolicy(userId),
       getHolidays(userId, year),
-      getTimeEntries(userId, `${year}-${month.toString().padStart(2, '0')}-01`, `${year}-${month.toString().padStart(2, '0')}-31`),
+      getTimeEntries(userId, `${year}-${month.toString().padStart(2, '0')}-01`, `${year}-${month.toString().padStart(2, '0')}-31`, contractId),
       getMileageTrips(userId, `${year}-${month.toString().padStart(2, '0')}-01`, `${year}-${month.toString().padStart(2, '0')}-31`),
-      getActiveMileagePolicy(userId)
+      getActiveMileagePolicy(userId),
+      getDeductionConfig(userId, contractId),
+      getMealAllowanceConfig(userId, contractId).catch(() => null)
     ]);
 
     if (!contract) throw new Error('Contrato não encontrado');
@@ -800,7 +1044,12 @@ export async function recalculatePayroll(
       otPolicy,
       holidays,
       mileageTrips,
-      mileageRate
+      mileageRate,
+      mealAllowanceConfig ? { excluded_months: mealAllowanceConfig.excluded_months, daily_amount_cents: mealAllowanceConfig.daily_amount_cents } : undefined,
+      [], // vacations
+      undefined, // weeklyHours
+      undefined, // annualOvertimeHours
+      deductionConfig ? { irs_percentage: deductionConfig.irs_percentage, social_security_percentage: deductionConfig.social_security_percentage } : undefined
     );
 
     // Atualizar período com os novos valores
@@ -919,8 +1168,15 @@ export const payrollService = {
   updateMealAllowanceConfig,
   upsertMealAllowanceConfig,
   
+  // Configuração de descontos
+  getDeductionConfig,
+  createDeductionConfig,
+  updateDeductionConfig,
+  upsertDeductionConfig,
+  
   // Entradas de tempo
   getTimeEntries,
+  getTimeEntriesByContract,
   getPayrollTimeEntries: getTimeEntries, // Alias para compatibilidade com testes
   createTimeEntry,
   createPayrollTimeEntry: createTimeEntry, // Alias para compatibilidade com testes
@@ -934,7 +1190,10 @@ export const payrollService = {
         break_minutes: entry.break_minutes,
         description: entry.description,
         is_overtime: entry.is_overtime,
-        overtime_multiplier: entry.overtime_multiplier
+        is_holiday: entry.is_holiday,
+        is_sick: entry.is_sick,
+        is_vacation: entry.is_vacation,
+        is_exception: entry.is_exception
       });
       results.push(result);
     }
@@ -945,11 +1204,15 @@ export const payrollService = {
   
   // Políticas de quilometragem
   getMileagePolicies,
+  getAllMileagePolicies,
   getPayrollMileagePolicies: getMileagePolicies, // Alias para compatibilidade com testes
   getActiveMileagePolicy,
   createMileagePolicy,
   createPayrollMileagePolicy: createMileagePolicy, // Alias para compatibilidade com testes
   upsertMileagePolicy,
+  updateMileagePolicy,
+  deactivateMileagePolicy,
+  deleteMileagePolicy,
   
   // Viagens
   getMileageTrips,

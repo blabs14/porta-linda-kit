@@ -1,4 +1,4 @@
-import { PayrollContract, PayrollTimeEntry, PayrollOTPolicy, PayrollHoliday, PayrollMileageTrip, PayrollCalculation } from '../types';
+import { PayrollContract, PayrollTimeEntry, PayrollOTPolicy, PayrollHoliday, PayrollMileageTrip, PayrollVacation, PayrollCalculation } from '../types';
 import { calcMonth, validateTimeEntry } from '../lib/calc';
 
 /**
@@ -39,6 +39,9 @@ export interface CalculationInput {
   holidays: PayrollHoliday[];
   mileageTrips?: PayrollMileageTrip[];
   mileageRateCents?: number;
+  mealAllowanceConfig?: { excluded_months: number[]; daily_amount_cents?: number };
+  vacations?: PayrollVacation[];
+  deductionConfig?: { irs_percentage: number; social_security_percentage: number };
 }
 
 /**
@@ -142,7 +145,8 @@ export class PayrollCalculationService {
           purpose: trip.purpose
         }))
         .sort((a, b) => a.date.localeCompare(b.date)),
-      mileageRateCents: input.mileageRateCents || 36
+      mileageRateCents: input.mileageRateCents || 36,
+      deductionConfig: input.deductionConfig || null
     };
 
     const dataString = JSON.stringify(normalizedInput);
@@ -201,8 +205,19 @@ export class PayrollCalculationService {
       if (!input.contract.base_salary_cents || input.contract.base_salary_cents <= 0) {
         errors.push('Salário base deve ser maior que zero');
       }
+      
+      // Validação do salário mínimo nacional (€870 para 2025)
+      if (input.contract.base_salary_cents < 87000) {
+        errors.push('Salário base não pode ser inferior ao salário mínimo nacional (€870 - 2025)');
+      }
+      
       if (!input.contract.hourly_rate_cents || input.contract.hourly_rate_cents <= 0) {
         errors.push('Taxa horária deve ser maior que zero');
+      }
+      
+      // Validação das horas semanais conforme Código do Trabalho
+      if (input.contract.weekly_hours && input.contract.weekly_hours > 40) {
+        warnings.push('Horário semanal superior a 40 horas pode requerer acordo específico');
       }
     }
 
@@ -212,6 +227,20 @@ export class PayrollCalculationService {
     } else {
       if (input.otPolicy.multiplier <= 1) {
         warnings.push('Multiplicador de horas extras é menor ou igual a 1');
+      }
+      
+      // Validações específicas do Código do Trabalho português
+      if (input.otPolicy.daily_limit_hours && input.otPolicy.daily_limit_hours > 12) {
+        errors.push('Limite diário de trabalho não pode exceder 12 horas (incluindo horas extras)');
+      }
+      
+      if (input.otPolicy.weekly_limit_hours && input.otPolicy.weekly_limit_hours > 48) {
+        errors.push('Limite semanal de trabalho não pode exceder 48 horas (incluindo horas extras)');
+      }
+      
+      // Validar multiplicadores mínimos conforme legislação
+      if (input.otPolicy.multiplier < 1.25) {
+        warnings.push('Multiplicador de horas extras inferior ao mínimo legal (25%)');
       }
     }
 
@@ -232,6 +261,18 @@ export class PayrollCalculationService {
       input.holidays = [];
     }
 
+    // Validar subsídio de alimentação conforme limites fiscais 2025
+    if (input.mealAllowanceConfig && input.mealAllowanceConfig.daily_amount_cents) {
+      if (input.mealAllowanceConfig.daily_amount_cents > 1020) {
+        warnings.push('Subsídio de alimentação superior ao limite de isenção fiscal (€10.20/dia)');
+      }
+    }
+    
+    // Validar taxa de quilometragem conforme limites fiscais 2025
+    if (input.mileageRateCents && input.mileageRateCents > 40) {
+      warnings.push('Taxa de quilometragem superior ao limite de isenção fiscal (€0.40/km)');
+    }
+    
     // Validar viagens de quilometragem
     if (input.mileageTrips) {
       input.mileageTrips.forEach((trip, index) => {
@@ -244,6 +285,22 @@ export class PayrollCalculationService {
       });
     }
 
+    // Validar configuração de descontos (IRS e Segurança Social)
+    if (input.deductionConfig) {
+      if (input.deductionConfig.irs_percentage < 0 || input.deductionConfig.irs_percentage > 100) {
+        errors.push('Percentagem de IRS deve estar entre 0% e 100%');
+      }
+      
+      if (input.deductionConfig.social_security_percentage < 0 || input.deductionConfig.social_security_percentage > 100) {
+        errors.push('Percentagem de Segurança Social deve estar entre 0% e 100%');
+      }
+      
+      // Validar percentagens típicas conforme legislação portuguesa
+      if (input.deductionConfig.social_security_percentage > 11) {
+        warnings.push('Percentagem de Segurança Social superior ao típico (11%)');
+      }
+    }
+    
     return {
       isValid: errors.length === 0,
       errors,
@@ -284,7 +341,12 @@ export class PayrollCalculationService {
       input.otPolicy,
       input.holidays,
       input.mileageTrips || [],
-      input.mileageRateCents || 36
+      input.mileageRateCents || 36,
+      input.mealAllowanceConfig,
+      input.vacations || [],
+      undefined, // weeklyHours
+      undefined, // annualOvertimeHours
+      input.deductionConfig
     );
 
     // Armazenar no cache
@@ -359,23 +421,50 @@ export const payrollCalculationService = new PayrollCalculationService();
 /**
  * Função de conveniência para calcular folha de pagamento
  * @param userId ID do utilizador
+ * @param contractId ID do contrato
  * @param year Ano
  * @param month Mês
  * @returns Resultado do cálculo
  */
-export async function calculatePayroll(userId: string, year: number, month: number): Promise<any> {
-  // Esta função seria implementada para buscar dados do utilizador e calcular
-  // Por agora, retorna um objeto vazio para evitar erros
-  return {
-    regularHours: 0,
-    overtimeHours: 0,
-    regularPay: 0,
-    overtimePay: 0,
-    mealAllowance: 0,
-    mileageReimbursement: 0,
-    bonuses: 0,
-    grossPay: 0,
-    deductions: 0,
-    netPay: 0
-  };
+export async function calculatePayroll(userId: string, contractId: string, year: number, month: number): Promise<CalculationResult> {
+  // Importar serviços necessários
+  const { payrollService } = await import('./payrollService');
+  
+  try {
+    // Buscar dados necessários
+    const [contract, otPolicy, holidays, timeEntries, mileageTrips, mileagePolicy, mealAllowanceConfig, vacations, deductionConfig] = await Promise.all([
+      payrollService.getActiveContract(userId),
+      payrollService.getActiveOTPolicy(userId),
+      payrollService.getHolidays(userId, year),
+      payrollService.getTimeEntriesByContract(userId, contractId, `${year}-${month.toString().padStart(2, '0')}-01`, `${year}-${month.toString().padStart(2, '0')}-31`),
+      payrollService.getMileageTrips(userId, `${year}-${month.toString().padStart(2, '0')}-01`, `${year}-${month.toString().padStart(2, '0')}-31`),
+      payrollService.getActiveMileagePolicy(userId),
+      payrollService.getMealAllowanceConfig(userId, contractId),
+      payrollService.getVacations(userId, contractId, year),
+      payrollService.getDeductionConfig(userId, contractId)
+    ]);
+
+    if (!contract) throw new Error('Contrato não encontrado');
+    if (!otPolicy) throw new Error('Política de horas extras não encontrada');
+
+    // Preparar input para o cálculo
+    const input: CalculationInput = {
+      contract,
+      timeEntries,
+      otPolicy,
+      holidays,
+      mileageTrips: mileageTrips || [],
+      mileageRateCents: mileagePolicy?.rate_per_km_cents || 36,
+      mealAllowanceConfig: mealAllowanceConfig ? { excluded_months: mealAllowanceConfig.excluded_months, daily_amount_cents: mealAllowanceConfig.daily_amount_cents } : undefined,
+      vacations: vacations || [],
+      deductionConfig: deductionConfig ? { irs_percentage: deductionConfig.irs_percentage, social_security_percentage: deductionConfig.social_security_percentage } : undefined
+    };
+
+    // Calcular usando o serviço
+    return await payrollCalculationService.calculate(input);
+    
+  } catch (error) {
+    console.error('Erro no cálculo da folha de pagamento:', error);
+    throw error;
+  }
 }

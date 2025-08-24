@@ -6,8 +6,10 @@ import { Label } from '../../../components/ui/label';
 import { Badge } from '../../../components/ui/badge';
 import { Separator } from '../../../components/ui/separator';
 import { useToast } from '../../../hooks/use-toast';
-import { Calculator, Download, FileText, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Calculator, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Checkbox } from '../../../components/ui/checkbox';
 import { formatCurrency } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../contexts/AuthContext';
 import { calculatePayroll } from '../services/calculation.service';
 import { payrollService } from '../services/payrollService';
@@ -26,6 +28,8 @@ interface MonthlyTotals {
   christmas: number;
   mileage: number;
   gross: number;
+  irs: number;
+  socialSecurity: number;
   net: number;
 }
 
@@ -49,8 +53,9 @@ interface Discrepancy {
 const PayrollSummaryPage: React.FC = () => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [isCalculating, setIsCalculating] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+
   const [isLoading, setIsLoading] = useState(true);
   const [contract, setContract] = useState<PayrollContract | null>(null);
   const [payslipData, setPayslipData] = useState<PayslipData>({
@@ -77,6 +82,8 @@ const PayrollSummaryPage: React.FC = () => {
     christmas: 0,
     mileage: 0,
     gross: 0,
+    irs: 0,
+    socialSecurity: 0,
     net: 0
   });
 
@@ -96,27 +103,35 @@ const PayrollSummaryPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      // Carregar contrato e totais em paralelo
-      await Promise.all([loadContract()]);
-      
       const currentDate = new Date();
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth() + 1;
+
+      const activeContract = await payrollService.getActiveContract(user.id);
+      setContract(activeContract);
+      if (!activeContract?.id) {
+        throw new Error('Nenhum contrato ativo encontrado');
+      }
       
-      const result = await calculatePayroll(user.id, year, month);
+      const result = await calculatePayroll(user.id, activeContract.id, year, month);
+      
+      // O resultado está em result.calculation, não diretamente em result
+      const calc = result.calculation;
       
       setMonthlyTotals({
-        base: result.baseSalary,
-        overtimeDay: result.overtimeDay,
-        overtimeNight: result.overtimeNight,
-        overtimeWeekend: result.overtimeWeekend,
-        overtimeHoliday: result.overtimeHoliday,
-        meal: result.mealAllowance,
-        vacation: result.vacationAllowance,
-        christmas: result.christmasAllowance,
-        mileage: result.mileageAllowance,
-        gross: result.grossSalary,
-        net: result.netSalary
+        base: calc.regularPay || 0,
+        overtimeDay: calc.overtimePayDay || 0,
+        overtimeNight: calc.overtimePayNight || 0,
+        overtimeWeekend: calc.overtimePayWeekend || 0,
+        overtimeHoliday: calc.overtimePayHoliday || 0,
+        meal: calc.mealAllowance || 0,
+        vacation: 0, // Será adicionado quando implementado
+        christmas: 0, // Será adicionado quando implementado
+        mileage: calc.mileageReimbursement || 0,
+        gross: calc.grossPay || 0,
+        irs: calc.irsDeduction || 0,
+        socialSecurity: calc.socialSecurityDeduction || 0,
+        net: calc.netPay || 0
       });
     } catch (error) {
       console.error('Error loading monthly totals:', error);
@@ -205,29 +220,33 @@ const PayrollSummaryPage: React.FC = () => {
     });
   };
 
-  const handleExport = async (format: string, dateRange: { start: string; end: string }) => {
+  const handleExport = async (
+    format: string,
+    dateRange: { start: string; end: string },
+    options?: { includeHours?: boolean; includeMileage?: boolean; includeConfig?: boolean }
+  ) => {
     if (!user) return;
     
     try {
       const { blob, filename } = await exportPayrollReport(user.id, {
         format: format as 'csv' | 'pdf',
         dateRange,
-        includeHours: true,
-        includeMileage: true,
-        includeConfig: false
+        includeHours: options?.includeHours ?? true,
+        includeMileage: options?.includeMileage ?? true,
+        includeConfig: options?.includeConfig ?? false
       });
       
       downloadFile(blob, filename);
       
       toast({
-        title: `Exportação ${format.toUpperCase()}`,
-        description: "Ficheiro exportado com sucesso.",
+        title: t('reports.exported'),
+        description: t('reports.exportSuccess', { format: format.toUpperCase() }),
       });
     } catch (error) {
       console.error('Export error:', error);
       toast({
-        title: "Erro na exportação",
-        description: "Não foi possível exportar o ficheiro.",
+        title: t('reports.exportError'),
+        description: t('reports.exportErrorDescription'),
         variant: "destructive",
       });
     }
@@ -297,9 +316,25 @@ const PayrollSummaryPage: React.FC = () => {
             </div>
             
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-muted-foreground">Total</Label>
-              <p className="text-3xl font-bold text-green-600">{formatCurrency(monthlyTotals.gross, 'pt-PT', contract?.currency || 'EUR')}</p>
-              <p className="text-sm text-muted-foreground">Líquido esperado</p>
+              <Label className="text-sm font-medium text-muted-foreground">Descontos</Label>
+              <div className="space-y-1">
+                <p className="text-sm">IRS: {formatCurrency(monthlyTotals.irs, 'pt-PT', contract?.currency || 'EUR')}</p>
+                <p className="text-sm">Seg. Social: {formatCurrency(monthlyTotals.socialSecurity, 'pt-PT', contract?.currency || 'EUR')}</p>
+              </div>
+            </div>
+          </div>
+          
+          <Separator />
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-muted-foreground">Total Bruto</Label>
+              <p className="text-3xl font-bold text-blue-600">{formatCurrency(monthlyTotals.gross, 'pt-PT', contract?.currency || 'EUR')}</p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-muted-foreground">Total Líquido</Label>
+              <p className="text-3xl font-bold text-green-600">{formatCurrency(monthlyTotals.net, 'pt-PT', contract?.currency || 'EUR')}</p>
             </div>
           </div>
         </CardContent>
@@ -408,26 +443,49 @@ const PayrollSummaryPage: React.FC = () => {
           <CardTitle>Exportar Dados</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => handleExport('csv')}
-              disabled={isExporting}
-              className="gap-2"
-            >
-              <FileText className="h-4 w-4" />
-              Exportar CSV
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => handleExport('pdf')}
-              disabled={isExporting}
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Exportar PDF
-            </Button>
-          </div>
+          <ReportExport
+            onExport={handleExport}
+            extraControls={({ includeHours, includeMileage, includeConfig, setIncludeHours, setIncludeMileage, setIncludeConfig }) => (
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">{t('payroll.includeInReports')}:</Label>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="include-hours"
+                      checked={includeHours}
+                      onCheckedChange={setIncludeHours}
+                      aria-describedby="include-hours-desc"
+                    />
+                    <Label htmlFor="include-hours" className="text-sm cursor-pointer">
+                      {t('payroll.includeHours')}
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="include-mileage"
+                      checked={includeMileage}
+                      onCheckedChange={setIncludeMileage}
+                      aria-describedby="include-mileage-desc"
+                    />
+                    <Label htmlFor="include-mileage" className="text-sm cursor-pointer">
+                      {t('payroll.includeMileage')}
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="include-config"
+                      checked={includeConfig}
+                      onCheckedChange={setIncludeConfig}
+                      aria-describedby="include-config-desc"
+                    />
+                    <Label htmlFor="include-config" className="text-sm cursor-pointer">
+                      {t('payroll.includeConfig')}
+                    </Label>
+                  </div>
+                </div>
+              </div>
+            )}
+          />
         </CardContent>
       </Card>
     </div>

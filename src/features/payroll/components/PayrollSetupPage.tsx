@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { Loader2, Settings, Users, Clock, Calendar, Plus, Edit, Trash2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { PayrollContract, PayrollOTPolicy, PayrollHoliday, PayrollVacation, PayrollMealAllowanceConfig as PayrollMealAllowanceConfigType } from '../types';
 import { payrollService } from '../services/payrollService';
-import { PayrollContractForm } from './PayrollContractForm';
-import { PayrollOTPolicyForm } from './PayrollOTPolicyForm';
 import { PayrollVacationsManager } from './PayrollVacationsManager';
 import { PayrollMealAllowanceConfig } from './PayrollMealAllowanceConfig';
 import { useToast } from '@/hooks/use-toast';
@@ -24,16 +22,14 @@ export function PayrollSetupPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const confirmation = useConfirmation();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [contracts, setContracts] = useState<PayrollContract[]>([]);
   const [otPolicies, setOTPolicies] = useState<PayrollOTPolicy[]>([]);
   const [holidays, setHolidays] = useState<PayrollHoliday[]>([]);
   const [vacations, setVacations] = useState<PayrollVacation[]>([]);
   const [mealAllowanceConfig, setMealAllowanceConfig] = useState<PayrollMealAllowanceConfigType | null>(null);
-  const [contractDialogOpen, setContractDialogOpen] = useState(false);
-  const [otPolicyDialogOpen, setOTPolicyDialogOpen] = useState(false);
-  const [editingContract, setEditingContract] = useState<PayrollContract | null>(null);
-  const [editingOTPolicy, setEditingOTPolicy] = useState<PayrollOTPolicy | null>(null);
+
   const [activeTab, setActiveTab] = useState('contracts');
 
   useEffect(() => {
@@ -45,18 +41,22 @@ export function PayrollSetupPage() {
     
     setLoading(true);
     try {
-      const [contractsData, otPoliciesData, holidaysData, vacationsData, mealConfigData] = await Promise.all([
+      const [contractsData, otPoliciesData, holidaysData, vacationsData, activeContract] = await Promise.all([
         payrollService.getContracts(user.id),
         payrollService.getOTPolicies(user.id),
         payrollService.getHolidays(user.id, new Date().getFullYear()),
-        payrollService.getVacations(user.id, new Date().getFullYear()),
-        payrollService.getMealAllowanceConfig(user.id)
+        payrollService.getVacations(user.id, undefined, new Date().getFullYear()),
+        payrollService.getActiveContract(user.id)
       ]);
       
       setContracts(contractsData);
       setOTPolicies(otPoliciesData);
       setHolidays(holidaysData);
       setVacations(vacationsData);
+
+      const mealConfigData = activeContract?.id
+        ? await payrollService.getMealAllowanceConfig(user.id, activeContract.id)
+        : null;
       setMealAllowanceConfig(mealConfigData);
     } catch (error) {
       toast({
@@ -70,17 +70,7 @@ export function PayrollSetupPage() {
     }
   };
 
-  const handleContractSave = async (contract: PayrollContract) => {
-    await loadData();
-    setContractDialogOpen(false);
-    setEditingContract(null);
-  };
 
-  const handleOTPolicySave = async (policy: PayrollOTPolicy) => {
-    await loadData();
-    setOTPolicyDialogOpen(false);
-    setEditingOTPolicy(null);
-  };
 
   const handleDeleteContract = (contract: PayrollContract) => {
     confirmation.confirm(
@@ -137,15 +127,7 @@ export function PayrollSetupPage() {
     }
   };
 
-  const openContractDialog = (contract: PayrollContract) => {
-    setEditingContract(contract);
-    setContractDialogOpen(true);
-  };
 
-  const openOTPolicyDialog = (policy?: PayrollOTPolicy) => {
-    setEditingOTPolicy(policy || null);
-    setOTPolicyDialogOpen(true);
-  };
 
   const getSetupStatus = () => {
     const hasContracts = contracts.length > 0;
@@ -252,36 +234,34 @@ export function PayrollSetupPage() {
         <TabsContent value="contracts">
           <Card>
             <CardHeader>
-              <div>
-                <CardTitle>Contratos de Trabalho</CardTitle>
-                <CardDescription>
-                  Visualize e gerencie os contratos de trabalho dos funcionários.
-                </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Contratos de Trabalho</CardTitle>
+                  <CardDescription>
+                    Visualize e gerencie os contratos de trabalho dos funcionários.
+                  </CardDescription>
+                </div>
+                <Button onClick={() => navigate('/personal/payroll/config')}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Novo Contrato
+                </Button>
               </div>
             </CardHeader>
-            <Dialog open={contractDialogOpen} onOpenChange={setContractDialogOpen}>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>
-                    Editar Contrato
-                  </DialogTitle>
-                  <DialogDescription>
-                    Configure os detalhes do contrato de trabalho.
-                  </DialogDescription>
-                </DialogHeader>
-                <PayrollContractForm
-                  contract={editingContract || undefined}
-                  onSave={handleContractSave}
-                  onCancel={() => setContractDialogOpen(false)}
-                />
-              </DialogContent>
-            </Dialog>
+
             <CardContent>
               {contracts.length === 0 ? (
                 <Alert>
                   <Users className="h-4 w-4" />
-                  <AlertDescription>
-                    Nenhum contrato configurado. Crie o primeiro contrato para começar a usar a folha de pagamento.
+                  <AlertDescription className="flex items-center justify-between">
+                    <span>Nenhum contrato configurado. Crie o primeiro contrato para começar a usar a folha de pagamento.</span>
+                    <Button 
+                      size="sm" 
+                      onClick={() => navigate('/personal/payroll/config')}
+                      className="ml-4"
+                    >
+                      <Plus className="mr-2 h-3 w-3" />
+                      Criar Primeiro Contrato
+                    </Button>
                   </AlertDescription>
                 </Alert>
               ) : (
@@ -316,7 +296,7 @@ export function PayrollSetupPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => openContractDialog(contract)}
+                              onClick={() => navigate('/personal/payroll/config')}
                             >
                               <Edit className="h-3 w-3" />
                             </Button>
@@ -349,37 +329,26 @@ export function PayrollSetupPage() {
                     Configure as regras para cálculo de horas extras, incluindo multiplicadores e limites.
                   </CardDescription>
                 </div>
-                <Dialog open={otPolicyDialogOpen} onOpenChange={setOTPolicyDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button onClick={() => openOTPolicyDialog()}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Nova Política
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>
-                        {editingOTPolicy ? 'Editar Política' : 'Nova Política'}
-                      </DialogTitle>
-                      <DialogDescription>
-                        Configure as regras de horas extras.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <PayrollOTPolicyForm
-                      policy={editingOTPolicy || undefined}
-                      onSave={handleOTPolicySave}
-                      onCancel={() => setOTPolicyDialogOpen(false)}
-                    />
-                  </DialogContent>
-                </Dialog>
+                <Button onClick={() => navigate('/personal/payroll/config')}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nova Política
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
               {otPolicies.length === 0 ? (
                 <Alert>
                   <Clock className="h-4 w-4" />
-                  <AlertDescription>
-                    Nenhuma política de horas extras configurada. Crie políticas para automatizar o cálculo de HE.
+                  <AlertDescription className="flex items-center justify-between">
+                    <span>Nenhuma política de horas extras configurada. Crie políticas para automatizar o cálculo de HE.</span>
+                    <Button 
+                      size="sm" 
+                      onClick={() => navigate('/personal/payroll/config')}
+                      className="ml-4"
+                    >
+                      <Plus className="mr-2 h-3 w-3" />
+                      Criar Primeira Política
+                    </Button>
                   </AlertDescription>
                 </Alert>
               ) : (
@@ -409,7 +378,7 @@ export function PayrollSetupPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => openOTPolicyDialog(policy)}
+                              onClick={() => navigate('/personal/payroll/config')}
                             >
                               <Edit className="h-3 w-3" />
                             </Button>
