@@ -172,6 +172,8 @@ export interface PayrollCalculation {
   deductions: number;
   irsDeduction?: number; // Desconto de IRS
   socialSecurityDeduction?: number; // Desconto de Segurança Social
+  irsSurchargeDeduction?: number; // Sobretaxa IRS
+  solidarityContributionDeduction?: number; // Contribuição extraordinária de solidariedade
   netPay: number;
   validationErrors?: string[]; // Erros de validação de limites
   mealAllowance?: number; // Subsídio de refeição
@@ -240,8 +242,16 @@ export interface ContractFormData {
 
 export interface OTPolicyFormData {
   name: string;
-  threshold_hours: number;
-  multiplier: number;
+  firstHourMultiplier: number;
+  subsequentHoursMultiplier: number;
+  weekendMultiplier: number;
+  holidayMultiplier: number;
+  nightStartTime: string;
+  nightEndTime: string;
+  roundingMinutes: number;
+  dailyLimitHours: number;
+  annualLimitHours: number;
+  weeklyLimitHours: number;
 }
 
 export interface PayrollHolidayFormData {
@@ -310,6 +320,7 @@ export interface PayrollMealAllowanceConfig {
   daily_amount_cents: number;
   excluded_months: number[]; // Array de meses (1-12) onde não há pagamento
   payment_method: MealAllowancePaymentMethod; // Método de pagamento: 'cash' ou 'card'
+  duodecimos_enabled: boolean; // Pagamento em duodécimos (distribuição anual em 12 meses)
   created_at: string;
   updated_at: string;
 }
@@ -318,6 +329,7 @@ export interface PayrollMealAllowanceConfigFormData {
   dailyAmount: number;
   excluded_months: number[];
   paymentMethod: MealAllowancePaymentMethod;
+  duodecimosEnabled: boolean;
 }
 
 // Interface para configuração de descontos (IRS e Segurança Social)
@@ -328,6 +340,8 @@ export interface PayrollDeductionConfig {
   contract_id: string;
   irs_percentage: number; // Percentagem de IRS (0-100)
   social_security_percentage: number; // Percentagem de Segurança Social (0-100)
+  irs_surcharge_percentage?: number; // Sobretaxa IRS (0-5%) - aplicável a rendimentos superiores a €80.640
+  solidarity_contribution_percentage?: number; // Contribuição extraordinária de solidariedade (0-5%) - aplicável a rendimentos superiores a €80.640
   created_at: string;
   updated_at: string;
 }
@@ -335,4 +349,57 @@ export interface PayrollDeductionConfig {
 export interface PayrollDeductionConfigFormData {
   irsPercentage: number;
   socialSecurityPercentage: number;
+  irsSurchargePercentage?: number;
+  solidarityContributionPercentage?: number;
 }
+
+// Tipos para licenças especiais e parentais
+export interface PayrollLeave {
+  id: string;
+  user_id: string;
+  family_id?: string;
+  contract_id: string;
+  leave_type: 'maternity' | 'paternity' | 'parental' | 'adoption' | 'sick' | 'family_assistance' | 'bereavement' | 'marriage' | 'study' | 'unpaid' | 'other';
+  start_date: string;
+  end_date: string;
+  total_days: number;
+  paid_days: number;
+  unpaid_days: number;
+  percentage_paid: number; // 0-100%
+  status: 'pending' | 'approved' | 'rejected' | 'active' | 'completed';
+  reason?: string;
+  medical_certificate: boolean;
+  supporting_documents?: any; // JSON com URLs ou referências
+  notes?: string;
+  approved_by?: string;
+  approved_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollLeaveFormData {
+  leave_type: string;
+  start_date: string;
+  end_date: string;
+  paid_days?: number;
+  unpaid_days?: number;
+  percentage_paid?: number;
+  reason?: string;
+  medical_certificate?: boolean;
+  notes?: string;
+}
+
+// Constantes para tipos de licença
+export const LEAVE_TYPES = {
+  maternity: { label: 'Licença de Maternidade', defaultDays: 120, defaultPaid: 100 },
+  paternity: { label: 'Licença de Paternidade', defaultDays: 20, defaultPaid: 100 },
+  parental: { label: 'Licença Parental', defaultDays: 120, defaultPaid: 80 },
+  adoption: { label: 'Licença por Adoção', defaultDays: 100, defaultPaid: 100 },
+  sick: { label: 'Baixa Médica', defaultDays: 30, defaultPaid: 65 },
+  family_assistance: { label: 'Assistência à Família', defaultDays: 15, defaultPaid: 65 },
+  bereavement: { label: 'Luto', defaultDays: 5, defaultPaid: 100 },
+  marriage: { label: 'Casamento', defaultDays: 15, defaultPaid: 100 },
+  study: { label: 'Formação/Estudos', defaultDays: 0, defaultPaid: 0 },
+  unpaid: { label: 'Licença sem Vencimento', defaultDays: 0, defaultPaid: 0 },
+  other: { label: 'Outras Licenças', defaultDays: 0, defaultPaid: 100 }
+} as const;

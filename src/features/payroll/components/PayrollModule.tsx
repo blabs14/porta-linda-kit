@@ -1,9 +1,11 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import PayrollSummaryPage from '../pages/PayrollSummaryPage';
-
 import PayrollMileagePage from '../pages/PayrollMileagePage';
 import PayrollConfigPage from '../pages/PayrollConfigPage';
+import { PayrollBonusPage } from '../pages/PayrollBonusPage';
+import { PayrollBonusSettingsPage } from '../pages/PayrollBonusSettingsPage';
+
 import { PayrollOnboardingWizard, PayrollSetupPage, WeeklyTimesheetForm } from './index';
 import { PayrollNavigation } from './PayrollNavigation';
 import { ActiveContractProvider } from '../contexts/ActiveContractContext';
@@ -40,7 +42,10 @@ function PayrollContent() {
 
         <Route path="timesheet" element={<WeeklyTimesheetForm initialWeekStart={getMondayOfCurrentWeek()} />} />
         <Route path="km" element={<PayrollMileagePage />} />
+        <Route path="bonus" element={<PayrollBonusPage />} />
+        <Route path="settings/bonus" element={<PayrollBonusSettingsPage />} />
         <Route path="config" element={<PayrollConfigPage />} />
+
         <Route path="contratos" element={<PayrollSetupPage />} />
         <Route path="onboarding" element={<PayrollOnboardingWizard />} />
       </Routes>

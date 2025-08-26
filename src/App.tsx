@@ -11,6 +11,8 @@ import { Toaster } from './components/ui/toaster';
 import { GlobalShortcuts } from './components/GlobalShortcuts';
 import { LocaleProvider } from './contexts/LocaleProvider';
 import { Navigate } from 'react-router-dom';
+import './test-supabase';
+// Testes removidos - componente RealTimeNotifications melhorado
 
 
 // Lazy loading de páginas

@@ -20,7 +20,15 @@ const deductionSchema = z.object({
     .max(100, 'Percentagem deve ser menor ou igual a 100'),
   socialSecurityPercentage: z.number()
     .min(0, 'Percentagem deve ser maior ou igual a 0')
-    .max(100, 'Percentagem deve ser menor ou igual a 100')
+    .max(100, 'Percentagem deve ser menor ou igual a 100'),
+  irsSurchargePercentage: z.number()
+    .min(0, 'Percentagem deve ser maior ou igual a 0')
+    .max(5, 'Sobretaxa IRS não pode exceder 5%')
+    .optional(),
+  solidarityContributionPercentage: z.number()
+    .min(0, 'Percentagem deve ser maior ou igual a 0')
+    .max(5, 'Contribuição de solidariedade não pode exceder 5%')
+    .optional()
 });
 
 interface PayrollDeductionConfigProps {
@@ -37,7 +45,9 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
     resolver: zodResolver(deductionSchema),
     defaultValues: {
       irsPercentage: 0,
-      socialSecurityPercentage: 11
+      socialSecurityPercentage: 11,
+      irsSurchargePercentage: 0,
+      solidarityContributionPercentage: 0
     }
   });
 
@@ -52,7 +62,9 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
         if (config) {
           form.reset({
             irsPercentage: config.irs_percentage,
-            socialSecurityPercentage: config.social_security_percentage
+            socialSecurityPercentage: config.social_security_percentage,
+            irsSurchargePercentage: config.irs_surcharge_percentage || 0,
+            solidarityContributionPercentage: config.solidarity_contribution_percentage || 0
           });
         }
       } catch (error) {
@@ -75,7 +87,14 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
     
     setIsSaving(true);
     try {
-      await payrollService.upsertDeductionConfig(user.id, contractId, data);
+      const config = {
+        irs_percentage: data.irsPercentage,
+        social_security_percentage: data.socialSecurityPercentage,
+        irs_surcharge_percentage: data.irsSurchargePercentage || 0,
+        solidarity_contribution_percentage: data.solidarityContributionPercentage || 0
+      };
+      
+      await payrollService.upsertDeductionConfig(user.id, contractId, config);
       toast({
         title: 'Sucesso',
         description: 'Configuração de descontos guardada com sucesso.'
@@ -105,6 +124,8 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
 
   const irsPercentage = watch('irsPercentage');
   const socialSecurityPercentage = watch('socialSecurityPercentage');
+  const irsSurchargePercentage = watch('irsSurchargePercentage');
+  const solidarityContributionPercentage = watch('solidarityContributionPercentage');
 
   return (
     <Card>
@@ -173,8 +194,61 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
             </div>
           </div>
 
+          {/* Linha 2: Sobretaxa IRS e Contribuição de Solidariedade */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* IRS Surcharge Percentage */}
+            <div className="space-y-2">
+              <Label htmlFor="irsSurchargePercentage">Sobretaxa IRS (%)</Label>
+              <Input
+                id="irsSurchargePercentage"
+                type="number"
+                step="0.1"
+                min="0"
+                max="5"
+                placeholder="Ex: 2.5"
+                {...register('irsSurchargePercentage', {
+                  min: { value: 0, message: 'Percentagem deve ser maior ou igual a 0' },
+                  max: { value: 5, message: 'Sobretaxa IRS não pode exceder 5%' },
+                  valueAsNumber: true
+                })}
+                className={errors.irsSurchargePercentage ? 'border-red-500' : ''}
+              />
+              {errors.irsSurchargePercentage && (
+                <p className="text-sm text-red-500">{errors.irsSurchargePercentage.message}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Aplicável a rendimentos superiores a €80.640 anuais (máx. 5%)
+              </p>
+            </div>
+
+            {/* Solidarity Contribution Percentage */}
+            <div className="space-y-2">
+              <Label htmlFor="solidarityContributionPercentage">Contribuição Extraordinária de Solidariedade (%)</Label>
+              <Input
+                id="solidarityContributionPercentage"
+                type="number"
+                step="0.1"
+                min="0"
+                max="5"
+                placeholder="Ex: 2.5"
+                {...register('solidarityContributionPercentage', {
+                  min: { value: 0, message: 'Percentagem deve ser maior ou igual a 0' },
+                  max: { value: 5, message: 'Contribuição de solidariedade não pode exceder 5%' },
+                  valueAsNumber: true
+                })}
+                className={errors.solidarityContributionPercentage ? 'border-red-500' : ''}
+              />
+              {errors.solidarityContributionPercentage && (
+                <p className="text-sm text-red-500">{errors.solidarityContributionPercentage.message}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Aplicável a rendimentos superiores a €80.640 anuais (máx. 5%)
+              </p>
+            </div>
+          </div>
+
           {/* Preview */}
-          {(irsPercentage > 0 || socialSecurityPercentage > 0) && (
+          {(irsPercentage > 0 || socialSecurityPercentage > 0 || irsSurchargePercentage > 0 || solidarityContributionPercentage > 0) && (
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription>
@@ -182,8 +256,14 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
                 <ul className="mt-2 space-y-1">
                   <li>• IRS: €{((irsPercentage || 0) * 10).toFixed(2)}</li>
                   <li>• Segurança Social: €{((socialSecurityPercentage || 0) * 10).toFixed(2)}</li>
-                  <li>• <strong>Total de descontos: €{(((irsPercentage || 0) + (socialSecurityPercentage || 0)) * 10).toFixed(2)}</strong></li>
-                  <li>• <strong>Salário líquido: €{(1000 - ((irsPercentage || 0) + (socialSecurityPercentage || 0)) * 10).toFixed(2)}</strong></li>
+                  {irsSurchargePercentage > 0 && (
+                    <li>• Sobretaxa IRS: €{((irsSurchargePercentage || 0) * 10).toFixed(2)}</li>
+                  )}
+                  {solidarityContributionPercentage > 0 && (
+                    <li>• Contribuição de Solidariedade: €{((solidarityContributionPercentage || 0) * 10).toFixed(2)}</li>
+                  )}
+                  <li>• <strong>Total de descontos: €{(((irsPercentage || 0) + (socialSecurityPercentage || 0) + (irsSurchargePercentage || 0) + (solidarityContributionPercentage || 0)) * 10).toFixed(2)}</strong></li>
+                  <li>• <strong>Salário líquido: €{(1000 - ((irsPercentage || 0) + (socialSecurityPercentage || 0) + (irsSurchargePercentage || 0) + (solidarityContributionPercentage || 0)) * 10).toFixed(2)}</strong></li>
                 </ul>
               </AlertDescription>
             </Alert>

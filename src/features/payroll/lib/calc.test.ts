@@ -216,7 +216,8 @@ describe('Payroll Calculation Functions', () => {
         false, // isVacation
         false, // isException
         4, // minimumRegularHours
-        'card' // paymentMethod
+        'card', // paymentMethod
+        false // duodecimosEnabled
       );
       expect(allowance).toBe(650);
     });
@@ -232,7 +233,8 @@ describe('Payroll Calculation Functions', () => {
         false, // isVacation
         false, // isException
         4, // minimumRegularHours
-        'cash' // paymentMethod
+        'cash', // paymentMethod
+        false // duodecimosEnabled
       );
       expect(allowance).toBe(600); // Should be capped at €6.00
     });
@@ -248,9 +250,45 @@ describe('Payroll Calculation Functions', () => {
         false, // isVacation
         false, // isException
         4, // minimumRegularHours
-        'card' // paymentMethod
+        'card', // paymentMethod
+        false // duodecimosEnabled
       );
       expect(allowance).toBe(1020); // Should be capped at €10.20
+    });
+
+    it('should calculate duodecimos correctly (uniform distribution)', () => {
+      // Test duodecimos with excluded months - should ignore exclusions
+      const allowanceWithExclusions = calcMeal(
+        '2025-08-15', // August (normally excluded)
+        8, // regularHours
+        8, // totalHours
+        1000, // mealAllowanceCents (€10.00)
+        [8], // excludedMonths (August)
+        false, // isHoliday
+        false, // isVacation
+        false, // isException
+        4, // minimumRegularHours
+        'card', // paymentMethod
+        true // duodecimosEnabled
+      );
+      // With duodecimos: (€10.00 * 22 working days) / 22 = €10.00 per day
+      expect(allowanceWithExclusions).toBe(1000);
+
+      // Test duodecimos without excluded months
+      const allowanceNormal = calcMeal(
+        '2025-01-15', // January
+        8, // regularHours
+        8, // totalHours
+        1000, // mealAllowanceCents (€10.00)
+        [], // excludedMonths
+        false, // isHoliday
+        false, // isVacation
+        false, // isException
+        4, // minimumRegularHours
+        'card', // paymentMethod
+        true // duodecimosEnabled
+      );
+      expect(allowanceNormal).toBe(1000);
     });
 
     it('should calculate bonuses correctly', () => {

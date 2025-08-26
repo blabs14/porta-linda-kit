@@ -5,6 +5,37 @@ import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 import visualizer from 'vite-bundle-visualizer';
 
+// Wrapper personalizado para componentTagger que exclui React.Fragment
+function createSafeComponentTagger() {
+  const originalTagger = componentTagger();
+  
+  return {
+    ...originalTagger,
+    transform(code: string, id: string) {
+      // Só processa ficheiros JSX/TSX
+      if (!id.endsWith('.jsx') && !id.endsWith('.tsx')) {
+        return originalTagger.transform?.(code, id);
+      }
+      
+      // Aplica o tagger original
+      const result = originalTagger.transform?.(code, id);
+      
+      if (typeof result === 'string') {
+        // Remove data-lov-id de React.Fragment
+        return result.replace(
+          /<React\.Fragment([^>]*?)\s+data-lov-id="[^"]*"([^>]*?)>/g,
+          '<React.Fragment$1$2>'
+        ).replace(
+          /<>([^>]*?)\s+data-lov-id="[^"]*"([^>]*?)>/g,
+          '<>$1$2>'
+        );
+      }
+      
+      return result;
+    }
+  };
+}
+
 /// <reference types="vitest" />
 
 // https://vitejs.dev/config/
@@ -35,7 +66,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
-      mode === "development" && componentTagger(),
+      mode === "development" && createSafeComponentTagger(), // Wrapper seguro que exclui React.Fragment
       VitePWA({
         registerType: "autoUpdate",
         strategies: 'injectManifest',

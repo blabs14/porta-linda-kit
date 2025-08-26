@@ -10,7 +10,8 @@ import {
   Settings,
   FileText,
   BarChart3,
-  Table
+  Table,
+  Gift
 } from 'lucide-react';
 
 interface PayrollNavigationProps {
@@ -45,6 +46,13 @@ export function PayrollNavigation({ className }: PayrollNavigationProps) {
       label: 'Contratos',
       icon: FileText,
       description: 'Gestão de contratos',
+      isNew: true
+    },
+    {
+      path: '/personal/payroll/bonus',
+      label: 'Bónus e Prémios',
+      icon: Gift,
+      description: 'Subsídios e prémios de produtividade',
       isNew: true
     },
     {

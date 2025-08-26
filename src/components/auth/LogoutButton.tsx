@@ -2,13 +2,21 @@ import { LogOut } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 export default function LogoutButton() {
   const { logout } = useAuth();
+  const navigate = useNavigate();
   
   const handleLogout = async () => {
-    await logout();
-    window.location.reload();
+    try {
+      await logout();
+      navigate('/login', { replace: true });
+    } catch (error) {
+      console.error('Erro durante logout:', error);
+      // Em caso de erro, ainda assim redireciona para login
+      navigate('/login', { replace: true });
+    }
   };
 
   return (

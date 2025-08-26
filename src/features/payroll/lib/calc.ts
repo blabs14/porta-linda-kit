@@ -157,28 +157,30 @@ export function calcHourly(
  * @param isException Se é uma exceção (permite pagamento em feriados/férias)
  * @param minimumRegularHours Horas regulares mínimas para ter direito ao subsídio (padrão: 4h)
  * @param paymentMethod Método de pagamento: 'cash' (€6.00/dia) ou 'card' (€10.20/dia)
+ * @param duodecimosEnabled Se o pagamento em duodécimos está ativo (distribui uniformemente por 12 meses)
  * @returns Valor do subsídio em centavos
  */
 export function calcMeal(
   date: string,
   regularHours: number,
   totalHours: number,
-  mealAllowanceCents: number = 1020, // €10.20 padrão conforme legislação 2025
+  mealAllowanceCents: number = 1020, // €10.20 padrão conforme legislação 2025 (cartão)
   excludedMonths: number[] = [],
   isHoliday: boolean = false,
   isVacation: boolean = false,
   isException: boolean = false,
   minimumRegularHours: number = 4,
-  paymentMethod: 'cash' | 'card' = 'card'
+  paymentMethod: 'cash' | 'card' = 'card',
+  duodecimosEnabled: boolean = false
 ): number {
   // Regra 0: Se o valor do subsídio é 0, não há pagamento
   if (mealAllowanceCents === 0) {
     return 0;
   }
 
-  // Regra 1: Meses excluídos nunca pagam subsídio
+  // Regra 1: Meses excluídos nunca pagam subsídio (exceto se duodécimos estiver ativo)
   const month = parseInt(date.split('-')[1], 10);
-  if (excludedMonths.includes(month)) {
+  if (!duodecimosEnabled && excludedMonths.includes(month)) {
     return 0;
   }
 
@@ -189,6 +191,14 @@ export function calcMeal(
   
   // Aplicar o limite máximo de isenção ao valor configurado
   const effectiveAllowance = Math.min(mealAllowanceCents, maxExemption);
+
+  // Se duodécimos estiver ativo, paga o valor diário configurado uniformemente
+  if (duodecimosEnabled) {
+    // Em duodécimos, paga sempre o valor diário configurado, independentemente de horas
+    // e ignora meses excluídos (distribui ao longo de 12 meses)
+    // Exceto se for um dia sem qualquer trabalho (0 horas)
+    return (regularHours > 0 || totalHours > 0) ? effectiveAllowance : 0;
+  }
 
   // Regra 2: Feriados e férias só pagam com isException e horas regulares ≥ 4h
   if (isHoliday || isVacation) {
@@ -264,7 +274,7 @@ export function calcMonth(
   vacations: PayrollVacation[] = [],
   weeklyHours?: number,
   annualOvertimeHours?: number,
-  deductionConfig?: { irs_percentage: number; social_security_percentage: number }
+  deductionConfig?: { irs_percentage: number; social_security_percentage: number; irs_surcharge_percentage?: number; solidarity_contribution_percentage?: number }
 ): PayrollCalculation {
   // Validar limites semanais e anuais se fornecidos
   const validationErrors: string[] = [];
@@ -399,7 +409,8 @@ export function calcMonth(
         isVacation,
         isException,
         4, // minimumRegularHours
-        mealAllowanceConfig?.payment_method || 'card' // paymentMethod
+        mealAllowanceConfig?.payment_method || 'card', // paymentMethod
+        mealAllowanceConfig?.duodecimos_enabled || false // duodecimosEnabled
       );
     }
   });
@@ -419,10 +430,14 @@ export function calcMonth(
   // Calcular deduções usando as percentagens configuradas
   const irsPercentage = (deductionConfig?.irs_percentage || 0) / 100;
   const socialSecurityPercentage = (deductionConfig?.social_security_percentage || 11) / 100; // Default 11% se não configurado
+  const irsSurchargePercentage = (deductionConfig?.irs_surcharge_percentage || 0) / 100;
+  const solidarityContributionPercentage = (deductionConfig?.solidarity_contribution_percentage || 0) / 100;
   
   const irsDeduction = Math.round(grossPay * irsPercentage);
   const socialSecurityDeduction = Math.round(grossPay * socialSecurityPercentage);
-  const deductions = irsDeduction + socialSecurityDeduction;
+  const irsSurchargeDeduction = Math.round(grossPay * irsSurchargePercentage);
+  const solidarityContributionDeduction = Math.round(grossPay * solidarityContributionPercentage);
+  const deductions = irsDeduction + socialSecurityDeduction + irsSurchargeDeduction + solidarityContributionDeduction;
   
   const netPay = grossPay - deductions;
 
@@ -442,6 +457,8 @@ export function calcMonth(
     deductions,
     irsDeduction,
     socialSecurityDeduction,
+    irsSurchargeDeduction,
+    solidarityContributionDeduction,
     netPay,
     validationErrors: validationErrors.length > 0 ? validationErrors : undefined
   };

@@ -6,9 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
-import { Loader2, Settings, Users, Clock, Calendar, Plus, Edit, Trash2, CheckCircle, AlertTriangle } from 'lucide-react';
-import { PayrollContract, PayrollOTPolicy, PayrollHoliday, PayrollVacation, PayrollMealAllowanceConfig as PayrollMealAllowanceConfigType } from '../types';
+import { Loader2, Settings, Users, Clock, Calendar, Plus, Edit, Trash2, CheckCircle, AlertTriangle, ChevronDown, ChevronRight, DollarSign, Clock4, Utensils, Plane, X } from 'lucide-react';
+import { PayrollContract, PayrollOTPolicy, PayrollHoliday, PayrollVacation, PayrollMealAllowanceConfig as PayrollMealAllowanceConfigType, PayrollDeductionConfig, PayrollMileagePolicy } from '../types';
 import { payrollService } from '../services/payrollService';
 import { PayrollVacationsManager } from './PayrollVacationsManager';
 import { PayrollMealAllowanceConfig } from './PayrollMealAllowanceConfig';
@@ -29,6 +30,9 @@ export function PayrollSetupPage() {
   const [holidays, setHolidays] = useState<PayrollHoliday[]>([]);
   const [vacations, setVacations] = useState<PayrollVacation[]>([]);
   const [mealAllowanceConfig, setMealAllowanceConfig] = useState<PayrollMealAllowanceConfigType | null>(null);
+  const [deductionConfigs, setDeductionConfigs] = useState<PayrollDeductionConfig[]>([]);
+  const [mileagePolicies, setMileagePolicies] = useState<PayrollMileagePolicy[]>([]);
+  const [expandedContracts, setExpandedContracts] = useState<Set<string>>(new Set());
 
   const [activeTab, setActiveTab] = useState('contracts');
 
@@ -36,23 +40,78 @@ export function PayrollSetupPage() {
     loadData();
   }, []);
 
+  // Função para verificar se um contrato tem todas as configurações
+  const getContractConfigStatus = (contractId: string) => {
+    const hasOTPolicy = otPolicies.some(policy => policy.contract_id === contractId);
+    const hasVacations = vacations.some(vacation => vacation.contract_id === contractId);
+    const hasMealAllowance = mealAllowanceConfig && mealAllowanceConfig.contract_id === contractId;
+    const hasDeductions = deductionConfigs.some(config => config.contract_id === contractId);
+    const hasMileage = mileagePolicies.some(policy => policy.contract_id === contractId);
+    
+    const completedConfigs = [hasOTPolicy, hasVacations, hasMealAllowance, hasDeductions, hasMileage].filter(Boolean).length;
+    const totalConfigs = 5;
+    
+    return {
+      hasOTPolicy,
+      hasVacations,
+      hasMealAllowance,
+      hasDeductions,
+      hasMileage,
+      completedConfigs,
+      totalConfigs,
+      isComplete: completedConfigs === totalConfigs
+    };
+  };
+
+  // Função para obter detalhes das configurações de um contrato
+  const getContractConfigDetails = (contractId: string) => {
+    const otPolicy = otPolicies.find(policy => policy.contract_id === contractId);
+    const vacation = vacations.find(vacation => vacation.contract_id === contractId);
+    const mealAllowance = mealAllowanceConfig && mealAllowanceConfig.contract_id === contractId ? mealAllowanceConfig : null;
+    const deduction = deductionConfigs.find(config => config.contract_id === contractId);
+    const mileagePolicy = mileagePolicies.find(policy => policy.contract_id === contractId);
+    
+    return {
+      otPolicy,
+      vacation,
+      mealAllowance,
+      deduction,
+      mileagePolicy
+    };
+  };
+
+  // Função para alternar expansão de contrato
+  const toggleContractExpansion = (contractId: string) => {
+    const newExpanded = new Set(expandedContracts);
+    if (newExpanded.has(contractId)) {
+      newExpanded.delete(contractId);
+    } else {
+      newExpanded.add(contractId);
+    }
+    setExpandedContracts(newExpanded);
+  };
+
   const loadData = async () => {
     if (!user?.id) return;
     
     setLoading(true);
     try {
-      const [contractsData, otPoliciesData, holidaysData, vacationsData, activeContract] = await Promise.all([
+      const [contractsData, otPoliciesData, holidaysData, vacationsData, activeContract, deductionConfigsData, mileagePoliciesData] = await Promise.all([
         payrollService.getContracts(user.id),
         payrollService.getOTPolicies(user.id),
         payrollService.getHolidays(user.id, new Date().getFullYear()),
         payrollService.getVacations(user.id, undefined, new Date().getFullYear()),
-        payrollService.getActiveContract(user.id)
+        payrollService.getActiveContract(user.id),
+        payrollService.getDeductionConfigs?.(user.id) || Promise.resolve([]),
+        payrollService.getMileagePolicies?.(user.id) || Promise.resolve([])
       ]);
       
       setContracts(contractsData);
       setOTPolicies(otPoliciesData);
       setHolidays(holidaysData);
       setVacations(vacationsData);
+      setDeductionConfigs(deductionConfigsData);
+      setMileagePolicies(mileagePoliciesData);
 
       const mealConfigData = activeContract?.id
         ? await payrollService.getMealAllowanceConfig(user.id, activeContract.id)
@@ -268,49 +327,310 @@ export function PayrollSetupPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[50px]"></TableHead>
                       <TableHead>Funcionário</TableHead>
                       <TableHead>Salário Base</TableHead>
                       <TableHead>Taxa Horária</TableHead>
+                      <TableHead className="text-center">Horas Extra</TableHead>
+                      <TableHead className="text-center">Férias</TableHead>
+                      <TableHead className="text-center">Subsídio Alimentação</TableHead>
+                      <TableHead className="text-center">Deduções</TableHead>
+                      <TableHead className="text-center">Quilometragem</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="w-[100px]">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {contracts.map((contract) => (
-                      <TableRow key={contract.id}>
-                        <TableCell className="font-medium">{contract.name}</TableCell>
-                        <TableCell>{formatCurrency(contract.base_salary_cents, 'pt-PT', contract.currency || 'EUR')}</TableCell>
-                        <TableCell>
-                          {(() => {
-                            const hourlyRate = calculateHourlyRate(contract.base_salary_cents, contract.schedule_json || {});
-                            return hourlyRate > 0 ? formatCurrency(hourlyRate, 'pt-PT', contract.currency || 'EUR') : '-';
-                          })()}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={contract.is_active ? 'default' : 'secondary'}>
-                            {contract.is_active ? 'Ativo' : 'Inativo'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex space-x-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => navigate('/personal/payroll/config')}
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleDeleteContract(contract)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {contracts.map((contract) => {
+                      const configStatus = getContractConfigStatus(contract.id);
+                      const isExpanded = expandedContracts.has(contract.id);
+                      
+                      return (
+                        <React.Fragment key={contract.id}>
+                          <TableRow>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => toggleContractExpansion(contract.id)}
+                                className="p-0 h-8 w-8"
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TableCell>
+                            <TableCell className="font-medium">{contract.name}</TableCell>
+                            <TableCell>{formatCurrency(contract.base_salary_cents, 'pt-PT', contract.currency || 'EUR')}</TableCell>
+                            <TableCell>
+                              {(() => {
+                                const hourlyRate = calculateHourlyRate(contract.base_salary_cents, contract.schedule_json || {});
+                                return hourlyRate > 0 ? formatCurrency(hourlyRate, 'pt-PT', contract.currency || 'EUR') : '-';
+                              })()}
+                            </TableCell>
+                            {/* Horas Extra */}
+                            <TableCell className="text-center">
+                              {(() => {
+                                const details = getContractConfigDetails(contract.id);
+                                return details.overtimePolicy ? (
+                                  <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
+                                ) : (
+                                  <X className="h-4 w-4 text-red-500 mx-auto" />
+                                );
+                              })()} 
+                            </TableCell>
+                            {/* Férias */}
+                            <TableCell className="text-center">
+                              {(() => {
+                                const details = getContractConfigDetails(contract.id);
+                                return details.vacationPolicy ? (
+                                  <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
+                                ) : (
+                                  <X className="h-4 w-4 text-red-500 mx-auto" />
+                                );
+                              })()} 
+                            </TableCell>
+                            {/* Subsídio Alimentação */}
+                            <TableCell className="text-center">
+                              {(() => {
+                                const details = getContractConfigDetails(contract.id);
+                                return details.mealAllowanceConfig ? (
+                                  <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
+                                ) : (
+                                  <X className="h-4 w-4 text-red-500 mx-auto" />
+                                );
+                              })()} 
+                            </TableCell>
+                            {/* Deduções */}
+                            <TableCell className="text-center">
+                              {(() => {
+                                const details = getContractConfigDetails(contract.id);
+                                return details.deduction ? (
+                                  <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
+                                ) : (
+                                  <X className="h-4 w-4 text-red-500 mx-auto" />
+                                );
+                              })()} 
+                            </TableCell>
+                            {/* Quilometragem */}
+                            <TableCell className="text-center">
+                              {(() => {
+                                const details = getContractConfigDetails(contract.id);
+                                return details.mileagePolicy ? (
+                                  <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
+                                ) : (
+                                  <X className="h-4 w-4 text-red-500 mx-auto" />
+                                );
+                              })()} 
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={contract.is_active ? 'default' : 'secondary'}>
+                                {contract.is_active ? 'Ativo' : 'Inativo'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex space-x-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => navigate('/personal/payroll/config')}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                   size="sm"
+                                   variant="outline"
+                                   onClick={() => handleDeleteContract(contract)}
+                                 >
+                                   <Trash2 className="h-3 w-3" />
+                                 </Button>
+                               </div>
+                             </TableCell>
+                           </TableRow>
+                           
+                           {/* Linha expansível com detalhes das configurações */}
+                           {isExpanded && (
+                             <TableRow key={`expanded-${contract.id}`}>
+                               <TableCell colSpan={11} className="bg-gray-50 p-4">
+                                 <div className="space-y-4">
+                                   <h4 className="font-semibold text-sm mb-3">Configurações do Contrato</h4>
+                                   
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                     {/* Horas Extra */}
+                                     <div className="p-4 border rounded-lg bg-white">
+                                       <div className="flex items-center gap-2 mb-2">
+                                         <Clock4 className="h-4 w-4 text-blue-500" />
+                                         <span className="font-medium text-sm">Horas Extra</span>
+                                         {configStatus.hasOTPolicy ? (
+                                           <Badge variant="default" className="text-xs ml-auto">
+                                             <CheckCircle className="h-3 w-3 mr-1" />
+                                             Configurado
+                                           </Badge>
+                                         ) : (
+                                           <Badge variant="secondary" className="text-xs ml-auto">
+                                             <AlertTriangle className="h-3 w-3 mr-1" />
+                                             Pendente
+                                           </Badge>
+                                         )}
+                                       </div>
+                                       {(() => {
+                                         const configDetails = getContractConfigDetails(contract.id);
+                                         return configDetails.otPolicy ? (
+                                           <div className="text-xs text-gray-600 space-y-1">
+                                             <div>Taxa Normal: {configDetails.otPolicy.normal_rate}x</div>
+                                             <div>Taxa Feriados: {configDetails.otPolicy.holiday_rate}x</div>
+                                             <div>Taxa Fins de Semana: {configDetails.otPolicy.weekend_rate}x</div>
+                                           </div>
+                                         ) : (
+                                           <div className="text-xs text-gray-500">Nenhuma política configurada</div>
+                                         );
+                                       })()}
+                                     </div>
+                                     
+                                     {/* Férias */}
+                                     <div className="p-4 border rounded-lg bg-white">
+                                       <div className="flex items-center gap-2 mb-2">
+                                         <Plane className="h-4 w-4 text-green-500" />
+                                         <span className="font-medium text-sm">Férias</span>
+                                         {configStatus.hasVacations ? (
+                                           <Badge variant="default" className="text-xs ml-auto">
+                                             <CheckCircle className="h-3 w-3 mr-1" />
+                                             Configurado
+                                           </Badge>
+                                         ) : (
+                                           <Badge variant="secondary" className="text-xs ml-auto">
+                                             <AlertTriangle className="h-3 w-3 mr-1" />
+                                             Pendente
+                                           </Badge>
+                                         )}
+                                       </div>
+                                       {(() => {
+                                         const configDetails = getContractConfigDetails(contract.id);
+                                         return configDetails.vacation ? (
+                                           <div className="text-xs text-gray-600 space-y-1">
+                                             <div>Dias Disponíveis: {configDetails.vacation.days_available}</div>
+                                             <div>Dias Usados: {configDetails.vacation.days_used}</div>
+                                             <div>Ano: {configDetails.vacation.year}</div>
+                                           </div>
+                                         ) : (
+                                           <div className="text-xs text-gray-500">Nenhuma configuração de férias</div>
+                                         );
+                                       })()}
+                                     </div>
+                                     
+                                     {/* Subsídio de Alimentação */}
+                                     <div className="p-4 border rounded-lg bg-white">
+                                       <div className="flex items-center gap-2 mb-2">
+                                         <Utensils className="h-4 w-4 text-orange-500" />
+                                         <span className="font-medium text-sm">Subsídio Alimentação</span>
+                                         {configStatus.hasMealAllowance ? (
+                                           <Badge variant="default" className="text-xs ml-auto">
+                                             <CheckCircle className="h-3 w-3 mr-1" />
+                                             Configurado
+                                           </Badge>
+                                         ) : (
+                                           <Badge variant="secondary" className="text-xs ml-auto">
+                                             <AlertTriangle className="h-3 w-3 mr-1" />
+                                             Pendente
+                                           </Badge>
+                                         )}
+                                       </div>
+                                       {(() => {
+                                         const configDetails = getContractConfigDetails(contract.id);
+                                         return configDetails.mealAllowance ? (
+                                           <div className="text-xs text-gray-600 space-y-1">
+                                             <div>Valor Diário: €{configDetails.mealAllowance.daily_amount}</div>
+                                             <div>Dias por Mês: {configDetails.mealAllowance.days_per_month}</div>
+                                             <div>Ativo: {configDetails.mealAllowance.is_active ? 'Sim' : 'Não'}</div>
+                                           </div>
+                                         ) : (
+                                           <div className="text-xs text-gray-500">Nenhuma configuração de subsídio</div>
+                                         );
+                                       })()}
+                                     </div>
+                                     
+                                     {/* Deduções */}
+                                     <div className="p-4 border rounded-lg bg-white">
+                                       <div className="flex items-center gap-2 mb-2">
+                                         <DollarSign className="h-4 w-4 text-red-500" />
+                                         <span className="font-medium text-sm">Deduções</span>
+                                         {configStatus.hasDeductions ? (
+                                           <Badge variant="default" className="text-xs ml-auto">
+                                             <CheckCircle className="h-3 w-3 mr-1" />
+                                             Configurado
+                                           </Badge>
+                                         ) : (
+                                           <Badge variant="secondary" className="text-xs ml-auto">
+                                             <AlertTriangle className="h-3 w-3 mr-1" />
+                                             Pendente
+                                           </Badge>
+                                         )}
+                                       </div>
+                                       {(() => {
+                                         const configDetails = getContractConfigDetails(contract.id);
+                                         return configDetails.deduction ? (
+                                           <div className="text-xs text-gray-600 space-y-1">
+                                             <div>Tipo: {configDetails.deduction.deduction_type}</div>
+                                             <div>Valor: €{configDetails.deduction.amount}</div>
+                                             <div>Descrição: {configDetails.deduction.description}</div>
+                                           </div>
+                                         ) : (
+                                           <div className="text-xs text-gray-500">Nenhuma dedução configurada</div>
+                                         );
+                                       })()}
+                                     </div>
+                                     
+                                     {/* Quilometragem */}
+                                     <div className="p-4 border rounded-lg bg-white">
+                                       <div className="flex items-center gap-2 mb-2">
+                                         <Settings className="h-4 w-4 text-purple-500" />
+                                         <span className="font-medium text-sm">Quilometragem</span>
+                                         {configStatus.hasMileage ? (
+                                           <Badge variant="default" className="text-xs ml-auto">
+                                             <CheckCircle className="h-3 w-3 mr-1" />
+                                             Configurado
+                                           </Badge>
+                                         ) : (
+                                           <Badge variant="secondary" className="text-xs ml-auto">
+                                             <AlertTriangle className="h-3 w-3 mr-1" />
+                                             Pendente
+                                           </Badge>
+                                         )}
+                                       </div>
+                                       {(() => {
+                                         const configDetails = getContractConfigDetails(contract.id);
+                                         return configDetails.mileagePolicy ? (
+                                           <div className="text-xs text-gray-600 space-y-1">
+                                             <div>Taxa por Km: €{configDetails.mileagePolicy.rate_per_km}</div>
+                                             <div>Limite Mensal: {configDetails.mileagePolicy.monthly_limit} km</div>
+                                             <div>Ativo: {configDetails.mileagePolicy.is_active ? 'Sim' : 'Não'}</div>
+                                           </div>
+                                         ) : (
+                                           <div className="text-xs text-gray-500">Nenhuma política de quilometragem</div>
+                                         );
+                                       })()}
+                                     </div>
+                                   </div>
+                                 
+                                   <div className="flex justify-end pt-2">
+                                     <Button
+                                       size="sm"
+                                       onClick={() => navigate('/personal/payroll/config')}
+                                       className="text-xs"
+                                     >
+                                       <Settings className="h-3 w-3 mr-1" />
+                                       Configurar
+                                     </Button>
+                                   </div>
+                                 </div>
+                               </TableCell>
+                             </TableRow>
+                           )}
+                         </React.Fragment>
+                       );
+                     })}
                   </TableBody>
                 </Table>
               )}

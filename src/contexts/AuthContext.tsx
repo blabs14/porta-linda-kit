@@ -21,12 +21,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    console.log('🔐 AuthContext: Inicializando autenticação...');
+    
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('🔐 AuthContext: Estado de autenticação alterado:', {
+        event,
+        hasSession: !!session,
+        hasUser: !!session?.user,
+        userId: session?.user?.id
+      });
       setSession(session);
       setUser(session?.user ?? null);
     });
     
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(({ data, error }) => {
+      console.log('🔐 AuthContext: Sessão inicial:', {
+        hasSession: !!data.session,
+        hasUser: !!data.session?.user,
+        userId: data.session?.user?.id,
+        error
+      });
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);
@@ -59,9 +73,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    setLoading(true);
-    await supabase.auth.signOut();
-    setLoading(false);
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Erro durante logout:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('Erro durante logout:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

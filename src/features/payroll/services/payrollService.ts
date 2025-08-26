@@ -14,6 +14,7 @@ import {
   PayrollPeriod,
   PayrollItem,
   PayrollPayslip,
+  PayrollLeave,
   ContractFormData,
   OTPolicyFormData,
   HolidayFormData,
@@ -22,6 +23,7 @@ import {
   PayrollMealAllowanceConfigFormData,
   PayrollDeductionConfig,
   PayrollDeductionConfigFormData,
+  PayrollLeaveFormData,
   MileagePolicyFormData,
   PayrollCalculation
 } from '../types';
@@ -74,7 +76,7 @@ export async function createContract(
   // Calcular hourly_rate_cents automaticamente
   const hourlyRateCents = calculateHourlyRate(
     contractData.base_salary_cents,
-    contractData.weekly_hours
+    contractData.schedule_json
   );
 
   const insertData = {
@@ -112,13 +114,8 @@ export async function updateContract(
   id: string,
   contractData: Partial<ContractFormData>
 ): Promise<PayrollContract> {
-  console.log('🔍 DEBUG updateContract: ID:', id);
-  console.log('🔍 DEBUG updateContract: contractData:', contractData);
-  
   // Verificar utilizador autenticado
   const { data: { user }, error: authError } = await supabase.auth.getUser();
-  console.log('🔍 DEBUG updateContract: Utilizador autenticado:', user?.id);
-  console.log('🔍 DEBUG updateContract: Erro de autenticação:', authError);
   
   // Verificar se o contrato existe e pertence ao utilizador
   const { data: existingContract, error: fetchError } = await supabase
@@ -127,23 +124,15 @@ export async function updateContract(
     .eq('id', id)
     .single();
   
-  console.log('🔍 DEBUG updateContract: Contrato existente:', existingContract);
-  console.log('🔍 DEBUG updateContract: Erro ao buscar contrato:', fetchError);
-  
   if (fetchError) {
-    console.error('❌ DEBUG updateContract: Erro ao buscar contrato:', fetchError);
     throw new Error(`Erro ao buscar contrato: ${fetchError.message}`);
   }
   
   if (!existingContract) {
-    console.error('❌ DEBUG updateContract: Contrato não encontrado');
     throw new Error('Contrato não encontrado');
   }
   
   if (existingContract.user_id !== user?.id) {
-    console.error('❌ DEBUG updateContract: Utilizador não autorizado');
-    console.error('❌ DEBUG updateContract: Contract user_id:', existingContract.user_id);
-    console.error('❌ DEBUG updateContract: Auth user_id:', user?.id);
     throw new Error('Não autorizado a editar este contrato');
   }
   
@@ -166,14 +155,10 @@ export async function updateContract(
     const baseSalaryCents = updateData.base_salary_cents ?? existingContract.base_salary_cents;
     const weeklyHours = updateData.weekly_hours ?? existingContract.weekly_hours;
     
-    if (baseSalaryCents && weeklyHours) {
-      updateData.hourly_rate_cents = calculateHourlyRate(baseSalaryCents, weeklyHours);
-      console.log('🔍 DEBUG updateContract: Calculado hourly_rate_cents:', updateData.hourly_rate_cents);
+    if (baseSalaryCents && existingContract.schedule_json) {
+      updateData.hourly_rate_cents = calculateHourlyRate(baseSalaryCents, existingContract.schedule_json);
     }
   }
-  
-  console.log('🔍 DEBUG updateContract: updateData com timestamp e conversões:', updateData);
-  console.log('🔍 DEBUG updateContract: weekly_hours tipo:', typeof updateData.weekly_hours, 'valor:', updateData.weekly_hours);
   
   const { data, error } = await supabase
     .from('payroll_contracts')
@@ -182,15 +167,10 @@ export async function updateContract(
     .select()
     .single();
 
-  console.log('🔍 DEBUG updateContract: Supabase response data:', data);
-  console.log('🔍 DEBUG updateContract: Supabase response error:', error);
-
   if (error) {
-    console.error('❌ DEBUG updateContract: Erro do Supabase:', error);
     throw error;
   }
   
-  console.log('✅ DEBUG updateContract: Sucesso, retornando:', data);
   return data;
 }
 
@@ -247,7 +227,17 @@ export async function createOTPolicy(
     .from('payroll_ot_policies')
     .insert({
       user_id: userId,
-      ...policyData,
+      name: policyData.name,
+      day_multiplier: policyData.firstHourMultiplier,
+      night_multiplier: policyData.subsequentHoursMultiplier,
+      weekend_multiplier: policyData.weekendMultiplier,
+      holiday_multiplier: policyData.holidayMultiplier,
+      night_start: policyData.nightStartTime,
+      night_end: policyData.nightEndTime,
+      rounding_minutes: policyData.roundingMinutes,
+      daily_limit_hours: policyData.dailyLimitHours,
+      annual_limit_hours: policyData.annualLimitHours,
+      weekly_limit_hours: policyData.weeklyLimitHours,
       is_active: true
     })
     .select()
@@ -261,9 +251,23 @@ export async function updateOTPolicy(
   id: string,
   policyData: Partial<OTPolicyFormData>
 ): Promise<PayrollOTPolicy> {
+  const updateData: any = {};
+  
+  if (policyData.name !== undefined) updateData.name = policyData.name;
+  if (policyData.firstHourMultiplier !== undefined) updateData.day_multiplier = policyData.firstHourMultiplier;
+  if (policyData.subsequentHoursMultiplier !== undefined) updateData.night_multiplier = policyData.subsequentHoursMultiplier;
+  if (policyData.weekendMultiplier !== undefined) updateData.weekend_multiplier = policyData.weekendMultiplier;
+  if (policyData.holidayMultiplier !== undefined) updateData.holiday_multiplier = policyData.holidayMultiplier;
+  if (policyData.nightStartTime !== undefined) updateData.night_start = policyData.nightStartTime;
+  if (policyData.nightEndTime !== undefined) updateData.night_end = policyData.nightEndTime;
+  if (policyData.roundingMinutes !== undefined) updateData.rounding_minutes = policyData.roundingMinutes;
+  if (policyData.dailyLimitHours !== undefined) updateData.daily_limit_hours = policyData.dailyLimitHours;
+  if (policyData.annualLimitHours !== undefined) updateData.annual_limit_hours = policyData.annualLimitHours;
+  if (policyData.weeklyLimitHours !== undefined) updateData.weekly_limit_hours = policyData.weeklyLimitHours;
+
   const { data, error } = await supabase
     .from('payroll_ot_policies')
-    .update(policyData)
+    .update(updateData)
     .eq('id', id)
     .select()
     .single();
@@ -276,12 +280,21 @@ export async function upsertOTPolicy(
   userId: string,
   policyData: OTPolicyFormData
 ): Promise<PayrollOTPolicy> {
+  const insertData: any = {
+    user_id: userId,
+    name: policyData.name,
+    description: policyData.description,
+    is_active: policyData.isActive,
+    overtime_rate: policyData.overtimeRate,
+    double_overtime_rate: policyData.doubleOvertimeRate,
+    daily_limit_hours: policyData.dailyLimitHours,
+    weekly_limit_hours: policyData.weeklyLimitHours,
+    annual_limit_hours: policyData.annualLimitHours
+  };
+
   const { data, error } = await supabase
     .from('payroll_ot_policies')
-    .upsert({
-      user_id: userId,
-      ...policyData
-    })
+    .upsert(insertData)
     .select()
     .single();
 
@@ -497,7 +510,8 @@ export async function createMealAllowanceConfig(
       contract_id: contractId,
       daily_amount_cents: eurosToCents(configData.dailyAmount),
       excluded_months: configData.excluded_months,
-      payment_method: configData.paymentMethod
+      payment_method: configData.paymentMethod,
+      duodecimos_enabled: configData.duodecimosEnabled
     })
     .select()
     .single();
@@ -520,6 +534,9 @@ export async function updateMealAllowanceConfig(
   }
   if (configData.paymentMethod !== undefined) {
     updateData.payment_method = configData.paymentMethod;
+  }
+  if (configData.duodecimosEnabled !== undefined) {
+    updateData.duodecimos_enabled = configData.duodecimosEnabled;
   }
   
   const { data, error } = await supabase
@@ -586,7 +603,9 @@ export async function createDeductionConfig(
       user_id: userId,
       contract_id: contractId,
       irs_percentage: configData.irsPercentage,
-      social_security_percentage: configData.socialSecurityPercentage
+      social_security_percentage: configData.socialSecurityPercentage,
+      irs_surcharge_percentage: configData.irsSurchargePercentage || 0,
+      solidarity_contribution_percentage: configData.solidarityContributionPercentage || 0
     })
     .select()
     .single();
@@ -606,6 +625,12 @@ export async function updateDeductionConfig(
   }
   if (configData.socialSecurityPercentage !== undefined) {
     updateData.social_security_percentage = configData.socialSecurityPercentage;
+  }
+  if (configData.irsSurchargePercentage !== undefined) {
+    updateData.irs_surcharge_percentage = configData.irsSurchargePercentage;
+  }
+  if (configData.solidarityContributionPercentage !== undefined) {
+    updateData.solidarity_contribution_percentage = configData.solidarityContributionPercentage;
   }
   
   const { data, error } = await supabase
@@ -630,7 +655,9 @@ export async function upsertDeductionConfig(
       user_id: userId,
       contract_id: contractId,
       irs_percentage: configData.irsPercentage,
-      social_security_percentage: configData.socialSecurityPercentage
+      social_security_percentage: configData.socialSecurityPercentage,
+      irs_surcharge_percentage: configData.irsSurchargePercentage || 0,
+      solidarity_contribution_percentage: configData.solidarityContributionPercentage || 0
     }, {
       onConflict: 'user_id,contract_id'
     })
@@ -1045,7 +1072,12 @@ export async function recalculatePayroll(
       holidays,
       mileageTrips,
       mileageRate,
-      mealAllowanceConfig ? { excluded_months: mealAllowanceConfig.excluded_months, daily_amount_cents: mealAllowanceConfig.daily_amount_cents } : undefined,
+      mealAllowanceConfig ? { 
+        excluded_months: mealAllowanceConfig.excluded_months, 
+        daily_amount_cents: mealAllowanceConfig.daily_amount_cents,
+        payment_method: mealAllowanceConfig.payment_method,
+        duodecimos_enabled: mealAllowanceConfig.duodecimos_enabled
+      } : undefined,
       [], // vacations
       undefined, // weeklyHours
       undefined, // annualOvertimeHours
@@ -1229,5 +1261,210 @@ export const payrollService = {
   recalculatePayroll,
   
   // Importação
-  importTimeEntriesFromCSV
+  importTimeEntriesFromCSV,
+  
+  // Período experimental
+  upsertProbationConfig
 };
+
+// ============================================================================
+// PERÍODO EXPERIMENTAL
+// ============================================================================
+
+export async function upsertProbationConfig(
+  contractId: string,
+  probationData: {
+    hasProbationPeriod: boolean;
+    durationDays?: number;
+    contractType?: string;
+    jobComplexity?: string;
+    isFirstJob?: boolean;
+    isLongTermUnemployed?: boolean;
+    hasWrittenCommunication?: boolean;
+    conditions?: string;
+  }
+): Promise<void> {
+  // Verificar utilizador autenticado
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    throw new Error('Utilizador não autenticado');
+  }
+
+  // Verificar se o contrato existe e pertence ao utilizador
+  const { data: existingContract, error: fetchError } = await supabase
+    .from('payroll_contracts')
+    .select('id, user_id')
+    .eq('id', contractId)
+    .single();
+
+  if (fetchError || !existingContract) {
+    throw new Error('Contrato não encontrado');
+  }
+
+  if (existingContract.user_id !== user.id) {
+    throw new Error('Não autorizado a editar este contrato');
+  }
+
+  // Preparar dados para atualização
+  const updateData: any = {
+    has_probation_period: probationData.hasProbationPeriod,
+    updated_at: new Date().toISOString()
+  };
+
+  // Adicionar duração se o período experimental estiver ativo
+  if (probationData.hasProbationPeriod && probationData.durationDays) {
+    updateData.probation_duration_days = probationData.durationDays;
+  } else {
+    updateData.probation_duration_days = null;
+  }
+
+  // Adicionar configurações adicionais como JSON
+  if (probationData.hasProbationPeriod) {
+    updateData.probation_config = {
+      contractType: probationData.contractType,
+      jobComplexity: probationData.jobComplexity,
+      isFirstJob: probationData.isFirstJob || false,
+      isLongTermUnemployed: probationData.isLongTermUnemployed || false,
+      hasWrittenCommunication: probationData.hasWrittenCommunication || false,
+      conditions: probationData.conditions || ''
+    };
+  } else {
+    updateData.probation_config = null;
+  }
+
+  // Atualizar o contrato
+  const { error } = await supabase
+    .from('payroll_contracts')
+    .update(updateData)
+    .eq('id', contractId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+// ============================================================================
+// LICENÇAS ESPECIAIS E PARENTAIS
+// ============================================================================
+
+export async function getLeaves(userId: string): Promise<PayrollLeave[]> {
+  const { data, error } = await supabase
+    .from('payroll_leaves')
+    .select('*')
+    .eq('user_id', userId)
+    .order('start_date', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getLeave(id: string): Promise<PayrollLeave | null> {
+  const { data, error } = await supabase
+    .from('payroll_leaves')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data;
+}
+
+export async function createLeave(userId: string, leaveData: PayrollLeaveFormData): Promise<PayrollLeave> {
+  const { data, error } = await supabase
+    .from('payroll_leaves')
+    .insert({
+      user_id: userId,
+      ...leaveData,
+      status: 'pending',
+      medical_certificate: leaveData.medical_certificate || false
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateLeave(id: string, leaveData: Partial<PayrollLeaveFormData>): Promise<PayrollLeave> {
+  const { data, error } = await supabase
+    .from('payroll_leaves')
+    .update({
+      ...leaveData,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteLeave(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('payroll_leaves')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+export async function approveLeave(id: string, approvedBy: string): Promise<PayrollLeave> {
+  const { data, error } = await supabase
+    .from('payroll_leaves')
+    .update({
+      status: 'approved',
+      approved_by: approvedBy,
+      approved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function rejectLeave(id: string, approvedBy: string): Promise<PayrollLeave> {
+  const { data, error } = await supabase
+    .from('payroll_leaves')
+    .update({
+      status: 'rejected',
+      approved_by: approvedBy,
+      approved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Função para verificar sobreposição de licenças
+export async function checkLeaveOverlap(
+  userId: string,
+  startDate: string,
+  endDate: string,
+  excludeId?: string
+): Promise<boolean> {
+  let query = supabase
+    .from('payroll_leaves')
+    .select('id')
+    .eq('user_id', userId)
+    .or(`start_date.lte.${endDate},end_date.gte.${startDate}`);
+
+  if (excludeId) {
+    query = query.neq('id', excludeId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+  return (data || []).length > 0;
+}

@@ -205,7 +205,7 @@ const PersonalDashboard: React.FC = () => {
             {isLoading.accounts ? (
               <div className="space-y-4">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center justify-between">
+                  <div key={`account-loading-${i}`} className="flex items-center justify-between">
                     <div className="space-y-2">
                       <div className="h-4 bg-muted animate-pulse rounded w-24" />
                       <div className="h-3 bg-muted animate-pulse rounded w-16" />
@@ -253,7 +253,7 @@ const PersonalDashboard: React.FC = () => {
             {isLoading.accounts ? (
               <div className="space-y-4">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center justify-between">
+                  <div key={`card-loading-${i}`} className="flex items-center justify-between">
                     <div className="space-y-2">
                       <div className="h-4 bg-muted animate-pulse rounded w-24" />
                       <div className="h-3 bg-muted animate-pulse rounded w-16" />
@@ -317,7 +317,7 @@ const PersonalDashboard: React.FC = () => {
           {isLoading.goals ? (
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="space-y-2">
+                <div key={`goal-loading-${i}`} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <div className="h-4 bg-muted animate-pulse rounded w-32" />
@@ -375,7 +375,7 @@ const PersonalDashboard: React.FC = () => {
           {isLoading.transactions ? (
             <div className="space-y-3">
               {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="flex items-center justify-between">
+                <div key={`transaction-loading-${i}`} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-muted animate-pulse rounded-full" />
                     <div className="space-y-1">
