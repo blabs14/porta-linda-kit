@@ -11,7 +11,8 @@ import {
   FileText,
   BarChart3,
   Table,
-  Gift
+  Gift,
+  Calendar
 } from 'lucide-react';
 
 interface PayrollNavigationProps {
@@ -53,6 +54,13 @@ export function PayrollNavigation({ className }: PayrollNavigationProps) {
       label: 'Bónus e Prémios',
       icon: Gift,
       description: 'Subsídios e prémios de produtividade',
+      isNew: true
+    },
+    {
+      path: '/personal/payroll/periods',
+      label: 'Períodos',
+      icon: Calendar,
+      description: 'Gestão de períodos mensais',
       isNew: true
     },
     {

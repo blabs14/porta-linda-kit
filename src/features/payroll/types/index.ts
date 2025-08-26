@@ -148,6 +148,7 @@ export interface TimeSegment {
   end: Date;
   isOvertime: boolean;
   hours: number;
+  isNightShift?: boolean; // Indica se o segmento ocorre durante período noturno
 }
 
 export interface PlannedSchedule {

@@ -962,6 +962,166 @@ export async function deleteMileageTrip(id: string): Promise<void> {
 // PERÍODOS DE FOLHA DE PAGAMENTO
 // ============================================================================
 
+/**
+ * Obtém o status detalhado das configurações da folha de pagamento
+ */
+export async function getPayrollConfigurationStatus(
+  userId: string,
+  contractId: string
+): Promise<{
+  isValid: boolean;
+  missingConfigurations: string[];
+  configurationDetails: {
+    contract: { isValid: boolean; details: string[] };
+    overtimePolicy: { isValid: boolean; details: string[] };
+    mealAllowance: { isValid: boolean; details: string[] };
+    deductions: { isValid: boolean; details: string[] };
+    holidays: { isValid: boolean; details: string[] };
+  };
+}> {
+  const missingConfigurations: string[] = [];
+  const configurationDetails = {
+    contract: { isValid: true, details: [] as string[] },
+    overtimePolicy: { isValid: true, details: [] as string[] },
+    mealAllowance: { isValid: true, details: [] as string[] },
+    deductions: { isValid: true, details: [] as string[] },
+    holidays: { isValid: true, details: [] as string[] }
+  };
+
+  try {
+    // 1. Verificar se o contrato existe e está ativo
+    const { data: contract, error: contractError } = await supabase
+      .from('payroll_contracts')
+      .select('*')
+      .eq('id', contractId)
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .single();
+
+    if (contractError || !contract) {
+      const msg = 'Contrato ativo não encontrado';
+      missingConfigurations.push(msg);
+      configurationDetails.contract.isValid = false;
+      configurationDetails.contract.details.push(msg);
+      return { isValid: false, missingConfigurations, configurationDetails };
+    }
+
+    // 2. Verificar campos obrigatórios do contrato
+    if (!contract.job_category) {
+      const msg = 'Categoria profissional não definida no contrato';
+      missingConfigurations.push(msg);
+      configurationDetails.contract.isValid = false;
+      configurationDetails.contract.details.push(msg);
+    }
+    if (!contract.workplace_location) {
+      const msg = 'Local de trabalho não definido no contrato';
+      missingConfigurations.push(msg);
+      configurationDetails.contract.isValid = false;
+      configurationDetails.contract.details.push(msg);
+    }
+    if (!contract.base_salary_cents || contract.base_salary_cents <= 0) {
+      const msg = 'Salário base não definido no contrato';
+      missingConfigurations.push(msg);
+      configurationDetails.contract.isValid = false;
+      configurationDetails.contract.details.push(msg);
+    }
+    if (!contract.schedule_json) {
+      const msg = 'Horário de trabalho não definido no contrato';
+      missingConfigurations.push(msg);
+      configurationDetails.contract.isValid = false;
+      configurationDetails.contract.details.push(msg);
+    }
+
+    // 3. Verificar política de horas extras ativa
+    const { data: otPolicy, error: otError } = await supabase
+      .from('payroll_ot_policies')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .single();
+
+    if (otError || !otPolicy) {
+      const msg = 'Política de horas extras não configurada';
+      missingConfigurations.push(msg);
+      configurationDetails.overtimePolicy.isValid = false;
+      configurationDetails.overtimePolicy.details.push(msg);
+    }
+
+    // 4. Verificar configuração de subsídio de alimentação
+    const { data: mealConfig, error: mealError } = await supabase
+      .from('payroll_meal_allowance_configs')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('contract_id', contractId)
+      .single();
+
+    if (mealError || !mealConfig) {
+      const msg = 'Configuração de subsídio de alimentação não definida';
+      missingConfigurations.push(msg);
+      configurationDetails.mealAllowance.isValid = false;
+      configurationDetails.mealAllowance.details.push(msg);
+    }
+
+    // 5. Verificar configuração de descontos
+    const { data: deductionConfig, error: deductionError } = await supabase
+      .from('payroll_deduction_configs')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('contract_id', contractId)
+      .single();
+
+    if (deductionError || !deductionConfig) {
+      const msg = 'Configuração de descontos não definida';
+      missingConfigurations.push(msg);
+      configurationDetails.deductions.isValid = false;
+      configurationDetails.deductions.details.push(msg);
+    }
+
+    // 6. Verificar se há feriados configurados para o ano atual
+    const currentYear = new Date().getFullYear();
+    const { data: holidays, error: holidaysError } = await supabase
+      .from('payroll_holidays')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('date', `${currentYear}-01-01`)
+      .lte('date', `${currentYear}-12-31`);
+
+    if (holidaysError || !holidays || holidays.length === 0) {
+      const msg = `Feriados não configurados para o ano ${currentYear}`;
+      missingConfigurations.push(msg);
+      configurationDetails.holidays.isValid = false;
+      configurationDetails.holidays.details.push(msg);
+    }
+
+    return {
+      isValid: missingConfigurations.length === 0,
+      missingConfigurations,
+      configurationDetails
+    };
+  } catch (error) {
+    console.error('Erro ao verificar configuração da folha de pagamento:', error);
+    return {
+      isValid: false,
+      missingConfigurations: ['Erro interno ao verificar configurações'],
+      configurationDetails
+    };
+  }
+}
+
+/**
+ * Valida se todas as configurações necessárias estão completas para criar um período de folha de pagamento
+ */
+export async function validatePayrollConfiguration(
+  userId: string,
+  contractId: string
+): Promise<{ isValid: boolean; missingConfigurations: string[] }> {
+  const status = await getPayrollConfigurationStatus(userId, contractId);
+  return {
+    isValid: status.isValid,
+    missingConfigurations: status.missingConfigurations
+  };
+}
+
 export async function getPayrollPeriods(
   userId: string,
   contractId?: string
@@ -1007,6 +1167,30 @@ export async function createPayrollPeriod(
   year: number,
   month: number
 ): Promise<PayrollPeriod> {
+  // Validar configurações antes de criar o período
+  const validation = await validatePayrollConfiguration(userId, contractId);
+  
+  if (!validation.isValid) {
+    const missingConfigsText = validation.missingConfigurations.join(', ');
+    throw new Error(
+      `Não é possível criar o período de folha de pagamento. Configurações em falta: ${missingConfigsText}`
+    );
+  }
+
+  // Verificar se já existe um período para este mês/ano
+  const { data: existingPeriod, error: checkError } = await supabase
+    .from('payroll_periods')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .eq('year', year)
+    .eq('month', month)
+    .single();
+
+  if (existingPeriod) {
+    throw new Error(`Já existe um período de folha de pagamento para ${month}/${year}`);
+  }
+
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0);
 
@@ -1259,6 +1443,8 @@ export const payrollService = {
   getPayrollPeriod,
   createPayrollPeriod,
   recalculatePayroll,
+  validatePayrollConfiguration,
+  getPayrollConfigurationStatus,
   
   // Importação
   importTimeEntriesFromCSV,

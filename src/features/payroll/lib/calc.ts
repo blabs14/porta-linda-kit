@@ -14,6 +14,50 @@ import {
 } from '../types';
 
 /**
+ * Verifica se o trabalho ocorre durante horário noturno
+ * @param startTime Hora de início do trabalho
+ * @param endTime Hora de fim do trabalho
+ * @param nightStart Início do período noturno (ex: '22:00')
+ * @param nightEnd Fim do período noturno (ex: '07:00')
+ * @returns true se alguma parte do trabalho ocorre durante período noturno
+ */
+function isWorkDuringNightHours(
+  startTime: Date,
+  endTime: Date,
+  nightStart: string,
+  nightEnd: string
+): boolean {
+  const startHour = startTime.getHours();
+  const startMinute = startTime.getMinutes();
+  const endHour = endTime.getHours();
+  const endMinute = endTime.getMinutes();
+  
+  const [nightStartHour, nightStartMinute] = nightStart.split(':').map(Number);
+  const [nightEndHour, nightEndMinute] = nightEnd.split(':').map(Number);
+  
+  const workStartMinutes = startHour * 60 + startMinute;
+  const workEndMinutes = endHour * 60 + endMinute;
+  const nightStartMinutes = nightStartHour * 60 + nightStartMinute;
+  const nightEndMinutes = nightEndHour * 60 + nightEndMinute;
+  
+  // Se o período noturno atravessa meia-noite (ex: 22:00-07:00)
+  if (nightStartMinutes > nightEndMinutes) {
+    // Trabalho noturno se:
+    // - Começa depois das 22h OU
+    // - Termina antes das 7h OU
+    // - Atravessa meia-noite
+    return workStartMinutes >= nightStartMinutes || 
+           workEndMinutes <= nightEndMinutes ||
+           workEndMinutes < workStartMinutes; // Atravessa meia-noite
+  } else {
+    // Período noturno não atravessa meia-noite
+    return (workStartMinutes >= nightStartMinutes && workStartMinutes < nightEndMinutes) ||
+           (workEndMinutes > nightStartMinutes && workEndMinutes <= nightEndMinutes) ||
+           (workStartMinutes < nightStartMinutes && workEndMinutes > nightEndMinutes);
+  }
+}
+
+/**
  * Constrói o cronograma planejado para um período específico
  * @param contract Contrato do funcionário
  * @param holidays Lista de feriados
@@ -72,6 +116,11 @@ export function segmentEntry(
   const totalMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60) - entry.break_minutes;
   const totalHours = totalMinutes / 60;
 
+  // Verificar se é trabalho noturno (22h-7h conforme legislação portuguesa)
+  const nightStart = otPolicy.night_start_time || '22:00';
+  const nightEnd = otPolicy.night_end_time || '07:00';
+  const isNightShift = isWorkDuringNightHours(startTime, endTime, nightStart, nightEnd);
+
   const segments: TimeSegment[] = [];
 
   if (totalHours <= dailyThreshold) {
@@ -80,7 +129,8 @@ export function segmentEntry(
       start: startTime,
       end: endTime,
       isOvertime: false,
-      hours: totalHours
+      hours: totalHours,
+      isNightShift
     });
   } else {
     // Dividir em horas regulares e extras
@@ -93,7 +143,8 @@ export function segmentEntry(
       start: startTime,
       end: regularEndTime,
       isOvertime: false,
-      hours: regularHours
+      hours: regularHours,
+      isNightShift: isWorkDuringNightHours(startTime, regularEndTime, nightStart, nightEnd)
     });
 
     // Segmento de horas extras
@@ -101,7 +152,8 @@ export function segmentEntry(
       start: regularEndTime,
       end: endTime,
       isOvertime: true,
-      hours: overtimeHours
+      hours: overtimeHours,
+      isNightShift: isWorkDuringNightHours(regularEndTime, endTime, nightStart, nightEnd)
     });
   }
 
@@ -126,20 +178,23 @@ export function calcHourly(
   isWeekend: boolean = false,
   isHoliday: boolean = false,
   isNightShift: boolean = false,
-  isFirstOvertimeHour: boolean = false
+  isFirstOvertimeHour: boolean = false,
+  otPolicy?: PayrollOTPolicy
 ): number {
   let multiplier = 1.0;
   
-  if (isOvertime) {
-    if (isHoliday || isWeekend) {
-      multiplier = 2.0; // 100% para feriados e fins de semana
+  if (isOvertime && otPolicy) {
+    if (isHoliday) {
+      multiplier = otPolicy.holiday_multiplier; // Multiplicador para feriados (padrão: 2.0 = 100%)
+    } else if (isWeekend) {
+      multiplier = otPolicy.weekend_multiplier; // Multiplicador para fins de semana (padrão: 2.0 = 100%)
     } else if (isFirstOvertimeHour) {
-      multiplier = 1.5; // 50% para primeira hora extra em dia útil
+      multiplier = otPolicy.day_multiplier; // Multiplicador primeira hora dia útil (padrão: 1.5 = 50%)
     } else {
-      multiplier = 1.75; // 75% para horas extras seguintes em dia útil
+      multiplier = otPolicy.night_multiplier; // Multiplicador horas seguintes (padrão: 1.75 = 75%)
     }
   } else if (isNightShift) {
-    multiplier = 1.25; // 25% adicional para trabalho noturno
+    multiplier = 1.25; // 25% adicional para trabalho noturno (legislação portuguesa)
   }
   
   return Math.round(hours * hourlyRateCents * multiplier);
@@ -297,6 +352,26 @@ export function calcMonth(
 
   // Processar todas as entradas de tempo
   timeEntries.forEach(entry => {
+    // Validar entrada de tempo individual (incluindo limite diário de horas extras)
+    const entryValidation = validateTimeEntry(
+      entry,
+      contract.weekly_hours / 5, // Horas contratuais por dia (assumindo 5 dias úteis)
+      otPolicy.daily_limit_hours || 2 // Limite diário de horas extras da política
+    );
+    
+    if (!entryValidation.isValid) {
+      validationErrors.push(...entryValidation.errors);
+    }
+    
+    // Verificar descanso compensatório para trabalho ao domingo
+    const entryDate = new Date(entry.date);
+    const totalHours = calculateHours(entry.start_time, entry.end_time, entry.break_minutes);
+    const compensatoryCheck = checkCompensatoryRest(entryDate, totalHours);
+    
+    if (compensatoryCheck.isRequired) {
+      validationErrors.push(`${compensatoryCheck.reason} - ${compensatoryCheck.compensatoryHours.toFixed(2)} horas de descanso compensatório necessárias para ${entry.date}`);
+    }
+    
     const segments = segmentEntry(entry, otPolicy);
     
     segments.forEach(segment => {
@@ -309,7 +384,33 @@ export function calcMonth(
   });
 
   // Calcular pagamentos com multiplicadores corretos
-  const regularPay = calcHourly(regularHours, contract.hourly_rate_cents);
+  // Para horas regulares, precisamos calcular por segmento para aplicar adicional noturno
+  let regularPay = 0;
+  
+  timeEntries.forEach(entry => {
+    const entryDate = new Date(entry.date);
+    const isWeekend = entryDate.getDay() === 0 || entryDate.getDay() === 6;
+    const isHoliday = holidays.some(h => h.date === entry.date);
+    
+    const segments = segmentEntry(entry, otPolicy);
+    
+    segments.forEach(segment => {
+      if (!segment.isOvertime) {
+        const segmentPay = calcHourly(
+          segment.hours,
+          contract.hourly_rate_cents,
+          false,
+          isWeekend,
+          isHoliday,
+          segment.isNightShift,
+          false,
+          otPolicy
+        );
+        
+        regularPay += segmentPay;
+      }
+    });
+  });
   
   // Para horas extras, precisamos calcular por segmento para aplicar multiplicadores corretos
   let overtimePay = 0;
@@ -336,7 +437,8 @@ export function calcMonth(
           isWeekend,
           isHoliday,
           segment.isNightShift,
-          isFirstOvertimeHour
+          isFirstOvertimeHour,
+          otPolicy
         );
         
         overtimePay += segmentPay;
@@ -427,12 +529,18 @@ export function calcMonth(
 
   const grossPay = regularPay + overtimePay + mealAllowance + mileageReimbursement + punctualityBonus;
   
+  // Validar configuração de deduções
+  const deductionValidation = validateDeductions(grossPay, deductionConfig);
+  if (!deductionValidation.isValid) {
+    validationErrors.push(...deductionValidation.errors);
+  }
+
   // Calcular deduções usando as percentagens configuradas
   const irsPercentage = (deductionConfig?.irs_percentage || 0) / 100;
   const socialSecurityPercentage = (deductionConfig?.social_security_percentage || 11) / 100; // Default 11% se não configurado
   const irsSurchargePercentage = (deductionConfig?.irs_surcharge_percentage || 0) / 100;
   const solidarityContributionPercentage = (deductionConfig?.solidarity_contribution_percentage || 0) / 100;
-  
+
   const irsDeduction = Math.round(grossPay * irsPercentage);
   const socialSecurityDeduction = Math.round(grossPay * socialSecurityPercentage);
   const irsSurchargeDeduction = Math.round(grossPay * irsSurchargePercentage);
@@ -706,4 +814,65 @@ export function validateOvertimeLimits(
   }
 
   return { isValid: errors.length === 0, errors };
+}
+
+/**
+ * Valida as percentagens de deduções conforme a legislação portuguesa
+ * @param grossPayCents Salário bruto em cêntimos
+ * @param deductionConfig Configuração das deduções
+ * @returns Resultado da validação
+ */
+export function validateDeductions(
+  grossPayCents: number,
+  deductionConfig?: { 
+    irs_percentage: number; 
+    social_security_percentage: number; 
+    irs_surcharge_percentage?: number; 
+    solidarity_contribution_percentage?: number 
+  }
+): {
+  isValid: boolean;
+  errors: string[];
+} {
+  const errors: string[] = [];
+  
+  if (!deductionConfig) {
+    return { isValid: true, errors: [] };
+  }
+
+  // Validar Segurança Social (11% obrigatório)
+  if (deductionConfig.social_security_percentage !== 11) {
+    errors.push(`Segurança Social deve ser 11%, configurado: ${deductionConfig.social_security_percentage}%`);
+  }
+
+  // Validar IRS (0-48% aproximadamente, dependendo dos escalões)
+  if (deductionConfig.irs_percentage < 0 || deductionConfig.irs_percentage > 48) {
+    errors.push(`IRS deve estar entre 0% e 48%, configurado: ${deductionConfig.irs_percentage}%`);
+  }
+
+  // Validar sobretaxa IRS (aplicável apenas a rendimentos superiores a €80.640 anuais)
+  const annualGrossEuros = (grossPayCents * 12) / 100; // Converter para euros anuais
+  if (deductionConfig.irs_surcharge_percentage && deductionConfig.irs_surcharge_percentage > 0) {
+    if (annualGrossEuros <= 80640) {
+      errors.push(`Sobretaxa IRS só se aplica a rendimentos anuais superiores a €80.640. Rendimento anual estimado: €${annualGrossEuros.toFixed(2)}`);
+    }
+    if (deductionConfig.irs_surcharge_percentage > 5) {
+      errors.push(`Sobretaxa IRS não pode exceder 5%, configurado: ${deductionConfig.irs_surcharge_percentage}%`);
+    }
+  }
+
+  // Validar contribuição extraordinária de solidariedade (aplicável apenas a rendimentos superiores a €80.640 anuais)
+  if (deductionConfig.solidarity_contribution_percentage && deductionConfig.solidarity_contribution_percentage > 0) {
+    if (annualGrossEuros <= 80640) {
+      errors.push(`Contribuição de solidariedade só se aplica a rendimentos anuais superiores a €80.640. Rendimento anual estimado: €${annualGrossEuros.toFixed(2)}`);
+    }
+    if (deductionConfig.solidarity_contribution_percentage > 5) {
+      errors.push(`Contribuição de solidariedade não pode exceder 5%, configurado: ${deductionConfig.solidarity_contribution_percentage}%`);
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
 }

@@ -8,6 +8,7 @@ import { PayrollBonusSettingsPage } from '../pages/PayrollBonusSettingsPage';
 
 import { PayrollOnboardingWizard, PayrollSetupPage, WeeklyTimesheetForm } from './index';
 import { PayrollNavigation } from './PayrollNavigation';
+import { PayrollPeriodsManager } from './PayrollPeriodsManager';
 import { ActiveContractProvider } from '../contexts/ActiveContractContext';
 import { usePayrollOnboarding } from '../hooks/usePayrollOnboarding';
 import { LoadingSpinner } from '../../../components/ui/loading-states';
@@ -45,6 +46,7 @@ function PayrollContent() {
         <Route path="bonus" element={<PayrollBonusPage />} />
         <Route path="settings/bonus" element={<PayrollBonusSettingsPage />} />
         <Route path="config" element={<PayrollConfigPage />} />
+        <Route path="periods" element={<PayrollPeriodsManager />} />
 
         <Route path="contratos" element={<PayrollSetupPage />} />
         <Route path="onboarding" element={<PayrollOnboardingWizard />} />
