@@ -6,14 +6,18 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Save, Info, Percent, Calculator } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
+import { Loader2, Save, Info, Percent, Calculator, Settings, ArrowRight } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { payrollService } from '../services/payrollService';
+import { deductionInferenceService } from '../services/deductionInferenceService';
 import { PayrollDeductionConfigFormData } from '../types';
+import { PayrollDeductionConditions } from './PayrollDeductionConditions';
 
 // Schema de validação
 const deductionSchema = z.object({
@@ -42,6 +46,9 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showConditions, setShowConditions] = useState(false);
+  const [autoDeductionsEnabled, setAutoDeductionsEnabled] = useState(false);
+  const [isLoadingAutoState, setIsLoadingAutoState] = useState(false);
 
   const form = useForm<PayrollDeductionConfigFormData>({
     resolver: zodResolver(deductionSchema),
@@ -53,13 +60,14 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
     }
   });
 
-  // Carregar configuração existente
+  // Carregar configuração existente e estado do modo automático
   useEffect(() => {
     const loadConfig = async () => {
       if (!user?.id || !contractId) return;
       
       setIsLoading(true);
       try {
+        // Carregar configuração de descontos
         const config = await payrollService.getDeductionConfig(user.id, contractId);
         if (config) {
           form.reset({
@@ -68,6 +76,15 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
             irsSurchargePercentage: config.irs_surcharge_percentage || 0,
             solidarityContributionPercentage: config.solidarity_contribution_percentage || 0
           });
+        }
+        
+        // Verificar se modo automático está ativo (feature flag + estado do contrato)
+        const featureFlagEnabled = deductionInferenceService.isAutoDeductionsEnabled();
+        if (featureFlagEnabled) {
+          const autoState = await deductionInferenceService.getAutoDeductionsState(user.id, contractId);
+          setAutoDeductionsEnabled(autoState);
+        } else {
+          setAutoDeductionsEnabled(false);
         }
       } catch (error) {
         console.error('Erro ao carregar configuração de descontos:', error);
@@ -112,6 +129,41 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
       setIsSaving(false);
     }
   };
+  
+  const handleAutoToggle = async (enabled: boolean) => {
+    if (!user?.id) return;
+    
+    setIsLoadingAutoState(true);
+    try {
+      await deductionInferenceService.setAutoDeductionsEnabled(user.id, contractId, enabled);
+      setAutoDeductionsEnabled(enabled);
+      
+      toast({
+        title: 'Sucesso',
+        description: enabled 
+          ? 'Cálculo automático ativado. Configure as condições para calcular as percentagens.'
+          : 'Cálculo automático desativado. Pode agora editar as percentagens manualmente.'
+      });
+    } catch (error) {
+      console.error('Erro ao alterar modo automático:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível alterar o modo de cálculo.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoadingAutoState(false);
+    }
+  };
+  
+  const handleConditionsUpdated = (irsRate: number, ssRate: number) => {
+    // Atualizar os valores do formulário com as percentagens calculadas
+    form.setValue('irsPercentage', irsRate);
+    form.setValue('socialSecurityPercentage', ssRate);
+    
+    // Voltar para a vista principal
+    setShowConditions(false);
+  };
 
   if (isLoading) {
     return (
@@ -122,6 +174,18 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
       </Card>
     );
   }
+  
+  // Se estamos a mostrar a sub-página de condições
+  if (showConditions) {
+    return (
+      <PayrollDeductionConditions
+        contractId={contractId}
+        onBack={() => setShowConditions(false)}
+        onConditionsUpdated={handleConditionsUpdated}
+      />
+    );
+  }
+  
   const { register, handleSubmit, formState: { errors }, watch } = form;
 
   const irsPercentage = watch('irsPercentage');
@@ -141,6 +205,55 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Toggle de Cálculo Automático - só mostra se feature flag estiver ativa */}
+        {deductionInferenceService.isAutoDeductionsEnabled() && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  <span className="font-medium">Cálculo Automático (IRS/SS)</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {autoDeductionsEnabled 
+                    ? 'As percentagens são calculadas automaticamente com base nas condições configuradas.'
+                    : 'Configure manualmente as percentagens de IRS e Segurança Social.'}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                {autoDeductionsEnabled && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setShowConditions(true)}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Condições
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                )}
+                <Switch
+                  checked={autoDeductionsEnabled}
+                  onCheckedChange={handleAutoToggle}
+                  disabled={isLoadingAutoState}
+                />
+              </div>
+            </div>
+            
+            {autoDeductionsEnabled && (
+              <Alert className="mt-4">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Modo Automático Ativo:</strong> As percentagens são calculadas automaticamente. 
+                  Os campos abaixo ficam apenas para visualização. Para alterar, configure as condições ou desative o modo automático.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        )}
+        
+        <Separator className="mb-8" />
+        
         {/* Tabelas de Referência */}
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-4">
@@ -306,19 +419,22 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
                 min="0"
                 max="100"
                 placeholder="Ex: 11.5"
+                readOnly={autoDeductionsEnabled}
                 {...register('irsPercentage', {
                   required: 'Percentagem de IRS é obrigatória',
                   min: { value: 0, message: 'Percentagem deve ser maior ou igual a 0' },
                   max: { value: 100, message: 'Percentagem deve ser menor ou igual a 100' },
                   valueAsNumber: true
                 })}
-                className={errors.irsPercentage ? 'border-red-500' : ''}
+                className={`${errors.irsPercentage ? 'border-red-500' : ''} ${autoDeductionsEnabled ? 'bg-muted cursor-not-allowed' : ''}`}
               />
               {errors.irsPercentage && (
                 <p className="text-sm text-red-500">{errors.irsPercentage.message}</p>
               )}
               <p className="text-xs text-muted-foreground">
-                Percentagem de IRS aplicada sobre o salário bruto
+                {autoDeductionsEnabled 
+                  ? 'Percentagem calculada automaticamente com base nas condições'
+                  : 'Percentagem de IRS aplicada sobre (Bruto - SS trabalhador)'}
               </p>
             </div>
 
@@ -332,19 +448,22 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
                 min="0"
                 max="100"
                 placeholder="Ex: 11.0"
+                readOnly={autoDeductionsEnabled}
                 {...register('socialSecurityPercentage', {
                   required: 'Percentagem de Segurança Social é obrigatória',
                   min: { value: 0, message: 'Percentagem deve ser maior ou igual a 0' },
                   max: { value: 100, message: 'Percentagem deve ser menor ou igual a 100' },
                   valueAsNumber: true
                 })}
-                className={errors.socialSecurityPercentage ? 'border-red-500' : ''}
+                className={`${errors.socialSecurityPercentage ? 'border-red-500' : ''} ${autoDeductionsEnabled ? 'bg-muted cursor-not-allowed' : ''}`}
               />
               {errors.socialSecurityPercentage && (
                 <p className="text-sm text-red-500">{errors.socialSecurityPercentage.message}</p>
               )}
               <p className="text-xs text-muted-foreground">
-                Percentagem de Segurança Social aplicada sobre o salário bruto
+                {autoDeductionsEnabled 
+                  ? 'Percentagem calculada automaticamente com base nas condições'
+                  : 'Percentagem de Segurança Social aplicada sobre o salário bruto'}
               </p>
             </div>
           </div>
@@ -410,16 +529,24 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
             <AlertDescription>
               <strong>Informação:</strong>
               <ul className="mt-2 space-y-1">
-                <li>• As percentagens são aplicadas sobre o salário bruto (incluindo horas extras e subsídios)</li>
+                <li>• {autoDeductionsEnabled 
+                  ? 'IRS é aplicado sobre (Bruto - SS trabalhador), SS sobre o salário bruto'
+                  : 'As percentagens são aplicadas sobre o salário bruto (incluindo horas extras e subsídios)'}</li>
                 <li>• Valores típicos em Portugal: IRS 11-48%, Segurança Social 11%</li>
                 <li>• Estas configurações aplicam-se a todos os cálculos futuros deste contrato</li>
+                {autoDeductionsEnabled && (
+                  <li>• <strong>Modo Automático:</strong> Configure as condições para cálculo preciso das percentagens</li>
+                )}
               </ul>
             </AlertDescription>
           </Alert>
 
           {/* Save Button */}
           <div className="flex justify-end">
-            <Button type="submit" disabled={isSaving}>
+            <Button 
+              type="submit" 
+              disabled={isSaving || autoDeductionsEnabled}
+            >
               {isSaving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -428,7 +555,7 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
               ) : (
                 <>
                   <Save className="mr-2 h-4 w-4" />
-                  Guardar Configuração
+                  {autoDeductionsEnabled ? 'Configuração Automática' : 'Guardar Configuração'}
                 </>
               )}
             </Button>

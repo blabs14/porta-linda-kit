@@ -428,3 +428,66 @@ export const LEAVE_TYPES = {
   compensatory_rest: { label: 'Descanso Compensatório', defaultDays: 1, defaultPaid: 100 },
   other: { label: 'Outras Licenças', defaultDays: 0, defaultPaid: 100 }
 } as const;
+
+// ============================================================================
+// TIPOS PARA CÁLCULO AUTOMÁTICO DE DEDUÇÕES
+// ============================================================================
+
+// Interface para condições de dedução por contrato
+export interface PayrollDeductionConditions {
+  id: string;
+  user_id: string;
+  contract_id: string;
+  year: number;
+  region: 'continente' | 'acores' | 'madeira';
+  marital_status: 'single' | 'married';
+  income_holders: 'one' | 'two';
+  dependents: number;
+  disability_worker: boolean;
+  disability_dependents: boolean;
+  residency: 'resident' | 'non_resident';
+  overtime_rule: 'half_effective_rate' | 'none';
+  duodecimos: boolean;
+  meal_method: 'cash' | 'card';
+  has_adse: boolean;
+  adse_rate: number;
+  union_rate: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Interface para tabelas legais versionadas
+export interface LegalTable {
+  id: string;
+  year: number;
+  region: 'continente' | 'acores' | 'madeira';
+  domain: 'irs_withholding' | 'ss_rates' | 'meal_allowance_limits' | 'overtime_rules';
+  payload: Record<string, any>; // JSON com os dados da tabela
+  effective_from: string;
+  effective_to: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Tipos para formulários das condições
+export interface PayrollDeductionConditionsFormData {
+  year: number;
+  region: 'continente' | 'acores' | 'madeira';
+  marital_status: 'single' | 'married';
+  income_holders: 'one' | 'two';
+  dependents: number;
+  disability_worker: boolean;
+  disability_dependents: boolean;
+  residency: 'resident' | 'non_resident';
+  overtime_rule: 'half_effective_rate' | 'none';
+  duodecimos: boolean;
+  meal_method: 'cash' | 'card';
+  has_adse: boolean;
+  adse_rate: number;
+  union_rate: number;
+}
+
+// Extensão da interface de configuração de descontos para incluir modo automático
+export interface PayrollDeductionConfigExtended extends PayrollDeductionConfig {
+  auto_deductions_enabled: boolean;
+}

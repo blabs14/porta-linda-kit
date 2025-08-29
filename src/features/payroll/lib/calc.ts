@@ -541,10 +541,16 @@ export function calcMonth(
   const irsSurchargePercentage = (deductionConfig?.irs_surcharge_percentage || 0) / 100;
   const solidarityContributionPercentage = (deductionConfig?.solidarity_contribution_percentage || 0) / 100;
 
-  const irsDeduction = Math.round(grossPay * irsPercentage);
+  // Calcular Segurança Social primeiro (sobre o bruto total)
   const socialSecurityDeduction = Math.round(grossPay * socialSecurityPercentage);
-  const irsSurchargeDeduction = Math.round(grossPay * irsSurchargePercentage);
-  const solidarityContributionDeduction = Math.round(grossPay * solidarityContributionPercentage);
+  
+  // Calcular base para IRS (Bruto - SS trabalhador)
+  const irsBase = grossPay - socialSecurityDeduction;
+  
+  // Calcular IRS sobre a base corrigida
+  const irsDeduction = Math.round(irsBase * irsPercentage);
+  const irsSurchargeDeduction = Math.round(irsBase * irsSurchargePercentage);
+  const solidarityContributionDeduction = Math.round(irsBase * solidarityContributionPercentage);
   const deductions = irsDeduction + socialSecurityDeduction + irsSurchargeDeduction + solidarityContributionDeduction;
   
   const netPay = grossPay - deductions;
