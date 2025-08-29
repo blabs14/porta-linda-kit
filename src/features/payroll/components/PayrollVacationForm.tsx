@@ -15,11 +15,13 @@ import { format, parseISO, differenceInDays, addDays, isWeekend } from 'date-fns
 interface PayrollVacationFormProps {
   vacation?: PayrollVacation;
   year: number;
+  contractId?: string;
+  existingVacations?: PayrollVacation[];
   onSave: (vacation: PayrollVacation) => void;
   onCancel: () => void;
 }
 
-export function PayrollVacationForm({ vacation, year, onSave, onCancel }: PayrollVacationFormProps) {
+export function PayrollVacationForm({ vacation, year, contractId, existingVacations = [], onSave, onCancel }: PayrollVacationFormProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -77,6 +79,37 @@ export function PayrollVacationForm({ vacation, year, onSave, onCancel }: Payrol
       if (workingDays === 0) {
         newErrors.start_date = 'O período deve incluir pelo menos um dia útil';
       }
+      
+      // Verificar sobreposição com férias existentes
+      const hasOverlap = existingVacations.some(existingVacation => {
+        // Ignorar a própria férias se estivermos a editar
+        if (vacation && existingVacation.id === vacation.id) {
+          return false;
+        }
+        
+        // Verificar se é o mesmo contrato (ambos devem ser iguais ou ambos null/undefined)
+        const currentContractId = contractId || null;
+        const existingContractId = existingVacation.contract_id || null;
+        
+        if (currentContractId !== existingContractId) {
+          return false;
+        }
+        
+        const existingStart = parseISO(existingVacation.start_date);
+        const existingEnd = parseISO(existingVacation.end_date);
+        
+        // Verificar sobreposição (usando a mesma lógica da base de dados)
+        return (
+          (startDate >= existingStart && startDate <= existingEnd) ||
+          (endDate >= existingStart && endDate <= existingEnd) ||
+          (existingStart >= startDate && existingStart <= endDate) ||
+          (existingEnd >= startDate && existingEnd <= endDate)
+        );
+      });
+      
+      if (hasOverlap) {
+        newErrors.start_date = 'Este período sobrepõe-se com férias já existentes';
+      }
     }
     
     setErrors(newErrors);
@@ -86,11 +119,21 @@ export function PayrollVacationForm({ vacation, year, onSave, onCancel }: Payrol
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm() || !user?.id) return;
+    console.log('🔍 DEBUG PayrollVacationForm handleSubmit started');
+    console.log('🔍 DEBUG Form data:', formData);
+    console.log('🔍 DEBUG User ID:', user?.id);
+    console.log('🔍 DEBUG Contract ID:', contractId);
+    console.log('🔍 DEBUG Is editing:', !!vacation);
+    
+    if (!validateForm() || !user?.id) {
+      console.log('🔍 DEBUG Form validation failed or no user ID');
+      return;
+    }
     
     setLoading(true);
     try {
       const workingDays = calculateWorkingDays(formData.start_date, formData.end_date);
+      console.log('🔍 DEBUG Calculated working days:', workingDays);
       
       const vacationData = {
         ...formData,
@@ -99,23 +142,33 @@ export function PayrollVacationForm({ vacation, year, onSave, onCancel }: Payrol
         is_approved: isApproved
       };
       
+      console.log('🔍 DEBUG Vacation data to save:', vacationData);
+      
       let savedVacation: PayrollVacation;
       
       if (vacation) {
-        savedVacation = await payrollService.updateVacation(vacation.id, vacationData);
+        console.log('🔍 DEBUG Calling updateVacation with ID:', vacation.id);
+        savedVacation = await payrollService.updateVacation(vacation.id, vacationData, user.id, contractId);
       } else {
-        savedVacation = await payrollService.createVacation(user.id, vacationData);
+        console.log('🔍 DEBUG Calling createVacation');
+        savedVacation = await payrollService.createVacation(user.id, contractId || '', vacationData);
       }
       
+      console.log('🔍 DEBUG Vacation saved successfully:', savedVacation);
+      console.log('🔍 DEBUG Calling onSave callback');
       onSave(savedVacation);
+      console.log('🔍 DEBUG onSave callback completed');
     } catch (error) {
-      toast({
-        title: 'Erro',
-        description: vacation ? 'Erro ao atualizar férias.' : 'Erro ao criar férias.',
-        variant: 'destructive'
+      console.error('🔍 DEBUG Error saving vacation:', error);
+      console.error('🔍 DEBUG Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        error
       });
-      console.error('Error saving vacation:', error);
+      // Toast de erro será exibido pelo componente pai (PayrollVacationsManager)
+      throw error; // Re-throw para que o componente pai possa tratar
     } finally {
+      console.log('🔍 DEBUG Setting loading to false');
       setLoading(false);
     }
   };

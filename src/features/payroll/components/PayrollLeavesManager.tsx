@@ -46,7 +46,7 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
   const loadLeaves = async () => {
     try {
       setLoading(true);
-      const data = await payrollService.getLeaves(user!.id);
+      const data = await payrollService.getLeaves(user!.id, contractId);
       setLeaves(data);
     } catch (error) {
       console.error('Erro ao carregar licenças:', error);
@@ -68,7 +68,23 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!user?.id) return;
+    if (!user?.id) {
+      toast({
+        title: 'Erro',
+        description: 'Utilizador não autenticado.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!contractId) {
+      toast({
+        title: 'Erro',
+        description: 'ID do contrato não fornecido.',
+        variant: 'destructive'
+      });
+      return;
+    }
 
     try {
       // Validar datas
@@ -86,6 +102,7 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
         user.id,
         formData.start_date,
         formData.end_date,
+        contractId,
         editingLeave?.id
       );
 
@@ -104,20 +121,20 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
       
       const submitData = {
         ...formData,
-        contract_id: contractId || '',
+        contract_id: contractId,
         paid_days: formData.paid_days || Math.floor(totalDays * (leaveType?.defaultPaid || 100) / 100),
         unpaid_days: formData.unpaid_days || (totalDays - Math.floor(totalDays * (leaveType?.defaultPaid || 100) / 100)),
         percentage_paid: formData.percentage_paid || leaveType?.defaultPaid || 100
       };
 
       if (editingLeave) {
-        await payrollService.updateLeave(editingLeave.id, submitData);
+        await payrollService.updateLeave(editingLeave.id, submitData, user.id, contractId);
         toast({
           title: 'Sucesso',
           description: 'Licença atualizada com sucesso.'
         });
       } else {
-        await payrollService.createLeave(user.id, submitData);
+        await payrollService.createLeave(user.id, submitData, contractId);
         toast({
           title: 'Sucesso',
           description: 'Licença criada com sucesso.'
@@ -127,10 +144,10 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
       await loadLeaves();
       resetForm();
     } catch (error) {
-      console.error('Erro ao salvar licença:', error);
+      console.error('Erro ao processar licença:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível salvar a licença.',
+        description: `Não foi possível salvar a licença: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
         variant: 'destructive'
       });
     }
@@ -138,7 +155,7 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
 
   const handleDelete = async (id: string) => {
     try {
-      await payrollService.deleteLeave(id);
+      await payrollService.deleteLeave(id, user?.id, contractId);
       toast({
         title: 'Sucesso',
         description: 'Licença excluída com sucesso.'
@@ -156,7 +173,7 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
 
   const handleApprove = async (id: string) => {
     try {
-      await payrollService.approveLeave(id, user!.id);
+      await payrollService.approveLeave(id, user!.id, user!.id, contractId);
       toast({
         title: 'Sucesso',
         description: 'Licença aprovada com sucesso.'
@@ -174,7 +191,7 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
 
   const handleReject = async (id: string) => {
     try {
-      await payrollService.rejectLeave(id, user!.id);
+      await payrollService.rejectLeave(id, user!.id, user!.id, contractId);
         toast({
         title: 'Sucesso',
         description: 'Licença rejeitada com sucesso.'

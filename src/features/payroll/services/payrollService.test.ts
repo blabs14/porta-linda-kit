@@ -23,18 +23,27 @@ const createMockChain = () => {
     single: vi.fn().mockReturnThis(),
     gte: vi.fn().mockReturnThis(),
     lte: vi.fn().mockReturnThis(),
-    mockResolvedValue: vi.fn((value) => {
-      mockChainResult = value;
-      return Promise.resolve(value);
+    in: vi.fn().mockReturnThis(),
+    neq: vi.fn().mockReturnThis(),
+    gt: vi.fn().mockReturnThis(),
+    lt: vi.fn().mockReturnThis(),
+    is: vi.fn().mockReturnThis(),
+    not: vi.fn().mockReturnThis(),
+    mockResolvedValue: vi.fn().mockImplementation(function(this: any, value: any) {
+      // Override the then method to resolve with the provided value
+      this.then = (onResolve: any) => Promise.resolve(value).then(onResolve);
+      return this;
     }),
-    mockRejectedValue: vi.fn((error) => {
-      return Promise.reject(error);
+    mockRejectedValue: vi.fn().mockImplementation(function(this: any, error: any) {
+      // Override the then method to reject with the provided error
+      this.then = (onResolve: any, onReject: any) => Promise.reject(error).then(onResolve, onReject);
+      return this;
     }),
   };
   
-  // Make the chain thenable so it can be awaited
+  // Make the chain thenable with a default resolution
   (chain as any).then = (onResolve: any, onReject: any) => {
-    return Promise.resolve(mockChainResult).then(onResolve, onReject);
+    return Promise.resolve({ data: null, error: null }).then(onResolve, onReject);
   };
   
   return chain;
@@ -127,7 +136,7 @@ describe('PayrollService Integration Tests', () => {
     user_id: 'user1',
     name: 'Dia de Ano Novo',
     date: '2024-01-01',
-    type: 'national',
+    holiday_type: 'national',
     is_recurring: true
   };
 
@@ -496,7 +505,7 @@ describe('PayrollService Integration Tests', () => {
       const { supabase } = await import('@/lib/supabaseClient');
       
       // Mock all the data needed for calculation
-      const mockContract = { data: { hourly_rate_cents: 2000, meal_allowance_cents: 600 }, error: null };
+      const mockContract = { data: { hourly_rate_cents: 2000 }, error: null };
       const mockOTPolicy = { data: { multiplier: 1.5, threshold_hours: 8 }, error: null };
       const mockHolidays = { data: [], error: null };
       const mockTimeEntries = { data: [{ date: '2024-01-01', hours: 8 }], error: null };
@@ -617,82 +626,88 @@ describe('PayrollService Integration Tests', () => {
         const mockActiveContract = {
           id: 'contract1',
           user_id: 'user1',
-          employee_name: 'João Silva',
-          hourly_rate_cents: 80000,
+          name: 'Test Contract',
+          base_salary_cents: 100000,
+          hourly_rate_cents: 500,
+          currency: 'EUR',
           weekly_hours: 40,
-          start_date: '2024-01-01',
+          schedule_json: { monday: { start: '09:00', end: '17:00' } },
+          vacation_bonus_mode: 'percentage',
+          christmas_bonus_mode: 'percentage',
           is_active: true,
-          job_category: 'Técnico',
-          workplace: 'Lisboa',
-          trial_period_days: 90
+          job_category: 'Developer',
+          workplace_location: 'Office',
+          duration: 'permanent',
+          has_probation_period: false,
+          probation_duration_days: null,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z'
         };
         
         // Mock overtime policy
         const mockOvertimePolicy = {
           id: 'ot1',
           user_id: 'user1',
-          name: 'Standard OT',
-          threshold_hours: 8,
-          multiplier: 1.5,
-          is_active: true
+          name: 'Standard OT Policy',
+          is_active: true,
+          created_at: '2024-01-01T00:00:00Z'
         };
         
         // Mock meal allowance settings
         const mockMealSettings = {
           id: 'meal1',
           user_id: 'user1',
-          daily_amount_cents: 600,
-          is_active: true
+          contract_id: 'contract1',
+          daily_amount_cents: 500,
+          is_active: true,
+          created_at: '2024-01-01T00:00:00Z'
         };
         
         // Mock deduction settings
         const mockDeductionSettings = {
-          id: 'ded1',
+          id: 'deduction1',
           user_id: 'user1',
-          name: 'IRS',
-          percentage: 11.5,
-          is_active: true
+          contract_id: 'contract1',
+          social_security_rate: 11.0,
+          irs_rate: 15.0,
+          created_at: '2024-01-01T00:00:00Z'
         };
         
         // Mock holidays for current year
         const mockHolidays = [
           {
-            id: 'h1',
+            id: 'holiday1',
             user_id: 'user1',
-            name: 'Ano Novo',
+            name: 'New Year',
             date: '2024-01-01',
-            type: 'national'
+            is_mandatory: true,
+            created_at: '2024-01-01T00:00:00Z'
           }
         ];
         
-        // Setup mock responses in sequence
-        let callCount = 0;
-        (supabase.from as any).mockImplementation(() => {
+        (supabase.from as any).mockImplementation((table: string) => {
           const chain = createMockChain();
-          callCount++;
           
-          if (callCount === 1) {
-            // Contract query
-            chain.mockResolvedValue({ data: mockActiveContract, error: null });
-          } else if (callCount === 2) {
-            // Overtime policy query
-            chain.mockResolvedValue({ data: [mockOvertimePolicy], error: null });
-          } else if (callCount === 3) {
-            // Meal allowance query
-            chain.mockResolvedValue({ data: [mockMealSettings], error: null });
-          } else if (callCount === 4) {
-            // Deduction settings query
-            chain.mockResolvedValue({ data: [mockDeductionSettings], error: null });
-          } else if (callCount === 5) {
-            // Holidays query
-            chain.mockResolvedValue({ data: mockHolidays, error: null });
-          }
+          if (table === 'payroll_contracts') {
+             chain.mockResolvedValue({ data: mockActiveContract, error: null });
+           } else if (table === 'payroll_ot_policies') {
+             chain.mockResolvedValue({ data: mockOvertimePolicy, error: null });
+           } else if (table === 'payroll_meal_allowance_configs') {
+             chain.mockResolvedValue({ data: mockMealSettings, error: null });
+           } else if (table === 'payroll_deduction_configs') {
+             chain.mockResolvedValue({ data: mockDeductionSettings, error: null });
+           } else if (table === 'payroll_holidays') {
+             chain.mockResolvedValue({ data: mockHolidays, error: null });
+           } else {
+             // Other queries
+             chain.mockResolvedValue({ data: [], error: null });
+           }
           
           return chain;
         });
         
         const result = await payrollService.getPayrollConfigurationStatus('user1', 'contract1');
-        
+         
         expect(result.isValid).toBe(true);
         expect(result.missingConfigurations).toHaveLength(0);
         expect(result.configurationDetails.contract.isValid).toBe(true);
@@ -715,7 +730,9 @@ describe('PayrollService Integration Tests', () => {
           start_date: '2024-01-01',
           is_active: true,
           job_category: null,
-          workplace: null,
+          workplace_location: null,
+          base_salary_cents: null,
+          schedule_json: null,
           trial_period_days: null
         };
         
@@ -729,7 +746,8 @@ describe('PayrollService Integration Tests', () => {
         
         expect(result.isValid).toBe(false);
         expect(result.configurationDetails.contract.isValid).toBe(false);
-        expect(result.missingConfigurations).toContain('Contrato incompleto');
+        expect(result.missingConfigurations).toContain('Categoria profissional não definida no contrato');
+        expect(result.missingConfigurations).toContain('Local de trabalho não definido no contrato');
       });
       
       it('should return invalid configuration when overtime policy is missing', async () => {
@@ -754,11 +772,11 @@ describe('PayrollService Integration Tests', () => {
         (supabase.from as any).mockImplementation((table: string) => {
           const chain = createMockChain();
           
-          if (table === 'contracts') {
-            chain.mockResolvedValue({ data: [mockCompleteContract], error: null });
+          if (table === 'payroll_contracts') {
+            chain.mockResolvedValue({ data: mockCompleteContract, error: null });
           } else if (table === 'payroll_ot_policies') {
-             // Overtime policy query - empty result to simulate missing policy
-             chain.mockResolvedValue({ data: [], error: null });
+             // Overtime policy query - simulate missing policy with error
+             chain.mockResolvedValue({ data: null, error: { code: 'PGRST116', message: 'No rows found' } });
           } else if (table === 'payroll_meal_allowance_configs') {
             chain.mockResolvedValue({ data: [{ id: 1, user_id: 'user1', daily_amount_cents: 600 }], error: null });
           } else if (table === 'payroll_deduction_configs') {

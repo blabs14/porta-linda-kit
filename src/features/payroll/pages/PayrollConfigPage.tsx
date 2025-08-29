@@ -1,263 +1,152 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
-import { Button } from '../../../components/ui/button';
-import { Input } from '../../../components/ui/input';
-import { Label } from '../../../components/ui/label';
-import { Switch } from '../../../components/ui/switch';
-import { Separator } from '../../../components/ui/separator';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
-import { Alert, AlertDescription } from '../../../components/ui/alert';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
-import { LoadingSpinner } from '../../../components/ui/loading-states';
-import { useToast } from '../../../hooks/use-toast';
-import { useAuth } from '../../../contexts/AuthContext';
-import { payrollService } from '../services/payrollService';
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { 
-  Settings, 
-  Clock, 
-  DollarSign, 
-  Car, 
-  Calendar, 
-  Utensils,
-  Percent,
-  Save,
-  AlertCircle,
-  AlertTriangle,
-  GraduationCap,
-  Bell,
-  MapPin,
-  Plus,
-  Award,
-  FileText
-} from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
-import { PayrollDeductionConfig } from '../components/PayrollDeductionConfig';
-import { PayrollBonusConfig } from '../components/PayrollBonusConfig';
-import { PayrollLeavesManager } from '../components/PayrollLeavesManager';
+import * as z from 'zod';
+import { useTranslation } from 'react-i18next';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { useToast } from '@/hooks/use-toast';
+import { LoadingSpinner } from '@/components/ui/loading-states';
+import { useAuth } from '@/contexts/AuthContext';
+import { payrollService } from '@/features/payroll/services/payrollService';
+import { Settings, Clock, Utensils, Calendar, FileText, Coffee, Car, Award, Percent, AlertCircle, Trash2 } from 'lucide-react';
+import { useSearchParams, useLocation } from 'react-router-dom';
+import { useActiveContract } from '@/features/payroll/hooks/useActiveContract';
+import { PayrollContractForm } from '@/features/payroll/components/PayrollContractForm';
+import { PayrollDeductionConfig } from '@/features/payroll/components/PayrollDeductionConfig';
+// PayrollHolidaysManager removido - sincronização automática implementada
+import { PayrollVacationsManager } from '@/features/payroll/components/PayrollVacationsManager';
+import { PayrollOTPolicyForm } from '@/features/payroll/components/PayrollOTPolicyForm';
+import { PayrollMealAllowanceForm } from '@/features/payroll/components/PayrollMealAllowanceForm';
+import { PayrollLeavesManager } from '@/features/payroll/components/PayrollLeavesManager';
+import { PayrollMileagePolicyForm } from '@/features/payroll/components/PayrollMileagePolicyForm';
+import { PayrollBonusConfig } from '@/features/payroll/components/PayrollBonusConfig';
+import { CompensatoryRestManager } from '@/features/payroll/components/CompensatoryRestManager';
 
 // Validation schemas
 const contractSchema = z.object({
-  baseSalary: z.number()
-    .min(870, 'Salário não pode ser inferior ao salário mínimo nacional (€870 - 2025)')
-    .max(50000, 'Salário máximo permitido: €50.000'),
+  baseSalary: z.number().min(0.01, 'Salário base deve ser maior que 0'),
   currency: z.string().min(1, 'Moeda é obrigatória'),
-  hoursPerWeek: z.number().min(0.5, 'Horas por semana deve ser maior que 0.5').max(40, 'Máximo 40 horas por semana (limite legal)'),
-  standardWorkStart: z.string().regex(/^\d{2}:\d{2}$/, 'Formato invalido (HH:MM)'),
-  standardWorkEnd: z.string().regex(/^\d{2}:\d{2}$/, 'Formato invalido (HH:MM)'),
-  standardBreakMinutes: z.number().min(60, 'Mínimo 1 hora de pausa (60 min)').max(120, 'Máximo 2 horas de pausa (120 min)'),
-  useStandardSchedule: z.boolean(),
-  contractType: z.enum(['permanent', 'fixed_term'], { required_error: 'Tipo de contrato é obrigatório' }),
-  startDate: z.string().min(1, 'Data de início é obrigatória'),
-  durationMonths: z.number().min(1, 'Duração deve ser pelo menos 1 mês').max(36, 'Duração máxima: 36 meses').optional(),
-  sector: z.enum(['private', 'public', 'nonprofit'], { required_error: 'Setor é obrigatório' }),
-  // Campos obrigatórios adicionais
-  professionalCategory: z.string().min(1, 'Categoria profissional é obrigatória'),
-  workLocation: z.string().min(1, 'Local de trabalho é obrigatório'),
-  probationPeriodMonths: z.number().min(0, 'Período experimental não pode ser negativo').max(6, 'Período experimental máximo: 6 meses').optional()
-}).refine((data) => {
-  if (data.contractType === 'fixed_term' && !data.durationMonths) {
-    return false;
-  }
-  return true;
-}, {
-  message: 'Duração em meses é obrigatória para contratos a termo',
-  path: ['durationMonths']
+  hoursPerWeek: z.number().min(1, 'Horas por semana deve ser maior que 0').max(60, 'Máximo 60 horas por semana'),
+  standardWorkStart: z.string().min(1, 'Hora de início é obrigatória'),
+  standardWorkEnd: z.string().min(1, 'Hora de fim é obrigatória'),
+  standardBreakMinutes: z.number().min(0, 'Pausa não pode ser negativa'),
+  useStandardSchedule: z.boolean()
 });
 
 const otPolicySchema = z.object({
-  enabled: z.boolean(),
-  companySize: z.enum(['micro_small', 'medium_large'], { required_error: 'Tamanho da empresa é obrigatório' }),
-  firstHourMultiplier: z.number().min(1.5, 'Mínimo 50% (1.5x)').max(2, 'Máximo 100% (2x)').default(1.5),
-  subsequentHoursMultiplier: z.number().min(1.75, 'Mínimo 75% (1.75x)').max(2.5, 'Máximo 150% (2.5x)').default(1.75),
-  weekendMultiplier: z.number().min(2, 'Mínimo 100% (2x)').max(3, 'Máximo 200% (3x)').default(2),
-  holidayMultiplier: z.number().min(2, 'Mínimo 100% (2x)').max(3, 'Máximo 200% (3x)').default(2),
-  nightStartTime: z.string().regex(/^\d{2}:\d{2}$/, 'Formato invalido (HH:MM)'),
-  nightEndTime: z.string().regex(/^\d{2}:\d{2}$/, 'Formato invalido (HH:MM)'),
-  roundingMinutes: z.number().min(1, 'Mínimo 1 minuto').max(60, 'Máximo 60 minutos'),
-  dailyLimitHours: z.number().min(1, 'Mínimo 1 hora').max(2, 'Máximo 2 horas por dia').default(2),
-  annualLimitHours: z.number().min(150, 'Mínimo 150 horas').max(175, 'Máximo 175 horas').default(150),
-  weeklyLimitHours: z.number().min(48, 'Mínimo 48 horas').max(60, 'Máximo 60 horas').default(48)
-}).refine((data) => {
-  if (data.enabled) {
-    const maxHours = data.companySize === 'micro_small' ? 175 : 150;
-    return data.annualLimitHours <= maxHours;
-  }
-  return true;
-}, {
-  message: 'Limite anual excede o máximo permitido para o tamanho da empresa (175h micro/pequenas, 150h médias/grandes)',
-  path: ['annualLimitHours']
-})
+  weeklyLimit: z.number().min(0, 'Limite semanal não pode ser negativo'),
+  annualLimit: z.number().min(0, 'Limite anual não pode ser negativo'),
+  rate25Percent: z.number().min(0, 'Taxa não pode ser negativa'),
+  rate50Percent: z.number().min(0, 'Taxa não pode ser negativa'),
+  rate100Percent: z.number().min(0, 'Taxa não pode ser negativa'),
+  sundayWorkRequiresCompensatoryRest: z.boolean(),
+  compensatoryRestDays: z.number().min(0, 'Dias de descanso não podem ser negativos')
+});
 
 const mealAllowanceSchema = z.object({
-  dailyAmount: z.number().min(0, 'Valor não pode ser negativo'),
-  excludedMonths: z.array(z.number().min(1).max(12)).max(12, 'Máximo 12 meses'),
-  paymentMethod: z.enum(['cash', 'card'], { required_error: 'Método de pagamento é obrigatório' }),
-  duodecimosEnabled: z.boolean().default(false)
-}).refine((data) => {
-  const maxCash = 6.00; // €6,00 para dinheiro (2025)
-  const maxCard = 10.20; // €10,20 para cartão (2025)
-  
-  if (data.paymentMethod === 'cash' && data.dailyAmount > maxCash) {
-    return false;
-  }
-  
-  if (data.paymentMethod === 'card' && data.dailyAmount > maxCard) {
-    return false;
-  }
-  
-  return true;
-}, {
-  message: 'Valor excede o limite de isenção fiscal para o método de pagamento selecionado (€6,00 dinheiro / €10,20 cartão - 2025)',
-  path: ['dailyAmount']
-}).refine((data) => {
-  // Se duodécimos estiver ativado e há meses excluídos, mostrar aviso
-  if (data.duodecimosEnabled && data.excludedMonths.length > 0) {
-    return true; // Permitir mas mostrar aviso
-  }
-  return true;
-}, {
-  message: 'Com duodécimos ativado, o subsídio será pago em todos os meses, incluindo os marcados como excluídos',
-  path: ['duodecimosEnabled']
+  dailyAmount: z.number().min(0, 'Valor diário não pode ser negativo'),
+  onlyOnWorkedDays: z.boolean()
 });
 
 const vacationSchema = z.object({
-  enabled: z.boolean(),
-  annualVacationDays: z.number().min(22, 'Mínimo legal: 22 dias úteis').max(30, 'Máximo: 30 dias úteis').default(22),
-  minimumConsecutiveDays: z.number().min(10, 'Mínimo legal: 10 dias úteis consecutivos').max(22, 'Máximo: 22 dias úteis').default(10),
-  allowInterpolatedVacation: z.boolean().default(true),
   periods: z.array(z.object({
-    startDate: z.string().min(1, 'Data de início obrigatória'),
-    endDate: z.string().min(1, 'Data de fim obrigatória'),
-    description: z.string().optional(),
-    isConsecutive: z.boolean().default(false),
-    totalDays: z.number().optional()
-  })).max(10, 'Máximo 10 períodos de férias'),
-  firstYearRules: z.object({
-    daysPerMonth: z.number().min(2, 'Mínimo legal: 2 dias por mês').max(2, 'Máximo legal: 2 dias por mês').default(2),
-    maxDaysFirstYear: z.number().min(20, 'Máximo legal: 20 dias úteis').max(20, 'Máximo legal: 20 dias úteis').default(20),
-    minimumMonthsToEarn: z.number().min(6, 'Mínimo legal: 6 meses').max(6, 'Mínimo legal: 6 meses').default(6)
-  }).default({
-    daysPerMonth: 2,
-    maxDaysFirstYear: 20,
-    minimumMonthsToEarn: 6
-  })
-}).refine((data) => {
-  // Validação: períodos de férias não podem sobrepor-se
-  if (data.periods && data.periods.length > 1) {
-    for (let i = 0; i < data.periods.length; i++) {
-      for (let j = i + 1; j < data.periods.length; j++) {
-        const period1Start = new Date(data.periods[i].startDate);
-        const period1End = new Date(data.periods[i].endDate);
-        const period2Start = new Date(data.periods[j].startDate);
-        const period2End = new Date(data.periods[j].endDate);
-        
-        // Verificar sobreposição
-        if ((period1Start <= period2End && period1End >= period2Start)) {
-          return false;
-        }
-      }
-    }
-  }
-  return true;
-}, {
-  message: 'Os períodos de férias não podem sobrepor-se',
-  path: ['periods']
-}).refine((data) => {
-  // Validação: total de dias de férias não pode exceder o limite anual
-  if (data.periods && data.periods.length > 0) {
-    const totalDays = data.periods.reduce((sum, period) => {
-      if (period.startDate && period.endDate) {
-        const start = new Date(period.startDate);
-        const end = new Date(period.endDate);
-        const diffTime = Math.abs(end.getTime() - start.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        return sum + diffDays;
-      }
-      return sum;
-    }, 0);
-    
-    return totalDays <= data.annualVacationDays;
-  }
-  return true;
-}, {
-  message: 'O total de dias de férias marcados excede o limite anual',
-  path: ['periods']
-}).refine((data) => {
-  // Validação: pelo menos um período consecutivo deve ter o mínimo de dias
-  if (data.periods && data.periods.length > 0) {
-    const hasMinimumConsecutive = data.periods.some(period => {
-      if (period.startDate && period.endDate && period.isConsecutive) {
-        const start = new Date(period.startDate);
-        const end = new Date(period.endDate);
-        const diffTime = Math.abs(end.getTime() - start.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        return diffDays >= data.minimumConsecutiveDays;
-      }
-      return false;
-    });
-    
-    // Se há períodos marcados, pelo menos um deve ser consecutivo com o mínimo
-    return data.periods.length === 0 || hasMinimumConsecutive;
-  }
-  return true;
-}, {
-  message: `Pelo menos um período de férias deve ser consecutivo com o mínimo de dias obrigatório`,
-  path: ['periods']
-});
-
-const mileagePolicySchema = z.object({
-  enabled: z.boolean(),
-  name: z.string().optional(),
-  ratePerKm: z.number()
-    .min(0.01, 'Taxa deve ser maior que 0')
-    .max(0.40, 'Máximo €0,40/km para manter isenção fiscal (2025)')
-    .optional(),
-  monthlyCap: z.number().optional(),
-  requireOrigin: z.boolean().optional(),
-  requireDestination: z.boolean().optional(),
-  requirePurpose: z.boolean().optional()
-}).refine((data) => {
-  if (data.enabled && !data.ratePerKm) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Taxa por quilómetro é obrigatória quando a política está ativada",
-  path: ["ratePerKm"]
-}).refine((data) => {
-  if (data.enabled && (data.requireOrigin === undefined || data.requireDestination === undefined || data.requirePurpose === undefined)) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Configurações de campos obrigatórios devem ser definidas quando a política está ativada",
-  path: ["requireOrigin"]
+    startDate: z.string().min(1, 'Data de início é obrigatória'),
+    endDate: z.string().min(1, 'Data de fim é obrigatória'),
+    description: z.string().optional()
+  }))
 });
 
 type ContractFormData = z.infer<typeof contractSchema>;
 type OTPolicyFormData = z.infer<typeof otPolicySchema>;
 type MealAllowanceFormData = z.infer<typeof mealAllowanceSchema>;
 type VacationFormData = z.infer<typeof vacationSchema>;
-type MileagePolicyFormData = z.infer<typeof mileagePolicySchema>;
 
-const PayrollConfigPage: React.FC = () => {
+export default function PayrollConfigPage() {
+  const { t } = useTranslation();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const { user } = useAuth();
-  
-  // State management
-  const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeSection, setActiveSection] = useState('contract');
   const [contracts, setContracts] = useState<any[]>([]);
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
+  const [ariaMessage, setAriaMessage] = useState('');
+  const [activeTab, setActiveTab] = useState('contract');
   const [showCreateContractDialog, setShowCreateContractDialog] = useState(false);
-  const [newContractName, setNewContractName] = useState('');
-  
-  // Form configurations
+
+  // Handlers para os botões de configuração
+  const handleConfigureContract = () => {
+    // TODO: Navegar para página de configuração do contrato
+    toast({
+      title: "Configuração do Contrato",
+      description: "Funcionalidade em desenvolvimento. Em breve poderá configurar os dados básicos do contrato.",
+    });
+  };
+
+  const handleConfigureOvertime = () => {
+    // TODO: Navegar para página de configuração de horas extras
+    toast({
+      title: "Políticas de Horas Extras",
+      description: "Funcionalidade em desenvolvimento. Em breve poderá configurar as regras de horas extras.",
+    });
+  };
+
+  const handleConfigureMeal = () => {
+    // TODO: Navegar para página de configuração de subsídio alimentação
+    toast({
+      title: "Subsídio de Alimentação",
+      description: "Funcionalidade em desenvolvimento. Em breve poderá configurar o subsídio de alimentação.",
+    });
+  };
+
+  const handleConfigureVacation = () => {
+    // TODO: Navegar para página de configuração de férias
+    toast({
+      title: "Gestão de Férias",
+      description: "Funcionalidade em desenvolvimento. Em breve poderá gerir os períodos de férias.",
+    });
+  };
+
+  const handleConfigureSpecialLeave = () => {
+    // Funcionalidade implementada através do componente PayrollLeavesManager
+  };
+
+  const handleConfigureCompensatoryRest = () => {
+    // Funcionalidade implementada através do componente CompensatoryRestManager
+  };
+
+  const handleConfigureMileage = () => {
+    // Funcionalidade implementada através do componente PayrollMileagePolicyForm
+  };
+
+  const handleConfigureBonus = () => {
+    // Funcionalidade implementada através do componente PayrollBonusConfig
+  };
+
+  const handleConfigureDeductions = () => {
+    toast({
+      title: "Descontos",
+      description: "Funcionalidade em desenvolvimento. Em breve poderá configurar descontos e deduções.",
+    });
+  };
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { setActiveContract } = useActiveContract();
+  const mainContentRef = useRef<HTMLHeadingElement>(null);
+  const [didJustCreate, setDidJustCreate] = useState(false);
+
+  // Form instances
   const contractForm = useForm<ContractFormData>({
     resolver: zodResolver(contractSchema),
     defaultValues: {
@@ -267,106 +156,63 @@ const PayrollConfigPage: React.FC = () => {
       standardWorkStart: '09:00',
       standardWorkEnd: '18:00',
       standardBreakMinutes: 60,
-      useStandardSchedule: true,
-      contractType: 'permanent',
-      startDate: '',
-      durationMonths: undefined,
-      sector: 'private'
+      useStandardSchedule: true
     }
   });
-  
+
   const otPolicyForm = useForm<OTPolicyFormData>({
     resolver: zodResolver(otPolicySchema),
     defaultValues: {
-      enabled: true,
-      firstHourMultiplier: 1.5, // Legislação portuguesa: 50% sobre o valor normal
-      subsequentHoursMultiplier: 1.75, // Legislação portuguesa: 75% sobre o valor normal
-      weekendMultiplier: 2.0, // Legislação portuguesa: 100% sobre o valor normal
-      holidayMultiplier: 2.0, // Legislação portuguesa: 100% sobre o valor normal
-      nightStartTime: '22:00', // Período noturno: 22h às 7h
-      nightEndTime: '07:00',
-      roundingMinutes: 15, // Arredondamento a 15 minutos
-      dailyLimitHours: 2, // Máximo 2 horas extras por dia
-      annualLimitHours: 150, // Máximo 150 horas extras por ano
-      weeklyLimitHours: 48 // Máximo 48 horas semanais (40h normais + 8h extras)
+      weeklyLimit: 8,
+      annualLimit: 150,
+      rate25Percent: 25,
+      rate50Percent: 50,
+      rate100Percent: 100,
+      sundayWorkRequiresCompensatoryRest: true,
+      compensatoryRestDays: 1
     }
   });
-  
+
   const mealAllowanceForm = useForm<MealAllowanceFormData>({
     resolver: zodResolver(mealAllowanceSchema),
     defaultValues: {
-      dailyAmount: 6.00,
-      excludedMonths: [],
-      paymentMethod: 'card'
+      dailyAmount: 0,
+      onlyOnWorkedDays: true
     }
   });
-  
+
   const vacationForm = useForm<VacationFormData>({
     resolver: zodResolver(vacationSchema),
     defaultValues: {
-      enabled: true,
-      annualVacationDays: 22,
-      minimumConsecutiveDays: 10,
-      allowInterpolatedVacation: true,
-      periods: [],
-      firstYearRules: {
-        daysPerMonth: 2,
-        maxDaysFirstYear: 20,
-        minimumMonthsToEarn: 6
-      }
+      periods: []
     }
   });
-  
-  const mileagePolicyForm = useForm<MileagePolicyFormData>({
-    resolver: zodResolver(mileagePolicySchema),
-    defaultValues: {
-      enabled: false,
-      name: '',
-      ratePerKm: 0.36,
-      monthlyCap: 0,
-      requireOrigin: true,
-      requireDestination: true,
-      requirePurpose: true
-    }
-  });
-  
-  // Load data function
+
   const loadData = async () => {
-    if (!user) return;
-    
+    if (!user?.id) {
+      console.log('❌ DEBUG: No user ID available for loading data');
+      return;
+    }
+
     try {
       setIsLoading(true);
+      console.log('🔄 DEBUG: Loading contracts for user:', user.id);
       
-      // Load contracts
       const contractsData = await payrollService.getContracts(user.id);
+      console.log('📋 DEBUG: Loaded contracts:', contractsData);
+      
       setContracts(contractsData || []);
       
-      // If there are contracts, select the first one
       if (contractsData && contractsData.length > 0) {
-        const firstContract = contractsData[0];
-        setSelectedContractId(firstContract.id);
-        
-        // Load contract data (use the already loaded contract)
-        const contractData = firstContract;
-        if (contractData) {
-          contractForm.reset({
-            baseSalary: (contractData.base_salary_cents || 87000) / 100, // Convert cents to euros
-            currency: contractData.currency || 'EUR',
-            hoursPerWeek: contractData.weekly_hours || 40,
-            standardWorkStart: contractData.standard_work_start || '09:00',
-            standardWorkEnd: contractData.standard_work_end || '18:00',
-            standardBreakMinutes: contractData.standard_break_minutes || 60,
-            useStandardSchedule: contractData.use_standard_schedule ?? true
-          });
-        }
-        
-        // Load other configurations
-        if (firstContract.id) {
-          await loadOtherConfigurations(firstContract.id);
-        }
+        const activeContract = contractsData.find(c => c.is_active) || contractsData[0];
+        setSelectedContractId(activeContract.id);
+        console.log('✅ DEBUG: Selected contract:', activeContract.id);
+      } else {
+        console.log('📝 DEBUG: No contracts found');
+        setSelectedContractId(null);
       }
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('❌ DEBUG: Error loading data:', error);
       toast({
         title: 'Erro',
         description: 'Erro ao carregar dados. Tente novamente.',
@@ -376,293 +222,43 @@ const PayrollConfigPage: React.FC = () => {
       setIsLoading(false);
     }
   };
-  
-  const loadOtherConfigurations = async (contractId: string) => {
-    if (!contractId || contractId === 'undefined') {
-      console.warn('Invalid contractId provided to loadOtherConfigurations:', contractId);
-      return;
-    }
-    
-    try {
-      // Load OT Policy
-      const otPolicy = await payrollService.getActiveOTPolicy(user.id);
-      if (otPolicy) {
-        otPolicyForm.reset(otPolicy);
-      }
-      
-      // Load Meal Allowance
-      const mealAllowance = await payrollService.getMealAllowanceConfig(user.id, contractId);
-      if (mealAllowance) {
-        mealAllowanceForm.reset(mealAllowance);
-      }
-      
-      // Load Vacation
-      const vacations = await payrollService.getVacations(user.id, contractId);
-      if (vacations && vacations.length > 0) {
-        vacationForm.reset(vacations[0]);
-      }
-      
-      // Load Mileage Policy
-      const mileagePolicy = await payrollService.getActiveMileagePolicy(user.id);
-      if (mileagePolicy) {
-        mileagePolicyForm.reset(mileagePolicy);
-      }
-    } catch (error) {
-      console.error('Error loading configurations:', error);
-    }
-  };
-  
-  // Save functions
-  const handleSaveContract = async (data: any) => {
-    if (!selectedContractId || selectedContractId === 'undefined') {
-      toast({
-        title: 'Erro',
-        description: 'Nenhum contrato selecionado.',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    try {
-      setIsSaving(true);
-      
-      // Map form data to API format
-      const contractData: ContractFormData = {
-        name: contracts.find(c => c.id === selectedContractId)?.name || 'Contrato Principal',
-        base_salary_cents: Math.round(data.baseSalary * 100), // Convert euros to cents
-        currency: data.currency,
-        weekly_hours: data.hoursPerWeek,
-        schedule_json: {
-          standard_work_start: data.standardWorkStart,
-          standard_work_end: data.standardWorkEnd,
-          standard_break_minutes: data.standardBreakMinutes,
-          use_standard_schedule: data.useStandardSchedule
-        },
-        meal_allowance_cents_per_day: 0, // Default value
-         meal_on_worked_days: true, // Default value
-         vacation_bonus_mode: 'monthly', // Valid value: monthly, december, off
-         christmas_bonus_mode: 'monthly', // Valid value: monthly, december, off
-         is_active: true
-      };
-      
-      await payrollService.updateContract(selectedContractId, contractData);
-      toast({
-        title: 'Sucesso',
-        description: 'Contrato atualizado com sucesso!'
-      });
-    } catch (error) {
-      console.error('Error saving contract:', error);
-      toast({
-        title: 'Erro',
-        description: 'Erro ao salvar contrato. Tente novamente.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  
-  const handleSaveOTPolicy = async (data: OTPolicyFormData) => {
-    if (!selectedContractId || selectedContractId === 'undefined') {
-      toast({
-        title: 'Erro',
-        description: 'Nenhum contrato selecionado.',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    try {
-      setIsSaving(true);
-      await payrollService.updateOTPolicy(selectedContractId, data);
-      toast({
-        title: 'Sucesso',
-        description: 'Política de horas extras atualizada com sucesso!'
-      });
-    } catch (error) {
-      console.error('Error saving OT policy:', error);
-      toast({
-        title: 'Erro',
-        description: 'Erro ao salvar política de horas extras. Tente novamente.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  
-  const handleSaveMealAllowance = async (data: MealAllowanceFormData) => {
-    if (!selectedContractId || selectedContractId === 'undefined') {
-      toast({
-        title: 'Erro',
-        description: 'Nenhum contrato selecionado.',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    try {
-      setIsSaving(true);
-      await payrollService.updateMealAllowanceConfig(selectedContractId, data);
-      toast({
-        title: 'Sucesso',
-        description: 'Subsídio de alimentação atualizado com sucesso!'
-      });
-    } catch (error) {
-      console.error('Error saving meal allowance:', error);
-      toast({
-        title: 'Erro',
-        description: 'Erro ao salvar subsídio de alimentação. Tente novamente.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  
-  const handleSaveVacation = async (data: VacationFormData) => {
-    if (!selectedContractId || selectedContractId === 'undefined') {
-      toast({
-        title: 'Erro',
-        description: 'Nenhum contrato selecionado.',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    try {
-      setIsSaving(true);
-      await payrollService.updateVacation(selectedContractId, data);
-      toast({
-        title: 'Sucesso',
-        description: 'Configuração de férias atualizada com sucesso!'
-      });
-    } catch (error) {
-      console.error('Error saving vacation:', error);
-      toast({
-        title: 'Erro',
-        description: 'Erro ao salvar configuração de férias. Tente novamente.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  
-  const handleSaveMileagePolicy = async (data: MileagePolicyFormData) => {
-    if (!selectedContractId || selectedContractId === 'undefined') {
-      toast({
-        title: 'Erro',
-        description: 'Nenhum contrato selecionado.',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    try {
-      setIsSaving(true);
-      await payrollService.updateMileagePolicy(selectedContractId, data);
-      toast({
-        title: 'Sucesso',
-        description: 'Política de quilometragem atualizada com sucesso!'
-      });
-    } catch (error) {
-      console.error('Error saving mileage policy:', error);
-      toast({
-        title: 'Erro',
-        description: 'Erro ao salvar política de quilometragem. Tente novamente.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  
-  const handleContractChange = async (contractId: string) => {
-    if (!contractId || contractId === 'undefined' || contractId.trim() === '') {
-      console.warn('Invalid contractId provided to handleContractChange:', contractId);
-      return;
-    }
-    
+
+  const handleContractChange = (contractId: string) => {
     setSelectedContractId(contractId);
-    await loadOtherConfigurations(contractId);
-    
-    // Find contract data from already loaded contracts
-    const contractData = contracts.find(contract => contract.id === contractId);
-    if (contractData) {
-      contractForm.reset({
-        baseSalary: (contractData.base_salary_cents || 87000) / 100, // Convert cents to euros
-        currency: contractData.currency || 'EUR',
-        hoursPerWeek: contractData.weekly_hours || 40,
-        standardWorkStart: contractData.standard_work_start || '09:00',
-        standardWorkEnd: contractData.standard_work_end || '18:00',
-        standardBreakMinutes: contractData.standard_break_minutes || 60,
-        useStandardSchedule: contractData.use_standard_schedule ?? true
-      });
-    }
-  };
-  
-  const handleCreateContract = async () => {
-    if (!newContractName.trim()) {
-      toast({
-        title: 'Erro',
-        description: 'Nome do contrato é obrigatório.',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
     try {
-      setIsSaving(true);
-      
-      // Create contract with basic default data
-      const contractData = {
-        name: newContractName.trim(),
-        baseSalary: 870,
-        currency: 'EUR',
-        hoursPerWeek: 40,
-        standardWorkStart: '09:00',
-        standardWorkEnd: '18:00',
-        standardBreakMinutes: 60,
-        useStandardSchedule: true,
-        isActive: true
-      };
-      
-      const newContract = await payrollService.createContract(contractData);
-      
-      // Update contracts list
-      const updatedContracts = await payrollService.getContracts(user.id);
-        setContracts(updatedContracts || []);
-      
-      // Select the new contract
-      setSelectedContractId(newContract.id);
-      contractForm.reset(contractData);
-      
-      // Close dialog and reset form
-      setShowCreateContractDialog(false);
-      setNewContractName('');
-      
-      toast({
-        title: 'Sucesso',
-        description: 'Contrato criado com sucesso!'
-      });
-    } catch (error) {
-      console.error('Error creating contract:', error);
-      toast({
-        title: 'Erro',
-        description: 'Erro ao criar contrato. Tente novamente.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsSaving(false);
+      const next = new URLSearchParams(searchParams);
+      next.set('contract', contractId);
+      setSearchParams(next, { replace: true });
+    } catch (e) {
+      console.warn('DEBUG: Falha ao atualizar searchParams', e);
     }
+    // Load contract-specific data here if needed
   };
+
+
   
   useEffect(() => {
-    if (user) {
+    if (user && user.id) {
       loadData();
     }
-  }, [user]);
+  }, [user, authLoading]);
+  
+
+  // Abrir modal automaticamente quando navegamos com ?new=1
+  useEffect(() => {
+    const param = new URLSearchParams(location.search).get('new');
+    if (param === '1') {
+      setShowCreateContractDialog(true);
+      // limpar o parâmetro 'new' do URL para evitar reaberturas inesperadas
+      try {
+        const next = new URLSearchParams(location.search);
+        next.delete('new');
+        setSearchParams(next, { replace: true });
+      } catch (e) {
+        console.warn('Falha ao limpar ?new do URL', e);
+      }
+    }
+  }, [location.search]);
   
   const addVacationPeriod = () => {
     const currentPeriods = vacationForm.getValues('periods');
@@ -677,18 +273,46 @@ const PayrollConfigPage: React.FC = () => {
     vacationForm.setValue('periods', currentPeriods.filter((_, i) => i !== index));
   };
   
-  // Configuration sections
   const sections = [
     { id: 'contract', label: 'Contrato Base', icon: Settings },
     { id: 'overtime', label: 'Horas Extras', icon: Clock },
     { id: 'meal', label: 'Subsídio Alimentação', icon: Utensils },
     { id: 'vacation', label: 'Férias', icon: Calendar },
     { id: 'leaves', label: 'Licenças Especiais', icon: FileText },
+    { id: 'compensatory', label: 'Descanso Compensatório', icon: Coffee },
     { id: 'mileage', label: 'Quilometragem', icon: Car },
     { id: 'bonus', label: 'Bónus e Prémios', icon: Award },
     { id: 'deductions', label: 'Descontos', icon: Percent }
   ];
   
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-96">
+          <CardHeader>
+            <CardTitle className="text-center">Acesso Negado</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-gray-600 mb-4">
+              Precisa de estar autenticado para aceder à configuração de folha de pagamento.
+            </p>
+            <Button onClick={() => window.location.href = '/auth/login'}>
+              Fazer Login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -699,11 +323,12 @@ const PayrollConfigPage: React.FC = () => {
   
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {/* Região de anúncio para leitores de ecrã */}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{ariaMessage}</div>
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Configuração de Folha de Pagamento</h1>
+        <h1 ref={mainContentRef} tabIndex={-1} className="text-3xl font-bold">Configurações</h1>
       </div>
       
-      {/* Contract Selection */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -712,7 +337,11 @@ const PayrollConfigPage: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {contracts.length > 0 ? (
+          {(() => {
+            console.log('DEBUG: Rendering contracts section, contracts.length:', contracts.length);
+            console.log('DEBUG: Current contracts state:', contracts);
+            return contracts.length > 0;
+          })() ? (
             <div className="flex items-center gap-4">
               <div className="flex-1">
                 <Label htmlFor="contract-select">Contrato Ativo</Label>
@@ -723,1014 +352,212 @@ const PayrollConfigPage: React.FC = () => {
                   <SelectContent>
                     {contracts.map((contract) => (
                       <SelectItem key={contract.id} value={contract.id}>
-                        {contract.name} {contract.isActive ? '(Ativo)' : '(Inativo)'}
+                        {contract.name} {contract.is_active ? '(Ativo)' : '(Inativo)'}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <Button
-                onClick={() => setShowCreateContractDialog(true)}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Novo Contrato
-              </Button>
             </div>
           ) : (
             <div className="text-center py-8">
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Nenhum contrato encontrado. Crie o seu primeiro contrato para começar.
+                  Não existem contratos criados. Por favor, aceda à página de configuração inicial para criar o seu primeiro contrato.
                 </AlertDescription>
               </Alert>
-              <Button
-                onClick={() => setShowCreateContractDialog(true)}
-                className="mt-4 flex items-center gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Criar Primeiro Contrato
-              </Button>
             </div>
           )}
         </CardContent>
       </Card>
       
-      {selectedContractId && (
-        <>
-          {/* Navigation */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex flex-wrap gap-2">
-                {sections.map((section) => {
-                  const Icon = section.icon;
-                  return (
-                    <Button
-                      key={section.id}
-                      variant={activeSection === section.id ? 'default' : 'outline'}
-                      onClick={() => setActiveSection(section.id)}
-                      className="flex items-center gap-2"
-                    >
-                      <Icon className="h-4 w-4" />
-                      {section.label}
-                    </Button>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Contract Configuration */}
-          {activeSection === 'contract' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" />
-                  Configuração do Contrato
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={contractForm.handleSubmit(handleSaveContract)} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <Label htmlFor="baseSalary">Salário Base (€)</Label>
-                      <Input
-                        id="baseSalary"
-                        type="number"
-                        step="0.01"
-                        {...contractForm.register('baseSalary', { valueAsNumber: true })}
-                      />
-                      {contractForm.formState.errors.baseSalary && (
-                        <p className="text-sm text-red-500 mt-1">
-                          {contractForm.formState.errors.baseSalary.message}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="currency">Moeda</Label>
-                      <Select value={contractForm.watch('currency')} onValueChange={(value) => contractForm.setValue('currency', value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="EUR">EUR (€)</SelectItem>
-                          <SelectItem value="USD">USD ($)</SelectItem>
-                          <SelectItem value="GBP">GBP (£)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {contractForm.formState.errors.currency && (
-                        <p className="text-sm text-red-500 mt-1">
-                          {contractForm.formState.errors.currency.message}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="hoursPerWeek">Horas por Semana</Label>
-                      <Input
-                        id="hoursPerWeek"
-                        type="number"
-                        step="0.5"
-                        {...contractForm.register('hoursPerWeek', { valueAsNumber: true })}
-                      />
-                      {contractForm.formState.errors.hoursPerWeek && (
-                        <p className="text-sm text-red-500 mt-1">
-                          {contractForm.formState.errors.hoursPerWeek.message}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="useStandardSchedule"
-                        checked={contractForm.watch('useStandardSchedule')}
-                        onCheckedChange={(checked) => contractForm.setValue('useStandardSchedule', checked)}
-                      />
-                      <Label htmlFor="useStandardSchedule">Usar Horário Padrão</Label>
-                    </div>
-                  </div>
-                  
-                  {contractForm.watch('useStandardSchedule') && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 bg-gray-50 rounded-lg">
-                      <div>
-                        <Label htmlFor="standardWorkStart">Início do Trabalho</Label>
-                        <Input
-                          id="standardWorkStart"
-                          type="time"
-                          {...contractForm.register('standardWorkStart')}
-                        />
-                        {contractForm.formState.errors.standardWorkStart && (
-                          <p className="text-sm text-red-500 mt-1">
-                            {contractForm.formState.errors.standardWorkStart.message}
-                          </p>
-                        )}
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor="standardWorkEnd">Fim do Trabalho</Label>
-                        <Input
-                          id="standardWorkEnd"
-                          type="time"
-                          {...contractForm.register('standardWorkEnd')}
-                        />
-                        {contractForm.formState.errors.standardWorkEnd && (
-                          <p className="text-sm text-red-500 mt-1">
-                            {contractForm.formState.errors.standardWorkEnd.message}
-                          </p>
-                        )}
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor="standardBreakMinutes">Pausa (minutos)</Label>
-                        <Input
-                          id="standardBreakMinutes"
-                          type="number"
-                          {...contractForm.register('standardBreakMinutes', { valueAsNumber: true })}
-                        />
-                        {contractForm.formState.errors.standardBreakMinutes && (
-                          <p className="text-sm text-red-500 mt-1">
-                            {contractForm.formState.errors.standardBreakMinutes.message}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
-                  <Separator />
-                  
-                  {/* Contract Type and Duration */}
-                  <div className="space-y-6">
-                    <h3 className="text-lg font-medium">Tipo e Duração do Contrato</h3>
-                    
-                    {/* Linha 1: Tipo de Contrato e Setor */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <Label htmlFor="contractType">Tipo de Contrato</Label>
-                        <Select 
-                          value={contractForm.watch('contractType')} 
-                          onValueChange={(value) => contractForm.setValue('contractType', value as 'permanent' | 'fixed_term')}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o tipo de contrato" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="permanent">Sem Termo</SelectItem>
-                            <SelectItem value="fixed_term">A Termo Certo</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {contractForm.formState.errors.contractType && (
-                          <p className="text-sm text-red-500 mt-1">
-                            {contractForm.formState.errors.contractType.message}
-                          </p>
-                        )}
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor="sector">Setor</Label>
-                        <Select 
-                          value={contractForm.watch('sector')} 
-                          onValueChange={(value) => contractForm.setValue('sector', value as 'private' | 'public' | 'nonprofit')}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o setor" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="private">Privado</SelectItem>
-                            <SelectItem value="public">Público</SelectItem>
-                            <SelectItem value="nonprofit">Sem Fins Lucrativos</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {contractForm.formState.errors.sector && (
-                          <p className="text-sm text-red-500 mt-1">
-                            {contractForm.formState.errors.sector.message}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Linha 2: Data de Início e Categoria Profissional */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <Label htmlFor="startDate">Data de Início</Label>
-                        <Input
-                          id="startDate"
-                          type="date"
-                          {...contractForm.register('startDate')}
-                        />
-                        {contractForm.formState.errors.startDate && (
-                          <p className="text-sm text-red-500 mt-1">
-                            {contractForm.formState.errors.startDate.message}
-                          </p>
-                        )}
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor="professionalCategory">Categoria Profissional</Label>
-                        <Input
-                          id="professionalCategory"
-                          type="text"
-                          placeholder="Ex: Técnico Superior, Administrativo, etc."
-                          {...contractForm.register('professionalCategory')}
-                        />
-                        {contractForm.formState.errors.professionalCategory && (
-                          <p className="text-sm text-red-500 mt-1">
-                            {contractForm.formState.errors.professionalCategory.message}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Linha 3: Local de Trabalho e Período Experimental */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <Label htmlFor="workLocation">Local de Trabalho</Label>
-                        <Input
-                          id="workLocation"
-                          type="text"
-                          placeholder="Ex: Lisboa, Porto, Remoto, etc."
-                          {...contractForm.register('workLocation')}
-                        />
-                        {contractForm.formState.errors.workLocation && (
-                          <p className="text-sm text-red-500 mt-1">
-                            {contractForm.formState.errors.workLocation.message}
-                          </p>
-                        )}
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor="probationPeriodMonths">Período Experimental (meses)</Label>
-                        <Input
-                          id="probationPeriodMonths"
-                          type="number"
-                          min="0"
-                          max="6"
-                          placeholder="0-6 meses (opcional)"
-                          {...contractForm.register('probationPeriodMonths', { valueAsNumber: true })}
-                        />
-                        {contractForm.formState.errors.probationPeriodMonths && (
-                          <p className="text-sm text-red-500 mt-1">
-                            {contractForm.formState.errors.probationPeriodMonths.message}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Linha 4: Duração (apenas para contratos a termo) */}
-                    {contractForm.watch('contractType') === 'fixed_term' && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <Label htmlFor="durationMonths">Duração (meses)</Label>
-                          <Input
-                            id="durationMonths"
-                            type="number"
-                            min="1"
-                            max="36"
-                            placeholder="Ex: 12"
-                            {...contractForm.register('durationMonths', { valueAsNumber: true })}
-                          />
-                          {contractForm.formState.errors.durationMonths && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {contractForm.formState.errors.durationMonths.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label>Data de Fim (calculada)</Label>
-                          <div className="p-2 bg-gray-50 rounded border text-sm">
-                            {(() => {
-                              const startDate = contractForm.watch('startDate');
-                              const duration = contractForm.watch('durationMonths');
-                              
-                              if (startDate && duration) {
-                                const start = new Date(startDate);
-                                const end = new Date(start);
-                                end.setMonth(end.getMonth() + duration);
-                                return end.toLocaleDateString('pt', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric'
-                                });
-                              }
-                              
-                              return 'Preencha a data de inicio e duracao';
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <Button type="submit" disabled={isSaving} className="flex items-center gap-2">
-                    {isSaving ? <LoadingSpinner size="sm" /> : <Save className="h-4 w-4" />}
-                    Salvar Contrato
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-          
-          {/* Overtime Policy Configuration */}
-          {activeSection === 'overtime' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
-                  Política de Horas Extras
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={otPolicyForm.handleSubmit(handleSaveOTPolicy)} className="space-y-6">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="otEnabled"
-                      checked={otPolicyForm.watch('enabled')}
-                      onCheckedChange={(checked) => otPolicyForm.setValue('enabled', checked)}
-                    />
-                    <Label htmlFor="otEnabled">Ativar Política de Horas Extras</Label>
-                  </div>
-                  
-                  {otPolicyForm.watch('enabled') && (
-                    <div className="space-y-6">
-                      {/* Tamanho da Empresa */}
-                      <div>
-                        <Label htmlFor="companySize">Tamanho da Empresa</Label>
-                        <Select 
-                          value={otPolicyForm.watch('companySize')} 
-                          onValueChange={(value) => otPolicyForm.setValue('companySize', value as 'micro_small' | 'medium_large')}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o tamanho da empresa" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="micro_small">Micro/Pequena Empresa (até 50 trabalhadores) - Limite: 175h/ano</SelectItem>
-                            <SelectItem value="medium_large">Média/Grande Empresa (mais de 50 trabalhadores) - Limite: 150h/ano</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {otPolicyForm.formState.errors.companySize && (
-                          <p className="text-sm text-red-500 mt-1">
-                            {otPolicyForm.formState.errors.companySize.message}
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-500 mt-1">
-                          O limite anual de horas extras varia conforme o tamanho da empresa (Código do Trabalho)
-                        </p>
-                      </div>
-                      
-                      <Separator />
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <Label htmlFor="firstHourMultiplier">Multiplicador Primeira Hora</Label>
-                          <Input
-                            id="firstHourMultiplier"
-                            type="number"
-                            step="0.25"
-                            {...otPolicyForm.register('firstHourMultiplier', { valueAsNumber: true })}
-                          />
-                          {otPolicyForm.formState.errors.firstHourMultiplier && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {otPolicyForm.formState.errors.firstHourMultiplier.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="subsequentHoursMultiplier">Multiplicador Horas Seguintes</Label>
-                          <Input
-                            id="subsequentHoursMultiplier"
-                            type="number"
-                            step="0.25"
-                            {...otPolicyForm.register('subsequentHoursMultiplier', { valueAsNumber: true })}
-                          />
-                          {otPolicyForm.formState.errors.subsequentHoursMultiplier && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {otPolicyForm.formState.errors.subsequentHoursMultiplier.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="weekendMultiplier">Multiplicador Fins de Semana</Label>
-                          <Input
-                            id="weekendMultiplier"
-                            type="number"
-                            step="0.25"
-                            {...otPolicyForm.register('weekendMultiplier', { valueAsNumber: true })}
-                          />
-                          {otPolicyForm.formState.errors.weekendMultiplier && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {otPolicyForm.formState.errors.weekendMultiplier.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="holidayMultiplier">Multiplicador Feriados</Label>
-                          <Input
-                            id="holidayMultiplier"
-                            type="number"
-                            step="0.25"
-                            {...otPolicyForm.register('holidayMultiplier', { valueAsNumber: true })}
-                          />
-                          {otPolicyForm.formState.errors.holidayMultiplier && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {otPolicyForm.formState.errors.holidayMultiplier.message}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <Separator />
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <Label htmlFor="nightStartTime">Início Período Noturno</Label>
-                          <Input
-                            id="nightStartTime"
-                            type="time"
-                            {...otPolicyForm.register('nightStartTime')}
-                          />
-                          {otPolicyForm.formState.errors.nightStartTime && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {otPolicyForm.formState.errors.nightStartTime.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="nightEndTime">Fim Período Noturno</Label>
-                          <Input
-                            id="nightEndTime"
-                            type="time"
-                            {...otPolicyForm.register('nightEndTime')}
-                          />
-                          {otPolicyForm.formState.errors.nightEndTime && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {otPolicyForm.formState.errors.nightEndTime.message}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <Separator />
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div>
-                          <Label htmlFor="roundingMinutes">Arredondamento (min)</Label>
-                          <Input
-                            id="roundingMinutes"
-                            type="number"
-                            {...otPolicyForm.register('roundingMinutes', { valueAsNumber: true })}
-                          />
-                          {otPolicyForm.formState.errors.roundingMinutes && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {otPolicyForm.formState.errors.roundingMinutes.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="dailyLimitHours">Limite Diário (h)</Label>
-                          <Input
-                            id="dailyLimitHours"
-                            type="number"
-                            step="0.5"
-                            {...otPolicyForm.register('dailyLimitHours', { valueAsNumber: true })}
-                          />
-                          {otPolicyForm.formState.errors.dailyLimitHours && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {otPolicyForm.formState.errors.dailyLimitHours.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="weeklyLimitHours">Limite Semanal (h)</Label>
-                          <Input
-                            id="weeklyLimitHours"
-                            type="number"
-                            {...otPolicyForm.register('weeklyLimitHours', { valueAsNumber: true })}
-                          />
-                          {otPolicyForm.formState.errors.weeklyLimitHours && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {otPolicyForm.formState.errors.weeklyLimitHours.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="annualLimitHours">
-                            Limite Anual (h) - {otPolicyForm.watch('companySize') === 'micro_small' ? 'Máx: 175h' : 'Máx: 150h'}
-                          </Label>
-                          <Input
-                            id="annualLimitHours"
-                            type="number"
-                            placeholder={otPolicyForm.watch('companySize') === 'micro_small' ? '175' : '150'}
-                            {...otPolicyForm.register('annualLimitHours', { valueAsNumber: true })}
-                          />
-                          {otPolicyForm.formState.errors.annualLimitHours && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {otPolicyForm.formState.errors.annualLimitHours.message}
-                            </p>
-                          )}
-                          <p className="text-xs text-gray-500 mt-1">
-                            {otPolicyForm.watch('companySize') === 'micro_small' 
-                              ? 'Micro/Pequenas empresas: máximo 175 horas/ano'
-                              : 'Médias/Grandes empresas: máximo 150 horas/ano'
-                            }
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <Button type="submit" disabled={isSaving} className="flex items-center gap-2">
-                    {isSaving ? <LoadingSpinner size="sm" /> : <Save className="h-4 w-4" />}
-                    Salvar Política de Horas Extras
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-          
-          {/* Meal Allowance Configuration */}
-          {activeSection === 'meal' && (
+      {/* Tabs de Configuração - só aparecem quando há um contrato selecionado */}
+      {(() => {
+        console.log('DEBUG PayrollConfigPage - selectedContractId:', selectedContractId);
+        console.log('DEBUG PayrollConfigPage - typeof selectedContractId:', typeof selectedContractId);
+        return selectedContractId;
+      })() && (
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-7">
+            <TabsTrigger value="contract" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Contrato Base
+            </TabsTrigger>
+            <TabsTrigger value="deductions" className="flex items-center gap-2">
+              <Percent className="h-4 w-4" />
+              Descontos
+            </TabsTrigger>
+            <TabsTrigger value="overtime" className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Horas Extras
+            </TabsTrigger>
+            <TabsTrigger value="subsidies" className="flex items-center gap-2">
+              <Utensils className="h-4 w-4" />
+              Subsídios
+            </TabsTrigger>
+            <TabsTrigger value="vacation" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Férias
+            </TabsTrigger>
+            <TabsTrigger value="bonus" className="flex items-center gap-2">
+              <Award className="h-4 w-4" />
+              Bónus
+            </TabsTrigger>
+            <TabsTrigger value="other" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Outros
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Tab: Contrato Base */}
+          <TabsContent value="contract">
+            <PayrollContractForm 
+              contract={contracts.find(c => c.id === selectedContractId)} 
+              onSave={(updatedContract) => {
+                // Atualizar a lista de contratos com o contrato atualizado
+                setContracts(prev => prev.map(c => c.id === updatedContract.id ? updatedContract : c));
+                toast({
+                  title: 'Contrato atualizado',
+                  description: 'As alterações foram guardadas com sucesso.'
+                });
+              }}
+            />
+          </TabsContent>
+
+          {/* Tab: Descontos */}
+          <TabsContent value="deductions">
+            <PayrollDeductionConfig contractId={selectedContractId} />
+          </TabsContent>
+
+          {/* Tab: Horas Extras */}
+          <TabsContent value="overtime">
+            <PayrollOTPolicyForm contractId={selectedContractId} />
+          </TabsContent>
+
+          {/* Tab: Subsídios */}
+          <TabsContent value="subsidies">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Utensils className="h-5 w-5" />
-                  Subsídio de Alimentação
+                  Configuração de Subsídios
                 </CardTitle>
+                <CardDescription>
+                  Configure os subsídios de alimentação, férias e natal.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={mealAllowanceForm.handleSubmit(handleSaveMealAllowance)} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <Label htmlFor="dailyAmount">Valor Diário (€)</Label>
-                      <Input
-                        id="dailyAmount"
-                        type="number"
-                        step="0.01"
-                        {...mealAllowanceForm.register('dailyAmount', { valueAsNumber: true })}
-                      />
-                      {mealAllowanceForm.formState.errors.dailyAmount && (
-                        <p className="text-sm text-red-500 mt-1">
-                          {mealAllowanceForm.formState.errors.dailyAmount.message}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="paymentMethod">Método de Pagamento</Label>
-                      <Select 
-                        value={mealAllowanceForm.watch('paymentMethod')} 
-                        onValueChange={(value) => mealAllowanceForm.setValue('paymentMethod', value as 'cash' | 'card')}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="cash">Dinheiro (máx. €6,00 - 2025)</SelectItem>
-                          <SelectItem value="card">Cartão (máx. €10,20 - 2025)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {mealAllowanceForm.formState.errors.paymentMethod && (
-                        <p className="text-sm text-red-500 mt-1">
-                          {mealAllowanceForm.formState.errors.paymentMethod.message}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="duodecimosEnabled"
-                        checked={mealAllowanceForm.watch('duodecimosEnabled')}
-                        onCheckedChange={(checked) => mealAllowanceForm.setValue('duodecimosEnabled', checked as boolean)}
-                      />
-                      <Label htmlFor="duodecimosEnabled" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                        Pagamento em Duodécimos
-                      </Label>
-                    </div>
-                    
-                    {mealAllowanceForm.watch('duodecimosEnabled') && (
-                      <Alert>
-                        <Info className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Duodécimos:</strong> O subsídio será distribuído ao longo de 12 meses, 
-                          incluindo períodos de férias. Isto permite um pagamento mais uniforme durante o ano.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    
-                    {mealAllowanceForm.formState.errors.duodecimosEnabled && (
-                       <p className="text-sm text-amber-600 mt-1">
-                         {mealAllowanceForm.formState.errors.duodecimosEnabled.message}
-                       </p>
-                     )}
-                  </div>
-                  
-                  <div>
-                    <Label>Meses Excluídos</Label>
-                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-2">
-                      {[
-                        'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
-                        'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
-                      ].map((month, index) => {
-                        const monthNumber = index + 1;
-                        const excludedMonths = mealAllowanceForm.watch('excludedMonths') || [];
-                        const isExcluded = excludedMonths.includes(monthNumber);
-                        
-                        return (
-                          <Button
-                            key={month}
-                            type="button"
-                            variant={isExcluded ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => {
-                              const current = mealAllowanceForm.getValues('excludedMonths') || [];
-                              if (isExcluded) {
-                                mealAllowanceForm.setValue('excludedMonths', current.filter(m => m !== monthNumber));
-                              } else {
-                                mealAllowanceForm.setValue('excludedMonths', [...current, monthNumber]);
-                              }
-                            }}
-                          >
-                            {month}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  
-                  <Button type="submit" disabled={isSaving} className="flex items-center gap-2">
-                    {isSaving ? <LoadingSpinner size="sm" /> : <Save className="h-4 w-4" />}
-                    Salvar Subsídio de Alimentação
-                  </Button>
-                </form>
+                <Tabs defaultValue="meal" className="space-y-4">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="meal" className="flex items-center gap-2">
+                  <Utensils className="h-4 w-4" />
+                  Alimentação
+                </TabsTrigger>
+                    <TabsTrigger value="vacation-bonus" className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Férias
+                    </TabsTrigger>
+                    <TabsTrigger value="christmas-bonus" className="flex items-center gap-2">
+                      <Award className="h-4 w-4" />
+                      Natal
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="meal">
+                    <PayrollMealAllowanceForm contractId={selectedContractId} />
+                  </TabsContent>
+
+                  <TabsContent value="vacation-bonus">
+                    <PayrollBonusConfig bonusType="mandatory" specificSubsidy="vacation" />
+                  </TabsContent>
+
+                  <TabsContent value="christmas-bonus">
+                    <PayrollBonusConfig bonusType="mandatory" specificSubsidy="christmas" />
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
-          )}
-          
-          {/* Vacation Configuration */}
-          {activeSection === 'vacation' && (
+          </TabsContent>
+
+          {/* Tab: Férias */}
+          <TabsContent value="vacation">
+            <PayrollVacationsManager contractId={selectedContractId} />
+          </TabsContent>
+
+          {/* Tab: Bónus */}
+          <TabsContent value="bonus">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  Configuração de Férias
+                  <Award className="h-5 w-5" />
+                  Configuração de Bónus
                 </CardTitle>
+                <CardDescription>
+                  Configure prémios de produtividade e bónus personalizados.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={vacationForm.handleSubmit(handleSaveVacation)} className="space-y-6">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="vacationEnabled"
-                      checked={vacationForm.watch('enabled')}
-                      onCheckedChange={(checked) => vacationForm.setValue('enabled', checked)}
-                    />
-                    <Label htmlFor="vacationEnabled">Ativar Gestão de Férias</Label>
-                  </div>
-                  
-                  {vacationForm.watch('enabled') && (
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div>
-                          <Label htmlFor="annualVacationDays">Dias de Férias Anuais</Label>
-                          <Input
-                            id="annualVacationDays"
-                            type="number"
-                            {...vacationForm.register('annualVacationDays', { valueAsNumber: true })}
-                          />
-                          {vacationForm.formState.errors.annualVacationDays && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {vacationForm.formState.errors.annualVacationDays.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="minimumConsecutiveDays">Mínimo Dias Consecutivos</Label>
-                          <Input
-                            id="minimumConsecutiveDays"
-                            type="number"
-                            {...vacationForm.register('minimumConsecutiveDays', { valueAsNumber: true })}
-                          />
-                          {vacationForm.formState.errors.minimumConsecutiveDays && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {vacationForm.formState.errors.minimumConsecutiveDays.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            id="allowInterpolatedVacation"
-                            checked={vacationForm.watch('allowInterpolatedVacation')}
-                            onCheckedChange={(checked) => vacationForm.setValue('allowInterpolatedVacation', checked)}
-                          />
-                          <Label htmlFor="allowInterpolatedVacation">Permitir Férias Interpoladas</Label>
-                        </div>
-                      </div>
-                      
-                      <Separator />
-                      
-                      <div>
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-lg font-medium">Períodos de Férias</h3>
-                          <Button type="button" onClick={addVacationPeriod} variant="outline" size="sm">
-                            Adicionar Período
-                          </Button>
-                        </div>
-                        
-                        <div className="space-y-4">
-                          {vacationForm.watch('periods')?.map((period, index) => (
-                            <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg">
-                              <div>
-                                <Label htmlFor={`period-start-${index}`}>Data Início</Label>
-                                <Input
-                                  id={`period-start-${index}`}
-                                  type="date"
-                                  {...vacationForm.register(`periods.${index}.startDate`)}
-                                />
-                              </div>
-                              
-                              <div>
-                                <Label htmlFor={`period-end-${index}`}>Data Fim</Label>
-                                <Input
-                                  id={`period-end-${index}`}
-                                  type="date"
-                                  {...vacationForm.register(`periods.${index}.endDate`)}
-                                />
-                              </div>
-                              
-                              <div>
-                                <Label htmlFor={`period-description-${index}`}>Descrição</Label>
-                                <Input
-                                  id={`period-description-${index}`}
-                                  placeholder="Opcional"
-                                  {...vacationForm.register(`periods.${index}.description`)}
-                                />
-                              </div>
-                              
-                              <div className="flex items-end">
-                                <Button
-                                  type="button"
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => removeVacationPeriod(index)}
-                                >
-                                  Remover
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <Button type="submit" disabled={isSaving} className="flex items-center gap-2">
-                    {isSaving ? <LoadingSpinner size="sm" /> : <Save className="h-4 w-4" />}
-                    Salvar Configuração de Férias
-                  </Button>
-                </form>
+                <Tabs defaultValue="performance" className="space-y-4">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="performance" className="flex items-center gap-2">
+                      <Award className="h-4 w-4" />
+                      Prémios de Produtividade
+                    </TabsTrigger>
+                    <TabsTrigger value="custom" className="flex items-center gap-2">
+                      <Award className="h-4 w-4" />
+                      Bónus Personalizados
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="performance">
+                    <PayrollBonusConfig bonusType="performance" />
+                  </TabsContent>
+
+                  <TabsContent value="custom">
+                    <PayrollBonusConfig bonusType="custom" />
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
-          )}
-          
-          {/* Leaves Management */}
-          {activeSection === 'leaves' && (
-            <PayrollLeavesManager contractId={selectedContractId} />
-          )}
-          
-          {/* Mileage Policy Configuration */}
-          {activeSection === 'mileage' && (
+          </TabsContent>
+
+          {/* Tab: Outras Configurações */}
+          <TabsContent value="other">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Car className="h-5 w-5" />
-                  Política de Quilometragem
+                  <Award className="h-5 w-5" />
+                  Outras Configurações
                 </CardTitle>
+                <CardDescription>
+                  Configure licenças especiais, quilometragem e descontos.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={mileagePolicyForm.handleSubmit(handleSaveMileagePolicy)} className="space-y-6">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="mileageEnabled"
-                      checked={mileagePolicyForm.watch('enabled')}
-                      onCheckedChange={(checked) => mileagePolicyForm.setValue('enabled', checked)}
-                    />
-                    <Label htmlFor="mileageEnabled">Ativar Política de Quilometragem</Label>
-                  </div>
-                  
-                  {mileagePolicyForm.watch('enabled') && (
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <Label htmlFor="mileageName">Nome da Política</Label>
-                          <Input
-                            id="mileageName"
-                            placeholder="Ex: Política Padrão"
-                            {...mileagePolicyForm.register('name')}
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="ratePerKm">Taxa por Quilómetro (€)</Label>
-                          <Input
-                            id="ratePerKm"
-                            type="number"
-                            step="0.01"
-                            {...mileagePolicyForm.register('ratePerKm', { valueAsNumber: true })}
-                          />
-                          {mileagePolicyForm.formState.errors.ratePerKm && (
-                            <p className="text-sm text-red-500 mt-1">
-                              {mileagePolicyForm.formState.errors.ratePerKm.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="monthlyCap">Limite Mensal (€)</Label>
-                          <Input
-                            id="monthlyCap"
-                            type="number"
-                            step="0.01"
-                            placeholder="0 = sem limite"
-                            {...mileagePolicyForm.register('monthlyCap', { valueAsNumber: true })}
-                          />
-                        </div>
-                      </div>
-                      
-                      <Separator />
-                      
-                      <div>
-                        <h3 className="text-lg font-medium mb-4">Campos Obrigatórios</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div className="flex items-center space-x-2">
-                            <Switch
-                              id="requireOrigin"
-                              checked={mileagePolicyForm.watch('requireOrigin')}
-                              onCheckedChange={(checked) => mileagePolicyForm.setValue('requireOrigin', checked)}
-                            />
-                            <Label htmlFor="requireOrigin">Origem Obrigatória</Label>
-                          </div>
-                          
-                          <div className="flex items-center space-x-2">
-                            <Switch
-                              id="requireDestination"
-                              checked={mileagePolicyForm.watch('requireDestination')}
-                              onCheckedChange={(checked) => mileagePolicyForm.setValue('requireDestination', checked)}
-                            />
-                            <Label htmlFor="requireDestination">Destino Obrigatório</Label>
-                          </div>
-                          
-                          <div className="flex items-center space-x-2">
-                            <Switch
-                              id="requirePurpose"
-                              checked={mileagePolicyForm.watch('requirePurpose')}
-                              onCheckedChange={(checked) => mileagePolicyForm.setValue('requirePurpose', checked)}
-                            />
-                            <Label htmlFor="requirePurpose">Propósito Obrigatório</Label>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <Button type="submit" disabled={isSaving} className="flex items-center gap-2">
-                    {isSaving ? <LoadingSpinner size="sm" /> : <Save className="h-4 w-4" />}
-                    Salvar Política de Quilometragem
-                  </Button>
-                </form>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {/* Licenças Especiais */}
+                  {(() => {
+                    console.log('DEBUG PayrollConfigPage - Rendering PayrollLeavesManager with contractId:', selectedContractId);
+                    return <PayrollLeavesManager contractId={selectedContractId} />;
+                  })()}
+
+                  {/* Descanso Compensatório */}
+                  <CompensatoryRestManager contractId={selectedContractId} />
+
+                  {/* Quilometragem */}
+                  <PayrollMileagePolicyForm contractId={selectedContractId} />
+
+                  {/* Feriados removidos - sincronização automática implementada */}
+                  {/* Descontos movidos para tab dedicada */}
+                </div>
               </CardContent>
             </Card>
-          )}
-          
-          {/* Bonus Configuration */}
-          {activeSection === 'bonus' && (
-            <div className="space-y-6">
-              <Tabs defaultValue="vacation" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="vacation">Subsídio de Férias</TabsTrigger>
-                  <TabsTrigger value="christmas">Subsídio de Natal</TabsTrigger>
-                  <TabsTrigger value="performance">Prémios de Produtividade</TabsTrigger>
-                  <TabsTrigger value="custom">Outros Prémios</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="vacation" className="space-y-6">
-                  <PayrollBonusConfig bonusType="mandatory" contractId={selectedContractId} specificSubsidy="vacation" />
-                </TabsContent>
-                
-                <TabsContent value="christmas" className="space-y-6">
-                  <PayrollBonusConfig bonusType="mandatory" contractId={selectedContractId} specificSubsidy="christmas" />
-                </TabsContent>
-                
-                <TabsContent value="performance" className="space-y-6">
-                  <PayrollBonusConfig bonusType="performance" contractId={selectedContractId} />
-                </TabsContent>
-                
-                <TabsContent value="custom" className="space-y-6">
-                  <PayrollBonusConfig bonusType="custom" contractId={selectedContractId} />
-                </TabsContent>
-              </Tabs>
-            </div>
-          )}
-          
-          {/* Deductions Configuration */}
-          {activeSection === 'deductions' && (
-            <PayrollDeductionConfig contractId={selectedContractId} />
-          )}
-        </>
+          </TabsContent>
+        </Tabs>
       )}
-      
-      {/* Create Contract Dialog */}
-      <Dialog open={showCreateContractDialog} onOpenChange={setShowCreateContractDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Criar Novo Contrato</DialogTitle>
-            <DialogDescription>
-              Insira o nome para o novo contrato. As configurações básicas serão aplicadas automaticamente.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="contractName">Nome do Contrato</Label>
-              <Input
-                id="contractName"
-                value={newContractName}
-                onChange={(e) => setNewContractName(e.target.value)}
-                placeholder="Ex: Contrato Principal"
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowCreateContractDialog(false);
-                setNewContractName('');
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleCreateContract}
-              disabled={isSaving || !newContractName.trim()}
-            >
-              {isSaving ? <LoadingSpinner size="sm" /> : 'Criar Contrato'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+
     </div>
   );
-};
-
-export default PayrollConfigPage;
+}

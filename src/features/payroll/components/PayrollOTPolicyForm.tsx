@@ -12,9 +12,11 @@ import { PayrollOTPolicy, PayrollOTPolicyFormData } from '../types';
 import { payrollService } from '../services/payrollService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActiveContract } from '../hooks/useActiveContract';
 
 interface PayrollOTPolicyFormProps {
   policy?: PayrollOTPolicy;
+  contractId?: string;
   onSave?: (policy: PayrollOTPolicy) => void;
   onCancel?: () => void;
 }
@@ -27,71 +29,135 @@ const OT_TYPES = [
   { value: 'night', label: 'Trabalho Noturno', description: 'Aplicado durante período noturno' }
 ];
 
-export function PayrollOTPolicyForm({ policy, onSave, onCancel }: PayrollOTPolicyFormProps) {
+export function PayrollOTPolicyForm({ policy, contractId, onSave, onCancel }: PayrollOTPolicyFormProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { activeContract } = useActiveContract();
   const [loading, setLoading] = useState(false);
+  const [loadedPolicy, setLoadedPolicy] = useState<PayrollOTPolicy | null>(null);
   const [formData, setFormData] = useState<PayrollOTPolicyFormData>({
     name: '',
     ot_type: 'daily',
     threshold_hours: 8,
-    multiplier: 1.5,
-    max_daily_ot_hours: null,
-    max_weekly_ot_hours: null,
+    multiplier: 1.25, // Valor padrão alinhado com constraints
+    max_daily_ot_hours: 2, // Máximo permitido pela constraint (1-2)
+    max_weekly_ot_hours: 48, // Mínimo permitido pela constraint (48-60)
+    max_annual_ot_hours: 150, // Mínimo permitido pela constraint (150-175)
     night_start_time: '22:00',
-    night_end_time: '06:00',
+    night_end_time: '07:00', // Valor padrão da base de dados
     is_active: true,
     description: ''
   });
 
+  // Carregar política por contractId se fornecido
   useEffect(() => {
-    if (policy) {
+    const loadPolicyByContract = async () => {
+      if (!contractId || !user?.id) return;
+      
+      setLoading(true);
+      try {
+        const policies = await payrollService.getOTPolicies(user.id, contractId);
+        if (policies && policies.length > 0) {
+          setLoadedPolicy(policies[0]); // Usar a primeira política encontrada
+        }
+      } catch (error) {
+        console.error('Erro ao carregar política de horas extras:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (contractId) {
+      loadPolicyByContract();
+    }
+  }, [contractId, user?.id]);
+
+  // Atualizar formData quando policy ou loadedPolicy mudar
+  useEffect(() => {
+    const currentPolicy = policy || loadedPolicy;
+    if (currentPolicy) {
       setFormData({
-        name: policy.name,
-        ot_type: policy.ot_type,
-        threshold_hours: policy.threshold_hours || 8,
-        multiplier: policy.multiplier,
-        max_daily_ot_hours: policy.max_daily_ot_hours,
-        max_weekly_ot_hours: policy.max_weekly_ot_hours,
-        night_start_time: policy.night_start_time || '22:00',
-        night_end_time: policy.night_end_time || '06:00',
-        is_active: policy.is_active,
-        description: policy.description || ''
+        name: currentPolicy.name,
+        ot_type: currentPolicy.ot_type,
+        threshold_hours: currentPolicy.threshold_hours || 8,
+        multiplier: currentPolicy.multiplier,
+        // Garantir que os valores carregados respeitam as constraints
+        max_daily_ot_hours: Math.min(Math.max(currentPolicy.max_daily_ot_hours || 2, 1), 2),
+        max_weekly_ot_hours: Math.min(Math.max(currentPolicy.max_weekly_ot_hours || 48, 48), 60),
+        max_annual_ot_hours: Math.min(Math.max(currentPolicy.annual_limit_hours || 150, 150), 175),
+        night_start_time: currentPolicy.night_start_time || '22:00',
+        night_end_time: currentPolicy.night_end_time || '07:00',
+        is_active: currentPolicy.is_active,
+        description: currentPolicy.description || ''
       });
     }
-  }, [policy]);
+  }, [policy, loadedPolicy]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.id) return;
     
-    setLoading(true);
-
-    try {
-      let savedPolicy: PayrollOTPolicy;
-      
-      if (policy?.id) {
-        savedPolicy = await payrollService.updateOTPolicy(policy.id, formData);
-        toast({
-          title: 'Política atualizada',
-          description: 'A política foi atualizada com sucesso.'
-        });
-      } else {
-        savedPolicy = await payrollService.createOTPolicy(user.id, formData);
-        toast({
-          title: 'Política criada',
-          description: 'A nova política foi criada com sucesso.'
-        });
-      }
-
-      onSave?.(savedPolicy);
-    } catch (error) {
+    if (!user?.id) {
       toast({
         title: 'Erro',
-        description: 'Ocorreu um erro ao salvar a política.',
+        description: 'Utilizador não autenticado',
         variant: 'destructive'
       });
-      console.error('Error saving OT policy:', error);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Converter PayrollOTPolicyFormData para OTPolicyFormData
+      // Garantir que os valores respeitam as constraints da base de dados
+      const convertedData = {
+        name: formData.name,
+        firstHourMultiplier: formData.ot_type === 'daily' ? formData.multiplier : 1.25,
+        subsequentHoursMultiplier: formData.ot_type === 'night' ? formData.multiplier : 1.50,
+        weekendMultiplier: formData.ot_type === 'weekend' ? formData.multiplier : 1.50,
+        holidayMultiplier: formData.ot_type === 'holiday' ? formData.multiplier : 2.00,
+        nightStartTime: formData.night_start_time || '22:00',
+        nightEndTime: formData.night_end_time || '07:00',
+        roundingMinutes: 15, // Valor padrão (deve ser > 0)
+        // dailyLimitHours: deve estar entre 1 e 2
+        dailyLimitHours: Math.min(Math.max(formData.max_daily_ot_hours || 2, 1), 2),
+        // annualLimitHours: deve estar entre 150 e 175
+        annualLimitHours: Math.min(Math.max(formData.max_annual_ot_hours || 150, 150), 175),
+        // weeklyLimitHours: deve estar entre 48 e 60
+        weeklyLimitHours: Math.min(Math.max(formData.max_weekly_ot_hours || 48, 48), 60)
+      };
+      
+      let savedPolicy: PayrollOTPolicy;
+      
+      const currentPolicy = policy || loadedPolicy;
+      if (currentPolicy?.id) {
+        savedPolicy = await payrollService.updateOTPolicy(currentPolicy.id, convertedData, user.id, contractId);
+        toast({
+          title: 'Sucesso',
+          description: 'Política de horas extras atualizada com sucesso!'
+        });
+      } else {
+        // Criar nova política - usar contractId fornecido ou contrato ativo
+        const targetContractId = contractId || activeContract?.id;
+        if (!targetContractId) {
+          throw new Error('Nenhum contrato ativo encontrado. É necessário ter um contrato ativo para criar políticas de horas extras.');
+        }
+        savedPolicy = await payrollService.createOTPolicy(user.id, convertedData, targetContractId);
+        toast({
+          title: 'Sucesso',
+          description: 'Política de horas extras criada com sucesso!'
+        });
+      }
+      
+      if (onSave) {
+        onSave(savedPolicy);
+      }
+    } catch (error) {
+      console.error('Erro ao guardar política de horas extras:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao guardar política de horas extras. Tente novamente.',
+        variant: 'destructive'
+      });
     } finally {
       setLoading(false);
     }
@@ -104,7 +170,7 @@ export function PayrollOTPolicyForm({ policy, onSave, onCancel }: PayrollOTPolic
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Clock className="h-5 w-5" />
-          {policy ? 'Editar Política de Horas Extras' : 'Nova Política de Horas Extras'}
+          {(policy || loadedPolicy) ? 'Editar Política de Horas Extras' : 'Nova Política de Horas Extras'}
         </CardTitle>
         <CardDescription>
           Configure as regras para cálculo de horas extras, incluindo limites e multiplicadores.
@@ -193,51 +259,82 @@ export function PayrollOTPolicyForm({ policy, onSave, onCancel }: PayrollOTPolic
               <Input
                 id="multiplier"
                 type="number"
-                step="0.1"
+                step="0.01"
                 min="1"
                 value={formData.multiplier}
                 onChange={(e) => setFormData(prev => ({ ...prev, multiplier: parseFloat(e.target.value) || 1 }))}
-                placeholder="1.5"
+                placeholder="1.50"
                 required
               />
               <p className="text-sm text-muted-foreground">
-                Ex: 1.5 = 150% do valor normal
+                Ex: 1.50 = 150% do valor normal
               </p>
             </div>
           </div>
 
           {/* Limites Máximos */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="max_daily_ot_hours">Máximo HE Diárias (opcional)</Label>
+              <Label htmlFor="max_daily_ot_hours">Máximo HE Diárias</Label>
               <Input
                 id="max_daily_ot_hours"
                 type="number"
-                step="0.5"
-                min="0"
-                value={formData.max_daily_ot_hours || ''}
+                step="1"
+                min="1"
+                max="2"
+                value={formData.max_daily_ot_hours || 2}
                 onChange={(e) => setFormData(prev => ({ 
                   ...prev, 
-                  max_daily_ot_hours: e.target.value ? parseFloat(e.target.value) : null 
+                  max_daily_ot_hours: Math.min(Math.max(parseInt(e.target.value) || 2, 1), 2)
                 }))}
-                placeholder="Ex: 4"
+                placeholder="1-2 horas"
+                required
               />
+              <p className="text-sm text-muted-foreground">
+                Limite legal: entre 1 e 2 horas por dia
+              </p>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="max_weekly_ot_hours">Máximo HE Semanais (opcional)</Label>
+              <Label htmlFor="max_weekly_ot_hours">Máximo Horas Semanais (incluindo HE)</Label>
               <Input
                 id="max_weekly_ot_hours"
                 type="number"
-                step="0.5"
-                min="0"
-                value={formData.max_weekly_ot_hours || ''}
+                step="1"
+                min="48"
+                max="60"
+                value={formData.max_weekly_ot_hours || 48}
                 onChange={(e) => setFormData(prev => ({ 
                   ...prev, 
-                  max_weekly_ot_hours: e.target.value ? parseFloat(e.target.value) : null 
+                  max_weekly_ot_hours: Math.min(Math.max(parseInt(e.target.value) || 48, 48), 60)
                 }))}
-                placeholder="Ex: 20"
+                placeholder="48-60 horas"
+                required
               />
+              <p className="text-sm text-muted-foreground">
+                Limite legal: entre 48 e 60 horas por semana (incluindo horas extras)
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="max_annual_ot_hours">Máximo HE Anuais</Label>
+              <Input
+                id="max_annual_ot_hours"
+                type="number"
+                step="1"
+                min="150"
+                max="175"
+                value={formData.max_annual_ot_hours || 150}
+                onChange={(e) => setFormData(prev => ({ 
+                  ...prev, 
+                  max_annual_ot_hours: Math.min(Math.max(parseInt(e.target.value) || 150, 150), 175)
+                }))}
+                placeholder="150-175 horas"
+                required
+              />
+              <p className="text-sm text-muted-foreground">
+                Limite legal: entre 150 e 175 horas por ano
+              </p>
             </div>
           </div>
 

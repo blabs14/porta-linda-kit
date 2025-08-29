@@ -2,7 +2,7 @@ import React from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { Badge } from '../../../components/ui/badge';
 import { Label } from '../../../components/ui/label';
-import { useActiveContract } from '../contexts/ActiveContractContext';
+import { useActiveContract } from '../hooks/useActiveContract';
 import { useToast } from '../../../hooks/use-toast';
 import { FileText, AlertCircle } from 'lucide-react';
 import { PayrollContract } from '../types';

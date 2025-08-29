@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Save, Info, Percent } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, Save, Info, Percent, Calculator } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -139,6 +141,159 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Tabelas de Referência */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Calculator className="h-5 w-5" />
+            <h3 className="text-lg font-semibold">Tabelas de Referência - Legislação Portuguesa</h3>
+          </div>
+          
+          <Tabs defaultValue="irs" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="irs">Escalões de IRS 2025</TabsTrigger>
+              <TabsTrigger value="ss">Segurança Social</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="irs" className="space-y-4">
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Como usar:</strong> Identifique o seu escalão com base no rendimento coletável anual (rendimento bruto - deduções específicas). Use a taxa normal para configurar o IRS.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Escalão</TableHead>
+                      <TableHead>Rendimento Coletável Anual</TableHead>
+                      <TableHead>Taxa Normal</TableHead>
+                      <TableHead>Taxa Média</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="font-medium">1º</TableCell>
+                      <TableCell>Até 8.059 €</TableCell>
+                      <TableCell className="font-semibold text-green-600">13%</TableCell>
+                      <TableCell>13%</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">2º</TableCell>
+                      <TableCell>8.059 € - 12.160 €</TableCell>
+                      <TableCell className="font-semibold text-green-600">16,5%</TableCell>
+                      <TableCell>14,18%</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">3º</TableCell>
+                      <TableCell>12.160 € - 17.233 €</TableCell>
+                      <TableCell className="font-semibold text-green-600">22%</TableCell>
+                      <TableCell>16,482%</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">4º</TableCell>
+                      <TableCell>17.233 € - 22.306 €</TableCell>
+                      <TableCell className="font-semibold text-green-600">25%</TableCell>
+                      <TableCell>18,419%</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">5º</TableCell>
+                      <TableCell>22.306 € - 28.400 €</TableCell>
+                      <TableCell className="font-semibold text-green-600">32%</TableCell>
+                      <TableCell>21,334%</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">6º</TableCell>
+                      <TableCell>28.400 € - 41.629 €</TableCell>
+                      <TableCell className="font-semibold text-green-600">35,5%</TableCell>
+                      <TableCell>25,835%</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">7º</TableCell>
+                      <TableCell>41.629 € - 44.987 €</TableCell>
+                      <TableCell className="font-semibold text-green-600">43,5%</TableCell>
+                      <TableCell>27,154%</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">8º</TableCell>
+                      <TableCell>44.987 € - 83.696 €</TableCell>
+                      <TableCell className="font-semibold text-green-600">45%</TableCell>
+                      <TableCell>35,408%</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">9º</TableCell>
+                      <TableCell>Superior a 83.696 €</TableCell>
+                      <TableCell className="font-semibold text-green-600">48%</TableCell>
+                      <TableCell>-</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+              
+              <Alert>
+                <AlertDescription>
+                  <strong>Sobretaxa e Contribuição de Solidariedade:</strong> Aplicáveis a rendimentos superiores a 83.696 € anuais, com taxas até 5% cada.
+                </AlertDescription>
+              </Alert>
+            </TabsContent>
+            
+            <TabsContent value="ss" className="space-y-4">
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Segurança Social:</strong> As taxas são fixas e aplicam-se sobre a remuneração bruta mensal.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Regime</TableHead>
+                      <TableHead>Taxa do Trabalhador</TableHead>
+                      <TableHead>Taxa da Entidade Empregadora</TableHead>
+                      <TableHead>Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="font-medium">Trabalhadores por conta de outrem</TableCell>
+                      <TableCell className="font-semibold text-blue-600">11%</TableCell>
+                      <TableCell>23,75%</TableCell>
+                      <TableCell>34,75%</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">Membros de Órgãos Estatutários</TableCell>
+                      <TableCell className="font-semibold text-blue-600">9,3% / 11%</TableCell>
+                      <TableCell>20,3% / 23,75%</TableCell>
+                      <TableCell>29,6% / 34,75%</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">Pensionistas em atividade (velhice)</TableCell>
+                      <TableCell className="font-semibold text-blue-600">7,5% - 7,8%</TableCell>
+                      <TableCell>16,4% - 17,5%</TableCell>
+                      <TableCell>23,9% - 25,3%</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">Trabalhadores independentes</TableCell>
+                      <TableCell className="font-semibold text-blue-600">21,4% / 25,2%</TableCell>
+                      <TableCell>7% / 10%</TableCell>
+                      <TableCell>28,4% / 35,2%</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+              
+              <Alert>
+                <AlertDescription>
+                  <strong>Nota:</strong> Para a maioria dos trabalhadores por conta de outrem, a taxa aplicável é de <strong>11%</strong>. O valor do IAS para 2025 é de 522,50 €.
+                </AlertDescription>
+              </Alert>
+            </TabsContent>
+          </Tabs>
+        </div>
+
         <form onSubmit={handleSubmit(handleSave)} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* IRS Percentage */}
@@ -247,27 +402,7 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
             </div>
           </div>
 
-          {/* Preview */}
-          {(irsPercentage > 0 || socialSecurityPercentage > 0 || irsSurchargePercentage > 0 || solidarityContributionPercentage > 0) && (
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Pré-visualização:</strong> Para um salário bruto de €1000, os descontos seriam:
-                <ul className="mt-2 space-y-1">
-                  <li>• IRS: €{((irsPercentage || 0) * 10).toFixed(2)}</li>
-                  <li>• Segurança Social: €{((socialSecurityPercentage || 0) * 10).toFixed(2)}</li>
-                  {irsSurchargePercentage > 0 && (
-                    <li>• Sobretaxa IRS: €{((irsSurchargePercentage || 0) * 10).toFixed(2)}</li>
-                  )}
-                  {solidarityContributionPercentage > 0 && (
-                    <li>• Contribuição de Solidariedade: €{((solidarityContributionPercentage || 0) * 10).toFixed(2)}</li>
-                  )}
-                  <li>• <strong>Total de descontos: €{(((irsPercentage || 0) + (socialSecurityPercentage || 0) + (irsSurchargePercentage || 0) + (solidarityContributionPercentage || 0)) * 10).toFixed(2)}</strong></li>
-                  <li>• <strong>Salário líquido: €{(1000 - ((irsPercentage || 0) + (socialSecurityPercentage || 0) + (irsSurchargePercentage || 0) + (solidarityContributionPercentage || 0)) * 10).toFixed(2)}</strong></li>
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
+          {/* Preview section removed - not needed in the interface */}
 
           {/* Information Alert */}
           <Alert>

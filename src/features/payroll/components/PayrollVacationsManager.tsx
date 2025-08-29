@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { Calendar, Plus, Edit, Trash2, CalendarDays, CheckCircle, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PayrollVacation } from '../types';
@@ -17,31 +18,44 @@ import { format, parseISO, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface PayrollVacationsManagerProps {
-  year: number;
-  vacations: PayrollVacation[];
-  onVacationsChange: (vacations: PayrollVacation[]) => void;
+  year?: number;
+  vacations?: PayrollVacation[];
+  contractId?: string;
+  onVacationsChange?: (vacations: PayrollVacation[]) => void;
 }
 
-export function PayrollVacationsManager({ year, vacations, onVacationsChange }: PayrollVacationsManagerProps) {
+export function PayrollVacationsManager({ year = new Date().getFullYear(), vacations: propVacations, contractId, onVacationsChange }: PayrollVacationsManagerProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVacation, setEditingVacation] = useState<PayrollVacation | null>(null);
+  const [vacations, setVacations] = useState<PayrollVacation[]>(propVacations || []);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [vacationToDelete, setVacationToDelete] = useState<string | null>(null);
 
   useEffect(() => {
-    loadVacations();
-  }, [year]);
+    if (contractId) {
+      loadVacationsByContract();
+    } else {
+      loadVacations();
+    }
+  }, [year, contractId]);
 
-  const loadVacations = async () => {
-    if (!user?.id) return;
+  const loadVacationsByContract = async () => {
+    if (!user?.id || !contractId) return;
+    
+    console.log('🔍 DEBUG loadVacationsByContract called with:', { userId: user.id, contractId, year });
     
     setLoading(true);
     try {
-      const data = await payrollService.getVacations(user.id, undefined, year);
-      onVacationsChange(data);
+      const data = await payrollService.getVacations(user.id, contractId, year);
+      console.log('🔍 DEBUG loadVacationsByContract received data:', data);
+      setVacations(data);
+      onVacationsChange?.(data);
     } catch (error) {
+      console.error('🔍 DEBUG loadVacationsByContract error:', error);
       toast({
         title: 'Erro',
         description: 'Erro ao carregar férias.',
@@ -53,20 +67,44 @@ export function PayrollVacationsManager({ year, vacations, onVacationsChange }: 
     }
   };
 
-  const handleVacationSubmit = async (data: any) => {
-    if (!user) return;
+  const loadVacations = async () => {
+    if (!user?.id) return;
     
+    console.log('🔍 DEBUG loadVacations called with:', { userId: user.id, year });
+    
+    setLoading(true);
+    try {
+      const data = await payrollService.getVacations(user.id, undefined, year);
+      console.log('🔍 DEBUG loadVacations received data:', data);
+      setVacations(data);
+      onVacationsChange?.(data);
+    } catch (error) {
+      console.error('🔍 DEBUG loadVacations error:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao carregar férias.',
+        variant: 'destructive'
+      });
+      console.error('Error loading vacations:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVacationSubmit = async (vacationData: PayrollVacation) => {
     try {
       if (editingVacation) {
-        const updatedVacation = await payrollService.updateVacation(editingVacation.id, data);
-        onVacationsChange(vacations.map(v => v.id === editingVacation.id ? updatedVacation : v));
+        const updatedVacations = vacations.map(v => v.id === editingVacation.id ? vacationData : v);
+        setVacations(updatedVacations);
+        onVacationsChange?.(updatedVacations);
         toast({
           title: 'Férias atualizadas',
           description: 'O período de férias foi atualizado com sucesso.'
         });
       } else {
-        const newVacation = await payrollService.createVacation(user.id, data);
-        onVacationsChange([...vacations, newVacation]);
+        const updatedVacations = [...vacations, vacationData];
+        setVacations(updatedVacations);
+        onVacationsChange?.(updatedVacations);
         toast({
           title: 'Férias criadas',
           description: 'O período de férias foi criado com sucesso.'
@@ -76,21 +114,29 @@ export function PayrollVacationsManager({ year, vacations, onVacationsChange }: 
       setDialogOpen(false);
       setEditingVacation(null);
     } catch (error) {
+      console.error('Error in handleVacationSubmit:', error);
       toast({
         title: "Erro",
-        description: "Erro ao salvar férias",
+        description: editingVacation ? "Erro ao atualizar férias" : "Erro ao criar férias",
         variant: "destructive",
       });
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este período de férias?')) return;
+  const handleDeleteClick = (id: string) => {
+    setVacationToDelete(id);
+    setConfirmDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!vacationToDelete) return;
 
     setLoading(true);
     try {
-      await payrollService.deleteVacation(id);
-      onVacationsChange(vacations.filter(v => v.id !== id));
+      await payrollService.deleteVacation(vacationToDelete, user?.id, contractId);
+      const updatedVacations = vacations.filter(v => v.id !== vacationToDelete);
+      setVacations(updatedVacations);
+      onVacationsChange?.(updatedVacations);
       toast({
         title: 'Férias excluídas',
         description: 'O período de férias foi excluído com sucesso.'
@@ -104,7 +150,14 @@ export function PayrollVacationsManager({ year, vacations, onVacationsChange }: 
       console.error('Error deleting vacation:', error);
     } finally {
       setLoading(false);
+      setVacationToDelete(null);
+      setConfirmDeleteOpen(false);
     }
+  };
+
+  const handleCancelDelete = () => {
+    setVacationToDelete(null);
+    setConfirmDeleteOpen(false);
   };
 
   const openDialog = (vacation?: PayrollVacation) => {
@@ -156,7 +209,7 @@ export function PayrollVacationsManager({ year, vacations, onVacationsChange }: 
               <div className="font-semibold text-green-600">{getApprovedVacationDays()} dias</div>
             </div>
 
-            <Button onClick={() => navigate('/personal/payroll/config')}>
+            <Button onClick={() => openDialog()}>
               <Plus className="mr-2 h-4 w-4" />
               Adicionar Férias
             </Button>
@@ -172,8 +225,10 @@ export function PayrollVacationsManager({ year, vacations, onVacationsChange }: 
                   </DialogDescription>
                 </DialogHeader>
                 <PayrollVacationForm
-                  vacation={editingVacation || undefined}
+                  vacation={editingVacation}
                   year={year}
+                  contractId={contractId}
+                  existingVacations={vacations}
                   onSave={handleVacationSubmit}
                   onCancel={() => setDialogOpen(false)}
                 />
@@ -229,14 +284,14 @@ export function PayrollVacationsManager({ year, vacations, onVacationsChange }: 
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => navigate('/personal/payroll/config')}
+                        onClick={() => openDialog(vacation)}
                       >
                         <Edit className="h-3 w-3" />
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleDelete(vacation.id)}
+                        onClick={() => handleDeleteClick(vacation.id)}
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -248,6 +303,18 @@ export function PayrollVacationsManager({ year, vacations, onVacationsChange }: 
           </Table>
         )}
       </CardContent>
+      
+      <ConfirmationDialog
+        isOpen={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        title="Excluir Período de Férias"
+        message="Tem certeza que deseja excluir este período de férias? Esta ação não pode ser desfeita."
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        variant="destructive"
+      />
     </Card>
   );
 }

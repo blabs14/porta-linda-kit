@@ -25,19 +25,41 @@ const MONTHS = [
 ];
 
 interface PayrollMealAllowanceConfigProps {
-  config: PayrollMealAllowanceConfig | null;
-  onConfigChange: (config: PayrollMealAllowanceConfig | null) => void;
+  config?: PayrollMealAllowanceConfig | null;
+  contractId?: string;
+  onConfigChange?: (config: PayrollMealAllowanceConfig | null) => void;
 }
 
-export function PayrollMealAllowanceConfig({ config, onConfigChange }: PayrollMealAllowanceConfigProps) {
+export function PayrollMealAllowanceConfig({ config: propConfig, contractId, onConfigChange }: PayrollMealAllowanceConfigProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [activeContractId, setActiveContractId] = useState<string | null>(null);
+  const [config, setConfig] = useState<PayrollMealAllowanceConfig | null>(propConfig || null);
 
   useEffect(() => {
-    loadConfig();
-  }, []);
+    if (contractId) {
+      loadConfigByContract();
+    } else {
+      loadConfig();
+    }
+  }, [contractId]);
+
+  const loadConfigByContract = async () => {
+    if (!user?.id || !contractId) return;
+    
+    setLoading(true);
+    try {
+      const data = await payrollService.getMealAllowanceConfig(user.id, contractId);
+      setConfig(data);
+      onConfigChange?.(data);
+    } catch (error) {
+      console.error('Error loading meal allowance config:', error);
+      setConfig(null);
+      onConfigChange?.(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadConfig = async () => {
     if (!user?.id) return;
@@ -45,19 +67,20 @@ export function PayrollMealAllowanceConfig({ config, onConfigChange }: PayrollMe
     setLoading(true);
     try {
       const contract = await payrollService.getActiveContract(user.id);
-      const contractId = contract?.id || null;
-      setActiveContractId(contractId);
+      const activeContractId = contract?.id || null;
       
-      if (contractId) {
-        const data = await payrollService.getMealAllowanceConfig(user.id, contractId);
-        onConfigChange(data);
+      if (activeContractId) {
+        const data = await payrollService.getMealAllowanceConfig(user.id, activeContractId);
+        setConfig(data);
+        onConfigChange?.(data);
       } else {
-        onConfigChange(null);
+        setConfig(null);
+        onConfigChange?.(null);
       }
     } catch (error) {
       console.error('Error loading meal allowance config:', error);
-      // Se não existe configuração, não é erro
-      onConfigChange(null);
+      setConfig(null);
+      onConfigChange?.(null);
     } finally {
       setLoading(false);
     }

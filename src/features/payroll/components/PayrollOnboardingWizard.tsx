@@ -51,7 +51,7 @@ export function PayrollOnboardingWizard() {
           </div>
 
           <div className="flex flex-wrap gap-3 pt-2">
-            <Button onClick={() => navigate('/personal/payroll/contratos')}>Ir para gestão de contratos</Button>
+            <Button onClick={() => navigate('/personal/payroll/config')}>Ir para gestão de contratos</Button>
             <Button variant="ghost" onClick={() => navigate('/personal/payroll')}>Ir para resumo</Button>
           </div>
         </CardContent>

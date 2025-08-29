@@ -11,6 +11,7 @@ import {
   ContractFormData
 } from '../types';
 import { payrollService } from '../services/payrollService';
+import { holidayAutoService } from '../services/holidayAutoService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleProvider';
@@ -26,18 +27,7 @@ interface PayrollContractFormProps {
 
 
 
-const VACATION_BONUS_OPTIONS = [
-  { value: 'off', label: 'Sem subsídio de férias' },
-  { value: 'monthly', label: 'Subsídio mensal' },
-  { value: 'june', label: 'Subsídio em junho' },
-  { value: 'december', label: 'Subsídio em dezembro' }
-];
 
-const CHRISTMAS_BONUS_OPTIONS = [
-  { value: 'off', label: 'Sem subsídio de Natal' },
-  { value: 'monthly', label: 'Subsídio mensal' },
-  { value: 'december', label: 'Subsídio em dezembro' }
-];
 
 export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContractFormProps) {
   const { toast } = useToast();
@@ -46,22 +36,25 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
   const { currency: defaultCurrency } = useLocale();
 
   const [loading, setLoading] = useState(false);
+  const [syncingHolidays, setSyncingHolidays] = useState(false);
   const [formData, setFormData] = useState<ContractFormData>({
     name: '',
     base_salary_cents: 0,
     weekly_hours: 40,
     schedule_json: {},
-    meal_allowance_cents_per_day: 0,
-    meal_on_worked_days: true,
     vacation_bonus_mode: 'monthly',
     christmas_bonus_mode: 'monthly',
     is_active: true,
-    currency: defaultCurrency || 'EUR'
+    currency: defaultCurrency || 'EUR',
+    job_category: '',
+    workplace_location: '',
+    duration: undefined,
+    has_probation_period: false,
+    probation_duration_days: 90
   });
 
   // Estados temporários para entrada de valores como strings
   const [baseSalaryInput, setBaseSalaryInput] = useState('');
-  const [mealAllowanceInput, setMealAllowanceInput] = useState('');
   const [weeklyHoursInput, setWeeklyHoursInput] = useState('');
   const [currencyOptions, setCurrencyOptions] = useState<{ code: string; name?: string }[]>([]);
 
@@ -89,17 +82,19 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
         base_salary_cents: contract.base_salary_cents,
         weekly_hours: contract.weekly_hours || 40,
         schedule_json: scheduleJson,
-        meal_allowance_cents_per_day: contract.meal_allowance_cents_per_day,
-        meal_on_worked_days: contract.meal_on_worked_days,
-        vacation_bonus_mode: contract.vacation_bonus_mode,
-        christmas_bonus_mode: contract.christmas_bonus_mode,
+        vacation_bonus_mode: (contract as any).vacation_bonus_mode || 'monthly',
+        christmas_bonus_mode: (contract as any).christmas_bonus_mode || 'monthly',
         is_active: contract.is_active,
-        currency: contract.currency || defaultCurrency || 'EUR'
+        currency: contract.currency || defaultCurrency || 'EUR',
+        job_category: (contract as any).job_category || '',
+        workplace_location: (contract as any).workplace_location || '',
+        duration: (contract as any).duration || undefined,
+        has_probation_period: (contract as any).has_probation_period || false,
+        probation_duration_days: (contract as any).probation_duration_days || 90
       });
       
       // Inicializar valores de entrada como strings
       setBaseSalaryInput(contract.base_salary_cents > 0 ? (contract.base_salary_cents / 100).toString().replace('.', ',') : '');
-      setMealAllowanceInput(contract.meal_allowance_cents_per_day > 0 ? (contract.meal_allowance_cents_per_day / 100).toString().replace('.', ',') : '');
       setWeeklyHoursInput(contract.weekly_hours ? contract.weekly_hours.toString().replace('.', ',') : '40');
     }
   }, [contract, defaultCurrency]);
@@ -124,71 +119,98 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log('🔍 DEBUG: Iniciando handleSubmit');
-    console.log('🔍 DEBUG: formData atual:', formData);
-    console.log('🔍 DEBUG: contract existente:', contract);
-    
     if (!user?.id) {
-      console.log('❌ DEBUG: Erro - Utilizador não encontrado');
       (toast as any).error?.('Utilizador não encontrado') ?? toast({ title: 'Erro', description: 'Utilizador não encontrado', variant: 'destructive' });
       return;
     }
 
     if (!formData.name || formData.name.trim() === '') {
-      console.log('❌ DEBUG: Erro - Nome vazio');
       (toast as any).error?.('Nome do funcionário é obrigatório') ?? toast({ title: 'Erro', description: 'Nome do funcionário é obrigatório', variant: 'destructive' });
       return;
     }
 
     if (isNaN(formData.base_salary_cents) || formData.base_salary_cents <= 0) {
-      console.log('❌ DEBUG: Erro - Salário inválido:', formData.base_salary_cents);
       (toast as any).error?.('Salário base deve ser maior que 0') ?? toast({ title: 'Erro', description: 'Salário base deve ser maior que 0', variant: 'destructive' });
       return;
     }
 
     if (isNaN(formData.weekly_hours) || formData.weekly_hours < 20 || formData.weekly_hours > 60) {
-      console.log('❌ DEBUG: Erro - Horas inválidas:', formData.weekly_hours);
-          (toast as any).error?.('Horas por semana deve estar entre 20 e 60') ?? toast({ title: 'Erro', description: 'Horas por semana deve estar entre 20 e 60', variant: 'destructive' });
-          return;
-        }
+      (toast as any).error?.('Horas por semana deve estar entre 20 e 60') ?? toast({ title: 'Erro', description: 'Horas por semana deve estar entre 20 e 60', variant: 'destructive' });
+      return;
+    }
 
     const isValidISO = /^[A-Z]{3}$/.test(formData.currency || '');
     const inList = currencyOptions.length === 0 ? true : currencyOptions.some(c => c.code === formData.currency);
     if (!isValidISO || !inList) {
-      console.log('❌ DEBUG: Erro - Moeda inválida:', formData.currency);
       (toast as any).error?.('Por favor escolhe uma moeda válida') ?? toast({ title: 'Erro', description: 'Por favor escolhe uma moeda válida', variant: 'destructive' });
       return;
     }
 
-    console.log('✅ DEBUG: Validações passaram, iniciando salvamento');
     setLoading(true);
 
     try {
       let savedContract: PayrollContract;
       
       if (contract?.id) {
-        console.log('🔄 DEBUG: Atualizando contrato existente, ID:', contract.id);
         savedContract = await payrollService.updateContract(contract.id, formData);
-        console.log('✅ DEBUG: Contrato atualizado com sucesso:', savedContract);
         toast({
           title: 'Contrato atualizado',
           description: 'O contrato foi atualizado com sucesso.'
         });
       } else {
-        console.log('🔄 DEBUG: Criando novo contrato');
-        console.log('🔄 DEBUG: Family ID:', family?.id);
         savedContract = await payrollService.createContract(user.id, formData, family?.id);
-        console.log('✅ DEBUG: Contrato criado com sucesso:', savedContract);
         toast({
           title: 'Contrato criado',
           description: 'O novo contrato foi criado com sucesso.'
         });
       }
 
+      // Os feriados nacionais são sincronizados automaticamente no backend
+      // Sincronizar feriados regionais/municipais se workplace_location estiver definido
+      if (formData.workplace_location && formData.workplace_location.trim() !== '') {
+        try {
+          setSyncingHolidays(true);
+          const isSupported = holidayAutoService.isLocationSupported(formData.workplace_location);
+          if (isSupported) {
+            const currentYear = new Date().getFullYear();
+            await holidayAutoService.syncRegionalHolidays(
+              user.id,
+              savedContract.id,
+              currentYear,
+              formData.workplace_location
+            );
+            toast({
+              title: 'Feriados sincronizados',
+              description: 'Feriados nacionais e regionais sincronizados com sucesso!',
+              variant: 'default'
+            });
+          } else {
+            toast({
+              title: 'Feriados sincronizados',
+              description: 'Feriados nacionais sincronizados. Localização não suportada para feriados regionais.',
+              variant: 'default'
+            });
+          }
+        } catch (holidayError) {
+          console.warn('Erro na sincronização de feriados regionais:', holidayError);
+          toast({
+            title: 'Aviso',
+            description: 'Feriados nacionais sincronizados. Erro ao sincronizar feriados regionais.',
+            variant: 'default'
+          });
+        } finally {
+          setSyncingHolidays(false);
+        }
+      } else {
+        toast({
+          title: 'Feriados sincronizados',
+          description: 'Feriados nacionais sincronizados com sucesso!',
+          variant: 'default'
+        });
+      }
+
       onSave?.(savedContract);
     } catch (error) {
-      console.error('❌ DEBUG: Erro capturado no catch:', error);
-      console.error('❌ DEBUG: Stack trace:', error instanceof Error ? error.stack : 'N/A');
       const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao salvar o contrato.';
       
       toast({
@@ -236,25 +258,7 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
     }
   };
 
-  const handleMealAllowanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    
-    // Permitir valores vazios, negativos, positivos e vírgula/ponto
-    if (value === '' || value === '-' || /^-?\d*[,.]?\d*$/.test(value)) {
-      setMealAllowanceInput(value);
-      
-      // Converter para centavos apenas se for um número válido
-      if (value === '' || value === '-') {
-        setFormData(prev => ({ ...prev, meal_allowance_cents_per_day: 0 }));
-      } else {
-        const numericValue = value.replace(',', '.');
-        const parsedValue = parseFloat(numericValue);
-        if (!isNaN(parsedValue)) {
-          setFormData(prev => ({ ...prev, meal_allowance_cents_per_day: Math.round(parsedValue * 100) }));
-        }
-      }
-    }
-  };
+
 
   const handleWeeklyHoursChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -319,6 +323,92 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
             </div>
           </div>
 
+          {/* Informações do Contrato */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="job_category">Categoria Profissional</Label>
+              <Input
+                id="job_category"
+                value={formData.job_category || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, job_category: e.target.value }))}
+                placeholder="Ex: Técnico, Administrativo, Gestor"
+                autoComplete="organization-title"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="workplace_location">Local de Trabalho</Label>
+              <Input
+                id="workplace_location"
+                value={formData.workplace_location || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, workplace_location: e.target.value }))}
+                placeholder="Ex: Lisboa, Porto, Remoto"
+                autoComplete="address-level2"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="duration">Duração do Contrato (meses)</Label>
+              <Input
+                id="duration"
+                type="number"
+                value={formData.duration || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFormData(prev => ({ 
+                    ...prev, 
+                    duration: value === '' ? undefined : parseInt(value) 
+                  }));
+                }}
+                placeholder="Deixar vazio para contrato permanente"
+                min="1"
+                max="120"
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">
+                Deixar vazio para contrato sem termo
+              </p>
+            </div>
+          </div>
+
+          {/* Período Experimental */}
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="has_probation_period"
+                checked={formData.has_probation_period || false}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, has_probation_period: checked }))}
+              />
+              <Label htmlFor="has_probation_period" className="text-base font-semibold">
+                Período Experimental
+              </Label>
+            </div>
+            
+            {formData.has_probation_period && (
+              <div className="p-4 border rounded-lg bg-muted/50">
+                <div className="space-y-2">
+                  <Label htmlFor="probation_duration_days">Duração do Período Experimental (dias)</Label>
+                  <Input
+                    id="probation_duration_days"
+                    type="number"
+                    value={formData.probation_duration_days || 90}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 90;
+                      setFormData(prev => ({ ...prev, probation_duration_days: value }));
+                    }}
+                    min="30"
+                    max="240"
+                    className="w-32"
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Normalmente 90 dias (3 meses) para a maioria dos contratos
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Valores Monetários e Horas */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
@@ -351,29 +441,7 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
               </p>
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="meal_allowance">Subsídio de Refeição por Dia ({formData.currency || 'EUR'})</Label>
-              <div className="space-y-2">
-                <Input
-                  id="meal_allowance"
-                  type="text"
-                  value={mealAllowanceInput}
-                  onChange={handleMealAllowanceChange}
-                  placeholder="0,00"
-                  autoComplete="off"
-                />
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="meal_on_worked_days"
-                    checked={formData.meal_on_worked_days}
-                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, meal_on_worked_days: checked }))}
-                  />
-                  <Label htmlFor="meal_on_worked_days" className="text-sm">
-                    Apenas em dias trabalhados
-                  </Label>
-                </div>
-              </div>
-            </div>
+
 
             <div className="space-y-2">
               <Label htmlFor="currency">Moeda</Label>
@@ -395,46 +463,7 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
             </div>
           </div>
 
-          {/* Subsídios */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="vacation_bonus_mode">Subsídio de Férias</Label>
-              <Select
-                value={formData.vacation_bonus_mode}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, vacation_bonus_mode: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo de subsídio" />
-                </SelectTrigger>
-                <SelectContent>
-                  {VACATION_BONUS_OPTIONS.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="christmas_bonus_mode">Subsídio de Natal</Label>
-              <Select
-                value={formData.christmas_bonus_mode}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, christmas_bonus_mode: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo de subsídio" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CHRISTMAS_BONUS_OPTIONS.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+
 
           {/* Horário de Trabalho */}
           <div className="space-y-4">
@@ -534,11 +563,13 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
             )}
             <Button 
               type="submit" 
-              disabled={loading}
+              disabled={loading || syncingHolidays}
             >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {(loading || syncingHolidays) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Save className="mr-2 h-4 w-4" />
-              {contract ? 'Atualizar' : 'Criar'} Contrato
+              {syncingHolidays ? 'A sincronizar feriados...' : 
+               loading ? 'A guardar...' : 
+               (contract ? 'Atualizar' : 'Criar')} Contrato
             </Button>
           </div>
         </form>

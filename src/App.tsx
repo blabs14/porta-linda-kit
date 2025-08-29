@@ -8,6 +8,7 @@ import RequireAuth from './components/RequireAuth';
 import { MainLayout } from './components/layout/MainLayout';
 import { LoadingSpinner } from './components/ui/loading-states';
 import { Toaster } from './components/ui/toaster';
+import { Toaster as SonnerToaster } from './components/ui/sonner';
 import { GlobalShortcuts } from './components/GlobalShortcuts';
 import { LocaleProvider } from './contexts/LocaleProvider';
 import { Navigate } from 'react-router-dom';
@@ -111,6 +112,7 @@ function App() {
         </LocaleProvider>
       </AuthProvider>
       <Toaster />
+      <SonnerToaster />
       {/* <ReactQueryDevtools initialIsOpen={false} /> */}
     </QueryClientProvider>
   );

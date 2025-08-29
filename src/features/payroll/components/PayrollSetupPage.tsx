@@ -103,7 +103,7 @@ export function PayrollSetupPage() {
         payrollService.getVacations(user.id, undefined, new Date().getFullYear()),
         payrollService.getActiveContract(user.id),
         payrollService.getDeductionConfigs?.(user.id) || Promise.resolve([]),
-        payrollService.getMileagePolicies?.(user.id) || Promise.resolve([])
+        payrollService.getMileagePolicies?.(user.id, contract?.id) || Promise.resolve([])
       ]);
       
       setContracts(contractsData);
@@ -168,7 +168,7 @@ export function PayrollSetupPage() {
 
     setLoading(true);
     try {
-      await payrollService.deleteOTPolicy(id);
+      await payrollService.deleteOTPolicy(id, user?.id, activeContract?.id);
       toast({
         title: 'Política excluída',
         description: 'A política foi excluída com sucesso.'
@@ -285,7 +285,7 @@ export function PayrollSetupPage() {
           </TabsTrigger>
           <TabsTrigger value="meal-allowance" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
-            Subsídio Alimentação
+            Subsídios
           </TabsTrigger>
         </TabsList>
 

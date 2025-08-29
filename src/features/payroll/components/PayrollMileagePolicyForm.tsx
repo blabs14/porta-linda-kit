@@ -16,11 +16,12 @@ import { centsToEuros, eurosToCents } from '../lib/calc';
 
 interface PayrollMileagePolicyFormProps {
   policy?: PayrollMileagePolicy;
+  contractId: string;
   onSave: (policy: PayrollMileagePolicy) => void;
   onCancel: () => void;
 }
 
-export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMileagePolicyFormProps) {
+export function PayrollMileagePolicyForm({ policy, contractId, onSave, onCancel }: PayrollMileagePolicyFormProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -96,13 +97,13 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
       let savedPolicy: PayrollMileagePolicy;
       
       if (policy) {
-        savedPolicy = await payrollService.updateMileagePolicy(policy.id, policyData);
+        savedPolicy = await payrollService.updateMileagePolicy(policy.id, policyData, user.id, contractId);
         toast({
           title: 'Política Atualizada',
           description: 'A política de quilometragem foi atualizada com sucesso.'
         });
       } else {
-        savedPolicy = await payrollService.createMileagePolicy(user.id, policyData);
+        savedPolicy = await payrollService.createMileagePolicy(user.id, contractId, policyData);
         toast({
           title: 'Política Criada',
           description: 'A política de quilometragem foi criada com sucesso.'
@@ -136,7 +137,7 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Car className="h-5 w-5" />
-            Informações Básicas
+            Política de Quilometragem
           </CardTitle>
           <CardDescription>
             Configure os detalhes da política de quilometragem.
@@ -250,41 +251,7 @@ export function PayrollMileagePolicyForm({ policy, onSave, onCancel }: PayrollMi
         </CardContent>
       </Card>
 
-      {/* Exemplo de Cálculo */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Exemplo de Cálculo</CardTitle>
-          <CardDescription>
-            Veja como será calculado o reembolso com esta política.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-            <div className="flex justify-between">
-              <span>100 km × {formatCurrency(formData.rate_per_km_cents, 'pt-PT', contract?.currency || 'EUR')}/km</span>
-              <span className="font-medium">
-                {formatCurrency(formData.rate_per_km_cents * 100, 'pt-PT', contract?.currency || 'EUR')}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span>500 km × {formatCurrency(formData.rate_per_km_cents, 'pt-PT', contract?.currency || 'EUR')}/km</span>
-              <span className="font-medium">
-                {formatCurrency(formData.rate_per_km_cents * 500, 'pt-PT', contract?.currency || 'EUR')}
-              </span>
-            </div>
-            {formData.monthly_cap_cents && (
-              <div className="pt-2 border-t">
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Limite mensal: {formatCurrency(formData.monthly_cap_cents, 'pt-PT', contract?.currency || 'EUR')}</span>
-                  <span>
-                    Máximo: {formatCurrency(formData.monthly_cap_cents, 'pt-PT', contract?.currency || 'EUR')}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+
 
       {/* Informações Legais */}
       <Alert>

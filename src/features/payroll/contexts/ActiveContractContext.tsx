@@ -1,11 +1,10 @@
-/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { payrollService } from '../services/payrollService';
 import { PayrollContract } from '../types';
 import { useToast } from '../../../hooks/use-toast';
 
-interface ActiveContractContextType {
+export interface ActiveContractContextType {
   activeContract: PayrollContract | null;
   contracts: PayrollContract[];
   loading: boolean;
@@ -13,7 +12,7 @@ interface ActiveContractContextType {
   refreshContracts: () => Promise<void>;
 }
 
-const ActiveContractContext = createContext<ActiveContractContextType | undefined>(undefined);
+export const ActiveContractContext = createContext<ActiveContractContextType | undefined>(undefined);
 
 interface ActiveContractProviderProps {
   children: ReactNode;
@@ -158,12 +157,4 @@ export function ActiveContractProvider({ children }: ActiveContractProviderProps
       {children}
     </ActiveContractContext.Provider>
   );
-}
-
-export function useActiveContract() {
-  const context = useContext(ActiveContractContext);
-  if (!context) {
-    throw new Error('useActiveContract deve ser usado dentro de ActiveContractProvider');
-  }
-  return context;
 }

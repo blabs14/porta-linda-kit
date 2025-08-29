@@ -270,7 +270,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
     
     if (existingEntry) {
       try {
-        await payrollService.deleteTimeEntry(existingEntry.id);
+        await payrollService.deleteTimeEntry(existingEntry.id, user?.id, selectedContractId);
         toast({
           title: 'Entrada apagada',
           description: 'A entrada de tempo foi apagada com sucesso.'
@@ -313,7 +313,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
     try {
       // Apagar todas as entradas existentes da semana
       for (const existingEntry of existingEntries) {
-        await payrollService.deleteTimeEntry(existingEntry.id);
+        await payrollService.deleteTimeEntry(existingEntry.id, user?.id, selectedContractId);
       }
       
       toast({
@@ -417,7 +417,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
       // Deletar entradas existentes da semana
       for (const existingEntry of existingEntries) {
-        await payrollService.deleteTimeEntry(existingEntry.id);
+        await payrollService.deleteTimeEntry(existingEntry.id, user?.id, selectedContractId);
       }
 
       // Criar novas entradas
@@ -425,6 +425,26 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       for (const entry of timeEntries) {
         const saved = await payrollService.createTimeEntry(user.id, selectedContractId!, entry);
         savedEntries.push(saved);
+      }
+
+      // Processar descanso compensatório para trabalho ao domingo
+      try {
+        const compensatoryLeaves = await payrollService.processCompensatoryRestForTimeEntries(
+          user.id,
+          selectedContractId!,
+          savedEntries
+        );
+        
+        if (compensatoryLeaves.length > 0) {
+          toast({
+            title: 'Descanso Compensatório Criado',
+            description: `${compensatoryLeaves.length} dia(s) de descanso compensatório foram atribuídos automaticamente por trabalho ao domingo.`,
+            duration: 5000
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao processar descanso compensatório:', error);
+        // Não bloquear o salvamento por erro no descanso compensatório
       }
 
       toast({

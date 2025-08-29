@@ -31,7 +31,6 @@ describe('Payroll Calculation Functions', () => {
     base_salary_cents: 120000, // €1200 (acima do salário mínimo €870)
   hourly_rate_cents: 800, // €8.00
     overtime_rate_cents: 1200, // €12.00
-    meal_allowance_cents: 650, // €6.50
     transport_allowance_cents: 0,
     other_allowances_cents: 0,
     work_hours_per_day: 8,
@@ -361,8 +360,7 @@ describe('Payroll Calculation Functions', () => {
     it('should handle zero rates gracefully', () => {
       const zeroRateContract = {
         ...mockContract,
-        hourly_rate_cents: 0,
-        meal_allowance_cents: 0
+        hourly_rate_cents: 0
       };
       
       const total = calcMonth(
@@ -375,7 +373,7 @@ describe('Payroll Calculation Functions', () => {
       );
       
       expect(total.regularPay).toBe(0);
-      expect(total.mealAllowance).toBe(0);
+      expect(total.mealAllowance).toBe(1020); // Default meal allowance value
     });
 
     it('should handle very large numbers correctly', () => {

@@ -15,13 +15,15 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Info } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { payrollService } from '../services/payrollService';
+import { useActiveContract } from '../hooks/useActiveContract';
 
 type BonusType = 'mandatory' | 'performance' | 'custom';
 type SpecificSubsidy = 'vacation' | 'christmas' | 'both';
 
 interface PayrollBonusConfigProps {
   bonusType: BonusType;
-  contractId?: string;
   specificSubsidy?: SpecificSubsidy;
   onSave?: (data: any) => void;
 }
@@ -98,8 +100,10 @@ function generateLegalAlerts(formData: any, specificSubsidy: SpecificSubsidy): s
   return alerts;
 }
 
-export function PayrollBonusConfig({ bonusType, contractId, specificSubsidy = 'both', onSave }: PayrollBonusConfigProps) {
+export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave }: PayrollBonusConfigProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { activeContract } = useActiveContract();
   const [salaryData, setSalaryData] = useState<EmployeeSalaryData>({ baseSalary: 0, weeklyHours: 40 });
   const [calculatedAmount, setCalculatedAmount] = useState(0);
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
@@ -114,9 +118,42 @@ export function PayrollBonusConfig({ bonusType, contractId, specificSubsidy = 'b
     isMandatory,
     isPerformance,
     isCustom,
-    contractId,
+    contractId: activeContract?.id,
     specificSubsidy
   });
+
+  // Efeito para carregar configuração existente
+  useEffect(() => {
+    if (!activeContract?.id || !bonusType) return;
+
+    const loadBonusConfig = async () => {
+      try {
+        if (!user?.id || !activeContract?.id) return;
+        
+        const config = await payrollService.getBonusConfig(activeContract.id, bonusType);
+        console.log('Loading bonus config for:', { userId: user.id, contractId: activeContract.id, bonusType, config });
+        
+        if (config && config.config_data) {
+          if (isMandatory) {
+            mandatoryForm.reset(config.config_data);
+          } else if (isPerformance) {
+            performanceForm.reset(config.config_data);
+          } else if (isCustom) {
+            customForm.reset(config.config_data);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao carregar configuração de bónus:', error);
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível carregar a configuração existente.',
+          variant: 'destructive'
+        });
+      }
+    };
+
+    loadBonusConfig();
+  }, [activeContract?.id, bonusType, user?.id, toast]);
 
 
 
@@ -202,32 +239,170 @@ export function PayrollBonusConfig({ bonusType, contractId, specificSubsidy = 'b
     }
   }, [mandatoryForm.watch(), specificSubsidy, isMandatory]);
 
+  // useEffect para carregar dados salariais do contrato
+  useEffect(() => {
+    if (!activeContract?.id || !user?.id) return;
+
+    const loadSalaryData = async () => {
+      try {
+        console.log('Loading salary data for contract:', activeContract.id);
+        const contractData = await payrollService.getContract(user.id, activeContract.id);
+        
+        if (contractData) {
+          // Converter de cêntimos para euros
+          const baseSalaryEuros = contractData.monthly_salary_cents ? contractData.monthly_salary_cents / 100 : 0;
+          
+          setSalaryData({
+            baseSalary: baseSalaryEuros,
+            weeklyHours: contractData.weekly_hours || 40
+          });
+        } else {
+          // Fallback para valores padrão se não encontrar o contrato
+          setSalaryData({
+            baseSalary: 0,
+            weeklyHours: 40
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados salariais:', error);
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível carregar os dados salariais.',
+          variant: 'destructive'
+        });
+        // Fallback para valores padrão em caso de erro
+        setSalaryData({
+          baseSalary: 0,
+          weeklyHours: 40
+        });
+      }
+    };
+
+    loadSalaryData();
+  }, [activeContract?.id, user?.id, toast]);
+
   // Handlers para submissao dos formularios
-  const onMandatorySubmit = (data: z.infer<typeof mandatoryBonusSchema>) => {
-    console.log('Configuracao de bonus obrigatorios:', data);
-    toast({
-      title: 'Configuracao guardada',
-      description: 'Subsidios obrigatorios configurados com sucesso.'
-    });
-    onSave?.(data);
+  const onMandatorySubmit = async (data: z.infer<typeof mandatoryBonusSchema>) => {
+    if (!activeContract?.id) {
+      toast({
+        title: 'Erro',
+        description: 'ID do contrato não encontrado.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      if (!user?.id) {
+        toast({
+          title: 'Erro',
+          description: 'Utilizador não autenticado.',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      await payrollService.upsertBonusConfig({
+         contractId: activeContract.id,
+         bonusType: 'mandatory',
+         config: data
+       });
+       console.log('Guardando configuração de subsídios obrigatórios:', { userId: user.id, contractId: activeContract.id, data });
+      toast({
+        title: 'Configuracao guardada',
+        description: 'As configuracoes de bonus obrigatorios foram guardadas com sucesso.'
+      });
+      onSave?.(data);
+    } catch (error) {
+      console.error('Erro ao guardar configuração:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível guardar a configuração.',
+        variant: 'destructive'
+      });
+    }
   };
 
-  const onPerformanceSubmit = (data: z.infer<typeof performanceBonusSchema>) => {
-    console.log('Configuracao de premios de produtividade:', data);
-    toast({
-      title: 'Configuracao guardada',
-      description: 'Premios de produtividade configurados com sucesso.'
-    });
-    onSave?.(data);
+  const onPerformanceSubmit = async (data: z.infer<typeof performanceBonusSchema>) => {
+    if (!activeContract?.id) {
+      toast({
+        title: 'Erro',
+        description: 'ID do contrato não encontrado.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      if (!user?.id) {
+        toast({
+          title: 'Erro',
+          description: 'Utilizador não autenticado.',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      await payrollService.upsertBonusConfig({
+         contractId: activeContract.id,
+         bonusType: 'performance',
+         config: data
+       });
+       console.log('Guardando configuração de prémios de produtividade:', { userId: user.id, contractId: activeContract.id, data });
+      toast({
+        title: 'Configuracao guardada',
+        description: 'As configuracoes de premios de produtividade foram guardadas com sucesso.'
+      });
+      onSave?.(data);
+    } catch (error) {
+      console.error('Erro ao guardar configuração:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível guardar a configuração.',
+        variant: 'destructive'
+      });
+    }
   };
 
-  const onCustomSubmit = (data: z.infer<typeof customBonusSchema>) => {
-    console.log('Configuracao de premio personalizado:', data);
-    toast({
-      title: 'Premio guardado',
-      description: 'Premio personalizado configurado com sucesso.'
-    });
-    onSave?.(data);
+  const onCustomSubmit = async (data: z.infer<typeof customBonusSchema>) => {
+    if (!activeContract?.id) {
+      toast({
+        title: 'Erro',
+        description: 'ID do contrato não encontrado.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      if (!user?.id) {
+        toast({
+          title: 'Erro',
+          description: 'Utilizador não autenticado.',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      await payrollService.upsertBonusConfig({
+         contractId: activeContract.id,
+         bonusType: 'custom',
+         config: data
+       });
+       console.log('Guardando configuração de prémio personalizado:', { userId: user.id, contractId: activeContract.id, data });
+      toast({
+        title: 'Premio guardado',
+        description: 'O premio personalizado foi guardado com sucesso.'
+      });
+      onSave?.(data);
+    } catch (error) {
+      console.error('Erro ao guardar configuração:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível guardar a configuração.',
+        variant: 'destructive'
+      });
+    }
   };
 
   // Funcao para obter informacoes do bonus
@@ -354,46 +529,55 @@ export function PayrollBonusConfig({ bonusType, contractId, specificSubsidy = 'b
                   )}
                 </div>
 
-                <FormField
-                  control={mandatoryForm.control}
-                  name="paymentMonth"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Mes de Pagamento Preferencial</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o mês" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {specificSubsidy === 'vacation' && (
-                            <>
-                              <SelectItem value="may">Maio</SelectItem>
-                              <SelectItem value="june">Junho</SelectItem>
-                              <SelectItem value="july">Julho</SelectItem>
-                              <SelectItem value="august">Agosto</SelectItem>
-                            </>
-                          )}
-                          {specificSubsidy === 'christmas' && (
-                            <SelectItem value="december">Dezembro (Subsidio de Natal)</SelectItem>
-                          )}
-                          {specificSubsidy === 'both' && (
-                            <>
-                              <SelectItem value="may">Maio (Subsidio de Ferias)</SelectItem>
-                              <SelectItem value="june">Junho (Subsidio de Ferias)</SelectItem>
-                              <SelectItem value="july">Julho (Subsidio de Ferias)</SelectItem>
-                              <SelectItem value="august">Agosto (Subsidio de Ferias)</SelectItem>
-                              <SelectItem value="december">Dezembro (Subsidio de Natal)</SelectItem>
-                              <SelectItem value="both">Ambos os Subsidios</SelectItem>
-                            </>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* Campo de seleção de mês apenas para subsídio de férias */}
+                {specificSubsidy !== 'christmas' && (
+                  <FormField
+                    control={mandatoryForm.control}
+                    name="paymentMonth"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Mes de Pagamento Preferencial</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o mês" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="january">Janeiro</SelectItem>
+                            <SelectItem value="february">Fevereiro</SelectItem>
+                            <SelectItem value="march">Março</SelectItem>
+                            <SelectItem value="april">Abril</SelectItem>
+                            <SelectItem value="may">Maio</SelectItem>
+                            <SelectItem value="june">Junho</SelectItem>
+                            <SelectItem value="july">Julho</SelectItem>
+                            <SelectItem value="august">Agosto</SelectItem>
+                            <SelectItem value="september">Setembro</SelectItem>
+                            <SelectItem value="october">Outubro</SelectItem>
+                            <SelectItem value="november">Novembro</SelectItem>
+                            <SelectItem value="december">Dezembro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {specificSubsidy === 'vacation' && 'O subsídio de férias pode ser pago em qualquer mês do ano'}
+                          {specificSubsidy === 'both' && 'O subsídio de férias pode ser pago em qualquer mês do ano'}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* Informação fixa para subsídio de Natal */}
+                {specificSubsidy === 'christmas' && (
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <h4 className="font-medium text-blue-900">Mês de Pagamento</h4>
+                    <p className="text-blue-700">Dezembro (fixo por lei)</p>
+                    <p className="text-sm text-blue-600 mt-1">
+                      O subsídio de Natal deve ser pago sempre em dezembro
+                    </p>
+                  </div>
+                )}
 
                 <FormField
                   control={mandatoryForm.control}
@@ -447,6 +631,18 @@ export function PayrollBonusConfig({ bonusType, contractId, specificSubsidy = 'b
                     </FormItem>
                   )}
                 />
+
+                {/* Informações sobre o contrato carregado */}
+                {activeContract?.id && (
+                  <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600">
+                      <strong>Contrato:</strong> {activeContract.id}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <strong>Salário Base:</strong> {formatCurrency(salaryData.baseSalary)}
+                    </p>
+                  </div>
+                )}
 
                 {calculatedAmount > 0 && (
                   <div className="mt-4 p-4 bg-blue-50 rounded-lg">
@@ -907,7 +1103,19 @@ export function PayrollBonusConfig({ bonusType, contractId, specificSubsidy = 'b
                 {customForm.watch('requiresApproval') && (
                   <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
                     <p className="text-sm text-yellow-800">
-                      <strong>Atencao:</strong> Este premio requer aprovacao previa        
+                      <strong>Atencao:</strong> Este premio requer aprovacao previa
+                    </p>
+                  </div>
+                )}
+
+                {/* Informações sobre o contrato carregado */}
+                {activeContract?.id && (
+                  <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600">
+                      <strong>Contrato:</strong> {activeContract.id}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <strong>Salário Base:</strong> {formatCurrency(salaryData.baseSalary)}
                     </p>
                   </div>
                 )}

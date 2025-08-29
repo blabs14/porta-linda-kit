@@ -8,7 +8,7 @@ export { PayrollSetupPage } from './PayrollSetupPage';
 export { PayrollOnboardingWizard } from './PayrollOnboardingWizard';
 export { PayrollContractForm } from './PayrollContractForm';
 export { PayrollOTPolicyForm } from './PayrollOTPolicyForm';
-export { PayrollHolidaysManager } from './PayrollHolidaysManager';
+// PayrollHolidaysManager removido - sincronização automática implementada
 
 // Timesheet components
 export { WeeklyTimesheetForm } from './WeeklyTimesheetForm';

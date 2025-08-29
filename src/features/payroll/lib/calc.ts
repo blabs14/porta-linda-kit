@@ -505,7 +505,7 @@ export function calcMonth(
         entry.date,
         dayRegularHours,
         dayTotalHours,
-        mealAllowanceConfig?.daily_amount_cents ?? contract.meal_allowance_cents ?? 1020,
+        mealAllowanceConfig?.daily_amount_cents ?? 1020,
         excludedMonths,
         isHoliday,
         isVacation,

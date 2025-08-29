@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import { payrollService } from '../services/payrollService';
+import { useActiveContract } from './useActiveContract';
 
 interface OnboardingStatus {
   needsOnboarding: boolean;
@@ -14,28 +15,46 @@ export function usePayrollOnboarding(): OnboardingStatus {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { activeContract, loading: contractLoading } = useActiveContract();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    async function checkOnboardingStatus() {
+    function checkOnboardingStatus() {
       if (!user) {
         setIsLoading(false);
         return;
       }
 
-      try {
+      // Aguardar o carregamento do contexto do contrato
+      if (contractLoading) {
         setIsLoading(true);
+        return;
+      }
+
+      try {
         setError(null);
 
-        // Verificar se o utilizador tem um contrato ativo
-        const activeContract = await payrollService.getActiveContract(user.id);
-        
-        // Se não tem contratos ativos, precisa de onboarding
+        // Usar o contrato ativo do contexto (mais rápido e sincronizado)
         const hasActiveContract = activeContract !== null;
         setNeedsOnboarding(!hasActiveContract);
 
         // Redirecionar para onboarding se necessário e não estiver já lá
-        if (!hasActiveContract && !window.location.pathname.includes('/onboarding')) {
+        // Evitar redirecionamentos em loop e permitir acesso à página de configuração
+        const currentPath = location.pathname;
+        const isInPayrollArea = currentPath.includes('/payroll');
+        const isInOnboarding = currentPath.includes('/onboarding');
+        const isInConfig = currentPath.includes('/config');
+        
+        // Não redirecionar se:
+        // 1. Já está no onboarding
+        // 2. Está na página de configuração (onde pode criar contratos)
+        // 3. Não está na área de payroll
+        // 4. Tem parâmetro 'new=1' no URL (indica criação de contrato em progresso)
+        const urlParams = new URLSearchParams(location.search);
+        const isCreatingContract = urlParams.get('new') === '1';
+        
+        if (!hasActiveContract && isInPayrollArea && !isInOnboarding && !isInConfig && !isCreatingContract) {
           navigate('/personal/payroll/onboarding', { replace: true });
         }
       } catch (err) {
@@ -47,7 +66,7 @@ export function usePayrollOnboarding(): OnboardingStatus {
     }
 
     checkOnboardingStatus();
-  }, [user, navigate]);
+  }, [user, navigate, activeContract, contractLoading, location.pathname, location.search]);
 
   return {
     needsOnboarding,

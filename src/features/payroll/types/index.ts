@@ -11,11 +11,14 @@ export interface PayrollContract {
   currency: string;
   weekly_hours: number;
   schedule_json: Record<string, any>;
-  meal_allowance_cents_per_day: number;
-  meal_on_worked_days: boolean;
   vacation_bonus_mode: string;
   christmas_bonus_mode: string;
   is_active: boolean;
+  job_category?: string;
+  workplace_location?: string;
+  duration?: number; // em meses
+  has_probation_period?: boolean;
+  probation_duration_days?: number;
   created_at: string;
   updated_at: string;
 }
@@ -46,7 +49,7 @@ export interface PayrollHoliday {
   user_id: string;
   name: string;
   date: string;
-  holiday_type: string;
+  holiday_type: 'national' | 'regional' | 'municipal' | 'company' | 'personal';
   is_paid: boolean;
   affects_overtime: boolean;
   description?: string;
@@ -233,12 +236,15 @@ export interface ContractFormData {
   base_salary_cents: number;
   weekly_hours: number;
   schedule_json: Record<string, any>;
-  meal_allowance_cents_per_day: number;
-  meal_on_worked_days: boolean;
   vacation_bonus_mode: string;
   christmas_bonus_mode: string;
   is_active: boolean;
   currency: string;
+  job_category?: string;
+  workplace_location?: string;
+  duration?: number; // duração em meses
+  has_probation_period?: boolean;
+  probation_duration_days?: number;
 }
 
 export interface OTPolicyFormData {
@@ -255,10 +261,24 @@ export interface OTPolicyFormData {
   weeklyLimitHours: number;
 }
 
+export interface PayrollOTPolicyFormData {
+  name: string;
+  ot_type: 'daily' | 'weekly' | 'holiday' | 'weekend' | 'night';
+  threshold_hours: number;
+  multiplier: number;
+  max_daily_ot_hours: number | null;
+  max_weekly_ot_hours: number | null;
+  max_annual_ot_hours: number | null;
+  night_start_time: string;
+  night_end_time: string;
+  is_active: boolean;
+  description: string;
+}
+
 export interface PayrollHolidayFormData {
   name: string;
   date: string;
-  holiday_type: string;
+  holiday_type: 'national' | 'regional' | 'municipal' | 'company' | 'personal';
   is_paid: boolean;
   affects_overtime: boolean;
   description?: string;
@@ -280,12 +300,15 @@ export interface PayrollContractFormData {
   base_salary_cents: number;
   weekly_hours: number;
   schedule_json: Record<string, any>;
-  meal_allowance_cents_per_day: number;
-  meal_on_worked_days: boolean;
   vacation_bonus_mode: string;
   christmas_bonus_mode: string;
   is_active: boolean;
   currency: string;
+  job_category?: string;
+  workplace_location?: string;
+  duration?: number; // duração em meses
+  has_probation_period?: boolean;
+  probation_duration_days?: number;
 }
 
 // Interfaces para o sistema de férias
@@ -360,7 +383,7 @@ export interface PayrollLeave {
   user_id: string;
   family_id?: string;
   contract_id: string;
-  leave_type: 'maternity' | 'paternity' | 'parental' | 'adoption' | 'sick' | 'family_assistance' | 'bereavement' | 'marriage' | 'study' | 'unpaid' | 'other';
+  leave_type: 'maternity' | 'paternity' | 'parental' | 'adoption' | 'sick' | 'family_assistance' | 'bereavement' | 'marriage' | 'study' | 'unpaid' | 'compensatory_rest' | 'other';
   start_date: string;
   end_date: string;
   total_days: number;
@@ -402,5 +425,6 @@ export const LEAVE_TYPES = {
   marriage: { label: 'Casamento', defaultDays: 15, defaultPaid: 100 },
   study: { label: 'Formação/Estudos', defaultDays: 0, defaultPaid: 0 },
   unpaid: { label: 'Licença sem Vencimento', defaultDays: 0, defaultPaid: 0 },
+  compensatory_rest: { label: 'Descanso Compensatório', defaultDays: 1, defaultPaid: 100 },
   other: { label: 'Outras Licenças', defaultDays: 0, defaultPaid: 100 }
 } as const;

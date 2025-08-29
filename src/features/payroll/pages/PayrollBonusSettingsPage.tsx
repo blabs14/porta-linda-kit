@@ -1,7 +1,7 @@
 import React from 'react';
 import { PayrollBreadcrumb } from '../components/PayrollBreadcrumb';
 import PayrollBonusConfig from '../components/PayrollBonusConfig';
-import { useActiveContract } from '../contexts/ActiveContractContext';
+import { useActiveContract } from '../hooks/useActiveContract';
 
 export function PayrollBonusSettingsPage() {
   const { activeContract } = useActiveContract();
@@ -20,23 +20,14 @@ export function PayrollBonusSettingsPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Configurações de Bónus</h1>
             <p className="text-muted-foreground">
-              Configure os diferentes tipos de bónus e prémios para os seus funcionários.
+              Configure os bónus de performance e prémios personalizados para os seus funcionários.
             </p>
           </div>
         </div>
         
         <div className="grid gap-6">
           <PayrollBonusConfig 
-            bonusType="mandatory" 
-            contractId={activeContract?.id || ''} 
-            onSave={(data) => {
-              console.log('Mandatory bonus saved:', data);
-            }} 
-          />
-          
-          <PayrollBonusConfig 
             bonusType="performance" 
-            contractId={activeContract?.id || ''} 
             onSave={(data) => {
               console.log('Performance bonus saved:', data);
             }} 
@@ -44,7 +35,6 @@ export function PayrollBonusSettingsPage() {
           
           <PayrollBonusConfig 
             bonusType="custom" 
-            contractId={activeContract?.id || ''} 
             onSave={(data) => {
               console.log('Custom bonus saved:', data);
             }} 

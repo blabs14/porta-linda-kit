@@ -112,7 +112,6 @@ export class PayrollCalculationService {
         base_salary_cents: input.contract.base_salary_cents,
         hourly_rate_cents: input.contract.hourly_rate_cents,
         weekly_hours: input.contract.weekly_hours,
-        meal_allowance_cents: input.contract.meal_allowance_cents,
         schedule_json: input.contract.schedule_json
       },
       timeEntries: input.timeEntries
@@ -434,11 +433,11 @@ export async function calculatePayroll(userId: string, contractId: string, year:
     // Buscar dados necessários
     const [contract, otPolicy, holidays, timeEntries, mileageTrips, mileagePolicy, mealAllowanceConfig, vacations, deductionConfig] = await Promise.all([
       payrollService.getActiveContract(userId),
-      payrollService.getActiveOTPolicy(userId),
-      payrollService.getHolidays(userId, year),
+      payrollService.getActiveOTPolicy(userId, contractId),
+      payrollService.getHolidays(userId, year, contractId),
       payrollService.getTimeEntriesByContract(userId, contractId, `${year}-${month.toString().padStart(2, '0')}-01`, `${year}-${month.toString().padStart(2, '0')}-31`),
-      payrollService.getMileageTrips(userId, `${year}-${month.toString().padStart(2, '0')}-01`, `${year}-${month.toString().padStart(2, '0')}-31`),
-      payrollService.getActiveMileagePolicy(userId),
+      payrollService.getMileageTrips(userId, `${year}-${month.toString().padStart(2, '0')}-01`, `${year}-${month.toString().padStart(2, '0')}-31`, contractId),
+      payrollService.getActiveMileagePolicy(userId, contractId),
       payrollService.getMealAllowanceConfig(userId, contractId),
       payrollService.getVacations(userId, contractId, year),
       payrollService.getDeductionConfig(userId, contractId)

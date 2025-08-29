@@ -57,13 +57,18 @@ const PayrollMileagePage: React.FC = () => {
     
     setLoading(true);
     try {
-      const [policiesData, tripsData] = await Promise.all([
-        payrollService.getMileagePolicies(user.id),
-        payrollService.getMileageTrips(user.id),
-        loadContract()
-      ]);
-      setPolicies(policiesData);
-      setTrips(tripsData);
+      await loadContract();
+      
+      // Aguardar o contrato ser carregado antes de buscar os dados
+      const activeContract = await payrollService.getActiveContract(user.id);
+      if (activeContract) {
+        const [policiesData, tripsData] = await Promise.all([
+          payrollService.getMileagePolicies(user.id, activeContract.id),
+          payrollService.getMileageTrips(user.id, undefined, undefined, activeContract.id)
+        ]);
+        setPolicies(policiesData);
+        setTrips(tripsData);
+      }
     } catch (error) {
       toast({
         title: 'Erro',
@@ -211,7 +216,7 @@ const PayrollMileagePage: React.FC = () => {
 
   // Handlers para políticas
   const handleSavePolicy = async (policyData: Partial<PayrollMileagePolicy>) => {
-    if (!user) return;
+    if (!user || !contract?.id) return;
     
     setIsSaving(true);
     try {
@@ -234,7 +239,7 @@ const PayrollMileagePage: React.FC = () => {
           name: policyData.name,
           rate_per_km: policyData.rate_per_km_cents / 100
         };
-        const newPolicy = await payrollService.createMileagePolicy(user.id, formData);
+        const newPolicy = await payrollService.createMileagePolicy(user.id, contract.id, formData);
         setPolicies(prev => [newPolicy, ...prev]);
         toast({
           title: 'Sucesso',
@@ -256,10 +261,10 @@ const PayrollMileagePage: React.FC = () => {
   };
 
   const handleDeletePolicy = async (policyId: string) => {
-    if (!user) return;
+    if (!user || !contract) return;
     
     try {
-      await payrollService.deleteMileagePolicy(policyId);
+      await payrollService.deleteMileagePolicy(policyId, user.id, contract.id);
       setPolicies(prev => prev.filter(policy => policy.id !== policyId));
       toast({
         title: 'Sucesso',

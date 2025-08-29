@@ -43,18 +43,24 @@ export function PayrollNavigation({ className }: PayrollNavigationProps) {
       description: 'Deslocações e reembolsos'
     },
     {
-      path: '/personal/payroll/contratos',
-      label: 'Contratos',
-      icon: FileText,
-      description: 'Gestão de contratos',
+      path: '/personal/payroll/bonus',
+      label: 'Bónus',
+      icon: Gift,
+      description: 'Prémios de produtividade e bónus',
       isNew: true
     },
     {
-      path: '/personal/payroll/bonus',
-      label: 'Bónus e Prémios',
+      path: '/personal/payroll/subsidies',
+      label: 'Visualizar Subsídios',
       icon: Gift,
-      description: 'Subsídios e prémios de produtividade',
+      description: 'Subsídios de alimentação, férias e natal',
       isNew: true
+    },
+    {
+      path: '/personal/payroll/vacations',
+      label: 'Férias',
+      icon: Calendar,
+      description: 'Calendário de períodos de férias'
     },
     {
       path: '/personal/payroll/periods',
@@ -65,9 +71,9 @@ export function PayrollNavigation({ className }: PayrollNavigationProps) {
     },
     {
       path: '/personal/payroll/config',
-      label: 'Configuração',
+      label: 'Configurações',
       icon: Settings,
-      description: 'Políticas e definições'
+      description: 'Contratos e políticas'
     }
   ];
 
@@ -79,7 +85,9 @@ export function PayrollNavigation({ className }: PayrollNavigationProps) {
             <h2 className="text-lg font-semibold text-foreground">Folha de Pagamento</h2>
             <p className="text-sm text-muted-foreground">Gestão de horários e salários</p>
           </div>
-          <ContractSelector />
+          <div className="flex items-center gap-2">
+            <ContractSelector />
+          </div>
         </div>
         
         <nav className="flex flex-wrap gap-2">

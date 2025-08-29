@@ -84,13 +84,13 @@ export const fetchPayrollExportData = async (
     const hoursData = await payrollService.getTimeEntries(userId, startDate, endDate, contractData.id);
     
     // Buscar viagens de quilometragem
-    const mileageData = await payrollService.getMileageTrips(userId, startDate, endDate);
+    const mileageData = await payrollService.getMileageTrips(userId, startDate, endDate, contractData.id);
     
     // Buscar configurações
     const [overtimePolicyData, mealAllowanceData, mileagePolicyData] = await Promise.all([
-      payrollService.getActiveOTPolicy(userId),
+      payrollService.getActiveOTPolicy(userId, contractData.id),
       payrollService.getMealAllowanceConfig(userId, contractData.id),
-      payrollService.getActiveMileagePolicy(userId),
+      payrollService.getActiveMileagePolicy(userId, contractData.id),
     ]);
     
     const monthName = new Date(year, month - 1).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
