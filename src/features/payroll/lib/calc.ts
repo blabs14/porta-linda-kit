@@ -856,21 +856,21 @@ export function validateDeductions(
     errors.push(`IRS deve estar entre 0% e 48%, configurado: ${deductionConfig.irs_percentage}%`);
   }
 
-  // Validar sobretaxa IRS (aplicável apenas a rendimentos superiores a €80.640 anuais)
+  // Validar sobretaxa IRS (aplicável apenas a rendimentos superiores a €80.000 anuais)
   const annualGrossEuros = (grossPayCents * 12) / 100; // Converter para euros anuais
   if (deductionConfig.irs_surcharge_percentage && deductionConfig.irs_surcharge_percentage > 0) {
-    if (annualGrossEuros <= 80640) {
-      errors.push(`Sobretaxa IRS só se aplica a rendimentos anuais superiores a €80.640. Rendimento anual estimado: €${annualGrossEuros.toFixed(2)}`);
+    if (annualGrossEuros <= 80000) {
+      errors.push(`Sobretaxa IRS só se aplica a rendimentos anuais superiores a €80.000. Rendimento anual estimado: €${annualGrossEuros.toFixed(2)}`);
     }
     if (deductionConfig.irs_surcharge_percentage > 5) {
       errors.push(`Sobretaxa IRS não pode exceder 5%, configurado: ${deductionConfig.irs_surcharge_percentage}%`);
     }
   }
 
-  // Validar contribuição extraordinária de solidariedade (aplicável apenas a rendimentos superiores a €80.640 anuais)
+  // Validar contribuição extraordinária de solidariedade (aplicável apenas a rendimentos superiores a €80.000 anuais)
   if (deductionConfig.solidarity_contribution_percentage && deductionConfig.solidarity_contribution_percentage > 0) {
-    if (annualGrossEuros <= 80640) {
-      errors.push(`Contribuição de solidariedade só se aplica a rendimentos anuais superiores a €80.640. Rendimento anual estimado: €${annualGrossEuros.toFixed(2)}`);
+    if (annualGrossEuros <= 80000) {
+      errors.push(`Contribuição de solidariedade só se aplica a rendimentos anuais superiores a €80.000. Rendimento anual estimado: €${annualGrossEuros.toFixed(2)}`);
     }
     if (deductionConfig.solidarity_contribution_percentage > 5) {
       errors.push(`Contribuição de solidariedade não pode exceder 5%, configurado: ${deductionConfig.solidarity_contribution_percentage}%`);

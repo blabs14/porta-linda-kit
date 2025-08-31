@@ -70,6 +70,12 @@ export function PayrollNavigation({ className }: PayrollNavigationProps) {
       isNew: true
     },
     {
+      path: '/personal/payroll/contracts',
+      label: 'Contratos',
+      icon: FileText,
+      description: 'Visualizar e gerir contratos'
+    },
+    {
       path: '/personal/payroll/config',
       label: 'Configurações',
       icon: Settings,

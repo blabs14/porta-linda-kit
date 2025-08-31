@@ -297,15 +297,18 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
           {/* Informações Básicas */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Nome do Funcionário</Label>
+              <Label htmlFor="name">Nome do Contrato</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Nome completo"
+                placeholder="Ex: Contrato Principal, Tempo Integral, Meio Período"
                 required
-                autoComplete="name"
+                autoComplete="off"
               />
+              <p className="text-sm text-muted-foreground">
+                Insira um nome descritivo para este contrato (não o nome do funcionário)
+              </p>
             </div>
             
             <div className="space-y-2">

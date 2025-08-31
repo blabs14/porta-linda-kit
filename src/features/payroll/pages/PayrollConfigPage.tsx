@@ -24,6 +24,7 @@ import { Settings, Clock, Utensils, Calendar, FileText, Coffee, Car, Award, Perc
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { useActiveContract } from '@/features/payroll/hooks/useActiveContract';
 import { PayrollContractForm } from '@/features/payroll/components/PayrollContractForm';
+import { QuickContractForm } from '@/features/payroll/components/QuickContractForm';
 import { PayrollDeductionConfig } from '@/features/payroll/components/PayrollDeductionConfig';
 // PayrollHolidaysManager removido - sincronização automática implementada
 import { PayrollVacationsManager } from '@/features/payroll/components/PayrollVacationsManager';
@@ -83,6 +84,7 @@ export default function PayrollConfigPage() {
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [ariaMessage, setAriaMessage] = useState('');
   const [activeTab, setActiveTab] = useState('contract');
+  const [showQuickForm, setShowQuickForm] = useState(false);
   const [showCreateContractDialog, setShowCreateContractDialog] = useState(false);
 
   // Handlers para os botões de configuração
@@ -321,6 +323,31 @@ export default function PayrollConfigPage() {
     );
   }
   
+  // Mostrar formulário rápido se não há contratos e showQuickForm é true
+  if (showQuickForm) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Configuração do Payroll</h1>
+            <p className="text-muted-foreground">
+              Crie o seu primeiro contrato para começar.
+            </p>
+          </div>
+        </div>
+        
+        <QuickContractForm
+          onContractCreated={(newContract) => {
+            setContracts(prev => [...prev, newContract]);
+            setSelectedContractId(newContract.id);
+            setShowQuickForm(false);
+          }}
+          onCancel={() => setShowQuickForm(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Região de anúncio para leitores de ecrã */}
@@ -363,8 +390,16 @@ export default function PayrollConfigPage() {
             <div className="text-center py-8">
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  Não existem contratos criados. Por favor, aceda à página de configuração inicial para criar o seu primeiro contrato.
+                <AlertDescription className="flex items-center justify-between">
+                  <span>Não existem contratos criados. Por favor, crie o seu primeiro contrato para começar a usar a folha de pagamento.</span>
+                  <Button 
+                    size="sm" 
+                    onClick={() => setShowQuickForm(true)}
+                    className="ml-4"
+                  >
+                    <Settings className="mr-2 h-3 w-3" />
+                    Criar Primeiro Contrato
+                  </Button>
                 </AlertDescription>
               </Alert>
             </div>
@@ -415,7 +450,7 @@ export default function PayrollConfigPage() {
             <PayrollContractForm 
               contract={contracts.find(c => c.id === selectedContractId)} 
               onSave={(updatedContract) => {
-                // Atualizar a lista de contratos com o contrato atualizado
+                // Atualizar contrato existente
                 setContracts(prev => prev.map(c => c.id === updatedContract.id ? updatedContract : c));
                 toast({
                   title: 'Contrato atualizado',

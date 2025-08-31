@@ -35,22 +35,12 @@ import { holidayAutoService } from './holidayAutoService';
 // ============================================================================
 
 export async function getContracts(userId: string): Promise<PayrollContract[]> {
-  console.log('🔍 DEBUG: getContracts called with userId:', userId);
-  console.log('📊 DEBUG: About to query payroll_contracts table');
-  
   const { data, error } = await supabase
     .from('payroll_contracts')
     .select('*')
-    .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
-  console.log('📋 DEBUG: Supabase query result:');
-  console.log('  - data:', data);
-  console.log('  - error:', error);
-  console.log('  - data length:', data?.length || 0);
-
   if (error) {
-    console.error('DEBUG: Error in getContracts:', error);
     throw error;
   }
   
@@ -61,7 +51,6 @@ export async function getContracts(userId: string): Promise<PayrollContract[]> {
       : (typeof c.weekly_hours === 'number' ? c.weekly_hours : parseFloat(c.weekly_hours))
   }));
   
-  console.log('DEBUG: getContracts returning:', result);
   return result;
 }
 

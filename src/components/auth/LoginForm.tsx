@@ -1,5 +1,5 @@
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { signInWithGoogle, signInWithApple, signInWithFacebook } from '../../services/authProviders';
@@ -44,10 +44,11 @@ export default function LoginForm() {
     }
   };
 
-  if (user) {
-    navigate('/app');
-    return null;
-  }
+  useEffect(() => {
+    if (user) {
+      navigate('/app');
+    }
+  }, [user, navigate]);
 
   return (
     <div className="space-y-6">

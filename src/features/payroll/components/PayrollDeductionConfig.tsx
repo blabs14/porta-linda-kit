@@ -346,7 +346,7 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
               
               <Alert>
                 <AlertDescription>
-                  <strong>Sobretaxa e Contribuição de Solidariedade:</strong> Aplicáveis a rendimentos superiores a 83.696 € anuais, com taxas até 5% cada.
+                  <strong>Sobretaxa e Contribuição de Solidariedade:</strong> Aplicáveis a rendimentos superiores a 80.000 € anuais, com taxas até 5% cada.
                 </AlertDescription>
               </Alert>
             </TabsContent>

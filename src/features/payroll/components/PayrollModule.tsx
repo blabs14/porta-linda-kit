@@ -7,6 +7,7 @@ import { PayrollBonusPage } from '../pages/PayrollBonusPage';
 import { PayrollBonusSettingsPage } from '../pages/PayrollBonusSettingsPage';
 import PayrollSubsidiesViewPage from '../pages/PayrollSubsidiesViewPage';
 import PayrollVacationCalendarPage from '../pages/PayrollVacationCalendarPage';
+import PayrollContractsPage from '../pages/PayrollContractsPage';
 
 import { PayrollOnboardingWizard, PayrollSetupPage, WeeklyTimesheetForm } from './index';
 import { PayrollNavigation } from './PayrollNavigation';
@@ -48,6 +49,7 @@ function PayrollContent() {
         <Route path="bonus" element={<PayrollBonusPage />} />
         <Route path="subsidies" element={<PayrollSubsidiesViewPage />} />
         <Route path="vacations" element={<PayrollVacationCalendarPage />} />
+        <Route path="contracts" element={<PayrollContractsPage />} />
         <Route path="settings/bonus" element={<PayrollBonusSettingsPage />} />
         <Route path="config" element={<PayrollConfigPage />} />
         <Route path="periods" element={<PayrollPeriodsManager />} />
