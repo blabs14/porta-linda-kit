@@ -96,14 +96,14 @@ export function PayrollSetupPage() {
     
     setLoading(true);
     try {
-      const [contractsData, otPoliciesData, holidaysData, vacationsData, activeContract, deductionConfigsData, mileagePoliciesData] = await Promise.all([
+      // Primeiro, carregar dados básicos
+      const [contractsData, otPoliciesData, holidaysData, vacationsData, activeContract, deductionConfigsData] = await Promise.all([
         payrollService.getContracts(user.id),
         payrollService.getOTPolicies(user.id),
         payrollService.getHolidays(user.id, new Date().getFullYear()),
         payrollService.getVacations(user.id, undefined, new Date().getFullYear()),
         payrollService.getActiveContract(user.id),
-        payrollService.getDeductionConfigs?.(user.id) || Promise.resolve([]),
-        payrollService.getMileagePolicies?.(user.id, contract?.id) || Promise.resolve([])
+        payrollService.getDeductionConfigs(user.id)
       ]);
       
       setContracts(contractsData);
@@ -111,11 +111,14 @@ export function PayrollSetupPage() {
       setHolidays(holidaysData);
       setVacations(vacationsData);
       setDeductionConfigs(deductionConfigsData);
-      setMileagePolicies(mileagePoliciesData);
 
-      const mealConfigData = activeContract?.id
-        ? await payrollService.getMealAllowanceConfig(user.id, activeContract.id)
-        : null;
+      // Depois, carregar dados que dependem do activeContract
+      const [mileagePoliciesData, mealConfigData] = await Promise.all([
+        activeContract?.id ? payrollService.getMileagePolicies(user.id, activeContract.id) : Promise.resolve([]),
+        activeContract?.id ? payrollService.getMealAllowanceConfig(user.id, activeContract.id) : Promise.resolve(null)
+      ]);
+      
+      setMileagePolicies(mileagePoliciesData);
       setMealAllowanceConfig(mealConfigData);
     } catch (error) {
       toast({

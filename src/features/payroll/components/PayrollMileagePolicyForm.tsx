@@ -103,7 +103,7 @@ export function PayrollMileagePolicyForm({ policy, contractId, onSave, onCancel 
           description: 'A política de quilometragem foi atualizada com sucesso.'
         });
       } else {
-        savedPolicy = await payrollService.createMileagePolicy(user.id, contractId, policyData);
+        savedPolicy = await payrollService.createMileagePolicy(user.id, { ...policyData, contract_id: contractId });
         toast({
           title: 'Política Criada',
           description: 'A política de quilometragem foi criada com sucesso.'

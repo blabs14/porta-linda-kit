@@ -45,15 +45,22 @@ export function PayrollMealAllowanceConfig({ config: propConfig, contractId, onC
   }, [contractId]);
 
   const loadConfigByContract = async () => {
-    if (!user?.id || !contractId) return;
+    console.log('🔍 PayrollMealAllowanceConfig - loadConfigByContract chamada com:', { userId: user?.id, contractId });
+    
+    if (!user?.id || !contractId) {
+      console.log('❌ PayrollMealAllowanceConfig - Faltam dados:', { userId: user?.id, contractId });
+      return;
+    }
     
     setLoading(true);
     try {
+      console.log('🔄 PayrollMealAllowanceConfig - Carregando configuração...');
       const data = await payrollService.getMealAllowanceConfig(user.id, contractId);
+      console.log('✅ PayrollMealAllowanceConfig - Configuração carregada:', data);
       setConfig(data);
       onConfigChange?.(data);
     } catch (error) {
-      console.error('Error loading meal allowance config:', error);
+      console.error('❌ PayrollMealAllowanceConfig - Erro ao carregar configuração:', error);
       setConfig(null);
       onConfigChange?.(null);
     } finally {

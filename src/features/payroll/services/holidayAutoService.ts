@@ -367,7 +367,7 @@ export async function syncNationalHolidays(
           }
         } else {
           // Criar novo feriado
-          await payrollService.createHoliday(userId, holidayData);
+          await payrollService.createHoliday(userId, holidayData, contractId);
           created++;
         }
       } catch (error) {
@@ -421,8 +421,7 @@ export async function syncRegionalHolidays(
           holiday_type: autoHoliday.type,
           is_paid: true, // Feriados automáticos são pagos por defeito
           affects_overtime: true,
-          description: autoHoliday.description || `Feriado ${autoHoliday.type}`,
-          contract_id: contractId
+          description: autoHoliday.description || `Feriado ${autoHoliday.type}`
         };
 
         if (existingHoliday) {
@@ -434,7 +433,7 @@ export async function syncRegionalHolidays(
           }
         } else {
           // Criar novo feriado
-          await payrollService.createHoliday(userId, holidayData);
+          await payrollService.createHoliday(userId, holidayData, contractId);
           created++;
         }
       } catch (error) {

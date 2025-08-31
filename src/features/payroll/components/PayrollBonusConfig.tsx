@@ -130,7 +130,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
       try {
         if (!user?.id || !activeContract?.id) return;
         
-        const config = await payrollService.getBonusConfig(activeContract.id, bonusType);
+        const config = await payrollService.getBonusConfig(user.id, activeContract.id, bonusType);
         console.log('Loading bonus config for:', { userId: user.id, contractId: activeContract.id, bonusType, config });
         
         if (config && config.config_data) {
@@ -302,11 +302,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
         return;
       }
       
-      await payrollService.upsertBonusConfig({
-         contractId: activeContract.id,
-         bonusType: 'mandatory',
-         config: data
-       });
+      await payrollService.upsertBonusConfig(user.id, activeContract.id, 'mandatory', data);
        console.log('Guardando configuração de subsídios obrigatórios:', { userId: user.id, contractId: activeContract.id, data });
       toast({
         title: 'Configuracao guardada',
@@ -343,11 +339,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
         return;
       }
       
-      await payrollService.upsertBonusConfig({
-         contractId: activeContract.id,
-         bonusType: 'performance',
-         config: data
-       });
+      await payrollService.upsertBonusConfig(user.id, activeContract.id, 'performance', data);
        console.log('Guardando configuração de prémios de produtividade:', { userId: user.id, contractId: activeContract.id, data });
       toast({
         title: 'Configuracao guardada',
@@ -384,11 +376,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
         return;
       }
       
-      await payrollService.upsertBonusConfig({
-         contractId: activeContract.id,
-         bonusType: 'custom',
-         config: data
-       });
+      await payrollService.upsertBonusConfig(user.id, activeContract.id, 'custom', data);
        console.log('Guardando configuração de prémio personalizado:', { userId: user.id, contractId: activeContract.id, data });
       toast({
         title: 'Premio guardado',

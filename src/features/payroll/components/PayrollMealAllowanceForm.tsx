@@ -13,7 +13,7 @@ import { Loader2, Save, Info, Euro } from 'lucide-react';
 import { PayrollMealAllowanceConfig, PayrollMealAllowanceConfigFormData, MealAllowancePaymentMethod } from '../types';
 import { payrollService } from '../services/payrollService';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
+import { useToast } from '@/hooks/use-toast';
 
 const MONTHS = [
   { value: 1, label: 'Janeiro' },
@@ -54,8 +54,9 @@ interface PayrollMealAllowanceFormProps {
   onCancel?: () => void;
 }
 
-export function PayrollMealAllowanceForm({ config, contractId, onSave, onCancel }: PayrollMealAllowanceFormProps) {
+export function PayrollMealAllowanceForm({ contractId, config, onSave, onCancel }: PayrollMealAllowanceFormProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [selectedMonths, setSelectedMonths] = useState<number[]>(config?.excluded_months || []);
 
@@ -118,13 +119,27 @@ export function PayrollMealAllowanceForm({ config, contractId, onSave, onCancel 
 
   // Submeter formulário
   const onSubmit = async (data: FormData) => {
+    console.log('DEBUG PayrollMealAllowanceForm - onSubmit called with data:', data);
+    console.log('DEBUG PayrollMealAllowanceForm - contractId:', contractId);
+    console.log('DEBUG PayrollMealAllowanceForm - user:', user?.id);
+    
     if (!user?.id) {
-      toast.error('Utilizador não autenticado');
+      console.log('DEBUG PayrollMealAllowanceForm - User not authenticated');
+      toast({
+        title: 'Erro',
+        description: 'Utilizador não autenticado',
+        variant: 'destructive'
+      });
       return;
     }
 
     if (!contractId) {
-      toast.error('ID do contrato não fornecido');
+      console.log('DEBUG PayrollMealAllowanceForm - Contract ID not provided');
+      toast({
+        title: 'Erro',
+        description: 'ID do contrato não fornecido',
+        variant: 'destructive'
+      });
       return;
     }
 
@@ -137,12 +152,29 @@ export function PayrollMealAllowanceForm({ config, contractId, onSave, onCancel 
           duodecimosEnabled: data.duodecimosEnabled
         };
 
+        console.log('DEBUG PayrollMealAllowanceForm - Calling upsertMealAllowanceConfig with:', {
+          userId: user.id,
+          contractId,
+          formData
+        });
+        
         const savedConfig = await payrollService.upsertMealAllowanceConfig(user.id, contractId, formData);
-        toast.success('Configuração do subsídio de alimentação guardada com sucesso!');
+        
+        console.log('DEBUG PayrollMealAllowanceForm - upsertMealAllowanceConfig result:', savedConfig);
+        
+        toast({
+          title: 'Sucesso',
+          description: 'Configuração do subsídio de alimentação guardada com sucesso!'
+        });
 
         onSave?.(savedConfig);
       } catch (error: any) {
-        toast.error(error.message || 'Erro ao salvar configuração do subsídio de alimentação');
+        console.error('DEBUG PayrollMealAllowanceForm - Error saving config:', error);
+        toast({
+          title: 'Erro',
+          description: error.message || 'Erro ao salvar configuração do subsídio de alimentação',
+          variant: 'destructive'
+        });
       } finally {
       setLoading(false);
     }

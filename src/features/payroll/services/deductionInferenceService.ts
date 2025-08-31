@@ -164,8 +164,25 @@ export async function inferDeductionRates(
   const ssDeduction = grossSalary * ssWorkerRate;
   const baseIRS = grossSalary - ssDeduction;
   
-  // 5. Calcular taxa efetiva de IRS
-  const irsTable = tablesMap.get('irs_withholding');
+  // 5. Calcular maritalForTables baseado no estado civil e modo de tributação
+  let maritalForTables = conditions.marital_status;
+  
+  if ((conditions.marital_status === 'married' || conditions.marital_status === 'unido_de_facto') && 
+      conditions.taxation_mode === 'conjunta') {
+    maritalForTables = 'married';
+  } else if (conditions.marital_status === 'unido_de_facto' && conditions.taxation_mode === 'separada') {
+    maritalForTables = 'single';
+  }
+  
+  // 6. Calcular taxa efetiva de IRS usando o estado civil resolvido
+  const irsTableKey = `irs_withholding_${maritalForTables}`;
+  let irsTable = tablesMap.get(irsTableKey);
+  
+  // Fallback para tabela genérica se não encontrar a específica
+  if (!irsTable) {
+    irsTable = tablesMap.get('irs_withholding');
+  }
+  
   let irsEffectiveRate = 0;
   
   if (irsTable?.payload) {
@@ -175,7 +192,7 @@ export async function inferDeductionRates(
     warnings.push('Tabela de retenção de IRS não encontrada. Mantenha o modo manual.');
   }
   
-  // 6. Obter regras de horas extras
+  // 7. Obter regras de horas extras
   const overtimeTable = tablesMap.get('overtime_rules');
   let overtimeMode = 'half_effective_rate';
   
@@ -184,7 +201,7 @@ export async function inferDeductionRates(
     overtimeMode = overtimeRules.mode || 'half_effective_rate';
   }
   
-  // 7. Obter limites de subsídio de alimentação
+  // 8. Obter limites de subsídio de alimentação
   const mealTable = tablesMap.get('meal_allowance_limits');
   let mealLimits: MealAllowanceLimits = { cashPerDay: 6.00, cardPerDay: 10.20 };
   

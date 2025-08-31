@@ -6,8 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Save, Calculator, Info, ArrowLeft } from 'lucide-react';
+import { Loader2, Save, Calculator, Info, ArrowLeft, HelpCircle } from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -20,7 +21,8 @@ import { PayrollDeductionConditionsFormData } from '../types';
 const conditionsSchema = z.object({
   year: z.number().min(2024).max(2030),
   region: z.enum(['continente', 'acores', 'madeira']),
-  marital_status: z.enum(['single', 'married']),
+  marital_status: z.enum(['single', 'married', 'unido_de_facto']),
+  taxation_mode: z.enum(['conjunta', 'separada']).optional(),
   income_holders: z.enum(['one', 'two']),
   dependents: z.number().min(0).max(20),
   disability_worker: z.boolean(),
@@ -32,6 +34,16 @@ const conditionsSchema = z.object({
   has_adse: z.boolean(),
   adse_rate: z.number().min(0).max(10),
   union_rate: z.number().min(0).max(5)
+}).refine((data) => {
+  // Validação: taxation_mode deve ser definido para married/unido_de_facto
+  if (data.marital_status === 'married' || data.marital_status === 'unido_de_facto') {
+    return data.taxation_mode !== undefined;
+  }
+  // Para single, taxation_mode deve ser undefined
+  return data.taxation_mode === undefined;
+}, {
+  message: "Modo de tributação é obrigatório para casados e união de facto",
+  path: ["taxation_mode"]
 });
 
 interface PayrollDeductionConditionsProps {
@@ -96,6 +108,7 @@ export function PayrollDeductionConditions({
             year: conditions.year,
             region: conditions.region,
             marital_status: conditions.marital_status,
+            taxation_mode: conditions.taxation_mode,
             income_holders: conditions.income_holders,
             dependents: conditions.dependents,
             disability_worker: conditions.disability_worker,
@@ -129,7 +142,11 @@ export function PayrollDeductionConditions({
     
     setIsSaving(true);
     try {
-      await deductionInferenceService.updateDeductionConditions(user.id, contractId, data);
+      const conditionsData = {
+        ...data,
+        taxation_mode: data.taxation_mode || null
+      };
+      await deductionInferenceService.updateDeductionConditions(user.id, contractId, conditionsData);
       toast({
         title: 'Sucesso',
         description: 'Condições guardadas com sucesso.'
@@ -277,23 +294,69 @@ export function PayrollDeductionConditions({
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="marital_status">Estado Civil</Label>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="marital_status">Estado Civil</Label>
+                        {watch('marital_status') === 'unido_de_facto' && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs">
+                                  Unido de facto é equiparado a 'Casado' se optar por tributação conjunta; 
+                                  caso contrário usa tabelas de solteiro.
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
                       <Controller
                         name="marital_status"
                         control={control}
                         render={({ field }) => (
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={(value) => {
+                            field.onChange(value);
+                            // Reset taxation_mode quando muda para single
+                            if (value === 'single') {
+                              form.setValue('taxation_mode', undefined);
+                            }
+                          }} value={field.value}>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione o estado civil" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="single">Solteiro(a)</SelectItem>
                               <SelectItem value="married">Casado(a)</SelectItem>
+                              <SelectItem value="unido_de_facto">Unido de facto</SelectItem>
                             </SelectContent>
                           </Select>
                         )}
                       />
                     </div>
+
+                    {/* Modo de Tributação - só aparece para married/unido_de_facto */}
+                    {(watch('marital_status') === 'married' || watch('marital_status') === 'unido_de_facto') && (
+                      <div className="space-y-2">
+                        <Label htmlFor="taxation_mode">Modo de Tributação</Label>
+                        <Controller
+                          name="taxation_mode"
+                          control={control}
+                          render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o modo" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="conjunta">Tributação Conjunta</SelectItem>
+                                <SelectItem value="separada">Tributação Separada</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </div>
+                    )}
 
                     <div className="space-y-2">
                       <Label htmlFor="income_holders">Número de Titulares de Rendimentos</Label>

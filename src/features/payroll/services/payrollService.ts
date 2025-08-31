@@ -283,12 +283,17 @@ export async function deleteContract(id: string): Promise<void> {
 // POLÍTICAS DE HORAS EXTRAS
 // ============================================================================
 
-export async function getOTPolicies(userId: string): Promise<PayrollOTPolicy[]> {
-  const { data, error } = await supabase
+export async function getOTPolicies(userId: string, contractId?: string): Promise<PayrollOTPolicy[]> {
+  let query = supabase
     .from('payroll_ot_policies')
     .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+    .eq('user_id', userId);
+
+  if (contractId) {
+    query = query.eq('contract_id', contractId);
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) throw error;
   return data || [];
@@ -475,13 +480,30 @@ export async function getHolidays(
 
 export async function createHoliday(
   userId: string,
-  holidayData: PayrollHolidayFormData
+  holidayData: PayrollHolidayFormData,
+  contractId?: string
 ): Promise<PayrollHoliday> {
+  // Se contractId for fornecido, usar esse; caso contrário, usar o do holidayData ou buscar contrato ativo
+  let finalContractId = contractId || holidayData.contract_id;
+  if (!finalContractId) {
+    const activeContract = await getActiveContract(userId);
+    if (!activeContract) {
+      throw new Error('Nenhum contrato ativo encontrado. É necessário ter um contrato ativo para criar feriados.');
+    }
+    finalContractId = activeContract.id;
+  }
+
   const { data, error } = await supabase
     .from('payroll_holidays')
     .insert({
       user_id: userId,
-      ...holidayData
+      contract_id: finalContractId,
+      name: holidayData.name,
+      date: holidayData.date,
+      holiday_type: holidayData.holiday_type,
+      is_paid: holidayData.is_paid,
+      affects_overtime: holidayData.affects_overtime,
+      description: holidayData.description
     })
     .select()
     .single();
@@ -693,6 +715,8 @@ export async function getMealAllowanceConfig(
   userId: string,
   contractId: string
 ): Promise<PayrollMealAllowanceConfig | null> {
+  console.log('🔍 getMealAllowanceConfig - Procurando configuração para:', { userId, contractId });
+  
   const { data, error } = await supabase
     .from('payroll_meal_allowance_configs')
     .select('*')
@@ -700,7 +724,12 @@ export async function getMealAllowanceConfig(
     .eq('contract_id', contractId)
     .single();
 
-  if (error && error.code !== 'PGRST116') throw error;
+  if (error && error.code !== 'PGRST116') {
+    console.error('❌ getMealAllowanceConfig - Erro na consulta:', error);
+    throw error;
+  }
+  
+  console.log('🔍 getMealAllowanceConfig - Resultado:', data);
   return data || null;
 }
 
@@ -773,8 +802,11 @@ export async function upsertMealAllowanceConfig(
   contractId: string,
   configData: PayrollMealAllowanceConfigFormData
 ): Promise<PayrollMealAllowanceConfig> {
+  console.log('🔍 upsertMealAllowanceConfig - Iniciando com:', { userId, contractId, configData });
+  
   // Primeiro, verificar se já existe uma configuração
   const existingConfig = await getMealAllowanceConfig(userId, contractId);
+  console.log('🔍 upsertMealAllowanceConfig - Configuração existente:', existingConfig);
   
   const configPayload = {
     user_id: userId,
@@ -784,9 +816,11 @@ export async function upsertMealAllowanceConfig(
     payment_method: configData.paymentMethod,
     duodecimos_enabled: configData.duodecimosEnabled
   };
+  console.log('🔍 upsertMealAllowanceConfig - Payload preparado:', configPayload);
   
   if (existingConfig) {
     // Atualizar configuração existente
+    console.log('🔄 upsertMealAllowanceConfig - Atualizando configuração existente com ID:', existingConfig.id);
     const { data, error } = await supabase
       .from('payroll_meal_allowance_configs')
       .update({
@@ -799,18 +833,27 @@ export async function upsertMealAllowanceConfig(
       .eq('id', existingConfig.id)
       .select()
       .single();
-    
-    if (error) throw error;
+
+    if (error) {
+      console.error('❌ upsertMealAllowanceConfig - Erro ao atualizar:', error);
+      throw error;
+    }
+    console.log('✅ upsertMealAllowanceConfig - Configuração atualizada com sucesso:', data);
     return data;
   } else {
     // Criar nova configuração
+    console.log('➕ upsertMealAllowanceConfig - Criando nova configuração');
     const { data, error } = await supabase
       .from('payroll_meal_allowance_configs')
       .insert(configPayload)
       .select()
       .single();
-    
-    if (error) throw error;
+
+    if (error) {
+      console.error('❌ upsertMealAllowanceConfig - Erro ao criar:', error);
+      throw error;
+    }
+    console.log('✅ upsertMealAllowanceConfig - Nova configuração criada com sucesso:', data);
     return data;
   }
 }
@@ -896,6 +939,17 @@ export async function updateDeductionConfig(
 
   if (error) throw error;
   return data;
+}
+
+export async function getDeductionConfigs(userId: string): Promise<PayrollDeductionConfig[]> {
+  const { data, error } = await supabase
+    .from('payroll_deduction_configs')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
 }
 
 export async function upsertDeductionConfig(
@@ -1786,6 +1840,7 @@ export const payrollService = {
   
   // Configuração de descontos
   getDeductionConfig,
+  getDeductionConfigs,
   createDeductionConfig,
   updateDeductionConfig,
   upsertDeductionConfig,

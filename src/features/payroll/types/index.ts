@@ -440,7 +440,8 @@ export interface PayrollDeductionConditions {
   contract_id: string;
   year: number;
   region: 'continente' | 'acores' | 'madeira';
-  marital_status: 'single' | 'married';
+  marital_status: 'single' | 'married' | 'unido_de_facto';
+  taxation_mode?: 'conjunta' | 'separada'; // Apenas relevante para married/unido_de_facto
   income_holders: 'one' | 'two';
   dependents: number;
   disability_worker: boolean;
@@ -473,7 +474,8 @@ export interface LegalTable {
 export interface PayrollDeductionConditionsFormData {
   year: number;
   region: 'continente' | 'acores' | 'madeira';
-  marital_status: 'single' | 'married';
+  marital_status: 'single' | 'married' | 'unido_de_facto';
+  taxation_mode?: 'conjunta' | 'separada'; // Apenas relevante para married/unido_de_facto
   income_holders: 'one' | 'two';
   dependents: number;
   disability_worker: boolean;

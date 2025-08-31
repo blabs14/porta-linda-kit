@@ -86,6 +86,7 @@ export default function PayrollConfigPage() {
   const [activeTab, setActiveTab] = useState('contract');
   const [showQuickForm, setShowQuickForm] = useState(false);
   const [showCreateContractDialog, setShowCreateContractDialog] = useState(false);
+  const [mealAllowanceConfig, setMealAllowanceConfig] = useState<any>(null);
 
   // Handlers para os botões de configuração
   const handleConfigureContract = () => {
@@ -244,6 +245,27 @@ export default function PayrollConfigPage() {
       loadData();
     }
   }, [user, authLoading]);
+
+  // Carregar configuração do subsídio de alimentação quando o contrato mudar
+  useEffect(() => {
+    const loadMealAllowanceConfig = async () => {
+      if (user?.id && selectedContractId) {
+        try {
+          console.log('🔄 DEBUG: Loading meal allowance config for contract:', selectedContractId);
+          const config = await payrollService.getMealAllowanceConfig(user.id, selectedContractId);
+          console.log('✅ DEBUG: Meal allowance config loaded:', config);
+          setMealAllowanceConfig(config);
+        } catch (error) {
+          console.error('❌ DEBUG: Error loading meal allowance config:', error);
+          setMealAllowanceConfig(null);
+        }
+      } else {
+        setMealAllowanceConfig(null);
+      }
+    };
+
+    loadMealAllowanceConfig();
+  }, [user?.id, selectedContractId]);
   
 
   // Abrir modal automaticamente quando navegamos com ?new=1
@@ -356,12 +378,15 @@ export default function PayrollConfigPage() {
         <h1 ref={mainContentRef} tabIndex={-1} className="text-3xl font-bold">Configurações</h1>
       </div>
       
-      <Card>
+      <Card className="border-l-4 border-l-blue-500">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
-            Seleção de Contrato
+            Contrato em Configuração
           </CardTitle>
+          <CardDescription>
+            Todas as configurações abaixo serão aplicadas ao contrato selecionado
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {(() => {
@@ -369,22 +394,39 @@ export default function PayrollConfigPage() {
             console.log('DEBUG: Current contracts state:', contracts);
             return contracts.length > 0;
           })() ? (
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <Label htmlFor="contract-select">Contrato Ativo</Label>
-                <Select value={selectedContractId || ''} onValueChange={handleContractChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um contrato" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contracts.map((contract) => (
-                      <SelectItem key={contract.id} value={contract.id}>
-                        {contract.name} {contract.is_active ? '(Ativo)' : '(Inativo)'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <Label htmlFor="contract-select">Selecionar Contrato</Label>
+                  <Select value={selectedContractId || ''} onValueChange={handleContractChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um contrato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contracts.map((contract) => (
+                        <SelectItem key={contract.id} value={contract.id}>
+                          {contract.name} {contract.is_active ? '(Ativo)' : '(Inativo)'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+              {selectedContractId && (() => {
+                const selectedContract = contracts.find(c => c.id === selectedContractId);
+                return selectedContract && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-blue-800">
+                      <FileText className="h-4 w-4" />
+                      <span className="font-medium">Configurando:</span>
+                      <span className="font-semibold">{selectedContract.name}</span>
+                      {selectedContract.company_name && (
+                        <span className="text-sm text-blue-600">• {selectedContract.company_name}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           ) : (
             <div className="text-center py-8">
@@ -500,7 +542,14 @@ export default function PayrollConfigPage() {
                   </TabsList>
 
                   <TabsContent value="meal">
-                    <PayrollMealAllowanceForm contractId={selectedContractId} />
+                    <PayrollMealAllowanceForm 
+                      contractId={selectedContractId} 
+                      config={mealAllowanceConfig}
+                      onSave={(savedConfig) => {
+                        console.log('✅ DEBUG: Meal allowance config saved:', savedConfig);
+                        setMealAllowanceConfig(savedConfig);
+                      }}
+                    />
                   </TabsContent>
 
                   <TabsContent value="vacation-bonus">
