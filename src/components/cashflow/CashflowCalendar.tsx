@@ -202,9 +202,9 @@ export function CashflowCalendar({
                         
                         {/* Badges de tipos de eventos */}
                         <div className="flex flex-wrap gap-1">
-                          {Array.from(new Set(day.summary.events.map(e => e.type))).slice(0, 2).map(eventType => (
+                          {Array.from(new Set(day.summary.events.map(e => e.type))).slice(0, 2).map((eventType, index) => (
                             <Badge
-                              key={eventType}
+                              key={`${day.date}-${eventType}-${index}`}
                               variant="secondary"
                               className={`text-xs px-1 py-0 ${getEventTypeColor(eventType)}`}
                             >

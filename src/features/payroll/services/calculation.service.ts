@@ -2,6 +2,17 @@ import { PayrollContract, PayrollTimeEntry, PayrollOTPolicy, PayrollHoliday, Pay
 import { calcMonth, validateTimeEntry } from '../lib/calc';
 
 /**
+ * Calcula o último dia do mês corretamente
+ * @param year Ano
+ * @param month Mês (1-12)
+ * @returns String no formato YYYY-MM-DD do último dia do mês
+ */
+function getLastDayOfMonth(year: number, month: number): string {
+  const lastDay = new Date(year, month, 0).getDate();
+  return `${year}-${month.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
+}
+
+/**
  * Função de hash simples compatível com o browser
  * @param str String para fazer hash
  * @returns Hash hexadecimal
@@ -435,8 +446,8 @@ export async function calculatePayroll(userId: string, contractId: string, year:
       payrollService.getActiveContract(userId),
       payrollService.getActiveOTPolicy(userId, contractId),
       payrollService.getHolidays(userId, year, contractId),
-      payrollService.getTimeEntriesByContract(userId, contractId, `${year}-${month.toString().padStart(2, '0')}-01`, `${year}-${month.toString().padStart(2, '0')}-31`),
-      payrollService.getMileageTrips(userId, `${year}-${month.toString().padStart(2, '0')}-01`, `${year}-${month.toString().padStart(2, '0')}-31`, contractId),
+      payrollService.getTimeEntriesByContract(userId, contractId, `${year}-${month.toString().padStart(2, '0')}-01`, getLastDayOfMonth(year, month)),
+      payrollService.getMileageTrips(userId, `${year}-${month.toString().padStart(2, '0')}-01`, getLastDayOfMonth(year, month), contractId),
       payrollService.getActiveMileagePolicy(userId, contractId),
       payrollService.getMealAllowanceConfig(userId, contractId),
       payrollService.getVacations(userId, contractId, year),
@@ -453,7 +464,7 @@ export async function calculatePayroll(userId: string, contractId: string, year:
       otPolicy,
       holidays,
       mileageTrips: mileageTrips || [],
-      mileageRateCents: mileagePolicy?.rate_per_km_cents || 36,
+      mileageRateCents: mileagePolicy?.rate_cents_per_km || 36,
       mealAllowanceConfig: mealAllowanceConfig ? { excluded_months: mealAllowanceConfig.excluded_months, daily_amount_cents: mealAllowanceConfig.daily_amount_cents } : undefined,
       vacations: vacations || [],
       deductionConfig: deductionConfig ? { irs_percentage: deductionConfig.irs_percentage, social_security_percentage: deductionConfig.social_security_percentage } : undefined

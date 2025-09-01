@@ -17,6 +17,10 @@ export { WeeklyTimesheetForm } from './WeeklyTimesheetForm';
 export { PayrollMileagePolicyForm } from './PayrollMileagePolicyForm';
 export { MileageTripForm } from './MileageTripForm';
 
+// Performance bonus components
+export { PerformanceBonusConfig } from './PerformanceBonusConfig';
+export { PerformanceBonusResults } from './PerformanceBonusResults';
+
 // Period management components
 // PayrollPeriodPage removed - not used in routing
 
@@ -43,11 +47,16 @@ export type {
   PayrollOTPolicyFormData,
   PayrollHolidayFormData,
   PayrollMileagePolicyFormData,
-  PayrollMileageTripFormData
+  PayrollMileageTripFormData,
+  PerformanceBonusResult,
+  PerformanceBonusConfigInput,
+  PerformanceMetrics,
+  PerformanceBonusCalculation
 } from '../types';
 
 // Re-export services
 export { payrollService } from '../services/payrollService';
+export { performanceBonusService } from '../services/performanceBonusService';
 
 // Re-export calculation utilities
 export {

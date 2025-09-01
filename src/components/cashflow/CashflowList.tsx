@@ -329,7 +329,7 @@ export function CashflowList({
                       <CardContent className="pt-0">
                         <div className="space-y-3">
                           {summary.events.map((event, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                            <div key={event.id || `event-${event.type}-${index}`} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                               <div className="flex items-center gap-3">
                                 <Badge 
                                   variant="secondary" 

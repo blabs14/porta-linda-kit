@@ -60,7 +60,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
       setSelectedPolicy(policy || null);
       
       if (policy && formData.km > 0) {
-      setCalculatedAmount(policy.rate_per_km_cents * formData.km);
+      setCalculatedAmount(policy.rate_cents_per_km * formData.km);
       } else {
         setCalculatedAmount(0);
       }
@@ -173,7 +173,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
                 <SelectContent>
                   {activePolicies.map((policy) => (
                     <SelectItem key={policy.id} value={policy.id}>
-                      {policy.name} ({formatCurrency(policy.rate_per_km_cents)}/km)
+                      {policy.name} ({formatCurrency(policy.rate_cents_per_km)}/km)
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -288,7 +288,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
               </div>
               <div className="flex justify-between items-center">
                 <span>Taxa por km:</span>
-                <span className="font-medium">{formatCurrency(selectedPolicy.rate_per_km_cents)}</span>
+                <span className="font-medium">{formatCurrency(selectedPolicy.rate_cents_per_km)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span>Distância:</span>

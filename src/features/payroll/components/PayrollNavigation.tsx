@@ -50,6 +50,20 @@ export function PayrollNavigation({ className }: PayrollNavigationProps) {
       isNew: true
     },
     {
+      path: '/personal/payroll/performance-bonus',
+      label: 'Bónus Performance',
+      icon: BarChart3,
+      description: 'Configurar bónus automáticos',
+      isNew: true
+    },
+    {
+      path: '/personal/payroll/performance-results',
+      label: 'Resultados Performance',
+      icon: Table,
+      description: 'Histórico de bónus calculados',
+      isNew: true
+    },
+    {
       path: '/personal/payroll/subsidies',
       label: 'Visualizar Subsídios',
       icon: Gift,

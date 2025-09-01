@@ -79,7 +79,7 @@ export interface PayrollMileagePolicy {
   id: string;
   user_id: string;
   name: string;
-  rate_per_km_cents: number;
+  rate_cents_per_km: number;
   monthly_cap_cents?: number | null;
   requires_purpose?: boolean;
   requires_origin_destination?: boolean;
@@ -493,3 +493,17 @@ export interface PayrollDeductionConditionsFormData {
 export interface PayrollDeductionConfigExtended extends PayrollDeductionConfig {
   auto_deductions_enabled: boolean;
 }
+
+// Performance bonus types
+export type {
+  PerformanceBonusConfig,
+  PerformanceBonusResult,
+  PerformanceBonusConfigInput,
+  PerformanceMetrics,
+  PerformanceBonusCalculation,
+  MetricType,
+  ThresholdOperator,
+  BonusType,
+  EvaluationPeriod,
+  CalculationStatus
+} from './performanceBonus';

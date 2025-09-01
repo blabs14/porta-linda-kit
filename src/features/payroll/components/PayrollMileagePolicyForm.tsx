@@ -28,7 +28,7 @@ export function PayrollMileagePolicyForm({ policy, contractId, onSave, onCancel 
   const [contract, setContract] = useState<PayrollContract | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    rate_per_km_cents: 0,
+    rate_cents_per_km: 0,
     monthly_cap_cents: null as number | null,
     requires_purpose: false,
     requires_origin_destination: false,
@@ -40,7 +40,7 @@ export function PayrollMileagePolicyForm({ policy, contractId, onSave, onCancel 
     if (policy) {
       setFormData({
         name: policy.name,
-        rate_per_km_cents: policy.rate_per_km_cents,
+        rate_cents_per_km: policy.rate_cents_per_km,
         monthly_cap_cents: policy.monthly_cap_cents,
         requires_purpose: policy.requires_purpose || false,
         requires_origin_destination: policy.requires_origin_destination || false,
@@ -68,8 +68,8 @@ export function PayrollMileagePolicyForm({ policy, contractId, onSave, onCancel 
       newErrors.name = 'Nome é obrigatório';
     }
 
-    if (formData.rate_per_km_cents <= 0) {
-      newErrors.rate_per_km_cents = 'Taxa por KM deve ser maior que zero';
+    if (formData.rate_cents_per_km <= 0) {
+      newErrors.rate_cents_per_km = 'Taxa por KM deve ser maior que zero';
     }
 
     // monthly_cap_cents é opcional e pode ser null ou qualquer valor positivo
@@ -88,10 +88,21 @@ export function PayrollMileagePolicyForm({ policy, contractId, onSave, onCancel 
       return;
     }
 
+    if (typeof onSave !== 'function') {
+      console.error('onSave is not a function:', onSave);
+      return;
+    }
+
     setLoading(true);
     try {
+      // Converter dados do formulário para o formato esperado pelo serviço
       const policyData = {
-        ...formData
+        name: formData.name,
+        rate_per_km: centsToEuros(formData.rate_cents_per_km), // Converter cents para euros
+        monthly_cap_cents: formData.monthly_cap_cents,
+        requires_purpose: formData.requires_purpose,
+        requires_origin_destination: formData.requires_origin_destination,
+        is_active: formData.is_active
       };
 
       let savedPolicy: PayrollMileagePolicy;
@@ -124,11 +135,22 @@ export function PayrollMileagePolicyForm({ policy, contractId, onSave, onCancel 
   };
 
   const handleRateChange = (value: string) => {
-    const euros = parseFloat(value) || 0;
-    setFormData(prev => ({
-      ...prev,
-      rate_per_km_cents: eurosToCents(euros)
-    }));
+    // Permitir string vazia para permitir que o utilizador apague o campo
+    if (value === '') {
+      setFormData(prev => ({
+        ...prev,
+        rate_cents_per_km: 0
+      }));
+      return;
+    }
+    
+    const euros = parseFloat(value);
+    if (!isNaN(euros) && euros >= 0) {
+      setFormData(prev => ({
+        ...prev,
+        rate_cents_per_km: eurosToCents(euros)
+      }));
+    }
   };
 
   return (
@@ -168,14 +190,14 @@ export function PayrollMileagePolicyForm({ policy, contractId, onSave, onCancel 
                   type="number"
                   step="0.01"
                   min="0"
-                  value={centsToEuros(formData.rate_per_km_cents).toFixed(2)}
+                  value={formData.rate_cents_per_km === 0 ? '' : centsToEuros(formData.rate_cents_per_km).toFixed(2)}
                   onChange={(e) => handleRateChange(e.target.value)}
                   placeholder="0.40"
-                  className={`pl-10 ${errors.rate_per_km_cents ? 'border-red-500' : ''}`}
+                  className={`pl-10 ${errors.rate_cents_per_km ? 'border-red-500' : ''}`}
                 />
               </div>
-              {errors.rate_per_km_cents && (
-                <p className="text-sm text-red-500 mt-1">{errors.rate_per_km_cents}</p>
+              {errors.rate_cents_per_km && (
+                <p className="text-sm text-red-500 mt-1">{errors.rate_cents_per_km}</p>
               )}
               <p className="text-xs text-muted-foreground mt-1">
                 Taxa padrão em Portugal: €0.40/km (2025)

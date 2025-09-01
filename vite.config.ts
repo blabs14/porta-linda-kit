@@ -21,14 +21,28 @@ function createSafeComponentTagger() {
       const result = originalTagger.transform?.(code, id);
       
       if (typeof result === 'string') {
-        // Remove data-lov-id de React.Fragment
-        return result.replace(
-          /<React\.Fragment([^>]*?)\s+data-lov-id="[^"]*"([^>]*?)>/g,
+        // Remove data-lov-id de React.Fragment e fragmentos vazios
+        let cleanedResult = result;
+        
+        // Remove data-lov-id de <React.Fragment>
+        cleanedResult = cleanedResult.replace(
+          /<React\.Fragment([^>]*?)\s+data-lov-id=["'][^"']*["']([^>]*?)>/g,
           '<React.Fragment$1$2>'
-        ).replace(
-          /<>([^>]*?)\s+data-lov-id="[^"]*"([^>]*?)>/g,
+        );
+        
+        // Remove data-lov-id de <>
+        cleanedResult = cleanedResult.replace(
+          /<>([^>]*?)\s+data-lov-id=["'][^"']*["']([^>]*?)>/g,
           '<>$1$2>'
         );
+        
+        // Remove data-lov-id isolado de React.Fragment
+        cleanedResult = cleanedResult.replace(
+          /(<React\.Fragment[^>]*?)\s+data-lov-id=["'][^"']*["']/g,
+          '$1'
+        );
+        
+        return cleanedResult;
       }
       
       return result;

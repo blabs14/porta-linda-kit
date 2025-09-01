@@ -108,7 +108,7 @@ const PayrollMileagePage: React.FC = () => {
      totalKm: filteredTrips.reduce((sum, trip) => sum + trip.km, 0),
     totalAmount: filteredTrips.reduce((sum, trip) => {
       const policy = policies.find(p => p.id === trip.policy_id);
-      return sum + (policy ? trip.km * (policy.rate_per_km_cents / 100) : 0);
+      return sum + (policy ? trip.km * (policy.rate_cents_per_km / 100) : 0);
     }, 0)
    };
 
@@ -132,10 +132,10 @@ const PayrollMileagePage: React.FC = () => {
          `"${trip.destination}"`,
          `"${trip.purpose}"`,
          trip.km,
-         policies.find(p => p.id === trip.policy_id)?.rate_per_km_cents / 100 || 0,
+         policies.find(p => p.id === trip.policy_id)?.rate_cents_per_km / 100 || 0,
          (() => {
            const policy = policies.find(p => p.id === trip.policy_id);
-           return policy ? (trip.km * (policy.rate_per_km_cents / 100)).toFixed(2) : '0.00';
+           return policy ? (trip.km * (policy.rate_cents_per_km / 100)).toFixed(2) : '0.00';
          })()
        ].join(','))
      ].join('\n');
@@ -215,7 +215,7 @@ const PayrollMileagePage: React.FC = () => {
   };
 
   // Handlers para políticas
-  const handleSavePolicy = async (policyData: Partial<PayrollMileagePolicy>) => {
+  const handleSavePolicy = useCallback(async (policyData: PayrollMileagePolicy) => {
     if (!user || !contract?.id) return;
     
     setIsSaving(true);
@@ -223,9 +223,9 @@ const PayrollMileagePage: React.FC = () => {
       if (selectedPolicy) {
         const formData: MileagePolicyFormData = {
           name: policyData.name,
-          rate_per_km: policyData.rate_per_km_cents / 100
+          rate_per_km: policyData.rate_cents_per_km ? policyData.rate_cents_per_km / 100 : 0
         };
-        const updatedPolicy = await payrollService.updateMileagePolicy(selectedPolicy.id, formData);
+        const updatedPolicy = await payrollService.updateMileagePolicy(selectedPolicy.id, formData, user.id, contract.id);
         setPolicies(prev => prev.map(policy => 
           policy.id === selectedPolicy.id ? updatedPolicy : policy
         ));
@@ -237,9 +237,9 @@ const PayrollMileagePage: React.FC = () => {
       } else {
         const formData: MileagePolicyFormData = {
           name: policyData.name,
-          rate_per_km: policyData.rate_per_km_cents / 100
+          rate_per_km: policyData.rate_cents_per_km ? policyData.rate_cents_per_km / 100 : 0
         };
-        const newPolicy = await payrollService.createMileagePolicy(user.id, contract.id, formData);
+        const newPolicy = await payrollService.createMileagePolicy(user.id, { ...formData, contract_id: contract.id });
         setPolicies(prev => [newPolicy, ...prev]);
         toast({
           title: 'Sucesso',
@@ -258,7 +258,7 @@ const PayrollMileagePage: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [user, contract, selectedPolicy, toast]);
 
   const handleDeletePolicy = async (policyId: string) => {
     if (!user || !contract) return;
@@ -423,7 +423,7 @@ const PayrollMileagePage: React.FC = () => {
                           <span className="text-sm text-gray-500">{trip.km} km</span>
                         <span className="text-sm font-medium text-green-600">{(() => {
                           const policy = policies.find(p => p.id === trip.policy_id);
-                          const amountCents = policy ? trip.km * policy.rate_per_km_cents : 0;
+                          const amountCents = policy ? trip.km * policy.rate_cents_per_km : 0;
                           return formatCurrency(amountCents, 'pt-PT', contract?.currency || 'EUR');
                         })()}</span>
                         </div>
@@ -496,7 +496,7 @@ const PayrollMileagePage: React.FC = () => {
                       <div className="flex-1">
                         <div className="flex items-center gap-4 mb-2">
                           <span className="font-medium">{policy.name}</span>
-                          <span className="text-sm font-medium text-green-600">{formatCurrency(policy.rate_per_km_cents, 'pt-PT', contract?.currency || 'EUR')}/km</span>
+                          <span className="text-sm font-medium text-green-600">{formatCurrency(policy.rate_cents_per_km, 'pt-PT', contract?.currency || 'EUR')}/km</span>
                         </div>
 
                         <div className="text-xs text-gray-500">
@@ -545,14 +545,21 @@ const PayrollMileagePage: React.FC = () => {
 
       <Dialog open={showPolicyForm} onOpenChange={setShowPolicyForm}>
         <DialogContent className="max-w-2xl">
-          <PayrollMileagePolicyForm
-            policy={selectedPolicy}
-            onSave={handleSavePolicy}
-            onCancel={() => {
-              setShowPolicyForm(false);
-              setSelectedPolicy(null);
-            }}
-          />
+          {contract?.id ? (
+            <PayrollMileagePolicyForm
+              policy={selectedPolicy}
+              contractId={contract.id}
+              onSave={handleSavePolicy}
+              onCancel={() => {
+                setShowPolicyForm(false);
+                setSelectedPolicy(null);
+              }}
+            />
+          ) : (
+            <div className="p-4 text-center">
+              <p>A carregar contrato...</p>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

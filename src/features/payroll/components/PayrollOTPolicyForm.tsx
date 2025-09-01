@@ -184,7 +184,7 @@ export function PayrollOTPolicyForm({ policy, contractId, onSave, onCancel }: Pa
               <Label htmlFor="name">Nome da Política</Label>
               <Input
                 id="name"
-                value={formData.name}
+                value={formData.name || ''}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="Ex: Política Padrão de HE"
                 required
@@ -246,7 +246,7 @@ export function PayrollOTPolicyForm({ policy, contractId, onSave, onCancel }: Pa
                   type="number"
                   step="0.5"
                   min="0"
-                  value={formData.threshold_hours}
+                  value={formData.threshold_hours || 8}
                   onChange={(e) => setFormData(prev => ({ ...prev, threshold_hours: parseFloat(e.target.value) || 0 }))}
                   placeholder="8"
                   required
@@ -261,7 +261,7 @@ export function PayrollOTPolicyForm({ policy, contractId, onSave, onCancel }: Pa
                 type="number"
                 step="0.01"
                 min="1"
-                value={formData.multiplier}
+                value={formData.multiplier || 1.25}
                 onChange={(e) => setFormData(prev => ({ ...prev, multiplier: parseFloat(e.target.value) || 1 }))}
                 placeholder="1.50"
                 required
@@ -346,7 +346,7 @@ export function PayrollOTPolicyForm({ policy, contractId, onSave, onCancel }: Pa
                 <Input
                   id="night_start_time"
                   type="time"
-                  value={formData.night_start_time}
+                  value={formData.night_start_time || '22:00'}
                   onChange={(e) => setFormData(prev => ({ ...prev, night_start_time: e.target.value }))}
                   required
                 />
@@ -357,7 +357,7 @@ export function PayrollOTPolicyForm({ policy, contractId, onSave, onCancel }: Pa
                 <Input
                   id="night_end_time"
                   type="time"
-                  value={formData.night_end_time}
+                  value={formData.night_end_time || '07:00'}
                   onChange={(e) => setFormData(prev => ({ ...prev, night_end_time: e.target.value }))}
                   required
                 />
@@ -370,7 +370,7 @@ export function PayrollOTPolicyForm({ policy, contractId, onSave, onCancel }: Pa
             <Label htmlFor="description">Descrição</Label>
             <Textarea
               id="description"
-              value={formData.description}
+              value={formData.description || ''}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
               placeholder="Descrição detalhada da política..."
               rows={3}

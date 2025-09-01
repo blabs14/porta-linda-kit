@@ -79,7 +79,7 @@ describe('Payroll Calculation Functions', () => {
     id: '1',
     user_id: 'user1',
     name: 'Standard Mileage',
-    rate_per_km_cents: 36, // €0.36
+    rate_cents_per_km: 36, // €0.36
     monthly_limit_km: 1000,
     requires_receipt: false,
     is_active: true,
@@ -297,7 +297,7 @@ describe('Payroll Calculation Functions', () => {
 
     it('should calculate mileage reimbursement correctly', () => {
       const trips = [mockMileageTrip];
-      const reimbursement = calcMileage(trips, mockMileagePolicy.rate_per_km_cents);
+      const reimbursement = calcMileage(trips, mockMileagePolicy.rate_cents_per_km);
       expect(reimbursement).toBe(900); // 25 km * €0.36
     });
   });

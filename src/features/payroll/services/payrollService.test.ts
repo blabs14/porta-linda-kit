@@ -154,7 +154,7 @@ describe('PayrollService Integration Tests', () => {
   const mockMileagePolicy: Omit<PayrollMileagePolicy, 'id' | 'created_at' | 'updated_at'> = {
     user_id: 'user1',
     name: 'Standard Mileage',
-    rate_per_km_cents: 36,
+    rate_cents_per_km: 36,
     is_active: true
   };
 
@@ -510,7 +510,7 @@ describe('PayrollService Integration Tests', () => {
       const mockHolidays = { data: [], error: null };
       const mockTimeEntries = { data: [{ date: '2024-01-01', hours: 8 }], error: null };
       const mockMileageTrips = { data: [], error: null };
-      const mockMileagePolicy = { data: { rate_per_km_cents: 50 }, error: null };
+      const mockMileagePolicy = { data: { rate_cents_per_km: 50 }, error: null };
       const mockPeriod = { data: null, error: null };
       
       // Setup mocks for all the queries

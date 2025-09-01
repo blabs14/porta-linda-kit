@@ -30,6 +30,17 @@ import {
 import { eurosToCents, centsToEuros, calculateHourlyRate } from '../lib/calc';
 import { holidayAutoService } from './holidayAutoService';
 
+/**
+ * Calcula o último dia do mês corretamente
+ * @param year Ano
+ * @param month Mês (1-12)
+ * @returns String no formato YYYY-MM-DD do último dia do mês
+ */
+function getLastDayOfMonth(year: number, month: number): string {
+  const lastDay = new Date(year, month, 0).getDate();
+  return `${year}-${month.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
+}
+
 // ============================================================================
 // CONTRATOS
 // ============================================================================
@@ -1067,6 +1078,25 @@ export async function createTimeEntry(
   contractId: string,
   entryData: Omit<PayrollTimeEntry, 'id' | 'user_id' | 'contract_id' | 'created_at' | 'updated_at'>
 ): Promise<PayrollTimeEntry> {
+  // Verificar se já existe uma entrada para esta data e contrato
+  const dateStr = entryData.date instanceof Date 
+    ? entryData.date.toISOString().split('T')[0]
+    : new Date(entryData.date).toISOString().split('T')[0];
+    
+  const { data: existing } = await supabase
+    .from('payroll_time_entries')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .eq('date', dateStr)
+    .single();
+    
+  if (existing) {
+    // Se já existe, atualizar em vez de criar
+    return updateTimeEntry(existing.id, entryData, userId, contractId);
+  }
+  
+  // Se não existe, criar nova entrada
   const { data, error } = await supabase
     .from('payroll_time_entries')
     .insert({
@@ -1202,7 +1232,7 @@ export async function createMileagePolicy(
       user_id: userId,
       contract_id: contractId,
       name: policyData.name,
-      rate_per_km_cents: eurosToCents(policyData.rate_per_km),
+      rate_cents_per_km: eurosToCents(policyData.rate_per_km),
       is_active: true
     })
     .select()
@@ -1237,7 +1267,7 @@ export async function upsertMileagePolicy(
     user_id: userId,
     contract_id: finalContractId,
     name: policyData.name || 'Política de Quilometragem',
-    rate_per_km_cents: eurosToCents(policyData.rate_per_km),
+    rate_cents_per_km: eurosToCents(policyData.rate_per_km),
     monthly_cap_cents: policyData.monthly_cap ? eurosToCents(policyData.monthly_cap) : null,
     requires_origin_destination: policyData.requires_origin_destination || false,
     requires_purpose: policyData.requires_purpose || false,
@@ -1281,7 +1311,7 @@ export async function updateMileagePolicy(
     updateData.name = policyData.name;
   }
   if (policyData.rate_per_km !== undefined) {
-    updateData.rate_per_km_cents = eurosToCents(policyData.rate_per_km);
+    updateData.rate_cents_per_km = eurosToCents(policyData.rate_per_km);
   }
 
   let query = supabase
@@ -1688,8 +1718,8 @@ export async function recalculatePayroll(
       getContract(userId, contractId),
       getOTPolicy(userId),
       getHolidays(userId, year),
-      getTimeEntries(userId, `${year}-${month.toString().padStart(2, '0')}-01`, `${year}-${month.toString().padStart(2, '0')}-31`, contractId),
-      getMileageTrips(userId, `${year}-${month.toString().padStart(2, '0')}-01`, `${year}-${month.toString().padStart(2, '0')}-31`),
+      getTimeEntries(userId, `${year}-${month.toString().padStart(2, '0')}-01`, getLastDayOfMonth(year, month), contractId),
+      getMileageTrips(userId, `${year}-${month.toString().padStart(2, '0')}-01`, getLastDayOfMonth(year, month)),
       getActiveMileagePolicy(userId),
       getDeductionConfig(userId, contractId),
       getMealAllowanceConfig(userId, contractId).catch(() => null)
@@ -1701,7 +1731,7 @@ export async function recalculatePayroll(
     // Importar função de cálculo
     const { calcMonth } = await import('../lib/calc');
     
-    const mileageRate = mileagePolicy?.rate_per_km_cents || 36; // €0.36 padrão
+    const mileageRate = mileagePolicy?.rate_cents_per_km || 36; // €0.36 padrão
     
     const calculation = calcMonth(
       contract,
@@ -1914,6 +1944,7 @@ export const payrollService = {
   // Licenças
   getLeaves,
   getPayrollLeaves: getLeaves, // Alias para compatibilidade com testes
+  getLeavesForWeek,
   createLeave,
   createPayrollLeave: createLeave, // Alias para compatibilidade com testes
   updateLeave,
@@ -2242,6 +2273,30 @@ export async function checkLeaveOverlap(
 
   if (error) throw error;
   return (data || []).length > 0;
+}
+
+// Função para carregar períodos de férias que se sobrepõem com uma semana específica
+export async function getLeavesForWeek(
+  userId: string,
+  weekStartDate: string,
+  weekEndDate: string,
+  contractId?: string
+): Promise<PayrollLeave[]> {
+  let query = supabase
+    .from('payroll_leaves')
+    .select('*')
+    .eq('user_id', userId)
+    .in('status', ['approved', 'active'])
+    .or(`start_date.lte.${weekEndDate},end_date.gte.${weekStartDate}`);
+
+  if (contractId) {
+    query = query.eq('contract_id', contractId);
+  }
+
+  const { data, error } = await query.order('start_date', { ascending: true });
+
+  if (error) throw error;
+  return data || [];
 }
 
 // ============================================================================

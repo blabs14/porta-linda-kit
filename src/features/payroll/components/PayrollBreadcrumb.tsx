@@ -26,7 +26,7 @@ export function PayrollBreadcrumb({ items }: PayrollBreadcrumbProps) {
           const isLast = index === items.length - 1;
           
           return (
-            <React.Fragment key={`breadcrumb-${index}`}>
+            <div key={`breadcrumb-${index}`} className="contents">
               <BreadcrumbItem>
                 {isLast ? (
                   <BreadcrumbPage>{item.label}</BreadcrumbPage>
@@ -37,7 +37,7 @@ export function PayrollBreadcrumb({ items }: PayrollBreadcrumbProps) {
                 )}
               </BreadcrumbItem>
               {!isLast && <BreadcrumbSeparator />}
-            </React.Fragment>
+            </div>
           );
         })}
       </BreadcrumbList>

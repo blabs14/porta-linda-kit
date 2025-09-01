@@ -6,6 +6,8 @@ import PayrollConfigPage from '../pages/PayrollConfigPage';
 import { PayrollBonusPage } from '../pages/PayrollBonusPage';
 import { PayrollBonusSettingsPage } from '../pages/PayrollBonusSettingsPage';
 import PayrollSubsidiesViewPage from '../pages/PayrollSubsidiesViewPage';
+import { PerformanceBonusConfig } from './PerformanceBonusConfig';
+import { PerformanceBonusResults } from './PerformanceBonusResults';
 import PayrollVacationCalendarPage from '../pages/PayrollVacationCalendarPage';
 import PayrollContractsPage from '../pages/PayrollContractsPage';
 
@@ -47,6 +49,8 @@ function PayrollContent() {
         <Route path="timesheet" element={<WeeklyTimesheetForm initialWeekStart={getMondayOfCurrentWeek()} />} />
         <Route path="km" element={<PayrollMileagePage />} />
         <Route path="bonus" element={<PayrollBonusPage />} />
+        <Route path="performance-bonus" element={<PerformanceBonusConfig />} />
+        <Route path="performance-results" element={<PerformanceBonusResults />} />
         <Route path="subsidies" element={<PayrollSubsidiesViewPage />} />
         <Route path="vacations" element={<PayrollVacationCalendarPage />} />
         <Route path="contracts" element={<PayrollContractsPage />} />
