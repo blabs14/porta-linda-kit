@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { payrollService } from '../services/payrollService';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, addDays } from 'date-fns';
 import { pt } from 'date-fns/locale';
+import { logger, withContext, maskId } from '@/shared/lib/logger';
 
 interface CompensatoryRestManagerProps {
   contractId?: string;
@@ -34,7 +35,19 @@ export function CompensatoryRestManager({ contractId }: CompensatoryRestManagerP
     medical_certificate: false,
     notes: ''
   });
-
+  // Generate a per-page correlationId for traceability
+  const correlationIdRef = useRef<string>('');
+  if (!correlationIdRef.current) {
+    correlationIdRef.current = (globalThis as any)?.crypto?.randomUUID?.() ?? `compRest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+  // Contextual logger for this component
+  const log = withContext({
+    feature: 'payroll',
+    component: 'CompensatoryRestManager',
+    userId: maskId(user?.id),
+    contractId: maskId(contractId),
+    correlationId: correlationIdRef.current,
+  });
   useEffect(() => {
     if (user?.id) {
       loadCompensatoryRests();
@@ -44,12 +57,14 @@ export function CompensatoryRestManager({ contractId }: CompensatoryRestManagerP
   const loadCompensatoryRests = async () => {
     try {
       setLoading(true);
+      log.debug('Loading compensatory rests');
       const data = await payrollService.getLeaves(user!.id, contractId);
       // Filtrar apenas descansos compensatórios
       const compensatoryData = data.filter(leave => leave.leave_type === 'compensatory_rest');
       setCompensatoryRests(compensatoryData);
+      log.info('Compensatory rests loaded', { count: compensatoryData.length });
     } catch (error) {
-      console.error('Erro ao carregar descansos compensatórios:', error);
+      log.error('Failed to load compensatory rests', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar os descansos compensatórios.',
@@ -68,6 +83,7 @@ export function CompensatoryRestManager({ contractId }: CompensatoryRestManagerP
     try {
       // Validar datas
       if (new Date(formData.start_date) > new Date(formData.end_date)) {
+        log.warn('Start date must be before or equal to end date', { start_date: formData.start_date, end_date: formData.end_date });
         toast({
           title: 'Erro',
           description: 'A data de início deve ser anterior à data de fim.',
@@ -86,6 +102,7 @@ export function CompensatoryRestManager({ contractId }: CompensatoryRestManagerP
       );
 
       if (hasOverlap) {
+        log.warn('Leave period overlaps with an existing leave', { start_date: formData.start_date, end_date: formData.end_date, editingId: maskId(editingRest?.id) });
         toast({
           title: 'Erro',
           description: 'Já existe uma licença no período selecionado.',
@@ -108,14 +125,17 @@ export function CompensatoryRestManager({ contractId }: CompensatoryRestManagerP
         percentage_paid: 100
       };
 
+      log.debug('Submitting compensatory rest', { totalDays, editing: Boolean(editingRest), editingId: maskId(editingRest?.id) });
       if (editingRest) {
         await payrollService.updateLeave(editingRest.id, submitData, user.id, contractId);
+        log.info('Compensatory rest updated successfully', { restId: maskId(editingRest.id) });
         toast({
           title: 'Sucesso',
           description: 'Descanso compensatório atualizado com sucesso.'
         });
       } else {
         await payrollService.createLeave(user.id, submitData);
+        log.info('Compensatory rest created successfully');
         toast({
           title: 'Sucesso',
           description: 'Descanso compensatório criado com sucesso.'
@@ -125,7 +145,7 @@ export function CompensatoryRestManager({ contractId }: CompensatoryRestManagerP
       await loadCompensatoryRests();
       resetForm();
     } catch (error) {
-      console.error('Erro ao salvar descanso compensatório:', error);
+      log.error('Failed to save compensatory rest', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível salvar o descanso compensatório.',
@@ -137,13 +157,14 @@ export function CompensatoryRestManager({ contractId }: CompensatoryRestManagerP
   const handleDelete = async (id: string) => {
     try {
       await payrollService.deleteLeave(id, user?.id, contractId);
+      log.info('Compensatory rest deleted successfully', { restId: maskId(id) });
       toast({
         title: 'Sucesso',
         description: 'Descanso compensatório excluído com sucesso.'
       });
       await loadCompensatoryRests();
     } catch (error) {
-      console.error('Erro ao excluir descanso compensatório:', error);
+      log.error('Failed to delete compensatory rest', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível excluir o descanso compensatório.',
@@ -155,13 +176,14 @@ export function CompensatoryRestManager({ contractId }: CompensatoryRestManagerP
   const handleApprove = async (id: string) => {
     try {
       await payrollService.approveLeave(id, user!.id, user!.id, contractId);
+      log.info('Compensatory rest approved successfully', { restId: maskId(id) });
       toast({
         title: 'Sucesso',
         description: 'Descanso compensatório aprovado com sucesso.'
       });
       await loadCompensatoryRests();
     } catch (error) {
-      console.error('Erro ao aprovar descanso compensatório:', error);
+      log.error('Failed to approve compensatory rest', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível aprovar o descanso compensatório.',
@@ -173,13 +195,14 @@ export function CompensatoryRestManager({ contractId }: CompensatoryRestManagerP
   const handleReject = async (id: string) => {
     try {
       await payrollService.rejectLeave(id, user!.id, user!.id, contractId);
+      log.info('Compensatory rest rejected successfully', { restId: maskId(id) });
       toast({
         title: 'Sucesso',
         description: 'Descanso compensatório rejeitado com sucesso.'
       });
       await loadCompensatoryRests();
     } catch (error) {
-      console.error('Erro ao rejeitar descanso compensatório:', error);
+      log.error('Failed to reject compensatory rest', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível rejeitar o descanso compensatório.',

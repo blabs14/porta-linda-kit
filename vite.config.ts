@@ -56,6 +56,7 @@ function createSafeComponentTagger() {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const supabaseUrl = env.VITE_SUPABASE_URL || "";
+  const isDev = mode === "development";
 
   let supabasePattern = /^https:\/\/.*supabase\.co\/.*$/i;
   try {
@@ -88,7 +89,7 @@ export default defineConfig(({ mode }) => {
         srcDir: 'src',
         filename: 'sw.ts',
         devOptions: {
-          enabled: true,
+          enabled: !isDev && true, // desativa SW no dev para evitar cache entre portas
           suppressWarnings: true,
           type: 'module',
         },

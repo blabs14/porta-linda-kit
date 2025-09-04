@@ -37,4 +37,24 @@ export const logger = {
   info: (...args: unknown[]) => { if (shouldLog('info')) console.info('[INFO]', ...args); },
   warn: (...args: unknown[]) => { if (shouldLog('warn')) console.warn('[WARN]', ...args); },
   error: (...args: unknown[]) => { if (shouldLog('error')) console.error('[ERROR]', ...args); },
-} as const; 
+} as const;
+
+export type LogMeta = Record<string, unknown>;
+
+// Cria um logger com contexto fixo (ex.: { feature: 'payroll', component: 'X' })
+export function withContext(meta: LogMeta) {
+  return {
+    debug: (...args: unknown[]) => logger.debug(meta, ...args),
+    info: (...args: unknown[]) => logger.info(meta, ...args),
+    warn: (...args: unknown[]) => logger.warn(meta, ...args),
+    error: (...args: unknown[]) => logger.error(meta, ...args),
+  } as const;
+}
+
+// Mascarar IDs para logs (mostra apenas os últimos dígitos)
+export function maskId(id: string | number | null | undefined, visible: number = 4): string | null {
+  if (id === null || id === undefined) return null;
+  const s = String(id);
+  if (s.length <= visible) return s;
+  return '***' + s.slice(-visible);
+}

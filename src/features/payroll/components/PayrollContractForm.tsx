@@ -200,6 +200,13 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
           });
         } finally {
           setSyncingHolidays(false);
+          // Emitir evento global após tentativa de sincronização regional
+          try {
+            const currentYear = new Date().getFullYear();
+            window.dispatchEvent(new CustomEvent('holiday-sync:completed', {
+              detail: { contractId: savedContract.id, year: currentYear }
+            }));
+          } catch {}
         }
       } else {
         toast({
@@ -207,6 +214,13 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
           description: 'Feriados nacionais sincronizados com sucesso!',
           variant: 'default'
         });
+        // Emitir evento global quando apenas feriados nacionais foram sincronizados
+        try {
+          const currentYear = new Date().getFullYear();
+          window.dispatchEvent(new CustomEvent('holiday-sync:completed', {
+            detail: { contractId: savedContract.id, year: currentYear }
+          }));
+        } catch {}
       }
 
       onSave?.(savedContract);

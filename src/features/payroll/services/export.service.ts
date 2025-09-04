@@ -1,5 +1,6 @@
 import { calculatePayroll } from './calculation.service';
 import { payrollService } from './payrollService';
+import { formatDateLocal } from '@/lib/dateUtils';
 
 export interface PayrollExportData {
   period: {
@@ -78,10 +79,9 @@ export const fetchPayrollExportData = async (
     const payrollResult = await calculatePayroll(userId, contractData.id, year, month);
     
     // Buscar horas trabalhadas
-    const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
-    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
-    
-    const hoursData = await payrollService.getTimeEntries(userId, startDate, endDate, contractData.id);
+    const startDate = formatDateLocal(new Date(year, month - 1, 1));
+    const endDate = formatDateLocal(new Date(year, month, 0));
+    const hoursData = await payrollService.getTimeEntries(userId, contractData.id, startDate, endDate);
     
     // Buscar viagens de quilometragem
     const mileageData = await payrollService.getMileageTrips(userId, startDate, endDate, contractData.id);
@@ -367,10 +367,17 @@ const clampToMonthBoundaries = (dateRange: { start: string; end: string }) => {
   // Clamp to month boundaries
   const clampedStart = requestedStart < monthStart ? monthStart : requestedStart;
   const clampedEnd = requestedEnd > monthEnd ? monthEnd : requestedEnd;
+
+  // TEMP LOG: clamp boundaries
+  console.log('[Export] clampToMonthBoundaries', {
+    input: { start: dateRange.start, end: dateRange.end },
+    monthContext: { year, month: month + 1 },
+    output: { start: formatDateLocal(clampedStart), end: formatDateLocal(clampedEnd) }
+  });
   
   return {
-    start: clampedStart.toISOString().split('T')[0],
-    end: clampedEnd.toISOString().split('T')[0],
+    start: formatDateLocal(clampedStart),
+    end: formatDateLocal(clampedEnd),
     year,
     month: month + 1
   };

@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/utils';
 import { centsToEuros } from '../lib/calc';
+import { formatDateLocal } from '@/lib/dateUtils';
 
 interface MileageTripFormProps {
   trip?: PayrollMileageTrip;
@@ -27,7 +28,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     policy_id: '',
-    date: new Date().toISOString().split('T')[0],
+    date: formatDateLocal(new Date()),
     origin: '',
     destination: '',
     km: 0,
@@ -49,7 +50,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
     });
     } else {
       // Set default date to today
-      const today = new Date().toISOString().split('T')[0];
+      const today = formatDateLocal(new Date());
       setFormData(prev => ({ ...prev, date: today }));
     }
   }, [trip]);

@@ -11,7 +11,9 @@ import { PerformanceBonusResults } from './PerformanceBonusResults';
 import PayrollVacationCalendarPage from '../pages/PayrollVacationCalendarPage';
 import PayrollContractsPage from '../pages/PayrollContractsPage';
 
-import { PayrollOnboardingWizard, PayrollSetupPage, WeeklyTimesheetForm } from './index';
+import { PayrollOnboardingWizard } from './PayrollOnboardingWizard';
+import { PayrollSetupPage } from './PayrollSetupPage';
+import { WeeklyTimesheetForm } from './WeeklyTimesheetForm';
 import { PayrollNavigation } from './PayrollNavigation';
 import { PayrollPeriodsManager } from './PayrollPeriodsManager';
 import { ActiveContractProvider } from '../contexts/ActiveContractContext';

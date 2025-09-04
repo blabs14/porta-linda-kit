@@ -12,6 +12,7 @@ import {
   PlannedSchedule, 
   PayrollCalculation 
 } from '../types';
+import { formatDateLocal } from '@/lib/dateUtils';
 
 /**
  * Verifica se o trabalho ocorre durante horário noturno
@@ -76,7 +77,7 @@ export function buildPlannedSchedule(
   const dailyHours = contract.weekly_hours / 7; // Distribuição uniforme
 
   while (current <= endDate) {
-    const dateStr = current.toISOString().split('T')[0];
+    const dateStr = formatDateLocal(current);
     const holiday = holidays.find(h => h.date === dateStr);
     
     schedule.push({
@@ -612,23 +613,32 @@ export function calculateHours(
 ): number {
   let startTime: Date;
   let endTime: Date;
-  
+
+  // Helper: converte string de tempo (H:MM, HH:MM, H:MM:SS, HH:MM:SS) para Date fixa
+  const toDateFromTimeString = (timeStr: string): Date => {
+    const [h, m, s] = timeStr.split(":");
+    const hh = (h ?? "0").padStart(2, "0");
+    const mm = (m ?? "0").padStart(2, "0");
+    const ss = (s ?? "00").padStart(2, "0");
+    return new Date(`1970-01-01T${hh}:${mm}:${ss}`);
+  };
+
+  const isTimeOnly = (val: string) => /^\d{1,2}:\d{2}(?::\d{2})?$/.test(val);
+
   if (typeof start === 'string') {
-    // Se é uma string de tempo (HH:MM), criar uma data com data atual
-    if (start.includes(':') && start.length <= 5) {
-      startTime = new Date(`1970-01-01T${start}:00`);
+    if (isTimeOnly(start)) {
+      startTime = toDateFromTimeString(start);
     } else {
       startTime = new Date(start);
     }
   } else {
     startTime = start;
   }
-  
+
   if (typeof end === 'string') {
-    // Se é uma string de tempo (HH:MM), criar uma data com data atual
-    if (end.includes(':') && end.length <= 5) {
-      endTime = new Date(`1970-01-01T${end}:00`);
-      // Se o horário de fim é menor que o de início, é um turno noturno
+    if (isTimeOnly(end)) {
+      endTime = toDateFromTimeString(end);
+      // Se o horário de fim é menor/igual ao de início, considerar turno a atravessar a meia-noite
       if (endTime <= startTime) {
         endTime = new Date(endTime.getTime() + 24 * 60 * 60 * 1000);
       }
@@ -638,11 +648,25 @@ export function calculateHours(
   } else {
     endTime = end;
   }
-  
-  const diffMs = endTime.getTime() - startTime.getTime();
-  const diffMinutes = diffMs / (1000 * 60) - breakMinutes;
-  
-  return Math.max(0, diffMinutes / 60);
+
+  // Guardas contra datas inválidas
+  const startMs = startTime?.getTime?.();
+  const endMs = endTime?.getTime?.();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    if (typeof console !== 'undefined') {
+      // Log leve para diagnóstico; remover após estabilização
+      console.warn('[calculateHours] Horas inválidas recebidas', { start, end });
+    }
+    return 0;
+  }
+
+  const diffMs = (endMs as number) - (startMs as number);
+  const bm = Number.isFinite(Number(breakMinutes)) ? Number(breakMinutes) : 0;
+  const diffMinutes = diffMs / (1000 * 60) - bm;
+
+  // Evitar NaN
+  const hours = diffMinutes / 60;
+  return Number.isFinite(hours) && hours > 0 ? hours : 0;
 }
 
 /**

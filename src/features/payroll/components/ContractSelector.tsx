@@ -34,7 +34,7 @@ export function ContractSelector({ className }: ContractSelectorProps) {
       
       toast({
         title: 'Contrato alterado',
-        description: t('payroll.contract.selector.switchedTo', { name: selectedContract.job_title }),
+        description: t('payroll.contract.selector.switchedTo', { name: selectedContract.job_category || selectedContract.name }),
         variant: 'default',
       });
     }
@@ -68,9 +68,9 @@ export function ContractSelector({ className }: ContractSelectorProps) {
     return (
       <div className={`flex items-center gap-2 ${className}`}>
         <FileText className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium">{contract.job_title}</span>
+        <span className="text-sm font-medium">{contract.job_category || contract.name}</span>
         <Badge variant="outline" className="text-xs">
-          {contract.company_name}
+          {contract.workplace_location || 'Local não definido'}
         </Badge>
       </div>
     );
@@ -97,9 +97,9 @@ export function ContractSelector({ className }: ContractSelectorProps) {
           >
             {activeContract && (
               <div className="flex items-center gap-2">
-                <span className="font-medium">{activeContract.job_title}</span>
+                <span className="font-medium">{activeContract.job_category || activeContract.name}</span>
                 <Badge variant="outline" className="text-xs">
-                  {activeContract.company_name}
+                  {activeContract.workplace_location || 'Local não definido'}
                 </Badge>
               </div>
             )}
@@ -114,9 +114,9 @@ export function ContractSelector({ className }: ContractSelectorProps) {
             >
               <div className="flex items-center justify-between w-full">
                 <div className="flex flex-col">
-                  <span className="font-medium">{contract.job_title}</span>
+                  <span className="font-medium">{contract.job_category || contract.name}</span>
                   <span className="text-xs text-muted-foreground">
-                    {contract.company_name}
+                    {contract.workplace_location || 'Local não definido'}
                   </span>
                 </div>
                 {contract.id === activeContract?.id && (

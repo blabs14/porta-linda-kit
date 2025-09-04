@@ -21,7 +21,7 @@ describe('PayrollCalculationService', () => {
       user_id: 'user-1',
       base_salary_cents: 120000, // €1200 (acima do salário mínimo €870)
       hourly_rate_cents: 750, // €7.50
-      weekly_hours: 40,
+      weekly_hours: 35,
       schedule_json: {
         monday: { enabled: true, start: '09:00', end: '18:00', break_minutes: 60 },
         tuesday: { enabled: true, start: '09:00', end: '18:00', break_minutes: 60 },

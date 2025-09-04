@@ -10,6 +10,7 @@ import { PerformanceBonusResult } from '../types/performanceBonus';
 import { useToast } from '../../../hooks/use-toast';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
+import { formatDateLocal } from '@/lib/dateUtils';
 
 interface PerformanceBonusResultsProps {
   contractId?: string;
@@ -59,8 +60,8 @@ export const PerformanceBonusResults: React.FC<PerformanceBonusResultsProps> = (
         }
         
         period = {
-          start: start.toISOString().split('T')[0],
-          end: now.toISOString().split('T')[0]
+          start: formatDateLocal(start),
+          end: formatDateLocal(now)
         };
       }
       

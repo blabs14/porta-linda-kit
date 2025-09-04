@@ -44,6 +44,23 @@ const resources = {
             errorDescription: 'Ocorreu um erro ao criar o contrato. Tente novamente.',
           },
         },
+        timesheet: {
+          blockedDays: {
+            notice_one: '{{count}} dia está bloqueado para edição de horas',
+            notice_other: '{{count}} dias estão bloqueados para edição de horas',
+            aria_one: 'Limpou horas de {{count}} dia bloqueado (feriado, férias ou doente)',
+            aria_other: 'Limpou horas de {{count}} dias bloqueados (feriados, férias ou doente)',
+          },
+          holiday: {
+            tooltip: 'Feriado - predefinido pelo sistema, desative via contrato se necessário',
+            disabled: 'Checkbox de feriado é apenas informativo. Para alterar, configure no contrato.',
+            ariaLabel: 'Dia marcado como feriado (apenas leitura)',
+          },
+          exception: {
+            tooltip: 'Permite editar horas mesmo em feriados, férias ou doença',
+            ariaLabel: 'Marcar como exceção ao horário normal',
+          },
+        },
         export: {
           includeHours: 'Incluir horas trabalhadas',
           includeMileage: 'Incluir quilometragem',
@@ -73,6 +90,13 @@ const resources = {
         exportSuccess: 'O relatório foi exportado com sucesso em formato {{format}}',
         exportError: 'Erro ao exportar',
         exportErrorDescription: 'Ocorreu um erro ao exportar o relatório',
+      },
+      timesheet: {
+        nav: {
+          prev_with_shortcut: 'Semana anterior (Alt+←)',
+          next_with_shortcut: 'Semana seguinte (Alt+→)',
+        },
+        week_short: 'Sem. {{num}}',
       },
     },
   },
@@ -118,6 +142,23 @@ const resources = {
             errorDescription: 'An error occurred while creating the contract. Please try again.',
           },
         },
+        timesheet: {
+          blockedDays: {
+            notice_one: '{{count}} day is blocked for time editing',
+            notice_other: '{{count}} days are blocked for time editing',
+            aria_one: 'Cleared hours from {{count}} blocked day (holiday, vacation or sick)',
+            aria_other: 'Cleared hours from {{count}} blocked days (holidays, vacation or sick)',
+          },
+          holiday: {
+            tooltip: 'Holiday - system predefined, disable via contract if needed',
+            disabled: 'Holiday checkbox is informational only. To change, configure in contract.',
+            ariaLabel: 'Day marked as holiday (read-only)',
+          },
+          exception: {
+            tooltip: 'Allows editing hours even on holidays, vacation or sick days',
+            ariaLabel: 'Mark as exception to normal schedule',
+          },
+        },
         export: {
           includeHours: 'Include worked hours',
           includeMileage: 'Include mileage',
@@ -147,6 +188,13 @@ const resources = {
         exportSuccess: 'Report was successfully exported in {{format}} format',
         exportError: 'Export error',
         exportErrorDescription: 'An error occurred while exporting the report',
+      },
+      timesheet: {
+        nav: {
+          prev_with_shortcut: 'Previous week (Alt+←)',
+          next_with_shortcut: 'Next week (Alt+→)',
+        },
+        week_short: 'W{{num}}',
       },
     },
   },

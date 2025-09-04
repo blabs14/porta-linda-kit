@@ -7,6 +7,7 @@ import {
   PerformanceBonusCalculation
 } from '../types/performanceBonus';
 import { TimeEntry } from '../types';
+import { formatDateLocal } from '@/lib/dateUtils';
 
 export class PerformanceBonusService {
   // Configuration management
@@ -306,8 +307,8 @@ export class PerformanceBonusService {
 
     if (period) {
       query = query
-        .gte('evaluation_period_start', period.start)
-        .lte('evaluation_period_end', period.end);
+        .gte('date', formatDateLocal(periodStart))
+        .lte('date', formatDateLocal(periodEnd));
     }
 
     const { data, error } = await query;
@@ -351,8 +352,17 @@ export class PerformanceBonusService {
         .select('*')
         .eq('user_id', userId)
         .eq('contract_id', contractId)
-        .gte('date', periodStart.toISOString().split('T')[0])
-        .lte('date', periodEnd.toISOString().split('T')[0]);
+        .gte('date', formatDateLocal(periodStart))
+        .lte('date', formatDateLocal(periodEnd));
+
+      // TEMP LOG: resumo da query de time entries (sem dados sensíveis)
+      console.log('[PerfBonus] time entries query', {
+        userId: userId ? '***' + String(userId).slice(-4) : null,
+        contractId: contractId ? '***' + String(contractId).slice(-4) : null,
+        gte: formatDateLocal(periodStart),
+        lte: formatDateLocal(periodEnd),
+        count: Array.isArray(timeEntries) ? timeEntries.length : 0
+      });
 
       if (timeEntriesError) throw timeEntriesError;
 
@@ -370,8 +380,8 @@ export class PerformanceBonusService {
         const calculation = this.calculatePerformanceBonus(
           config,
           metrics,
-          periodStart.toISOString().split('T')[0],
-          periodEnd.toISOString().split('T')[0],
+          formatDateLocal(periodStart),
+          formatDateLocal(periodEnd),
           0 // Base salary - could be retrieved from contract if needed
         );
 

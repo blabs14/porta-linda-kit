@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,7 @@ import { payrollService } from '../services/payrollService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO, differenceInDays, addDays, isWeekend } from 'date-fns';
+import { withContext, maskId } from '@/shared/lib/logger';
 
 interface PayrollVacationFormProps {
   vacation?: PayrollVacation;
@@ -24,6 +25,7 @@ interface PayrollVacationFormProps {
 export function PayrollVacationForm({ vacation, year, contractId, existingVacations = [], onSave, onCancel }: PayrollVacationFormProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const correlationId = useRef(globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<PayrollVacationFormData>({
     start_date: vacation?.start_date || '',
@@ -32,6 +34,7 @@ export function PayrollVacationForm({ vacation, year, contractId, existingVacati
   });
   const [isApproved, setIsApproved] = useState(vacation?.is_approved || false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const log = withContext({ feature: 'payroll', component: 'PayrollVacationForm', correlationId: correlationId.current });
 
   const calculateWorkingDays = (startDate: string, endDate: string): number => {
     if (!startDate || !endDate) return 0;
@@ -118,22 +121,20 @@ export function PayrollVacationForm({ vacation, year, contractId, existingVacati
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    console.log('🔍 DEBUG PayrollVacationForm handleSubmit started');
-    console.log('🔍 DEBUG Form data:', formData);
-    console.log('🔍 DEBUG User ID:', user?.id);
-    console.log('🔍 DEBUG Contract ID:', contractId);
-    console.log('🔍 DEBUG Is editing:', !!vacation);
-    
+    log.debug('handleSubmit started');
+    log.debug('Form data', { fields: Object.keys(formData || {}) });
+    log.debug('User', { userId: maskId(user?.id) });
+    log.debug('Contract', { contractId: maskId(contractId) });
+    log.debug('Editing mode', { isEditing: !!vacation });
+
     if (!validateForm() || !user?.id) {
-      console.log('🔍 DEBUG Form validation failed or no user ID');
+      log.warn('Form validation failed or missing user ID');
       return;
     }
-    
     setLoading(true);
     try {
       const workingDays = calculateWorkingDays(formData.start_date, formData.end_date);
-      console.log('🔍 DEBUG Calculated working days:', workingDays);
+      log.debug('Calculated working days', { workingDays });
       
       const vacationData = {
         ...formData,
@@ -142,33 +143,32 @@ export function PayrollVacationForm({ vacation, year, contractId, existingVacati
         is_approved: isApproved
       };
       
-      console.log('🔍 DEBUG Vacation data to save:', vacationData);
+      log.debug('Vacation data to save', { fields: Object.keys(vacationData) });
       
       let savedVacation: PayrollVacation;
       
       if (vacation) {
-        console.log('🔍 DEBUG Calling updateVacation with ID:', vacation.id);
+        log.debug('Calling updateVacation', { vacationId: maskId(vacation?.id) });
         savedVacation = await payrollService.updateVacation(vacation.id, vacationData, user.id, contractId);
       } else {
-        console.log('🔍 DEBUG Calling createVacation');
+        log.debug('Calling createVacation');
         savedVacation = await payrollService.createVacation(user.id, contractId || '', vacationData);
       }
       
-      console.log('🔍 DEBUG Vacation saved successfully:', savedVacation);
-      console.log('🔍 DEBUG Calling onSave callback');
+      log.info('Vacation saved successfully', { id: maskId(savedVacation?.id) });
+      log.debug('Calling onSave callback');
       onSave(savedVacation);
-      console.log('🔍 DEBUG onSave callback completed');
+      log.debug('onSave callback completed');
     } catch (error) {
-      console.error('🔍 DEBUG Error saving vacation:', error);
-      console.error('🔍 DEBUG Error details:', {
+      log.error('Error saving vacation', { error: error instanceof Error ? error.message : String(error) });
+      log.error('Error details', {
         message: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
-        error
       });
       // Toast de erro será exibido pelo componente pai (PayrollVacationsManager)
       throw error; // Re-throw para que o componente pai possa tratar
     } finally {
-      console.log('🔍 DEBUG Setting loading to false');
+      log.debug('Setting loading to false');
       setLoading(false);
     }
   };

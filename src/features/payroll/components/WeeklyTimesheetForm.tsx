@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveContract } from '../hooks/useActiveContract';
 import { formatCurrency } from '@/lib/utils';
 import { calculateHours, segmentEntry, calcHourly } from '../lib/calc';
+import { formatDateLocal } from '@/lib/dateUtils';
+import { withContext, maskId } from '@/shared/lib/logger';
+import { TimesheetHeader } from './timesheet/TimesheetHeader';
+import { useTimesheetWeekSchedule } from '../hooks/useTimesheetWeekSchedule';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useLocale } from '@/contexts/LocaleProvider';
+import { useTranslation } from 'react-i18next';
 
 interface WeeklyTimesheetFormProps {
   initialWeekStart?: Date;
@@ -32,58 +39,114 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
   const [weekNavigationLoading, setWeekNavigationLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const selectedContractId = contractId || activeContract?.id || '';
+  // Definir contrato selecionado (corrige ReferenceError em JSX quando usado no disabled)
+  const selectedContract = contracts.find(c => c.id === selectedContractId) || activeContract || null;
   
-  // Função para calcular o início da semana (segunda-feira)
-  const getWeekStart = (date: Date): Date => {
-    const d = new Date(date);
-    const day = d.getDay();
-    // Se for domingo (0), voltar 6 dias para chegar à segunda-feira
-    // Se for segunda-feira (1), não mover
-    // Se for terça-feira (2), voltar 1 dia para chegar à segunda-feira
-    // etc.
-    const diff = day === 0 ? -6 : 1 - day;
-    const result = new Date(d);
-    result.setDate(d.getDate() + diff);
-    return result;
-  };
+  // CorrelationId e logger com contexto
+  const correlationIdRef = useRef<string>('');
+  if (!correlationIdRef.current) {
+    correlationIdRef.current = (globalThis as any)?.crypto?.randomUUID?.() ?? `timesheet-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+  const log = withContext({ feature: 'payroll', component: 'WeeklyTimesheetForm', correlationId: correlationIdRef.current });
   
-  const [selectedWeek, setSelectedWeek] = useState(
-    getWeekStart(initialWeekStart || new Date()).toISOString().split('T')[0]
-  );
+  const { language } = useLocale();
+  const { t } = useTranslation();
+  
+  // Hook unificado de semana
+  const {
+    selectedWeek,
+    setSelectedWeek,
+    weekDays,
+    weekStartDate,
+    weekEndDate,
+    getWeekStart,
+    getWeekNumber,
+  } = useTimesheetWeekSchedule(initialWeekStart);
+
+  const goToPrevWeek = React.useCallback(() => {
+    const currentDate = new Date(selectedWeek);
+    currentDate.setDate(currentDate.getDate() - 7);
+    setSelectedWeek(formatDateLocal(getWeekStart(currentDate)));
+  }, [selectedWeek, setSelectedWeek, getWeekStart]);
+
+  const goToNextWeek = React.useCallback(() => {
+    const currentDate = new Date(selectedWeek);
+    currentDate.setDate(currentDate.getDate() + 7);
+    setSelectedWeek(formatDateLocal(getWeekStart(currentDate)));
+  }, [selectedWeek, setSelectedWeek, getWeekStart]);
+
+  const formattedWeekRange = useMemo(() => {
+    if (!weekDays || weekDays.length < 7) return '';
+    const locale = language || (typeof navigator !== 'undefined' ? navigator.language : 'pt-PT');
+    const opts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric' };
+    const start = new Intl.DateTimeFormat(locale, opts).format(weekDays[0]);
+    const end = new Intl.DateTimeFormat(locale, opts).format(weekDays[6]);
+    return `${start} – ${end}`;
+  }, [weekDays, language]);
+
+  // Atalhos de teclado Alt+← / Alt+→ sem interferir com inputs focados
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        const isEditable = (target as HTMLElement).isContentEditable;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || isEditable) return;
+        const role = target.getAttribute('role');
+        if (role === 'combobox') return;
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goToPrevWeek();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goToNextWeek();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [goToPrevWeek, goToNextWeek]);
+
   const [timesheet, setTimesheet] = useState<WeeklyTimesheet>({ entries: [] });
   const [existingEntries, setExistingEntries] = useState<PayrollTimeEntry[]>([]);
   const [otPolicy, setOtPolicy] = useState<PayrollOTPolicy | null>(null);
 
-  // Função para calcular o número da semana
-  const getWeekNumber = (date: Date): number => {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  };
-
-  // Gerar os 7 dias da semana (começando na segunda-feira)
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const weekStart = new Date(selectedWeek + 'T00:00:00'); // Garantir timezone local
-    // Usar a mesma lógica da função getWeekStart para consistência
-    const day = weekStart.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    const mondayDate = new Date(weekStart);
-    mondayDate.setDate(weekStart.getDate() + diff);
-    // Agora adicionar os dias da semana
-    const date = new Date(mondayDate);
-    date.setDate(mondayDate.getDate() + i);
-    return date;
-  });
-
+  // Região aria-live e aviso inline de dias bloqueados
+  const [ariaLiveMsg, setAriaLiveMsg] = useState('');
+  const blockedDaysCount = useMemo(() => {
+    return (timesheet.entries || []).filter(e => (e.isHoliday || e.isSick || e.isVacation) && !e.isException).length;
+  }, [timesheet.entries]);
+  const blockedNotice = useMemo(() => {
+    if (blockedDaysCount > 0) {
+      return blockedDaysCount === 1
+        ? '1 dia está bloqueado para edição por feriado/férias/doença. Marque "Exceção" para editar.'
+        : `${blockedDaysCount} dias estão bloqueados para edição por feriado/férias/doença. Marque "Exceção" para editar.`;
+    }
+    return '';
+  }, [blockedDaysCount]);
   const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+  // Listener para sincronização de feriados: recarrega a semana e anuncia via aria-live
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent)?.detail as { contractId?: string; year?: number } | undefined;
+      if (!detail) return;
+      const currentYear = new Date(selectedWeek).getFullYear();
+      if (detail.contractId === selectedContractId && detail.year === currentYear) {
+        loadExistingEntries();
+        setAriaLiveMsg('Feriados sincronizados — semana atualizada.');
+      }
+    };
+    window.addEventListener('holiday-sync:completed', handler as EventListener);
+    return () => window.removeEventListener('holiday-sync:completed', handler as EventListener);
+  }, [selectedContractId, selectedWeek]);
 
   // Função para criar entradas vazias para a semana
   const createEmptyWeekEntries = async (): Promise<TimesheetEntry[]> => {
     if (!selectedContractId || !user?.id) {
       return weekDays.map(day => {
-        const dateStr = day.toISOString().split('T')[0];
+        const dateStr = formatDateLocal(day);
         return {
           date: dateStr,
           startTime: '',
@@ -108,7 +171,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       );
 
       return weekDays.map(day => {
-        const dateStr = day.toISOString().split('T')[0];
+        const dateStr = formatDateLocal(day);
         const isHolidayDate = holidays.some(holiday => holiday.date === dateStr);
         
         return {
@@ -124,9 +187,9 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
         };
       });
     } catch (error) {
-      console.error('Error loading holidays for empty entries:', error);
+      log.error('Error loading holidays for empty entries:', error);
       return weekDays.map(day => {
-        const dateStr = day.toISOString().split('T')[0];
+        const dateStr = formatDateLocal(day);
         return {
           date: dateStr,
           startTime: '',
@@ -152,12 +215,11 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
           const policy = await payrollService.getActiveOTPolicy(user.id, selectedContractId);
           setOtPolicy(policy);
         } catch (error) {
-          console.error('Failed to load OT policy:', error);
+          log.error('Failed to load OT policy:', { error, userId: maskId(user?.id), contractId: maskId(selectedContractId) });
           setOtPolicy(null);
         }
       }
     };
-    
     loadOTPolicy();
   }, [selectedContractId]);
 
@@ -165,15 +227,20 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
   useEffect(() => {
     const initializeEntries = async () => {
       if (selectedContractId) {
-        // Detectar se é mudança de semana (não de contrato)
         const isWeekNavigation = selectedContractId === activeContract?.id;
+        log.info('[Timesheet] week change/init', {
+          selectedWeek,
+          weekStart: formatDateLocal(weekStartDate),
+          weekEnd: formatDateLocal(weekEndDate),
+          contractId: maskId(selectedContractId),
+          isWeekNavigation,
+        });
         await loadExistingEntries(isWeekNavigation);
       } else {
         const emptyEntries = await createEmptyWeekEntries();
         setTimesheet({ entries: emptyEntries });
       }
     };
-    
     initializeEntries();
   }, [selectedContractId, selectedWeek]);
 
@@ -189,491 +256,149 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
     } else {
       setLoading(true);
     }
+    const t0 = Date.now();
     try {
-      const weekEnd = new Date(selectedWeek);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    
-    const entries = await payrollService.getTimeEntries(
-        user.id,
-        selectedWeek,
-        weekEnd.toISOString().split('T')[0]
-      );
-      
+      const weekStart = new Date(selectedWeek);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
 
-      
-      // Carregar períodos de férias para a semana
-      const leaves = await payrollService.getLeavesForWeek(
-        user.id,
+      log.debug('[Timesheet] loadExistingEntries window', {
+        userId: maskId(user?.id),
+        contractId: maskId(selectedContractId),
+        isWeekNavigation,
         selectedWeek,
-        weekEnd.toISOString().split('T')[0],
-        selectedContractId
-      );
-      
-      // Carregar feriados para o ano da semana selecionada
-      const weekYear = new Date(selectedWeek).getFullYear();
-      const holidays = await payrollService.getHolidays(
-        user.id,
-        weekYear,
-        selectedContractId
-      );
-      
-      setExistingEntries(entries);
-      
-      // Converter entradas existentes para formato de timesheet
-      const timesheetEntries: TimesheetEntry[] = weekDays.map((date, dayIndex) => {
-        const dateStr = date.toISOString().split('T')[0];
-        const dayEntries = entries.filter(e => {
-          // Normalizar a data da entrada para comparação
-          let entryDate: string;
-          if (typeof e.date === 'string') {
-            entryDate = e.date.includes('T') ? e.date.split('T')[0] : e.date;
-          } else {
-            entryDate = new Date(e.date).toISOString().split('T')[0];
+        weekStart: formatDateLocal(weekStart),
+        weekEnd: formatDateLocal(weekEnd)
+      });
+
+      // Buscar dados em paralelo
+      const [entries, leaves, holidays] = await Promise.all([
+        payrollService.getTimeEntries(
+          user.id,
+          selectedContractId,
+          selectedWeek,
+          formatDateLocal(weekEnd)
+        ),
+        payrollService.getLeavesForWeek(
+          user.id,
+          selectedWeek,
+          formatDateLocal(weekEnd),
+          selectedContractId
+        ),
+        payrollService.getHolidays(
+          user.id,
+          new Date(selectedWeek).getFullYear(),
+          selectedContractId
+        )
+      ]);
+
+      // Normalizar maps auxiliares
+      const entriesByDate = new Map<string, PayrollTimeEntry>();
+      for (const e of entries) {
+        let d: string;
+        if (typeof (e as any).date === 'string') {
+          const raw = (e as any).date as unknown as string;
+          d = raw.includes('T') ? raw.split('T')[0] : raw;
+        } else {
+          d = formatDateLocal(new Date((e as any).date));
+        }
+        entriesByDate.set(d, e);
+      }
+
+      const holidaysSet = new Set<string>((holidays || []).map(h => h.date));
+
+      // Para cada dia da semana, verificar se intersects com algum leave
+      const leavesByDate = new Map<string, { isSick?: boolean; isVacation?: boolean; leave_type?: string; percentage_paid?: number }>();
+      for (const day of weekDays) {
+        const ds = formatDateLocal(day);
+        const overlaps = (leaves || []).filter(l => {
+          const start = new Date((l as any).start_date);
+          const end = new Date((l as any).end_date);
+          const cur = new Date(ds);
+          // normalizar para ignorar horas
+          start.setHours(0,0,0,0); end.setHours(0,0,0,0); cur.setHours(0,0,0,0);
+          return cur >= start && cur <= end;
+        });
+        if (overlaps.length) {
+          // Mapear tipos simples: sick, vacation (outros ignorados por enquanto)
+          let isSick = false;
+          let isVacation = false;
+          let percentage_paid: number | undefined = undefined;
+          for (const lv of overlaps) {
+            const t = String((lv as any).leave_type || '').toLowerCase();
+            if (t.includes('sick') || t === 'doente') isSick = true;
+            if (t.includes('vacation') || t === 'férias' || t === 'ferias' || t === 'paid_leave') isVacation = true;
+            if (typeof (lv as any).percentage_paid === 'number') percentage_paid = (lv as any).percentage_paid;
           }
-          const matches = entryDate === dateStr;
-          
-
-          
-          return matches;
-        });
-        
-        // Verificar se este dia está dentro de um período de férias
-        const isOnLeave = leaves.some(leave => {
-          const leaveStart = new Date(leave.start_date);
-          const leaveEnd = new Date(leave.end_date);
-          const currentDate = new Date(dateStr);
-          return currentDate >= leaveStart && currentDate <= leaveEnd;
-        });
-        
-        // Verificar se este dia é feriado
-        const isHolidayDate = holidays.some(holiday => holiday.date === dateStr);
-        
-        const result = dayEntries.length > 0 ? {
-          date: dateStr,
-          startTime: dayEntries[0].start_time || '',
-          endTime: dayEntries[0].end_time || '',
-          breakMinutes: dayEntries[0].break_minutes || 0,
-          description: dayEntries[0].description || '',
-          isHoliday: dayEntries[0].is_holiday || isHolidayDate,
-          isSick: dayEntries[0].is_sick || false,
-          isVacation: dayEntries[0].is_vacation || isOnLeave,
-          isException: false
-        } : {
-          date: dateStr,
-          startTime: '',
-          endTime: '',
-          breakMinutes: 0,
-          description: '',
-          isHoliday: isHolidayDate,
-          isSick: false,
-          isVacation: isOnLeave,
-          isException: false
-        };
-        
-
-        
-        return result;
-      });
-       
-       setTimesheet({ entries: timesheetEntries });
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Erro ao carregar entradas de tempo.',
-        variant: 'destructive'
-      });
-      console.error('Error loading time entries:', error);
-    } finally {
-      setLoading(false);
-      setWeekNavigationLoading(false);
-    }
-  };
-
-  const updateEntry = (index: number, field: keyof TimesheetEntry, value: any) => {
-    console.log('🔄 DEBUG - updateEntry called:', { index, field, value, currentValue: timesheet.entries[index]?.[field] });
-    const newEntries = [...timesheet.entries];
-    const entry = { ...newEntries[index] };
-    
-    // Aplicar precedências: feriado > férias > doente
-    if (field === 'isHoliday' && value) {
-      // Feriado tem precedência sobre tudo
-      entry.isVacation = false;
-      entry.isSick = false;
-      // Limpar horas se não for exceção
-      if (!entry.isException) {
-        entry.startTime = '';
-        entry.endTime = '';
-        entry.breakMinutes = 0;
-      }
-    } else if (field === 'isVacation' && value) {
-      // Férias só pode ser marcado se não for feriado
-      if (!entry.isHoliday) {
-        entry.isSick = false;
-        // Limpar horas se não for exceção
-        if (!entry.isException) {
-          entry.startTime = '';
-          entry.endTime = '';
-          entry.breakMinutes = 0;
-        }
-      } else {
-        // Não permitir marcar férias se já for feriado
-        return;
-      }
-    } else if (field === 'isSick' && value) {
-      // Doente só pode ser marcado se não for feriado nem férias
-      if (!entry.isHoliday && !entry.isVacation) {
-        // Limpar horas se não for exceção
-        if (!entry.isException) {
-          entry.startTime = '';
-          entry.endTime = '';
-          entry.breakMinutes = 0;
-        }
-      } else {
-        // Não permitir marcar doente se já for feriado ou férias
-        return;
-      }
-    } else if (field === 'isException') {
-      // isException permite editar horas mesmo em feriados/férias/doente
-      entry[field] = value;
-    } else {
-      entry[field] = value;
-    }
-    
-    newEntries[index] = entry;
-    console.log('🔄 DEBUG - Setting new timesheet entries, entry updated:', { index, field, newValue: entry[field] });
-    setTimesheet({ entries: newEntries });
-    console.log('🔄 DEBUG - Timesheet state updated via updateEntry');
-  };
-
-
-
-  const fillNormalWeek = () => {
-    if (!selectedContract?.schedule_json) {
-      toast({
-        title: 'Erro',
-        description: 'Contrato selecionado não possui horário definido.',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    const schedule = selectedContract.schedule_json;
-    
-    // DEBUG: Log detalhado da semana selecionada e dias gerados
-    console.log('=== DEBUG FILL NORMAL WEEK ===');
-    console.log('selectedWeek:', selectedWeek);
-    console.log('weekDays array:', weekDays.map((d, i) => ({
-      index: i,
-      date: d.toISOString().split('T')[0],
-      dayOfWeek: d.getDay(),
-      dayName: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][d.getDay()]
-    })));
-    
-    // Verificar se é o formato novo (com use_standard) ou antigo (dias individuais)
-    const isNewFormat = schedule.use_standard !== undefined;
-    
-    if (isNewFormat && !schedule.use_standard) {
-      toast({
-        title: 'Erro',
-        description: 'Horário padrão não está ativado no contrato.',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    if (isNewFormat && (!schedule.start_time || !schedule.end_time)) {
-      toast({
-        title: 'Erro',
-        description: 'Horário padrão não está configurado corretamente.',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    
-    const newEntries: TimesheetEntry[] = timesheet.entries.map((currentEntry, index) => {
-      const date = weekDays[index];
-      const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
-      const dayName = dayNames[dayOfWeek];
-      
-      // Apenas preencher dias úteis (segunda a sexta-feira)
-      // Como weekDays começa na segunda-feira, índices 0-4 são segunda a sexta
-      const isWeekday = index >= 0 && index <= 4;
-      
-      const hasValidTime = currentEntry.startTime && 
-                          currentEntry.endTime && 
-                          currentEntry.startTime !== '00:00' && 
-                          currentEntry.endTime !== '00:00' &&
-                          currentEntry.startTime.trim() !== '' &&
-                          currentEntry.endTime.trim() !== '';
-      
-      console.log(`Processando dia ${index}:`, {
-        date: date.toISOString().split('T')[0],
-        dayOfWeek,
-        dayName,
-        index,
-        isWeekday,
-        startTime: currentEntry.startTime,
-        endTime: currentEntry.endTime,
-        hasValidTime,
-        isHoliday: currentEntry.isHoliday,
-        isVacation: currentEntry.isVacation,
-        isSick: currentEntry.isSick,
-        isException: currentEntry.isException
-      });
-      
-      if (hasValidTime) {
-         console.log(`Dia ${index}: Mantendo entrada existente com horários válidos`);
-         return currentEntry;
-       }
-      
-      // Não preencher se for feriado, férias ou doente (a menos que seja exceção)
-      if ((currentEntry.isHoliday || currentEntry.isVacation || currentEntry.isSick) && !currentEntry.isException) {
-        console.log(`Dia ${index}: Não preenchendo - feriado/férias/doente`);
-        return currentEntry;
-      }
-      
-      let shouldFillDay = false;
-      let startTime = '';
-      let endTime = '';
-      let breakMinutes = 0;
-      
-      if (isNewFormat) {
-        // Formato novo: usar horário padrão para dias úteis (segunda a sexta)
-        if (isWeekday && schedule.use_standard) {
-          shouldFillDay = true;
-          startTime = schedule.start_time;
-          endTime = schedule.end_time;
-          breakMinutes = schedule.break_minutes || 0;
-          console.log(`Dia ${index}: Preenchendo com horário padrão`, { startTime, endTime, breakMinutes });
-        } else {
-          console.log(`Dia ${index}: Não é dia útil ou horário padrão não ativo`);
-        }
-      } else {
-        // Formato antigo: verificar se o dia tem horário definido E se é dia útil
-        const daySchedule = schedule[dayName];
-        if (isWeekday && daySchedule && daySchedule.start && daySchedule.end) {
-          shouldFillDay = true;
-          startTime = daySchedule.start;
-          endTime = daySchedule.end;
-          breakMinutes = daySchedule.break_minutes || 0;
+          leavesByDate.set(ds, { isSick, isVacation, leave_type: overlaps[0]?.leave_type, percentage_paid });
         }
       }
-      
-      if (shouldFillDay) {
+
+      // Construir as 7 entradas sempre
+      const weekEntries: TimesheetEntry[] = weekDays.map(day => {
+        const dateStr = formatDateLocal(day);
+        const persisted = entriesByDate.get(dateStr) as any;
+        const leaveFlags = leavesByDate.get(dateStr) || {};
+        const isHoliday = holidaysSet.has(dateStr);
+
+        // Precedência: feriado > licença
+        const isSick = isHoliday ? false : !!leaveFlags.isSick;
+        const isVacation = isHoliday ? false : !!leaveFlags.isVacation;
+
         return {
-           ...currentEntry,
-           startTime,
-           endTime,
-           breakMinutes
-         };
-      } else {
-         return currentEntry;
-       }
-    });
-
-    setTimesheet({ entries: newEntries });
-    
-    toast({
-      title: 'Sucesso',
-      description: 'Semana preenchida com horário normal do contrato.'
-    });
-  };
-
-  // Apagar entrada individual de um dia específico
-  const clearDayEntry = async (index: number) => {
-    const entry = timesheet.entries[index];
-    const dateStr = entry.date;
-    
-    // Encontrar entrada existente para este dia
-    const existingEntry = existingEntries.find(e => {
-      const entryDate = typeof e.date === 'string' ? e.date : new Date(e.date).toISOString().split('T')[0];
-      return entryDate === dateStr;
-    });
-    
-    if (existingEntry) {
-      try {
-        await payrollService.deleteTimeEntry(existingEntry.id, user?.id, selectedContractId);
-        toast({
-          title: 'Entrada apagada',
-          description: 'A entrada de tempo foi apagada com sucesso.'
-        });
-        // Recarregar entradas
-        await loadExistingEntries();
-      } catch (error) {
-        toast({
-          title: 'Erro',
-          description: 'Erro ao apagar entrada de tempo.',
-          variant: 'destructive'
-        });
-        console.error('Error deleting time entry:', error);
-      }
-    } else {
-      // Se não existe entrada salva, apenas limpar localmente
-      const newEntries = [...timesheet.entries];
-      newEntries[index] = {
-        date: dateStr,
-        startTime: '',
-        endTime: '',
-        breakMinutes: 0,
-        description: '',
-        isHoliday: false,
-        isSick: false,
-        isVacation: false,
-        isException: false
-      };
-      setTimesheet({ entries: newEntries });
-    }
-  };
-
-  // Apagar todas as entradas da semana
-  const clearWeekEntries = async () => {
-    if (!confirm('Tem certeza que deseja apagar todas as entradas de tempo desta semana?')) {
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      // Apagar todas as entradas existentes da semana
-      for (const existingEntry of existingEntries) {
-        await payrollService.deleteTimeEntry(existingEntry.id, user?.id, selectedContractId);
-      }
-      
-      toast({
-        title: 'Entradas apagadas',
-        description: 'Todas as entradas de tempo da semana foram apagadas.'
+          date: dateStr,
+          startTime: persisted?.start_time || '',
+          endTime: persisted?.end_time || '',
+          breakMinutes: Number.isFinite(persisted?.break_minutes) ? Number(persisted.break_minutes) : 0,
+          description: persisted?.description || '',
+          isHoliday,
+          isSick,
+          isVacation,
+          isException: !!persisted?.is_exception,
+        } as TimesheetEntry;
       });
-      
-      // Recarregar entradas
-      await loadExistingEntries();
+
+      setExistingEntries(entries);
+      setTimesheet({ entries: weekEntries });
+
+      log.info('[Timesheet] loadExistingEntries success', {
+        action: 'loadExistingEntries',
+        contractId: maskId(selectedContractId),
+        userId: maskId(user?.id),
+        weekStart: formatDateLocal(weekStart),
+        weekEnd: formatDateLocal(weekEnd),
+        weekNumber: getWeekNumber(weekStart),
+        result: 'ok',
+        durationMs: Date.now() - t0,
+        entriesCount: entries?.length || 0
+      });
     } catch (error) {
       toast({
         title: 'Erro',
-        description: 'Erro ao apagar entradas de tempo.',
+        description: 'Erro ao carregar entradas da semana.',
         variant: 'destructive'
       });
-      console.error('Error deleting week entries:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateDayHours = (entry: TimesheetEntry): number => {
-    if (!entry.startTime || !entry.endTime || (entry.isHoliday && !entry.isException) || (entry.isSick && !entry.isException) || (entry.isVacation && !entry.isException)) {
-      return 0;
-    }
-    
-    const start = new Date(`${entry.date}T${entry.startTime}`);
-    const end = new Date(`${entry.date}T${entry.endTime}`);
-    
-    if (end <= start) {
-      return 0;
-    }
-    
-    const totalMinutes = calculateHours(start, end, 0) * 60;
-    const workMinutes = totalMinutes - (entry.breakMinutes || 0);
-    
-    return Math.max(0, workMinutes / 60);
-  };
-
-  const calculateDayHoursWithOT = (entry: TimesheetEntry): { regularHours: number; overtimeHours: number; totalHours: number } => {
-    if (!entry.startTime || !entry.endTime || (entry.isHoliday && !entry.isException) || (entry.isSick && !entry.isException) || (entry.isVacation && !entry.isException)) {
-      return { regularHours: 0, overtimeHours: 0, totalHours: 0 };
-    }
-
-    // Se não há política de overtime, usar cálculo simples
-    if (!otPolicy) {
-      const totalHours = calculateDayHours(entry);
-      return { regularHours: totalHours, overtimeHours: 0, totalHours };
-    }
-
-    // Converter TimesheetEntry para PayrollTimeEntry para usar com segmentEntry
-    const payrollEntry = {
-      date: entry.date,
-      start_time: entry.startTime,
-      end_time: entry.endTime,
-      break_minutes: entry.breakMinutes || 0,
-      is_holiday: entry.isHoliday || false,
-      is_vacation: entry.isVacation || false,
-      is_sick: entry.isSick || false
-    } as any; // Usar any para evitar problemas de tipos
-
-    try {
-      const segments = segmentEntry(payrollEntry, otPolicy, 8); // 8 horas como limite diário padrão
-      
-      let regularHours = 0;
-      let overtimeHours = 0;
-      
-      segments.forEach(segment => {
-        if (segment.isOvertime) {
-          overtimeHours += segment.hours;
-        } else {
-          regularHours += segment.hours;
-        }
+      log.error('[Timesheet] loadExistingEntries failed', {
+        action: 'loadExistingEntries',
+        contractId: maskId(selectedContractId),
+        userId: maskId(user?.id),
+        error
       });
-      
-      const totalHours = regularHours + overtimeHours;
-      return { regularHours, overtimeHours, totalHours };
-    } catch (error) {
-      console.error('Erro ao calcular horas com overtime:', error);
-      // Fallback para cálculo simples
-      const totalHours = calculateDayHours(entry);
-      return { regularHours: totalHours, overtimeHours: 0, totalHours };
+    } finally {
+      if (isWeekNavigation) {
+        setWeekNavigationLoading(false);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
-  const calculateWeekTotal = (): number => {
-    return timesheet.entries.reduce((total, entry) => {
-      return total + calculateDayHoursWithOT(entry).totalHours;
-    }, 0);
-  };
-
-  const calculateWeekOvertimeTotal = (): number => {
-    return timesheet.entries.reduce((total, entry) => {
-      return total + calculateDayHoursWithOT(entry).overtimeHours;
-    }, 0);
-  };
-
-  const calculateWeekRegularTotal = (): number => {
-    return timesheet.entries.reduce((total, entry) => {
-      return total + calculateDayHoursWithOT(entry).regularHours;
-    }, 0);
-  };
-
-  const validateTimesheet = (): string[] => {
-    const errors: string[] = [];
-    
-    if (!selectedContractId) {
-      errors.push('Selecione um contrato.');
-    }
-    
-    timesheet.entries.forEach((entry, index) => {
-      if (entry.startTime && entry.endTime) {
-        const start = new Date(`${entry.date}T${entry.startTime}`);
-        const end = new Date(`${entry.date}T${entry.endTime}`);
-        
-        if (end <= start) {
-          errors.push(`Dia ${index + 1}: Hora de fim deve ser posterior à hora de início.`);
-        }
-      }
-      
-      if ((entry.startTime && !entry.endTime) || (!entry.startTime && entry.endTime)) {
-        errors.push(`Dia ${index + 1}: Preencha tanto a hora de início quanto a de fim.`);
-      }
-    });
-    
-    return errors;
-  };
-
+  // Guardar timesheet da semana
   const handleSave = async () => {
-    if (!user?.id) return;
-    
-    const errors = validateTimesheet();
-    if (errors.length > 0) {
+    if (!selectedContractId || !user?.id) {
       toast({
-        title: 'Erro de Validação',
-        description: errors.join(' '),
+        title: 'Erro',
+        description: 'Selecione um contrato válido antes de salvar.',
         variant: 'destructive'
       });
       return;
@@ -681,126 +406,69 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
     setSaving(true);
     try {
+      const weekStart = new Date(selectedWeek);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+
+      // Carregar entradas existentes para decidir remoções
+      const existing = await payrollService.getTimeEntries(
+        user.id,
+        selectedContractId,
+        selectedWeek,
+        formatDateLocal(weekEnd)
+      );
+
+      const existingByDate = new Map<string, PayrollTimeEntry>();
+      for (const e of existing) {
+        let d: string;
+        if (typeof e.date === 'string') {
+          d = e.date.includes('T') ? e.date.split('T')[0] : e.date;
+        } else {
+          d = formatDateLocal(new Date(e.date as any));
+        }
+        existingByDate.set(d, e);
+      }
+
       const savedEntries: PayrollTimeEntry[] = [];
-      
-      // Processar cada entrada individualmente
-      for (const entry of timesheet.entries) {
-        const dateStr = entry.date;
-        
-        // Encontrar entrada existente para este dia (comparação mais robusta)
-        console.log('🔍 DEBUG - All existing entries:', existingEntries.map(e => ({
-          id: e.id,
-          date: e.date,
-          contract_id: e.contract_id,
-          dateType: typeof e.date
-        })));
-        
-        const existingEntry = existingEntries.find(e => {
-          // Normalizar ambas as datas para o formato YYYY-MM-DD
-          let entryDate: string;
-          if (typeof e.date === 'string') {
-            // Se já é string, verificar se está no formato correto
-            entryDate = e.date.includes('T') ? e.date.split('T')[0] : e.date;
-          } else {
-            // Se é Date object, converter para string
-            entryDate = new Date(e.date).toISOString().split('T')[0];
-          }
-          
-          // Normalizar a data de entrada também
-          const normalizedDateStr = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
-          
-          const matches = entryDate === normalizedDateStr && e.contract_id === selectedContractId;
-          console.log('🔍 DEBUG - Comparing entry:', {
-            entryId: e.id,
-            entryDate,
-            normalizedDateStr,
-            originalDateStr: dateStr,
-            contractMatch: e.contract_id === selectedContractId,
-            dateMatch: entryDate === normalizedDateStr,
-            overallMatch: matches
-          });
-          return matches;
-        });
-        
-        console.log('🔍 DEBUG - Processing entry:', {
-          dateStr,
-          existingEntry: existingEntry ? { id: existingEntry.id, date: existingEntry.date } : null,
-          selectedContractId
-        });
-        
-        // Verificar se a entrada tem dados válidos
-        const hasValidData = entry.startTime || entry.endTime || entry.isHoliday || entry.isSick || entry.isVacation;
-        
-        if (hasValidData) {
-          // Preparar dados da entrada
-          const entryData: Omit<PayrollTimeEntry, 'id' | 'created_at' | 'updated_at'> = {
-            contract_id: selectedContractId,
-            date: new Date(entry.date),
-            start_time: entry.startTime || null,
-            end_time: entry.endTime || null,
-            break_minutes: entry.breakMinutes || 0,
-            description: entry.description || null,
-            is_holiday: entry.isHoliday || false,
-            is_sick: entry.isSick || false,
-            is_vacation: entry.isVacation || false
-          };
-          
-          if (existingEntry) {
-            // Verificar se houve alterações
-            const hasChanges = 
-              existingEntry.start_time !== entryData.start_time ||
-              existingEntry.end_time !== entryData.end_time ||
-              existingEntry.break_minutes !== entryData.break_minutes ||
-              existingEntry.description !== entryData.description ||
-              existingEntry.is_holiday !== entryData.is_holiday ||
-              existingEntry.is_sick !== entryData.is_sick ||
-              existingEntry.is_vacation !== entryData.is_vacation;
-            
-            console.log('🔍 DEBUG - Existing entry found, checking changes:', {
-              hasChanges,
-              existingId: existingEntry.id,
-              changes: {
-                start_time: { old: existingEntry.start_time, new: entryData.start_time },
-                end_time: { old: existingEntry.end_time, new: entryData.end_time },
-                break_minutes: { old: existingEntry.break_minutes, new: entryData.break_minutes }
-              }
-            });
-            
-            if (hasChanges) {
-              // Atualizar entrada existente
-              console.log('🔍 DEBUG - Updating existing entry:', existingEntry.id);
-              const updated = await payrollService.updateTimeEntry(existingEntry.id, entryData, user.id, selectedContractId);
-              savedEntries.push(updated);
-            } else {
-              // Manter entrada existente sem alterações
-              console.log('🔍 DEBUG - No changes, keeping existing entry:', existingEntry.id);
-              savedEntries.push(existingEntry);
-            }
-          } else {
-            // Criar nova entrada
-            console.log('🔍 DEBUG - Creating new entry for date:', dateStr);
-            const saved = await payrollService.createTimeEntry(user.id, selectedContractId!, entryData);
-            savedEntries.push(saved);
-          }
-        } else if (existingEntry) {
-          // Entrada não tem dados válidos mas existe na base de dados - deletar
-          await payrollService.deleteTimeEntry(existingEntry.id, user?.id, selectedContractId);
+
+      for (const e of timesheet.entries) {
+        const dateStr = e.date.includes('T') ? e.date.split('T')[0] : e.date;
+        const hasData = (!!e.startTime && !!e.endTime) || !!e.isHoliday || !!e.isSick || !!e.isVacation || (!!e.description && e.description.trim().length > 0);
+        const existingForDay = existingByDate.get(dateStr);
+
+        if (hasData) {
+          const payload = {
+            date: dateStr,
+            start_time: e.startTime || '',
+            end_time: e.endTime || '',
+            break_minutes: e.breakMinutes || 0,
+            description: e.description || '',
+            is_overtime: false,
+            is_holiday: !!e.isHoliday,
+            is_sick: !!e.isSick,
+            is_vacation: !!e.isVacation,
+            is_exception: !!e.isException,
+          } as Omit<PayrollTimeEntry, 'id' | 'created_at' | 'updated_at'>;
+
+          // Upsert via createTimeEntry (já faz update se existir)
+          const saved = await payrollService.createTimeEntry(
+            user.id,
+            selectedContractId,
+            payload as any
+          );
+          savedEntries.push(saved);
+        } else if (existingForDay) {
+          await payrollService.deleteTimeEntry(existingForDay.id, user.id, selectedContractId);
         }
       }
 
-      // Atualizar lista de entradas existentes
-      setExistingEntries(savedEntries);
-
-      // As entradas já estão em savedEntries, não é necessário processamento adicional
-
-      // Processar descanso compensatório para trabalho ao domingo
+      // Pós-processamentos não bloqueantes
       try {
         const compensatoryLeaves = await payrollService.processCompensatoryRestForTimeEntries(
           user.id,
-          selectedContractId!,
+          selectedContractId,
           savedEntries
         );
-        
         if (compensatoryLeaves.length > 0) {
           toast({
             title: 'Descanso Compensatório Criado',
@@ -808,38 +476,30 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
             duration: 5000
           });
         }
-      } catch (error) {
-        console.error('Erro ao processar descanso compensatório:', error);
-        // Não bloquear o salvamento por erro no descanso compensatório
+      } catch (e) {
+        log.error('Erro ao processar descanso compensatório:', e);
       }
 
-      // Calcular bónus de performance automáticos
       try {
-        const weekStart = new Date(selectedWeek);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 6);
-        
         const bonusResults = await performanceBonusService.calculateAndSavePerformanceBonuses(
           user.id,
-          selectedContractId!,
+          selectedContractId,
           weekStart,
           weekEnd
         );
-        
-        if (bonusResults.length > 0) {
-          const appliedBonuses = bonusResults.filter(result => result.threshold_met);
-          if (appliedBonuses.length > 0) {
-            const totalBonus = appliedBonuses.reduce((sum, result) => sum + (result.applied_bonus_amount || 0), 0);
+        if (Array.isArray(bonusResults)) {
+          const applied = bonusResults.filter(r => (r as any).threshold_met);
+          if (applied.length > 0) {
+            const totalBonus = applied.reduce((sum, r: any) => sum + (r.applied_bonus_amount || 0), 0);
             toast({
               title: 'Bónus de Performance Calculados',
-              description: `${appliedBonuses.length} bónus aplicados totalizando ${formatCurrency(totalBonus)}.`,
+              description: `${applied.length} bónus aplicados totalizando ${formatCurrency(totalBonus)}.`,
               duration: 5000
             });
           }
         }
-      } catch (error) {
-        console.error('Erro ao calcular bónus de performance:', error);
-        // Não bloquear o salvamento por erro nos bónus
+      } catch (e) {
+        log.error('Erro ao calcular bónus de performance:', e);
       }
 
       toast({
@@ -848,16 +508,16 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       });
 
       onSave?.(savedEntries);
-      console.log('🔄 DEBUG - Calling loadExistingEntries after save...');
+
+      // Recarregar entradas para refletir estado atual
       await loadExistingEntries();
-      console.log('🔄 DEBUG - loadExistingEntries completed after save');
     } catch (error) {
       toast({
         title: 'Erro',
         description: 'Erro ao salvar timesheet.',
         variant: 'destructive'
       });
-      console.error('Error saving timesheet:', error);
+      log.error('Error saving timesheet:', error);
     } finally {
       setSaving(false);
     }
@@ -867,53 +527,476 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const normalizeISO = (raw: string): string => {
+      const s = (raw || '').trim().replace(/^"|"$/g, '');
+      if (!s) return '';
+      // Suporta YYYY-MM-DD e DD/MM/YYYY
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      const ddmmyyyy = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+      if (ddmmyyyy) {
+        const d = parseInt(ddmmyyyy[1], 10);
+        const m = parseInt(ddmmyyyy[2], 10) - 1;
+        const y = parseInt(ddmmyyyy[3], 10);
+        const dt = new Date(y, m, d);
+        return formatDateLocal(dt);
+      }
+      return s; // fallback
+    };
+
     try {
       const text = await file.text();
-      const lines = text.split('\n').filter(line => line.trim());
-      
+      const lines = text.split(/\r?\n/).filter(line => line.trim());
+
       if (lines.length < 2) {
         throw new Error('Arquivo CSV deve ter pelo menos um cabeçalho e uma linha de dados.');
       }
 
-      // Assumir formato: data,inicio,fim,pausa_minutos,notas,feriado,doente
-      const entries: TimesheetEntry[] = [];
-      
+      // Detectar delimitador por cabeçalho: vírgula ou ponto e vírgula
+      const header = lines[0];
+      const delimiter = header.includes(';') ? ';' : ',';
+
+      const parseBool = (v?: string): boolean => {
+        const s = (v ?? '').trim().replace(/^"|"$/g, '').toLowerCase();
+        if (!s) return false;
+        if (['1','true','sim','yes','y'].includes(s)) return true;
+        if (['0','false','nao','não','no','n'].includes(s)) return false;
+        return false;
+      };
+
+      const parseField = (v?: string): string => {
+        if (!v) return '';
+        const trimmed = v.trim();
+        // Remover aspas duplas de campos quoted
+        return trimmed.replace(/^"|"$/g, '');
+      };
+
+      // Ler entradas importadas
+      const importedMap = new Map<string, TimesheetEntry>();
       for (let i = 1; i < lines.length; i++) {
-        const [date, startTime, endTime, breakMinutes, notes, isHoliday, isSick, isException] = 
-          lines[i].split(',').map(s => s.trim());
-        
-        if (date) {
-          entries.push({
-            date,
-            startTime: startTime || '',
-            endTime: endTime || '',
-            breakMinutes: parseInt(breakMinutes) || 0,
-            description: notes || '',
-            isHoliday: isHoliday === 'true' || isHoliday === '1',
-            isSick: isSick === 'true' || isSick === '1',
-            isVacation: false, // Não importar férias do CSV por agora
-            isException: isException === 'true' || isException === '1'
+        const parts = lines[i].split(delimiter).map(s => s.trim());
+        if (!parts.length) continue;
+        const [date, startTime, endTime, breakMinutes, notes, isHolidayCsv, isSick, isVacation, isException] = parts;
+        const iso = normalizeISO(date || '');
+        if (iso) {
+          importedMap.set(iso, {
+            date: iso,
+            startTime: normalizeHHmm(parseField(startTime)),
+            endTime: normalizeHHmm(parseField(endTime)),
+            breakMinutes: parseInt(parseField(breakMinutes)) || 0,
+            description: parseField(notes),
+            // Ignorar coluna 'feriado' do CSV — gerido pelo calendário da aplicação
+            isHoliday: false,
+            isSick: parseBool(isSick),
+            isVacation: parseBool(isVacation),
+            isException: parseBool(isException),
           });
         }
       }
 
-      setTimesheet({ entries });
-      
+      // Construir semana atual e mesclar import
+      const emptyWeek = await createEmptyWeekEntries();
+      const currentByDate = new Map<string, TimesheetEntry>((timesheet.entries || []).map(e => [e.date, e]));
+      const merged = emptyWeek.map(skel => {
+        const iso = skel.date;
+        const cur = currentByDate.get(iso) || skel;
+        const imp = importedMap.get(iso);
+        if (!imp) return cur; // sem alteração para esse dia
+        const mergedFlags = {
+          // Feriado vem apenas do estado/servidor (ignorar CSV)
+          isHoliday: cur.isHoliday || false,
+          isSick: (cur.isHoliday) ? false : (imp.isSick ?? cur.isSick),
+          isVacation: (cur.isHoliday) ? false : (imp.isVacation ?? cur.isVacation),
+          isException: imp.isException ?? cur.isException,
+        };
+        const blocked = (mergedFlags.isHoliday || mergedFlags.isSick || mergedFlags.isVacation) && !mergedFlags.isException;
+        return {
+          ...cur,
+          startTime: blocked ? '' : (imp.startTime || ''),
+          endTime: blocked ? '' : (imp.endTime || ''),
+          breakMinutes: blocked ? 0 : (Number.isFinite(imp.breakMinutes as any) ? Number(imp.breakMinutes) : 0),
+          description: imp.description || '',
+          ...mergedFlags,
+        } as TimesheetEntry;
+      });
+
+      setTimesheet({ entries: merged });
+      log.info('[Timesheet] CSV imported', { count: importedMap.size, contractId: maskId(selectedContractId) });
       toast({
         title: 'CSV Importado',
-        description: `${entries.length} entradas foram importadas.`
+        description: `${importedMap.size} entradas foram importadas.`
       });
+      setAriaLiveMsg('Importação CSV concluída. Entradas atualizadas.');
     } catch (error) {
       toast({
         title: 'Erro de Importação',
         description: 'Erro ao importar arquivo CSV.',
         variant: 'destructive'
       });
-      console.error('Error importing CSV:', error);
+      log.error('Error importing CSV:', { error, contractId: maskId(selectedContractId) });
     }
-    
-    // Reset input
     event.target.value = '';
+  };
+
+  // --- Helpers de cálculo de horas (dia/semana) ---
+  const getContractDailyHours = (): number => {
+    const sc = contracts.find(c => c.id === selectedContractId) || activeContract;
+    if (!sc) return 8;
+    const workHoursPerDay = (sc as any).work_hours_per_day;
+    if (typeof workHoursPerDay === 'number' && workHoursPerDay > 0) return workHoursPerDay;
+    const weekly = (sc as any).weekly_hours || 40;
+    const daysPerWeek = (sc as any).work_days_per_week || 5;
+    return weekly / daysPerWeek;
+  };
+
+  const calculateDayHours = (entry: TimesheetEntry): number => {
+    if (!entry?.startTime || !entry?.endTime) return 0;
+    const breakM = Number.isFinite(Number(entry.breakMinutes)) ? Number(entry.breakMinutes) : 0;
+    const hours = calculateHours(entry.startTime, entry.endTime, breakM);
+    if (!Number.isFinite(hours)) {
+      log.warn('[Timesheet] calculateDayHours -> resultado inválido', { entry, breakM, hours });
+      return 0;
+    }
+    return Math.max(0, hours);
+  };
+
+  const calculateDayHoursWithOT = (entry: TimesheetEntry): { totalHours: number; regularHours: number; overtimeHours: number } => {
+    if (!entry?.startTime || !entry?.endTime) {
+      return { totalHours: 0, regularHours: 0, overtimeHours: 0 };
+    }
+
+    const totalHours = calculateDayHours(entry);
+    const contractDailyHours = getContractDailyHours();
+
+    if (!Number.isFinite(totalHours)) {
+      log.warn('[Timesheet] calculateDayHoursWithOT -> totalHours inválido', { entry, totalHours });
+      return { totalHours: 0, regularHours: 0, overtimeHours: 0 };
+    }
+
+    // Em feriado, todas as horas são OT por padrão
+    if (entry.isHoliday) {
+      return { totalHours, regularHours: 0, overtimeHours: totalHours };
+    }
+
+    // Sem política OT definida, considerar excedente sobre horas contratuais diárias
+    if (!otPolicy) {
+      const regular = Math.min(totalHours, contractDailyHours);
+      const overtime = Math.max(0, totalHours - contractDailyHours);
+      return { totalHours, regularHours: regular, overtimeHours: overtime };
+    }
+
+    // Converter para PayrollTimeEntry e segmentar com a política OT
+    const pte = {
+      date: entry.date,
+      start_time: entry.startTime,
+      end_time: entry.endTime,
+      break_minutes: Number.isFinite(Number(entry.breakMinutes)) ? Number(entry.breakMinutes) : 0,
+      is_holiday: !!entry.isHoliday,
+      is_sick: !!entry.isSick,
+      is_vacation: !!entry.isVacation,
+    } as any;
+
+    try {
+      const segments = segmentEntry(pte, otPolicy, contractDailyHours);
+      let regular = 0;
+      let overtime = 0;
+      segments.forEach((s: any) => {
+        if (s.isOvertime) overtime += s.hours; else regular += s.hours;
+      });
+      return { totalHours, regularHours: regular, overtimeHours: overtime };
+    } catch (e) {
+      if (typeof console !== 'undefined') {
+        console.warn('[Timesheet] segmentEntry falhou, fallback simples aplicado', { error: e, pte });
+      }
+      // Fallback conservador
+      const regular = Math.min(totalHours, contractDailyHours);
+      const overtime = Math.max(0, totalHours - contractDailyHours);
+      return { totalHours, regularHours: regular, overtimeHours: overtime };
+    }
+  };
+
+  const calculateWeekTotals = () => {
+    return timesheet.entries.reduce(
+      (acc, entry) => {
+        const b = calculateDayHoursWithOT(entry);
+        acc.total += b.totalHours;
+        acc.regular += b.regularHours;
+        acc.overtime += b.overtimeHours;
+        return acc;
+      },
+      { total: 0, regular: 0, overtime: 0 }
+    );
+  };
+
+  const calculateWeekTotal = () => calculateWeekTotals().total;
+  const calculateWeekRegularTotal = () => calculateWeekTotals().regular;
+  const calculateWeekOvertimeTotal = () => calculateWeekTotals().overtime;
+
+  // --- Handlers de edição e ações da semana ---
+  const updateEntry = <K extends keyof TimesheetEntry>(index: number, field: K, value: TimesheetEntry[K]) => {
+    setTimesheet(prev => {
+      const entries = [...prev.entries];
+      const current = { ...entries[index] };
+  
+      // Regras de consistência entre flags
+      if (field === 'isHoliday' && typeof value === 'boolean') {
+        if (value) {
+          // Feriado tem precedência: desmarcar férias/doente se não for exceção
+          current.isVacation = false;
+          current.isSick = false;
+          if (!current.isException) {
+            current.startTime = '';
+            current.endTime = '';
+            current.breakMinutes = 0;
+          }
+        }
+      }
+      if (field === 'isVacation' && typeof value === 'boolean') {
+        if (value) {
+          current.isHoliday = false;
+          current.isSick = false;
+          if (!current.isException) {
+            current.startTime = '';
+            current.endTime = '';
+            current.breakMinutes = 0;
+          }
+        }
+      }
+      if (field === 'isSick' && typeof value === 'boolean') {
+        if (value) {
+          current.isHoliday = false;
+          current.isVacation = false;
+          if (!current.isException) {
+            current.startTime = '';
+            current.endTime = '';
+            current.breakMinutes = 0;
+          }
+        }
+      }
+  
+      if (field === 'breakMinutes' && typeof value === 'number') {
+        current.breakMinutes = Math.max(0, value || 0);
+      } else {
+        // @ts-expect-error - atribuição dinâmica controlada
+        current[field] = value as any;
+      }
+  
+      entries[index] = current;
+      return { entries };
+    });
+  };
+  
+  const clearDayEntry = (index: number) => {
+    setTimesheet(prev => {
+      const entries = [...prev.entries];
+      const current = { ...entries[index] };
+      entries[index] = {
+        ...current,
+        startTime: '',
+        endTime: '',
+        breakMinutes: 0,
+        description: '',
+        isException: false,
+        // Manter flags de feriado/férias/doente como estão
+      };
+      return { entries };
+    });
+  };
+  
+  const fillNormalWeek = async () => {
+    try {
+      const sc = contracts.find(c => c.id === selectedContractId) || activeContract;
+      if (!sc || !sc.schedule_json) {
+        toast({
+          title: 'Sem horário padrão',
+          description: 'Este contrato não possui um horário semanal definido.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Calcular janela da semana atual
+      const weekStart = new Date(selectedWeek);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+
+      // Buscar feriados e licenças para esta semana para garantir flags corretas mesmo sem entradas prévias
+      let holidays: any[] = [];
+      let leaves: any[] = [];
+      try {
+        [holidays, leaves] = await Promise.all([
+          payrollService.getHolidays(
+            user!.id,
+            weekStart.getFullYear(),
+            selectedContractId
+          ),
+          payrollService.getLeavesForWeek(
+            user!.id,
+            selectedWeek,
+            formatDateLocal(weekEnd),
+            selectedContractId
+          )
+        ]);
+      } catch (err) {
+        console.warn('fillNormalWeek: falha ao obter feriados/licenças', err);
+      }
+
+      const holidaysSet = new Set<string>((holidays || []).map((h: any) => h.date));
+      const leavesByDate = new Map<string, { isSick?: boolean; isVacation?: boolean }>();
+      for (const day of weekDays) {
+        const ds = formatDateLocal(day);
+        const overlaps = (leaves || []).filter((l: any) => {
+          const start = new Date(l.start_date);
+          const end = new Date(l.end_date);
+          const cur = new Date(ds);
+          start.setHours(0, 0, 0, 0);
+          end.setHours(0, 0, 0, 0);
+          cur.setHours(0, 0, 0, 0);
+          return cur >= start && cur <= end;
+        });
+        if (overlaps.length) {
+          let isSick = false;
+          let isVacation = false;
+          for (const lv of overlaps) {
+            const t = String(lv.leave_type || '').toLowerCase();
+            if (t.includes('sick') || t === 'doente') isSick = true;
+            if (t.includes('vacation') || t === 'férias' || t === 'ferias' || t === 'paid_leave') isVacation = true;
+          }
+          leavesByDate.set(ds, { isSick, isVacation });
+        }
+      }
+
+      const schedule = sc.schedule_json as Record<string, any>;
+      const dayKeyByIndex = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+
+      // Suporte a formato "standard" (top-level): { use_standard, start_time, end_time, break_minutes }
+      const useStandard = !!schedule.use_standard && !!schedule.start_time && !!schedule.end_time;
+      const standardStart = schedule.start_time as string | undefined;
+      const standardEnd = schedule.end_time as string | undefined;
+      const standardBreak: number = (schedule.break_minutes ?? 0) as number;
+
+      console.debug('fillNormalWeek()', { useStandard, standardStart, standardEnd, standardBreak, schedule });
+
+      setTimesheet(prev => {
+        const filled = weekDays.map((d) => {
+          const dateStr = formatDateLocal(d);
+          // Manter entrada existente para preservar flags e descrição
+          const existing = prev.entries.find(e => (e.date.includes('T') ? e.date.split('T')[0] : e.date) === dateStr);
+          const dayKey = dayKeyByIndex[d.getDay()];
+          const dayCfg = schedule[dayKey];
+          const isWeekday = d.getDay() >= 1 && d.getDay() <= 5; // Mon-Fri
+
+          const flagsFromData = {
+            isHoliday: holidaysSet.has(dateStr),
+            isSick: !holidaysSet.has(dateStr) && !!(leavesByDate.get(dateStr)?.isSick),
+            isVacation: !holidaysSet.has(dateStr) && !!(leavesByDate.get(dateStr)?.isVacation),
+          };
+
+          const base: TimesheetEntry = existing ? {
+            ...existing,
+            // Feriado prevalece sobre licenças
+            isHoliday: existing.isHoliday || flagsFromData.isHoliday,
+            isSick: (existing.isSick || flagsFromData.isSick) && !flagsFromData.isHoliday,
+            isVacation: (existing.isVacation || flagsFromData.isVacation) && !flagsFromData.isHoliday,
+          } : {
+            date: dateStr,
+            startTime: '',
+            endTime: '',
+            breakMinutes: 0,
+            description: '',
+            isHoliday: flagsFromData.isHoliday,
+            isSick: flagsFromData.isSick,
+            isVacation: flagsFromData.isVacation,
+            isException: false,
+          };
+
+          if ((base.isHoliday || base.isSick || base.isVacation) && !base.isException) {
+            // Em feriado/férias/doença sem exceção, não preencher horas
+            return base;
+          }
+
+          if (dayCfg) {
+            const enabled = dayCfg.enabled ?? true;
+            if (!enabled) {
+              // Dia desativado: limpar horas (mas manter flags/descrição)
+              return { ...base, startTime: '', endTime: '', breakMinutes: 0 };
+            }
+
+            const start = dayCfg.start || dayCfg.start_time || (useStandard ? standardStart : undefined) || base.startTime || '09:00';
+            const end = dayCfg.end || dayCfg.end_time || (useStandard ? standardEnd : undefined) || base.endTime || '18:00';
+            const breakM = (dayCfg.break_minutes ?? (useStandard ? standardBreak : undefined) ?? base.breakMinutes ?? 0) as number;
+
+            return {
+              ...base,
+              startTime: start,
+              endTime: end,
+              breakMinutes: breakM,
+            };
+          }
+
+          if (useStandard && isWeekday) {
+            return {
+              ...base,
+              startTime: standardStart || base.startTime || '09:00',
+              endTime: standardEnd || base.endTime || '18:00',
+              breakMinutes: (standardBreak ?? base.breakMinutes ?? 0) as number,
+            };
+          }
+
+          // Dia sem configuração: limpar horas (mas manter flags/descrição)
+          return {
+            ...base,
+            startTime: '',
+            endTime: '',
+            breakMinutes: 0,
+          };
+        });
+        return { entries: filled };
+      });
+
+      toast({ title: 'Semana preenchida', description: 'Horas padrão aplicadas segundo o contrato.' });
+      setAriaLiveMsg('Semana preenchida com horas padrão.');
+    } catch (e) {
+      console.error('Erro ao preencher semana normal:', e);
+      toast({ title: 'Erro', description: 'Falha ao preencher a semana.', variant: 'destructive' });
+    }
+  };
+
+  const clearWeekEntries = async () => {
+    if (!selectedContractId || !user?.id) {
+      setTimesheet({ entries: await createEmptyWeekEntries() });
+      return;
+    }
+  
+    const confirmed = window.confirm('Tem a certeza que pretende apagar todas as entradas desta semana?');
+    if (!confirmed) return;
+  
+    try {
+      setLoading(true);
+      const start = new Date(selectedWeek);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+  
+      const entries = await payrollService.getTimeEntries(
+        user.id,
+        selectedContractId,
+        selectedWeek,
+        formatDateLocal(end)
+      );
+  
+      for (const e of entries) {
+        await payrollService.deleteTimeEntry(e.id, user.id, selectedContractId);
+      }
+  
+      setExistingEntries([]);
+      setTimesheet({ entries: await createEmptyWeekEntries() });
+      toast({ title: 'Semana apagada', description: 'Todas as entradas desta semana foram removidas.' });
+      setAriaLiveMsg('Entradas da semana foram limpas.');
+    } catch (e) {
+      console.error('Erro ao apagar semana:', e);
+      toast({ title: 'Erro', description: 'Falha ao apagar as entradas da semana.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const exportToCSV = () => {
@@ -922,18 +1005,18 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       entry.date,
       entry.startTime,
       entry.endTime,
-      entry.breakMinutes.toString(),
-      entry.description,
+      String(entry.breakMinutes ?? 0),
+      entry.description ?? '',
       entry.isHoliday ? '1' : '0',
       entry.isSick ? '1' : '0',
       entry.isVacation ? '1' : '0',
       entry.isException ? '1' : '0'
     ]);
-    
+
     const csvContent = [headers, ...rows]
       .map(row => row.map(field => `"${field}"`).join(','))
       .join('\n');
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -945,10 +1028,13 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
     document.body.removeChild(link);
   };
 
-  const weekTotal = calculateWeekTotal();
-  const selectedContract = contracts.find(c => c.id === selectedContractId) || activeContract;
+  const { total: weekTotal } = calculateWeekTotals();
+  // selectedContract definido anteriormente; evitar redeclaração nesta secção
+  // const selectedContract = contracts.find(c => c.id === selectedContractId) || activeContract;
   const standardWeeklyHours = selectedContract ? (selectedContract.weekly_hours || 40) : 40;
   const overtimeHours = Math.max(0, weekTotal - standardWeeklyHours);
+  const WEEKLY_LIMIT_HOURS = 48;
+  const isWeeklyLimitExceeded = weekTotal > WEEKLY_LIMIT_HOURS;
 
 
 
@@ -972,41 +1058,12 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-6 w-6" />
-                Timesheet Semanal
-              </CardTitle>
-              <CardDescription>
-                Semana de {weekDays[0].toLocaleDateString('pt-PT')} a {weekDays[6].toLocaleDateString('pt-PT')}
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleImportCSV}
-                className="hidden"
-                id="csv-import"
-              />
-              <Button
-                variant="outline"
-                onClick={() => document.getElementById('csv-import')?.click()}
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Importar CSV
-              </Button>
-              <Button variant="outline" onClick={exportToCSV}>
-                <Download className="mr-2 h-4 w-4" />
-                Exportar CSV
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+      <TimesheetHeader
+        weekDays={weekDays}
+        weekNumber={getWeekNumber(new Date(selectedWeek))}
+        onImportCSV={handleImportCSV}
+        onExportCSV={exportToCSV}
+      />
 
       {/* Seleção de Contrato */}
       <Card>
@@ -1060,37 +1117,48 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col items-start gap-2">
               <CardTitle>Entradas de Tempo</CardTitle>
-              <div className="flex items-center gap-2">
-                <Button 
-                  onClick={() => {
-                    const currentDate = new Date(selectedWeek);
-                    currentDate.setDate(currentDate.getDate() - 7);
-                    setSelectedWeek(getWeekStart(currentDate).toISOString().split('T')[0]);
-                  }}
-                  variant="outline" 
-                  size="sm"
-                  disabled={weekNavigationLoading}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-medium min-w-[120px] text-center flex items-center justify-center gap-2">
-                  {weekNavigationLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-                  Semana {getWeekNumber(new Date(selectedWeek))}
-                </span>
-                <Button 
-                  onClick={() => {
-                    const currentDate = new Date(selectedWeek);
-                    currentDate.setDate(currentDate.getDate() + 7);
-                    setSelectedWeek(getWeekStart(currentDate).toISOString().split('T')[0]);
-                  }}
-                  variant="outline" 
-                  size="sm"
-                  disabled={weekNavigationLoading}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToPrevWeek}
+                        aria-label={t('timesheet.nav.prev_with_shortcut')}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {t('timesheet.nav.prev_with_shortcut')}
+                    </TooltipContent>
+                  </Tooltip>
+                  <CardDescription className="m-0">
+                    {formattedWeekRange}
+                  </CardDescription>
+                  <span className="text-muted-foreground text-sm">•</span>
+                  <Badge variant="secondary" aria-label={t('timesheet.week_short', { num: getWeekNumber(weekDays?.[0] ?? new Date()) })}>
+                    {t('timesheet.week_short', { num: getWeekNumber(weekDays?.[0] ?? new Date()) })}
+                  </Badge>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToNextWeek}
+                        aria-label={t('timesheet.nav.next_with_shortcut')}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {t('timesheet.nav.next_with_shortcut')}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
             <div className="flex gap-2">
@@ -1147,7 +1215,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
                 {timesheet.entries.map((entry, index) => {
                   const dayHours = calculateDayHours(entry);
                   const dayIndex = weekDays.findIndex(d => 
-                    d.toISOString().split('T')[0] === entry.date
+                    formatDateLocal(d) === entry.date
                   );
                   
                   return (
@@ -1162,7 +1230,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
                           </SelectTrigger>
                           <SelectContent>
                             {weekDays.map((day, i) => (
-                              <SelectItem key={i} value={day.toISOString().split('T')[0]}>
+                              <SelectItem key={i} value={formatDateLocal(day)}>
                                 {day.toLocaleDateString('pt-PT')}
                               </SelectItem>
                             ))}
@@ -1177,15 +1245,8 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
                       <TableCell>
                         <Input
                           type="time"
-                          value={(() => {
-                            const value = entry.startTime || '';
-                            console.log('🔄 DEBUG - startTime RENDER:', { index, entryDate: entry.date, value, entry });
-                            return value;
-                          })()}
-                          onChange={(e) => {
-                            console.log('🔄 DEBUG - startTime onChange:', { index, oldValue: entry.startTime, newValue: e.target.value });
-                            updateEntry(index, 'startTime', e.target.value);
-                          }}
+                          value={entry.startTime || ''}
+                          onChange={(e) => updateEntry(index, 'startTime', e.target.value)}
                           disabled={(entry.isHoliday || entry.isSick || entry.isVacation) && !entry.isException}
                           className="w-[120px]"
                           aria-label="Hora de início"
@@ -1194,15 +1255,8 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
                       <TableCell>
                         <Input
                           type="time"
-                          value={(() => {
-                            const value = entry.endTime || '';
-                            console.log('🔄 DEBUG - endTime RENDER:', { index, entryDate: entry.date, value, entry });
-                            return value;
-                          })()}
-                          onChange={(e) => {
-                            console.log('🔄 DEBUG - endTime onChange:', { index, oldValue: entry.endTime, newValue: e.target.value });
-                            updateEntry(index, 'endTime', e.target.value);
-                          }}
+                          value={entry.endTime || ''}
+                          onChange={(e) => updateEntry(index, 'endTime', e.target.value)}
                           disabled={(entry.isHoliday || entry.isSick || entry.isVacation) && !entry.isException}
                           className="w-[120px]"
                           aria-label="Hora de fim"
@@ -1223,7 +1277,10 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
                         <div className="flex flex-col gap-1">
                           {(() => {
                             const hoursBreakdown = calculateDayHoursWithOT(entry);
-                            const totalHours = hoursBreakdown.totalHours;
+                            const totalHours = Number.isFinite(Number(hoursBreakdown.totalHours)) ? Number(hoursBreakdown.totalHours) : 0;
+                            if (!Number.isFinite(totalHours)) {
+                              log.warn('[Timesheet] UI -> totalHours inválido', { entry, hoursBreakdown });
+                            }
                             return (
                               <>
                                 <Badge variant={totalHours > 8 ? 'destructive' : 'default'}>
@@ -1231,9 +1288,9 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
                                 </Badge>
                                 {hoursBreakdown.overtimeHours > 0 && (
                                   <div className="text-xs text-muted-foreground">
-                                    <span className="text-green-600">{hoursBreakdown.regularHours.toFixed(1)}h</span>
+                                    <span className="text-green-600">{hoursBreakdown.regularHours.toFixed(2)}h</span>
                                     {' + '}
-                                    <span className="text-amber-600">{hoursBreakdown.overtimeHours.toFixed(1)}h OT</span>
+                                    <span className="text-amber-600">{hoursBreakdown.overtimeHours.toFixed(2)}h OT</span>
                                   </div>
                                 )}
                               </>
@@ -1276,9 +1333,10 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
                           type="checkbox"
                           checked={entry.isHoliday}
                           onChange={(e) => updateEntry(index, 'isHoliday', e.target.checked)}
+                          disabled
                           className="h-4 w-4"
-                          aria-label="Marcar como feriado"
-                          title="Feriado (precedência máxima)"
+                          aria-label="Indicador de feriado (sincronizado)"
+                          title="Feriado sincronizado pelo calendário. Use 'Exceção' para editar horas num feriado."
                         />
                       </TableCell>
                       <TableCell>
@@ -1333,21 +1391,34 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       {/* Summary & Actions */}
       <Card>
         <CardContent className="pt-6">
+          {/* Região aria-live apenas para leitores de ecrã */}
+          <div className="sr-only" aria-live="polite">{ariaLiveMsg || ''}</div>
+          {isWeeklyLimitExceeded && (
+            <Alert role="alert" aria-live="assertive" className="mb-4 border-red-300">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <AlertDescription>
+                Atenção: limite semanal de 48h excedido. Total atual: <span className="font-semibold">{weekTotal.toFixed(2)}h</span>.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="flex items-center justify-between">
             <div className="space-y-2">
-              <div className="flex items-center gap-4">
-                <div className="text-sm text-muted-foreground">
-                  Total: <span className="font-medium">{weekTotal.toFixed(2)}h</span>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  Padrão: <span className="font-medium">{standardWeeklyHours}h</span>
-                </div>
-                {overtimeHours > 0 && (
-                  <div className="text-sm text-amber-600">
-                    Horas Extras: <span className="font-medium">{overtimeHours.toFixed(2)}h</span>
-                  </div>
-                )}
-              </div>
+              {blockedNotice && (
+                <div className="text-sm text-muted-foreground">{blockedNotice}</div>
+              )}
+               <div className="flex items-center gap-4">
+                 <div className="text-sm text-muted-foreground">
+                   Total: <span className="font-medium">{weekTotal.toFixed(2)}h</span>
+                 </div>
+                 <div className="text-sm text-muted-foreground">
+                   Padrão: <span className="font-medium">{standardWeeklyHours}h</span>
+                 </div>
+                 {overtimeHours > 0 && (
+                   <div className="text-sm text-amber-600">
+                     Horas Extras: <span className="font-medium">{overtimeHours.toFixed(2)}h</span>
+                   </div>
+                 )}
+               </div>
               {existingEntries.length > 0 && (
                 <Alert>
                   <CheckCircle className="h-4 w-4" />
@@ -1373,4 +1444,21 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
   );
 }
 
-export default WeeklyTimesheetForm;
+function normalizeHHmm(value: string | number | null | undefined): string {
+  if (value == null) return '';
+  let s = String(value).trim().toLowerCase();
+  if (!s) return '';
+  s = s.replace(/[h]/g, ':').replace(/\./g, ':').replace(/;/g, ':');
+  if (/^\d{3,4}$/.test(s)) {
+    if (s.length === 3) s = '0' + s;
+    s = `${s.slice(0, 2)}:${s.slice(2)}`;
+  }
+  const m = s.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+  if (!m) return '';
+  let hh = parseInt(m[1], 10);
+  let mm = m[2] != null ? parseInt(m[2], 10) : 0;
+  if (isNaN(hh) || isNaN(mm)) return '';
+  if (hh > 23) hh = hh % 24;
+  if (mm > 59) mm = 59;
+  return `${hh.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`;
+}

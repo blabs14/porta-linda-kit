@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,7 @@ import { payrollService } from '../services/payrollService';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import { pt } from 'date-fns/locale';
+import { withContext, maskId } from '@/shared/lib/logger';
 
 interface PayrollLeavesManagerProps {
   contractId?: string;
@@ -36,6 +37,8 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
     medical_certificate: false,
     notes: ''
   });
+  const correlationId = useRef(globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const log = withContext({ feature: 'payroll', component: 'PayrollLeavesManager', correlationId: correlationId.current });
 
   useEffect(() => {
     if (user?.id) {
@@ -49,7 +52,11 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
       const data = await payrollService.getLeaves(user!.id, contractId);
       setLeaves(data);
     } catch (error) {
-      console.error('Erro ao carregar licenças:', error);
+      log.error('Failed to load leaves', {
+        error: error instanceof Error ? error.message : String(error),
+        userId: maskId(user?.id),
+        contractId: maskId(contractId),
+      });
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar as licenças.',
@@ -144,7 +151,13 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
       await loadLeaves();
       resetForm();
     } catch (error) {
-      console.error('Erro ao processar licença:', error);
+      log.error('Failed to process leave', {
+        error: error instanceof Error ? error.message : String(error),
+        userId: maskId(user?.id),
+        contractId: maskId(contractId),
+        editing: !!editingLeave,
+        leaveId: maskId(editingLeave?.id),
+      });
       toast({
         title: 'Erro',
         description: `Não foi possível salvar a licença: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
@@ -162,7 +175,12 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
       });
       await loadLeaves();
     } catch (error) {
-      console.error('Erro ao excluir licença:', error);
+      log.error('Failed to delete leave', {
+        error: error instanceof Error ? error.message : String(error),
+        id: maskId(id),
+        userId: maskId(user?.id),
+        contractId: maskId(contractId),
+      });
       toast({
         title: 'Erro',
         description: 'Não foi possível excluir a licença.',
@@ -180,7 +198,12 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
       });
       await loadLeaves();
     } catch (error) {
-      console.error('Erro ao aprovar licença:', error);
+      log.error('Failed to approve leave', {
+        error: error instanceof Error ? error.message : String(error),
+        id: maskId(id),
+        approverId: maskId(user?.id),
+        contractId: maskId(contractId),
+      });
       toast({
         title: 'Erro',
         description: 'Não foi possível aprovar a licença.',
@@ -198,7 +221,12 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
       });
       await loadLeaves();
     } catch (error) {
-      console.error('Erro ao rejeitar licença:', error);
+      log.error('Failed to reject leave', {
+        error: error instanceof Error ? error.message : String(error),
+        id: maskId(id),
+        reviewerId: maskId(user?.id),
+        contractId: maskId(contractId),
+      });
       toast({
         title: 'Erro',
         description: 'Não foi possível rejeitar a licença.',
