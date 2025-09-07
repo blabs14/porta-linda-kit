@@ -141,7 +141,7 @@ describe('Transactions Service', () => {
         user_id: 'user-123',
       };
 
-      const createdTransaction = {
+      const _createdTransaction = {
         id: 'new-transaction-id',
         ...newTransaction,
       };

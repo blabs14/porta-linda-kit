@@ -1,5 +1,5 @@
 import { supabase } from '../../../lib/supabaseClient';
-import { PayrollContract, PayrollOTPolicy, PayrollHoliday, PayrollVacation, PayrollVacationFormData, PayrollTimeEntry, PayrollLeave, PayrollLeaveFormData, MileagePolicyFormData, PayrollMealAllowanceConfig, PayrollMealAllowanceConfigFormData, PayrollDeductionConfig, PayrollDeductionConfigFormData, PayrollPeriod, PayrollPeriodFormData, PayrollCalculation } from '../types';
+import { PayrollContract, PayrollOTPolicy, PayrollHoliday, PayrollVacation, PayrollVacationFormData, PayrollTimeEntry, PayrollLeave, PayrollLeaveFormData, MileagePolicyFormData, PayrollMealAllowanceConfig, PayrollMealAllowanceConfigFormData, PayrollDeductionConfig, PayrollDeductionConfigFormData, PayrollPeriod, PayrollPeriodFormData, PayrollCalculation, PayrollMileageTrip, PayrollMileagePolicy } from '../types';
 import { formatDateLocal } from '../../../lib/dateUtils';
 
 /**
@@ -21,10 +21,12 @@ export async function getContracts(userId: string): Promise<PayrollContract[]> {
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
-  if (error) throw error;
+  if (error) throw new Error(error.message || 'Erro ao obter contratos');
   return data || [];
 }
 
+// Alias para compatibilidade com testes
+export const getPayrollContracts = getContracts;
 export async function getActiveContract(userId: string): Promise<PayrollContract | null> {
   const { data, error } = await supabase
     .from('payroll_contracts')
@@ -124,7 +126,6 @@ export async function getActiveOTPolicy(userId: string, _contractId?: string): P
     .eq('user_id', userId)
     .eq('is_active', true)
     .order('created_at', { ascending: false })
-    .limit(1)
     .single();
 
   if (error && (error as any).code === 'PGRST116') return null;
@@ -482,8 +483,22 @@ export async function getPayrollConfigurationStatus(userId: string, contractId: 
     .eq('user_id', userId)
     .eq('id', contractId)
     .single();
-  const contractValid = !!contract && !contractError;
-  if (!contractValid) missing.push('Contrato ativo não encontrado');
+
+  let contractValid = true;
+  if (!contract || contractError) {
+    contractValid = false;
+    missing.push('Contrato ativo não encontrado');
+  } else {
+    // Validar campos obrigatórios do contrato conforme expectativas dos testes
+    if (!contract.job_category) {
+      contractValid = false;
+      missing.push('Categoria profissional não definida no contrato');
+    }
+    if (!contract.workplace_location) {
+      contractValid = false;
+      missing.push('Local de trabalho não definido no contrato');
+    }
+  }
 
   // OT Policy (active)
   const { data: otPolicy } = await supabase
@@ -574,7 +589,7 @@ export async function validatePayrollConfiguration(userId: string, contractId: s
 // Payroll period creation
 export async function createPayrollPeriod(userId: string, contractId: string, year: number, month: number): Promise<PayrollPeriod> {
   // 1) Validate configuration for the given year
-  const validation = await validatePayrollConfiguration(userId, contractId, year);
+  const validation = await validatePayrollConfiguration(userId, contractId);
   if (!validation.isValid) {
     throw new Error(`Não é possível criar o período de folha de pagamento. Configurações em falta: ${validation.missingConfigurations.join(', ')}`);
   }
@@ -629,6 +644,7 @@ export async function createPayrollPeriod(userId: string, contractId: string, ye
 // Export all as payrollService object
 export const payrollService = {
   getContracts,
+  getPayrollContracts,
   getActiveContract,
   getContract,
   createContract,
@@ -636,6 +652,7 @@ export const payrollService = {
   deactivateContract,
   deleteContract,
   getOTPolicies,
+  getActiveOTPolicy,
   createOTPolicy,
   updateOTPolicy,
   deleteOTPolicy,
@@ -662,6 +679,28 @@ export const payrollService = {
   createPayrollPeriod,
   // Adicionado: permitir uso via payrollService.getLeavesForWeek
   getLeavesForWeek,
+  // Mileage Trip methods
+  getMileageTrips,
+  createMileageTrip,
+  updateMileageTrip,
+  deleteMileageTrip,
+  // Mileage policies
+  getActiveMileagePolicy,
+  getMileagePolicies,
+  createMileagePolicy,
+  updateMileagePolicy,
+  deleteMileagePolicy,
+  // Meal allowance config
+  getMealAllowanceConfig,
+  upsertMealAllowanceConfig,
+  deleteMealAllowanceConfig,
+  // Deduction config
+  getDeductionConfig,
+  getDeductionConfigs,
+  upsertDeductionConfig,
+  deleteDeductionConfig,
+  // Payroll calculation
+  recalculatePayroll,
 };
 
 // NEW: Get leaves overlapping a given week window
@@ -687,4 +726,266 @@ export async function getLeavesForWeek(
   const { data, error } = await query;
   if (error) throw error;
   return data || [];
+}
+
+// Mileage Trip functions
+export async function getMileageTrips(
+  userId: string,
+  startDate?: string,
+  endDate?: string,
+  contractId?: string
+): Promise<PayrollMileageTrip[]> {
+  let query = supabase
+    .from('payroll_mileage_trips')
+    .select('*')
+    .eq('user_id', userId)
+    .order('trip_date', { ascending: false });
+
+  if (startDate) {
+    query = query.gte('trip_date', startDate);
+  }
+  if (endDate) {
+    query = query.lte('trip_date', endDate);
+  }
+  if (contractId) {
+    query = query.eq('contract_id', contractId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createMileageTrip(
+  userId: string,
+  policyId: string,
+  tripData: Omit<PayrollMileageTrip, 'id' | 'created_at' | 'updated_at' | 'user_id' | 'policy_id'>
+): Promise<PayrollMileageTrip> {
+  const { data, error } = await supabase
+    .from('payroll_mileage_trips')
+    .insert({
+      ...tripData,
+      user_id: userId,
+      policy_id: policyId
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateMileageTrip(
+  tripId: string,
+  tripData: Partial<Omit<PayrollMileageTrip, 'id' | 'created_at' | 'updated_at'>>
+): Promise<PayrollMileageTrip> {
+  const { data, error } = await supabase
+    .from('payroll_mileage_trips')
+    .update(tripData)
+    .eq('id', tripId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteMileageTrip(tripId: string): Promise<void> {
+  const { error } = await supabase
+    .from('payroll_mileage_trips')
+    .delete()
+    .eq('id', tripId);
+
+  if (error) throw error;
+}
+
+// NEW: Get active mileage policy for a user and contract
+export async function getActiveMileagePolicy(userId: string, contractId: string): Promise<PayrollMileagePolicy | null> {
+  const { data, error } = await supabase
+    .from('payroll_mileage_policies')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .single();
+
+  if (error && (error as any).code === 'PGRST116') return null;
+  if (error) throw error;
+  return (data as any) || null;
+}
+
+export async function getMileagePolicies(userId: string, contractId?: string): Promise<PayrollMileagePolicy[]> {
+  let query = supabase
+    .from('payroll_mileage_policies')
+    .select('*')
+    .eq('user_id', userId);
+
+  if (contractId) {
+    query = query.eq('contract_id', contractId);
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data as any) || [];
+}
+
+export async function createMileagePolicy(userId: string, policyData: MileagePolicyFormData & { contract_id: string }): Promise<PayrollMileagePolicy> {
+  const { data, error } = await supabase
+    .from('payroll_mileage_policies')
+    .insert({
+      user_id: userId,
+      name: policyData.name,
+      rate_cents_per_km: Math.round(policyData.rate_per_km * 100),
+      contract_id: policyData.contract_id,
+      is_active: true
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as any;
+}
+
+export async function updateMileagePolicy(policyId: string, policyData: Partial<MileagePolicyFormData>, userId: string, contractId: string): Promise<PayrollMileagePolicy> {
+  const updateData: any = {};
+  
+  if (policyData.name !== undefined) updateData.name = policyData.name;
+  if (policyData.rate_per_km !== undefined) updateData.rate_cents_per_km = Math.round(policyData.rate_per_km * 100);
+
+  const { data, error } = await supabase
+    .from('payroll_mileage_policies')
+    .update(updateData)
+    .eq('id', policyId)
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as any;
+}
+
+export async function deleteMileagePolicy(policyId: string, userId: string, contractId: string): Promise<void> {
+  const { error } = await supabase
+    .from('payroll_mileage_policies')
+    .delete()
+    .eq('id', policyId)
+    .eq('user_id', userId)
+    .eq('contract_id', contractId);
+
+  if (error) throw error;
+}
+
+// NEW: Meal Allowance Config methods
+export async function getMealAllowanceConfig(userId: string, contractId: string): Promise<PayrollMealAllowanceConfig | null> {
+  const { data, error } = await supabase
+    .from('payroll_meal_allowance_configs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .single();
+
+  if (error && (error as any).code === 'PGRST116') return null;
+  if (error) throw error;
+  return (data as any) || null;
+}
+
+export async function upsertMealAllowanceConfig(userId: string, contractId: string, configData: PayrollMealAllowanceConfigFormData): Promise<PayrollMealAllowanceConfig> {
+  const { data, error } = await supabase
+    .from('payroll_meal_allowance_configs')
+    .upsert({
+      user_id: userId,
+      contract_id: contractId,
+      daily_amount_cents: Math.round(configData.daily_amount * 100),
+      excluded_months: configData.excluded_months || [],
+      payment_method: configData.payment_method,
+      duodecimos_enabled: configData.duodecimos_enabled || false
+    }, {
+      onConflict: 'user_id,contract_id'
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as any;
+}
+
+export async function deleteMealAllowanceConfig(userId: string, contractId: string): Promise<void> {
+  const { error } = await supabase
+    .from('payroll_meal_allowance_configs')
+    .delete()
+    .eq('user_id', userId)
+    .eq('contract_id', contractId);
+
+  if (error) throw error;
+}
+
+// NEW: Deduction Config methods
+export async function getDeductionConfig(userId: string, contractId: string): Promise<PayrollDeductionConfig | null> {
+  const { data, error } = await supabase
+    .from('payroll_deduction_configs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .single();
+
+  if (error && (error as any).code === 'PGRST116') return null;
+  if (error) throw error;
+  return (data as any) || null;
+}
+
+export async function getDeductionConfigs(userId: string): Promise<PayrollDeductionConfig[]> {
+  const { data, error } = await supabase
+    .from('payroll_deduction_configs')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data as any) || [];
+}
+
+export async function upsertDeductionConfig(userId: string, contractId: string, configData: PayrollDeductionConfigFormData): Promise<PayrollDeductionConfig> {
+  const { data, error } = await supabase
+    .from('payroll_deduction_configs')
+    .upsert({
+      user_id: userId,
+      contract_id: contractId,
+      irs_percentage: configData.irs_percentage,
+      social_security_percentage: configData.social_security_percentage,
+      irs_surcharge_percentage: configData.irs_surcharge_percentage || 0,
+      solidarity_contribution_percentage: configData.solidarity_contribution_percentage || 0
+    }, {
+      onConflict: 'user_id,contract_id'
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as any;
+}
+
+export async function deleteDeductionConfig(userId: string, contractId: string): Promise<void> {
+  const { error } = await supabase
+    .from('payroll_deduction_configs')
+    .delete()
+    .eq('user_id', userId)
+    .eq('contract_id', contractId);
+
+  if (error) throw error;
+}
+
+// Payroll calculation function
+export async function recalculatePayroll(
+  userId: string,
+  contractId: string,
+  year: number,
+  month: number
+): Promise<PayrollCalculation> {
+  // Import calculation service dynamically to avoid circular dependencies
+  const { calculatePayroll } = await import('./calculation.service');
+  
+  return calculatePayroll(userId, contractId, year, month);
 }

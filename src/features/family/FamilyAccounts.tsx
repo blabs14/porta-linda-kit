@@ -15,7 +15,7 @@ import CreditCardForm from '../../components/CreditCardForm';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Input } from '../../components/ui/input';
 import { Slider } from '../../components/ui/slider';
-const LazyTransferModal = React.lazy(() => import('../../components/TransferModal').then(m => ({ default: m.TransferModal })));
+const LazyTransferModal = React.lazy(() => import('../../components/TransferModal'));
 import { LazyWrapper } from '../../components/ui/lazy-wrapper';
 import { useToast } from '../../hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
@@ -436,7 +436,7 @@ const FamilyAccounts: React.FC = () => {
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingAccount ? 'Editar Conta' : 'Criar Conta'}</DialogTitle>
+            <DialogTitle>{editingAccount ? 'Editar Conta' : 'Nova Conta'}</DialogTitle>
             <DialogDescription>
               {editingAccount ? 'Editar dados da conta familiar' : 'Criar nova conta familiar'}
             </DialogDescription>

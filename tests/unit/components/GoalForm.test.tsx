@@ -14,6 +14,8 @@ vi.mock('@/hooks/useGoalsQuery');
 const mockUseAuth = vi.mocked(useAuth);
 const mockGoalsService = vi.mocked(goalsService);
 const mockUseGoals = vi.mocked(useGoals);
+const mockUseCreateGoal = vi.mocked(useCreateGoal);
+const mockUseUpdateGoal = vi.mocked(useUpdateGoal);
 
 // Wrapper para QueryClient
 const createWrapper = () => {
@@ -37,6 +39,8 @@ describe('GoalForm', () => {
   const mockOnCancel = vi.fn();
   const mockCreateGoal = vi.fn();
   const mockUpdateGoal = vi.fn();
+  const mockMutateAsyncCreate = vi.fn();
+  const mockMutateAsyncUpdate = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -51,12 +55,34 @@ describe('GoalForm', () => {
 
     mockCreateGoal.mockResolvedValue(undefined);
     mockUpdateGoal.mockResolvedValue(undefined);
+    mockMutateAsyncCreate.mockResolvedValue(undefined);
+    mockMutateAsyncUpdate.mockResolvedValue(undefined);
     
     mockUseGoals.mockReturnValue({
       createGoal: mockCreateGoal,
       updateGoal: mockUpdateGoal,
       isCreating: false,
       isUpdating: false,
+    });
+
+    mockUseCreateGoal.mockReturnValue({
+      mutate: mockCreateGoal,
+      mutateAsync: mockMutateAsyncCreate,
+      isPending: false,
+      isError: false,
+      error: null,
+      data: undefined,
+      isSuccess: false,
+    });
+
+    mockUseUpdateGoal.mockReturnValue({
+      mutate: mockUpdateGoal,
+      mutateAsync: mockMutateAsyncUpdate,
+      isPending: false,
+      isError: false,
+      error: null,
+      data: undefined,
+      isSuccess: false,
     });
 
     mockGoalsService.createGoal.mockResolvedValue({
@@ -122,11 +148,12 @@ describe('GoalForm', () => {
     fireEvent.click(screen.getByText('Criar'));
 
     await waitFor(() => {
-      expect(mockCreateGoal).toHaveBeenCalledWith({
+      expect(mockMutateAsyncCreate).toHaveBeenCalledWith({
         nome: 'Viagem para Europa',
         valor_objetivo: 8000,
         prazo: '2024-12-31',
         valor_atual: 0,
+        user_id: 'test-user-id'
       });
     });
 
@@ -171,13 +198,12 @@ describe('GoalForm', () => {
     fireEvent.click(screen.getByText('Atualizar'));
 
     await waitFor(() => {
-      expect(mockUpdateGoal).toHaveBeenCalledWith({
+      expect(mockMutateAsyncUpdate).toHaveBeenCalledWith({
         id: 'goal-1',
         data: {
           nome: 'Objetivo Existente',
           valor_objetivo: 7500,
-          prazo: '2024-06-30',
-          valor_atual: 0,
+          prazo: '2024-06-30'
         }
       });
     });
@@ -287,11 +313,12 @@ describe('GoalForm', () => {
     fireEvent.click(screen.getByText('Criar'));
 
     await waitFor(() => {
-        expect(mockCreateGoal).toHaveBeenCalledWith({
+        expect(mockMutateAsyncCreate).toHaveBeenCalledWith({
            nome: 'Objetivo Teste',
            valor_objetivo: 1000,
            prazo: '2025-12-31',
            valor_atual: 0,
+           user_id: 'test-user-id'
          });
       });
 

@@ -2,13 +2,28 @@ import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { useTransactionsQuery, useCreateTransaction, useUpdateTransaction, useDeleteTransaction } from '@/hooks/useTransactionsQuery';
+import { useTransactions, useCreateTransaction, useUpdateTransaction, useDeleteTransaction } from '@/hooks/useTransactionsQuery';
 import * as transactionsService from '@/services/transactions';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Mock dos serviços
 vi.mock('@/services/transactions');
 vi.mock('@/contexts/AuthContext');
+
+// Mock do React Query para este teste específico
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual('@tanstack/react-query');
+  return {
+    ...actual,
+    useMutation: vi.fn((options) => ({
+      mutate: vi.fn((data) => options.mutationFn(data)),
+      mutateAsync: vi.fn((data) => options.mutationFn(data)),
+      isLoading: false,
+      isError: false,
+      error: null
+    }))
+  };
+});
 
 const mockTransactionService = vi.mocked(transactionsService);
 const mockUseAuth = vi.mocked(useAuth);

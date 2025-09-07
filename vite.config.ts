@@ -1,54 +1,11 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
+// import { componentTagger } from "lovable-tagger"; // Removido para resolver vulnerabilidades
 import { VitePWA } from "vite-plugin-pwa";
 import visualizer from 'vite-bundle-visualizer';
 
-// Wrapper personalizado para componentTagger que exclui React.Fragment
-function createSafeComponentTagger() {
-  const originalTagger = componentTagger();
-  
-  return {
-    ...originalTagger,
-    transform(code: string, id: string) {
-      // Só processa ficheiros JSX/TSX
-      if (!id.endsWith('.jsx') && !id.endsWith('.tsx')) {
-        return originalTagger.transform?.(code, id);
-      }
-      
-      // Aplica o tagger original
-      const result = originalTagger.transform?.(code, id);
-      
-      if (typeof result === 'string') {
-        // Remove data-lov-id de React.Fragment e fragmentos vazios
-        let cleanedResult = result;
-        
-        // Remove data-lov-id de <React.Fragment>
-        cleanedResult = cleanedResult.replace(
-          /<React\.Fragment([^>]*?)\s+data-lov-id=["'][^"']*["']([^>]*?)>/g,
-          '<React.Fragment$1$2>'
-        );
-        
-        // Remove data-lov-id de <>
-        cleanedResult = cleanedResult.replace(
-          /<>([^>]*?)\s+data-lov-id=["'][^"']*["']([^>]*?)>/g,
-          '<>$1$2>'
-        );
-        
-        // Remove data-lov-id isolado de React.Fragment
-        cleanedResult = cleanedResult.replace(
-          /(<React\.Fragment[^>]*?)\s+data-lov-id=["'][^"']*["']/g,
-          '$1'
-        );
-        
-        return cleanedResult;
-      }
-      
-      return result;
-    }
-  };
-}
+// Função removida - componentTagger desabilitado para resolver vulnerabilidades
 
 /// <reference types="vitest" />
 
@@ -82,7 +39,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
-      mode === "development" && createSafeComponentTagger(), // Wrapper seguro que exclui React.Fragment
+      // mode === "development" && createSafeComponentTagger(), // Desabilitado para resolver vulnerabilidades
       VitePWA({
         registerType: "autoUpdate",
         strategies: 'injectManifest',
@@ -134,11 +91,30 @@ export default defineConfig(({ mode }) => {
 
             // Dividir vendor em subgrupos
             if (id.includes('/node_modules/@tanstack/react-query')) return 'react-query';
-            if (id.includes('/node_modules/lucide-react')) return 'icons';
+            
+            // Dividir lucide-react em chunks menores por categoria
+            if (id.includes('/node_modules/lucide-react')) {
+              // Separar ícones por funcionalidade para reduzir tamanho
+              if (id.includes('chart') || id.includes('bar') || id.includes('pie') || id.includes('trending')) return 'icons-charts';
+              if (id.includes('wallet') || id.includes('credit') || id.includes('dollar') || id.includes('piggy')) return 'icons-finance';
+              if (id.includes('user') || id.includes('settings') || id.includes('gear') || id.includes('cog')) return 'icons-ui';
+              return 'icons-core';
+            }
+            
             if (id.includes('/node_modules/react-router-dom') || id.includes('/node_modules/react-router')) return 'router';
             if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/')) return 'react-vendor';
 
             if (id.includes('/src/pages/reports.tsx') || id.includes('/src/components/ReportExport.tsx') || id.includes('/src/components/ReportChart.tsx')) return 'reports';
+            
+            // Payroll: dividir em chunks menores
+            if (id.includes('/src/features/payroll/')) {
+              if (id.includes('PayrollModule.tsx') || id.includes('PayrollNavigation')) return 'payroll-core';
+              if (id.includes('PayrollConfig') || id.includes('PayrollContract') || id.includes('PayrollSetup')) return 'payroll-config';
+              if (id.includes('PayrollBonus') || id.includes('PayrollMileage') || id.includes('PayrollSubsidies')) return 'payroll-benefits';
+              if (id.includes('PayrollVacation') || id.includes('PayrollLeaves') || id.includes('PayrollTimesheet')) return 'payroll-time';
+              return 'payroll-misc';
+            }
+            
             // Family: chunks por sub-rotas
             if (id.includes('/src/pages/Family.tsx')) return 'family-shell';
             if (id.includes('/src/features/family/FamilyDashboard.tsx')) return 'family-dashboard';

@@ -13,8 +13,8 @@ export const useCategories = (tipo?: string) => {
     queryFn: async () => {
       // Trazer categorias default (user_id null) + do utilizador
       const { data, error } = await (async ()=>{
-        const d1 = await getCategories(undefined, undefined); // defaults
-        const d2 = await getCategories(user?.id || '', undefined);
+        const d1 = await getCategories(undefined, tipo); // defaults
+        const d2 = await getCategories(user?.id || '', tipo);
         return { data: [ ...(d1.data||[]), ...(d2.data||[]) ] as any[], error: (d1.error||d2.error) };
       })();
       if (error) throw error as any;

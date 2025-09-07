@@ -23,6 +23,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Security Audit
+        run: |
+          npm audit --audit-level=moderate
+          npm audit --json > audit-results.json || true
+
+      - name: Upload security audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit
+          path: audit-results.json
+        if: always()
+
       - name: Lint
         run: npm run lint:ci
 
@@ -39,4 +51,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: dist 
+          path: dist

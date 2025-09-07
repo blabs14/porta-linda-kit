@@ -1,7 +1,7 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { useGoalsQuery, useCreateGoal, useUpdateGoal, useDeleteGoal } from '@/hooks/useGoalsQuery';
+import { useGoals, useCreateGoal, useUpdateGoal, useDeleteGoal } from '@/hooks/useGoalsQuery';
 import * as goalsService from '@/services/goals';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -79,10 +79,7 @@ describe('useGoalsQuery', () => {
     });
 
     it('should handle fetch goals error', async () => {
-      mockGoalsService.getGoals.mockResolvedValue({
-        data: null,
-        error: { message: 'Failed to fetch goals' },
-      });
+      mockGoalsService.getGoals.mockRejectedValue(new Error('Failed to fetch goals'));
 
       const { result } = renderHook(() => useGoals(), {
         wrapper: createWrapper(),
@@ -158,10 +155,9 @@ describe('useGoalsQuery', () => {
         user_id: 'test-user-id',
       };
 
-      mockGoalsService.createGoal.mockResolvedValue({
-        data: null,
-        error: { message: 'Failed to create goal' },
-      });
+      mockGoalsService.createGoal.mockRejectedValue(
+        new Error('Failed to create goal')
+      );
 
       const { result } = renderHook(() => useCreateGoal(), {
         wrapper: createWrapper(),
@@ -222,10 +218,7 @@ describe('useGoalsQuery', () => {
         data_limite: '2025-01-31',
       };
 
-      mockGoalsService.updateGoal.mockResolvedValue({
-        data: null,
-        error: { message: 'Failed to update goal' },
-      });
+      mockGoalsService.updateGoal.mockRejectedValue(new Error('Failed to update goal'));
 
       const { result } = renderHook(() => useUpdateGoal(), {
         wrapper: createWrapper(),
@@ -266,20 +259,19 @@ describe('useGoalsQuery', () => {
     it('should handle delete goal error', async () => {
       const goalId = 'goal-1';
 
-      mockGoalsService.deleteGoal.mockResolvedValue({
-        data: null,
-        error: { message: 'Failed to delete goal' },
-      });
+      mockGoalsService.deleteGoal.mockRejectedValue(new Error('Failed to delete goal'));
 
       const { result } = renderHook(() => useDeleteGoal(), {
         wrapper: createWrapper(),
       });
 
-      result.current.mutate(goalId);
+      await act(async () => {
+        result.current.mutate(goalId);
+      });
 
       await waitFor(() => {
         expect(result.current.isError).toBe(true);
-      });
+      }, { timeout: 3000 });
 
       expect(result.current.error).toBeTruthy();
     });

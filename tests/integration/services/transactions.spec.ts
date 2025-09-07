@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import * as svc from '@/services/transactions';
 
 // Mock do supabase
-vi.mock('../lib/supabaseClient', () => ({
+vi.mock('@/lib/supabaseClient', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),

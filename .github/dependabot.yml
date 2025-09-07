@@ -3,8 +3,33 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "daily"
+      time: "09:00"
+      timezone: "Europe/Lisbon"
+    open-pull-requests-limit: 10
     commit-message:
       prefix: "deps"
-      include: "scope" 
+      include: "scope"
+    # Priorizar atualizações de segurança
+    allow:
+      - dependency-type: "all"
+    # Agrupar atualizações menores
+    groups:
+      security-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "security"
+      minor-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    # Revisar automaticamente PRs de segurança
+    reviewers:
+      - "pmati"
+    # Labels para categorização
+    labels:
+      - "dependencies"
+      - "security"

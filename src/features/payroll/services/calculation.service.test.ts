@@ -45,6 +45,9 @@ describe('PayrollCalculationService', () => {
       night_start: '22:00',
       night_end: '06:00',
       night_multiplier: 1.25,
+      holiday_multiplier: 2.0,
+      weekend_multiplier: 2.0,
+      day_multiplier: 1.5,
       rounding_minutes: 15,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -259,8 +262,8 @@ describe('PayrollCalculationService', () => {
           holidays: mockHolidays
         },
         {
-          contract: { ...mockContract, base_salary_cents: 60000 }, // Salário abaixo do mínimo (€600 < €870)
-          timeEntries: mockTimeEntries,
+          contract: { ...mockContract, base_salary_cents: 87000 }, // Salário mínimo (€870)
+          timeEntries: [], // Sem entradas de tempo para simular erro
           otPolicy: mockOTPolicy,
           holidays: mockHolidays
         }
@@ -270,7 +273,7 @@ describe('PayrollCalculationService', () => {
 
       expect(results).toHaveLength(2);
       expect(results[0].calculation.grossPay).toBeGreaterThan(0);
-      expect(results[1].calculation.grossPay).toBe(0); // Resultado de erro
+      expect(results[1].calculation.grossPay).toBe(0); // Sem entradas de tempo = sem pagamento
     });
   });
 

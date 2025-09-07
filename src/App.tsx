@@ -13,6 +13,7 @@ import { GlobalShortcuts } from './components/GlobalShortcuts';
 import { LocaleProvider } from './contexts/LocaleProvider';
 import { Navigate } from 'react-router-dom';
 import './test-supabase';
+import { performanceService } from './services/performanceService';
 // Testes removidos - componente RealTimeNotifications melhorado
 
 
@@ -35,6 +36,9 @@ const CashflowPage = lazy(() => import('./pages/cashflow'));
 // Página de Payroll (lazy)
 const PayrollPage = lazy(() => import('./features/payroll/components/PayrollModule'));
 
+// Dashboard de Performance (lazy)
+const PerformanceDashboard = lazy(() => import('./components/PerformanceDashboard'));
+
 
 
 // Páginas de autenticação (não lazy loading para melhor UX)
@@ -53,6 +57,12 @@ const PageLoading = () => (
 );
 
 function App() {
+  // Inicializar serviço de performance
+  React.useEffect(() => {
+    // O serviço é inicializado automaticamente no constructor
+    console.log('Performance monitoring initialized');
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -89,6 +99,11 @@ function App() {
                 <Route path="payroll/*" element={
                   <Suspense fallback={<PageLoading />}>
                     <PayrollPage />
+                  </Suspense>
+                } />
+                <Route path="performance" element={
+                  <Suspense fallback={<PageLoading />}>
+                    <PerformanceDashboard />
                   </Suspense>
                 } />
 

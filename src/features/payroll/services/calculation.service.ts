@@ -177,24 +177,7 @@ export class PayrollCalculationService {
       // Ignorar e tentar fallback
     }
 
-    // Fallback para ambiente Node (tests) usando crypto
-    try {
-      const nodeCrypto = await import('crypto');
-      if ((nodeCrypto as any).webcrypto?.subtle) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(dataString);
-        const digest = await (nodeCrypto as any).webcrypto.subtle.digest('SHA-256', data);
-        const hex = Array.from(new Uint8Array(digest))
-          .map(b => b.toString(16).padStart(2, '0'))
-          .join('');
-        return hex;
-      }
-      if (typeof (nodeCrypto as any).createHash === 'function') {
-        return (nodeCrypto as any).createHash('sha256').update(dataString).digest('hex');
-      }
-    } catch (_) {
-      // Último recurso: usar hash simples (não recomendado, mas evita crash)
-    }
+    // Fallback: usar hash simples para compatibilidade
 
     return simpleHash(dataString);
   }

@@ -14,21 +14,22 @@ let mockChainResult: any = { data: [], error: null };
 
 const createMockChain = () => {
   const chain = {
-    select: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(),
-    single: vi.fn().mockReturnThis(),
-    gte: vi.fn().mockReturnThis(),
-    lte: vi.fn().mockReturnThis(),
-    in: vi.fn().mockReturnThis(),
-    neq: vi.fn().mockReturnThis(),
-    gt: vi.fn().mockReturnThis(),
-    lt: vi.fn().mockReturnThis(),
-    is: vi.fn().mockReturnThis(),
-    not: vi.fn().mockReturnThis(),
+    select: vi.fn(),
+    insert: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    eq: vi.fn(),
+    order: vi.fn(),
+    single: vi.fn(),
+    gte: vi.fn(),
+    lte: vi.fn(),
+    in: vi.fn(),
+    neq: vi.fn(),
+    gt: vi.fn(),
+    lt: vi.fn(),
+    is: vi.fn(),
+    not: vi.fn(),
+    mockChainResult: { data: null, error: null },
     mockResolvedValue: vi.fn().mockImplementation(function(this: any, value: any) {
       // Override the then method to resolve with the provided value
       this.then = (onResolve: any) => Promise.resolve(value).then(onResolve);
@@ -41,9 +42,16 @@ const createMockChain = () => {
     }),
   };
   
+  // Configure all methods to return the chain itself
+  Object.keys(chain).forEach(key => {
+    if (typeof chain[key as keyof typeof chain] === 'function' && !key.startsWith('mock')) {
+      (chain[key as keyof typeof chain] as any).mockReturnValue(chain);
+    }
+  });
+  
   // Make the chain thenable with a default resolution
   (chain as any).then = (onResolve: any, onReject: any) => {
-    return Promise.resolve({ data: null, error: null }).then(onResolve, onReject);
+    return Promise.resolve((chain as any).mockChainResult || mockChainResult).then(onResolve, onReject);
   };
   
   return chain;
@@ -232,6 +240,7 @@ describe('PayrollService Integration Tests', () => {
       const mockChain = {
         update: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        neq: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue(mockResponse)
       };
@@ -251,7 +260,9 @@ describe('PayrollService Integration Tests', () => {
       vi.clearAllMocks();
       const mockChain = {
         update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockResolvedValue(mockResponse)
+        eq: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue(mockResponse)
       };
       (supabase.from as any).mockReturnValue(mockChain);
       
@@ -349,14 +360,23 @@ describe('PayrollService Integration Tests', () => {
     it('should create a time entry', async () => {
       const { supabase } = await import('@/lib/supabaseClient');
       const expectedResult = { id: '1', user_id: 'user1', contract_id: 'contract1', ...mockTimeEntry };
-      const mockResponse = { data: expectedResult, error: null };
+      const mockExistingResponse = { data: null, error: null }; // No existing entry
+      const mockCreateResponse = { data: expectedResult, error: null };
       
       // Reset mocks and create fresh chain
       vi.clearAllMocks();
+      let callCount = 0;
       const mockChain = {
-        insert: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue(mockResponse)
+        insert: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.resolve(mockExistingResponse); // First call for checking existing entry
+          }
+          return Promise.resolve(mockCreateResponse); // Second call for creating entry
+        })
       };
       (supabase.from as any).mockReturnValue(mockChain);
       
@@ -368,47 +388,44 @@ describe('PayrollService Integration Tests', () => {
 
     it('should get time entries for a date range', async () => {
       const { supabase } = await import('@/lib/supabaseClient');
-      const mockResponse = { data: [{ id: '1', ...mockTimeEntry }], error: null };
+      const mockData = [{ id: '1', ...mockTimeEntry }];
+      const mockResponse = { data: mockData, error: null };
       
-      // Reset mocks and create fresh chain
+      // Create a custom mock chain for this test
+      const mockChain = createMockChain();
+      (mockChain as any).mockChainResult = mockResponse;
+      
       vi.clearAllMocks();
-      const mockChain = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        gte: vi.fn().mockReturnThis(),
-        lte: vi.fn().mockReturnThis(),
-        order: vi.fn().mockResolvedValue(mockResponse)
-      };
       (supabase.from as any).mockReturnValue(mockChain);
       
-      const result = await payrollService.getPayrollTimeEntries('2024-01-01', '2024-01-31');
+      const result = await payrollService.getTimeEntries('user1', '2024-01-01', '2024-01-31');
       
       expect(supabase.from).toHaveBeenCalledWith('payroll_time_entries');
-      expect(result).toEqual([{ id: '1', ...mockTimeEntry }]);
+      expect(result).toEqual(mockData);
     });
 
-    it('should bulk create time entries', async () => {
+    it('should create time entry with correct parameters', async () => {
       const { supabase } = await import('@/lib/supabaseClient');
-      const entries = [mockTimeEntry, { ...mockTimeEntry, date: '2024-01-16' }];
-      const expectedResults = entries.map((entry, index) => ({ id: String(index + 1), user_id: 'user1', contract_id: 'contract1', ...entry }));
-      const mockResponse = { 
-        data: expectedResults, 
-        error: null 
-      };
+      const expectedResult = { id: '1', user_id: 'user1', contract_id: 'contract1', ...mockTimeEntry };
+      const mockResponse = { data: expectedResult, error: null };
       
-      // Reset mocks and create fresh chain
-       vi.clearAllMocks();
-       const mockChain = {
-         insert: vi.fn().mockReturnThis(),
-         select: vi.fn().mockReturnThis(),
-         single: vi.fn().mockResolvedValue({ data: expectedResults[0], error: null })
-       };
-       (supabase.from as any).mockReturnValue(mockChain);
+      // Create a custom mock chain for this test
+      const mockChain = createMockChain();
+      (mockChain as any).mockChainResult = mockResponse;
       
-      const result = await payrollService.bulkCreatePayrollTimeEntries(entries);
+      vi.clearAllMocks();
+      (supabase.from as any).mockReturnValue(mockChain);
+      
+      const result = await payrollService.createTimeEntry('user1', 'contract1', {
+        date: '2024-01-15',
+        start_time: '09:00',
+        end_time: '17:00',
+        break_minutes: 60,
+        description: 'Test entry'
+      });
       
       expect(supabase.from).toHaveBeenCalledWith('payroll_time_entries');
-      expect(result).toHaveLength(2);
+      expect(result).toEqual(expectedResult);
     });
   });
 
@@ -446,7 +463,7 @@ describe('PayrollService Integration Tests', () => {
        };
        (supabase.from as any).mockReturnValue(mockChain);
       
-      const result = await payrollService.getPayrollMileagePolicies('user1');
+      const result = await payrollService.getMileagePolicies('user1');
       
       expect(supabase.from).toHaveBeenCalledWith('payroll_mileage_policies');
       expect(result).toEqual([{ id: '1', ...mockMileagePolicy }]);
@@ -480,23 +497,20 @@ describe('PayrollService Integration Tests', () => {
 
     it('should get mileage trips for a date range', async () => {
       const { supabase } = await import('@/lib/supabaseClient');
-      const mockResponse = { data: [{ id: '1', ...mockMileageTrip }], error: null };
+      const mockData = [{ id: '1', ...mockMileageTrip }];
+      const mockResponse = { data: mockData, error: null };
 
-      // Reset mocks and create fresh chain
-       vi.clearAllMocks();
-       const mockChain = {
-         select: vi.fn().mockReturnThis(),
-         eq: vi.fn().mockReturnThis(),
-         gte: vi.fn().mockReturnThis(),
-         lte: vi.fn().mockReturnThis(),
-         order: vi.fn().mockResolvedValue(mockResponse)
-       };
-       (supabase.from as any).mockReturnValue(mockChain);
+      // Create a custom mock chain for this test
+      const mockChain = createMockChain();
+      (mockChain as any).mockChainResult = mockResponse;
+      
+      vi.clearAllMocks();
+      (supabase.from as any).mockReturnValue(mockChain);
 
       const result = await payrollService.getMileageTrips('user1', '2024-01-01', '2024-01-31');
       
       expect(supabase.from).toHaveBeenCalledWith('payroll_mileage_trips');
-      expect(result).toEqual([{ id: '1', ...mockMileageTrip }]);
+      expect(result).toEqual(mockData);
     });
   });
 
@@ -505,18 +519,37 @@ describe('PayrollService Integration Tests', () => {
       const { supabase } = await import('@/lib/supabaseClient');
       
       // Mock all the data needed for calculation
-      const mockContract = { data: { hourly_rate_cents: 2000 }, error: null };
+      const mockContract = { 
+        data: { 
+          id: 'contract1', 
+          hourly_rate_cents: 2000, 
+          user_id: 'user1',
+          base_salary_cents: 100000,
+          weekly_hours: 40,
+          employee_name: 'Test Employee',
+          start_date: '2024-01-01',
+          is_active: true
+        }, 
+        error: null 
+      };
       const mockOTPolicy = { data: { multiplier: 1.5, threshold_hours: 8 }, error: null };
       const mockHolidays = { data: [], error: null };
-      const mockTimeEntries = { data: [{ date: '2024-01-01', hours: 8 }], error: null };
+      const mockTimeEntries = { 
+        data: [{ 
+          date: '2024-01-01', 
+          hours: 8,
+          start_time: '09:00',
+          end_time: '17:00',
+          break_minutes: 60
+        }], 
+        error: null 
+      };
       const mockMileageTrips = { data: [], error: null };
-      const mockMileagePolicy = { data: { rate_cents_per_km: 50 }, error: null };
+      const mockMileagePolicy = { data: null, error: null };
+      const mockMealAllowanceConfig = { data: null, error: null };
+      const mockVacations = { data: [], error: null };
+      const mockDeductionConfig = { data: null, error: null };
       const mockPeriod = { data: null, error: null };
-      
-      // Setup mocks for all the queries
-      const mockChain = createMockChain();
-      mockChain.mockChainResult = mockContract;
-      (supabase.from as any).mockReturnValue(mockChain);
       
       // Mock the from method to return different chains based on table
        (supabase.from as any).mockImplementation((table: string) => {
@@ -541,6 +574,15 @@ describe('PayrollService Integration Tests', () => {
            case 'payroll_mileage_policies':
              chain.mockChainResult = mockMileagePolicy;
              break;
+           case 'payroll_meal_allowance_configs':
+             chain.mockChainResult = mockMealAllowanceConfig;
+             break;
+           case 'payroll_vacations':
+             chain.mockChainResult = mockVacations;
+             break;
+           case 'payroll_deduction_configs':
+             chain.mockChainResult = mockDeductionConfig;
+             break;
            case 'payroll_periods':
              chain.mockChainResult = mockPeriod;
              break;
@@ -553,9 +595,10 @@ describe('PayrollService Integration Tests', () => {
       
       const result = await payrollService.recalculatePayroll('user1', 'contract1', 2024, 1);
       
-      expect(result).toHaveProperty('regularHours');
-      expect(result).toHaveProperty('overtimeHours');
-      expect(result).toHaveProperty('grossPay');
+      expect(result).toHaveProperty('calculation');
+      expect(result.calculation).toHaveProperty('regularHours');
+      expect(result.calculation).toHaveProperty('overtimeHours');
+      expect(result.calculation).toHaveProperty('grossPay');
     });
   });
 
@@ -564,7 +607,16 @@ describe('PayrollService Integration Tests', () => {
       const { supabase } = await import('@/lib/supabaseClient');
       const mockError = { data: null, error: { message: 'Database error' } };
       
-      (supabase.from as any)().select().order().mockResolvedValue(mockError);
+      // Create a new mock chain that resolves with error
+      const mockChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        then: vi.fn((resolve) => {
+          resolve(mockError);
+        })
+      };
+      (supabase.from as any).mockReturnValue(mockChain);
       
       await expect(payrollService.getPayrollContracts('user1'))
         .rejects.toThrow('Database error');

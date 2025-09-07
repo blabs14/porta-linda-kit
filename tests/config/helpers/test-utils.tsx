@@ -84,7 +84,7 @@ export const waitForLoadingToFinish = () => {
   return new Promise(resolve => setTimeout(resolve, 0));
 };
 
-export const createMockSupabaseResponse = <T>(data: T, error: any = null) => ({
+export const createMockSupabaseResponse = <T,>(data: T, error: any = null) => ({
   data,
   error,
   status: error ? 400 : 200,

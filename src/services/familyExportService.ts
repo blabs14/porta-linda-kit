@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { supabase } from '../lib/supabaseClient';
 import type { Family, FamilyMember, Transaction, Account, Budget, Goal } from '../integrations/supabase/types';
 
@@ -410,47 +410,45 @@ export const exportFamilyToCSV = (
 /**
  * Exporta relatório familiar em Excel
  */
-export const exportFamilyToExcel = (
+export const exportFamilyToExcel = async (
   data: FamilyExportData, 
   options: FamilyExportOptions
-): Blob => {
-  const workbook = XLSX.utils.book_new();
+): Promise<Blob> => {
+  const workbook = new ExcelJS.Workbook();
   
   // Resumo
-  const summaryData = [
-    ['Relatório Familiar'],
-    ['Família', String(data.family.nome)],
-    ['Período', `${new Date(options.dateRange.start).toLocaleDateString('pt-PT')} - ${new Date(options.dateRange.end).toLocaleDateString('pt-PT')}`],
-    [''],
-    ['Resumo Financeiro'],
-    ['Receitas', data.transactions.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor), 0)],
-    ['Despesas', data.transactions.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + Number(t.valor), 0)],
-    ['Saldo', data.transactions.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor), 0) - data.transactions.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + Number(t.valor), 0)],
-  ];
+  const summarySheet = workbook.addWorksheet('Resumo');
   
-  const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-  XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumo');
+  summarySheet.addRow(['Relatório Familiar']);
+  summarySheet.addRow(['Família', String(data.family.nome)]);
+  summarySheet.addRow(['Período', `${new Date(options.dateRange.start).toLocaleDateString('pt-PT')} - ${new Date(options.dateRange.end).toLocaleDateString('pt-PT')}`]);
+  summarySheet.addRow(['']);
+  summarySheet.addRow(['Resumo Financeiro']);
+  summarySheet.addRow(['Receitas', data.transactions.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor), 0)]);
+  summarySheet.addRow(['Despesas', data.transactions.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + Number(t.valor), 0)]);
+  summarySheet.addRow(['Saldo', data.transactions.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor), 0) - data.transactions.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + Number(t.valor), 0)]);
   
   // Membros
   if (options.includeMembers && data.members.length > 0) {
-    const memberData = [
-      ['Nome', 'Papel', 'Data de Entrada'],
-      ...data.members.map(m => [
+    const memberSheet = workbook.addWorksheet('Membros');
+    
+    memberSheet.addRow(['Nome', 'Papel', 'Data de Entrada']);
+    data.members.forEach(m => {
+      memberSheet.addRow([
         m.profiles?.nome || 'N/A',
         (m as { role?: string }).role || '-',
         new Date((m as { joined_at?: string }).joined_at || Date.now()).toLocaleDateString('pt-PT')
-      ])
-    ];
-    
-    const memberSheet = XLSX.utils.aoa_to_sheet(memberData);
-    XLSX.utils.book_append_sheet(workbook, memberSheet, 'Membros');
+      ]);
+    });
   }
   
   // Transações
   if (data.transactions.length > 0) {
-    const transactionData = [
-      ['Data', 'Membro', 'Descrição', 'Tipo', 'Valor', 'Categoria', 'Conta'],
-      ...data.transactions.map(t => [
+    const transactionSheet = workbook.addWorksheet('Transações');
+    
+    transactionSheet.addRow(['Data', 'Membro', 'Descrição', 'Tipo', 'Valor', 'Categoria', 'Conta']);
+    data.transactions.forEach(t => {
+      transactionSheet.addRow([
         new Date(t.data).toLocaleDateString('pt-PT'),
         t.profiles?.nome || 'N/A',
         t.descricao || '-',
@@ -458,47 +456,42 @@ export const exportFamilyToExcel = (
         Number(t.valor),
         t.categories?.nome || '-',
         t.accounts?.nome || '-'
-      ])
-    ];
-    
-    const transactionSheet = XLSX.utils.aoa_to_sheet(transactionData);
-    XLSX.utils.book_append_sheet(workbook, transactionSheet, 'Transações');
+      ]);
+    });
   }
   
   // Orçamentos
   if (options.includeBudgets && data.budgets.length > 0) {
-    const budgetData = [
-      ['Membro', 'Categoria', 'Mês', 'Valor'],
-      ...data.budgets.map(b => [
+    const budgetSheet = workbook.addWorksheet('Orçamentos');
+    
+    budgetSheet.addRow(['Membro', 'Categoria', 'Mês', 'Valor']);
+    data.budgets.forEach(b => {
+      budgetSheet.addRow([
         b.profiles?.nome || 'N/A',
         b.categories?.nome || 'N/A',
         b.mes,
         Number(b.valor)
-      ])
-    ];
-    
-    const budgetSheet = XLSX.utils.aoa_to_sheet(budgetData);
-    XLSX.utils.book_append_sheet(workbook, budgetSheet, 'Orçamentos');
+      ]);
+    });
   }
   
   // Objetivos
   if (options.includeGoals && data.goals.length > 0) {
-    const goalData = [
-      ['Objetivo', 'Membro', 'Meta', 'Atual', 'Status'],
-      ...data.goals.map(g => [
+    const goalSheet = workbook.addWorksheet('Objetivos');
+    
+    goalSheet.addRow(['Objetivo', 'Membro', 'Meta', 'Atual', 'Status']);
+    data.goals.forEach(g => {
+      goalSheet.addRow([
         g.nome,
         g.profiles?.nome || 'N/A',
         Number(g.valor_objetivo),
         Number(g.valor_atual || 0),
         (g as { status?: string }).status || 'Ativo'
-      ])
-    ];
-    
-    const goalSheet = XLSX.utils.aoa_to_sheet(goalData);
-    XLSX.utils.book_append_sheet(workbook, goalSheet, 'Objetivos');
+      ]);
+    });
   }
   
-  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const excelBuffer = await workbook.xlsx.writeBuffer();
   return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 };
 
@@ -527,7 +520,7 @@ export const exportFamilyReport = async (
       filename = `relatorio_familiar_${familyName}_${dateRange}.csv`;
       break;
     case 'excel':
-      blob = exportFamilyToExcel(data, options);
+      blob = await exportFamilyToExcel(data, options);
       filename = `relatorio_familiar_${familyName}_${dateRange}.xlsx`;
       break;
     default:
@@ -535,4 +528,4 @@ export const exportFamilyReport = async (
   }
   
   return { blob, filename };
-}; 
+};

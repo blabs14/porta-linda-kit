@@ -32,7 +32,7 @@ import { useToast } from '../hooks/use-toast';
 import { notifySuccess, notifyError } from '../lib/notify';
 import { goalSchema } from '../validation/goalSchema';
 import { ZodError } from 'zod';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 // Tipo auxiliar para objetivos usados nesta página
 type GoalLike = { nome?: string; valor_objetivo?: number | string | null; valor_atual?: number | string | null };
@@ -360,18 +360,18 @@ export default function Insights() {
       };
 
       // Criar workbook e worksheets
-      const workbook = XLSX.utils.book_new();
+      const workbook = new ExcelJS.Workbook();
       
       // Worksheet 1: Insights
-      const insightsData = [
-        ['INSIGHTS FINANCEIROS'],
-        ['Data de Exportação', currentDate],
-        [],
-        ['Título', 'Descrição', 'Tipo', 'Valor', 'Tendência', 'Ação']
-      ];
+      const insightsSheet = workbook.addWorksheet('Insights');
+      
+      insightsSheet.addRow(['INSIGHTS FINANCEIROS']);
+      insightsSheet.addRow(['Data de Exportação', currentDate]);
+      insightsSheet.addRow([]);
+      insightsSheet.addRow(['Título', 'Descrição', 'Tipo', 'Valor', 'Tendência', 'Ação']);
       
       exportData.insights.forEach(insight => {
-        insightsData.push([
+        insightsSheet.addRow([
           insight.titulo,
           insight.descricao,
           insight.tipo,
@@ -381,63 +381,58 @@ export default function Insights() {
         ]);
       });
       
-      const insightsSheet = XLSX.utils.aoa_to_sheet(insightsData);
-      XLSX.utils.book_append_sheet(workbook, insightsSheet, 'Insights');
-      
       // Worksheet 2: Resumo Financeiro
-      const resumoData = [
-        ['RESUMO FINANCEIRO'],
-        [],
-        ['Métrica', 'Valor'],
-        ['Saldo Total', `€${exportData.resumoFinanceiro.saldoTotal.toFixed(2)}`],
-        ['Total de Contas', exportData.resumoFinanceiro.totalContas],
-        ['Total de Transações', exportData.resumoFinanceiro.totalTransacoes],
-        ['Total de Objetivos', exportData.resumoFinanceiro.totalObjetivos],
-        ['Objetivos Ativos', exportData.resumoFinanceiro.objetivosAtivos]
-      ];
+      const resumoSheet = workbook.addWorksheet('Resumo');
       
-      const resumoSheet = XLSX.utils.aoa_to_sheet(resumoData);
-      XLSX.utils.book_append_sheet(workbook, resumoSheet, 'Resumo');
+      resumoSheet.addRow(['RESUMO FINANCEIRO']);
+      resumoSheet.addRow([]);
+      resumoSheet.addRow(['Métrica', 'Valor']);
+      resumoSheet.addRow(['Saldo Total', `€${exportData.resumoFinanceiro.saldoTotal.toFixed(2)}`]);
+      resumoSheet.addRow(['Total de Contas', exportData.resumoFinanceiro.totalContas]);
+      resumoSheet.addRow(['Total de Transações', exportData.resumoFinanceiro.totalTransacoes]);
+      resumoSheet.addRow(['Total de Objetivos', exportData.resumoFinanceiro.totalObjetivos]);
+      resumoSheet.addRow(['Objetivos Ativos', exportData.resumoFinanceiro.objetivosAtivos]);
       
       // Worksheet 3: Gastos por Categoria
-      const gastosData = [
-        ['GASTOS POR CATEGORIA'],
-        [],
-        ['Categoria', 'Valor', 'Percentagem']
-      ];
+      const gastosSheet = workbook.addWorksheet('Gastos');
+      
+      gastosSheet.addRow(['GASTOS POR CATEGORIA']);
+      gastosSheet.addRow([]);
+      gastosSheet.addRow(['Categoria', 'Valor', 'Percentagem']);
       
       exportData.gastosPorCategoria.forEach(cat => {
-        gastosData.push([
+        gastosSheet.addRow([
           cat.categoria,
           `€${cat.valor.toFixed(2)}`,
           `${cat.percentagem}%`
         ]);
       });
       
-      const gastosSheet = XLSX.utils.aoa_to_sheet(gastosData);
-      XLSX.utils.book_append_sheet(workbook, gastosSheet, 'Gastos');
-      
       // Worksheet 4: Tendências Mensais
-      const tendenciasData = [
-        ['TENDÊNCIAS MENSAIS (Últimos 6 meses)'],
-        [],
-        ['Mês', 'Receitas', 'Despesas', 'Poupanças']
-      ];
+      const tendenciasSheet = workbook.addWorksheet('Tendências');
+      
+      tendenciasSheet.addRow(['TENDÊNCIAS MENSAIS (Últimos 6 meses)']);
+      tendenciasSheet.addRow([]);
+      tendenciasSheet.addRow(['Mês', 'Receitas', 'Despesas', 'Poupanças']);
       
       exportData.tendenciasMensais.forEach(month => {
-        tendenciasData.push([
+        tendenciasSheet.addRow([
           month.mes,
           `€${month.receitas.toFixed(2)}`,
           `€${month.despesas.toFixed(2)}`,
           `€${month.poupancas.toFixed(2)}`
         ]);
       });
-      
-      const tendenciasSheet = XLSX.utils.aoa_to_sheet(tendenciasData);
-      XLSX.utils.book_append_sheet(workbook, tendenciasSheet, 'Tendências');
 
       // Exportar ficheiro XLSX
-      XLSX.writeFile(workbook, fileName);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      window.URL.revokeObjectURL(url);
       
       notifySuccess({ title: 'Relatório exportado', description: `O relatório foi descarregado como "${fileName}"` });
     } catch (error) {

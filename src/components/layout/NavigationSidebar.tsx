@@ -8,7 +8,8 @@ import {
   User,
   Lightbulb,
   BarChart3,
-  Calendar
+  Calendar,
+  Activity
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/useProfilesQuery';
@@ -35,6 +36,12 @@ const navigationItems = [
     href: '/app/cashflow',
     icon: Calendar,
     description: 'Previsões e fluxos de caixa'
+  },
+  {
+    title: 'Performance',
+    href: '/app/performance',
+    icon: Activity,
+    description: 'Monitorização de performance'
   },
                 {
                 title: 'Área Pessoal',

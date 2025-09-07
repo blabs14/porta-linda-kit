@@ -2,7 +2,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
-import { useCategoriesQuery, useCreateCategory, useUpdateCategory, useDeleteCategory } from '@/hooks/useCategoriesQuery';
+import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from '@/hooks/useCategoriesQuery';
 import * as categoriesService from '@/services/categories';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -45,7 +45,17 @@ describe('Categories Query Hooks', () => {
 
   describe('useCategories', () => {
     it('should fetch categories successfully', async () => {
-      const mockCategories = [
+      const mockDefaultCategories = [
+        {
+          id: '0',
+          nome: 'Categoria Default',
+          tipo: 'despesa',
+          cor: '#999999',
+          icone: 'default',
+          user_id: null,
+        },
+      ];
+      const mockUserCategories = [
         {
           id: '1',
           nome: 'Alimentação',
@@ -64,10 +74,16 @@ describe('Categories Query Hooks', () => {
         },
       ];
 
-      mockCategoriesService.getCategories.mockResolvedValue({
-        data: mockCategories,
-        error: null,
-      });
+      // Mock first call (defaults) and second call (user categories)
+      mockCategoriesService.getCategories
+        .mockResolvedValueOnce({
+          data: mockDefaultCategories,
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: mockUserCategories,
+          error: null,
+        });
 
       const { result } = renderHook(() => useCategories(), {
         wrapper: createWrapper(),
@@ -77,13 +93,16 @@ describe('Categories Query Hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
+      expect(mockCategoriesService.getCategories).toHaveBeenCalledWith(undefined, undefined);
       expect(mockCategoriesService.getCategories).toHaveBeenCalledWith('user-123', undefined);
-      expect(result.current.data).toEqual(mockCategories);
+      // Should return merged and sorted categories
+      expect(result.current.data).toEqual([...mockUserCategories, ...mockDefaultCategories].sort((a,b) => a.nome.localeCompare(b.nome)));
       expect(result.current.error).toBeNull();
     });
 
     it('should fetch categories with type filter', async () => {
-      const mockExpenseCategories = [
+      const mockDefaultCategories = [];
+      const mockUserCategories = [
         {
           id: '1',
           nome: 'Alimentação',
@@ -94,10 +113,16 @@ describe('Categories Query Hooks', () => {
         },
       ];
 
-      mockCategoriesService.getCategories.mockResolvedValue({
-        data: mockExpenseCategories,
-        error: null,
-      });
+      // Mock first call (defaults) and second call (user categories)
+      mockCategoriesService.getCategories
+        .mockResolvedValueOnce({
+          data: mockDefaultCategories,
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: mockUserCategories,
+          error: null,
+        });
 
       const { result } = renderHook(() => useCategories('despesa'), {
         wrapper: createWrapper(),
@@ -107,8 +132,9 @@ describe('Categories Query Hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
+      expect(mockCategoriesService.getCategories).toHaveBeenCalledWith(undefined, 'despesa');
       expect(mockCategoriesService.getCategories).toHaveBeenCalledWith('user-123', 'despesa');
-      expect(result.current.data).toEqual(mockExpenseCategories);
+      expect(result.current.data).toEqual(mockUserCategories);
     });
 
     it('should handle fetch error', async () => {

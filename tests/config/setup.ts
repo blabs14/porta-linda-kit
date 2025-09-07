@@ -33,14 +33,8 @@ vi.mock('@/lib/supabaseClient', () => ({
   }
 }));
 
-// Mock React Query
-vi.mock('@tanstack/react-query', () => ({
-  useQuery: vi.fn(),
-  useMutation: vi.fn(),
-  useQueryClient: vi.fn(),
-  QueryClient: vi.fn(),
-  QueryClientProvider: ({ children }: { children: React.ReactNode }) => children
-}));
+// Note: React Query mocks removed to allow proper testing of query states
+// Individual tests should mock services instead of React Query itself
 
 // Mock AuthContext
 vi.mock('@/contexts/AuthContext', () => ({

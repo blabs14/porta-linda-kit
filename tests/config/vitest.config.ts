@@ -17,7 +17,57 @@ export default defineConfig({
       '**/tests/obsolete/**',
       '**/tests/manual/**'
     ],
-    globals: true
+    globals: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html', 'lcov'],
+      reportsDirectory: './coverage',
+      exclude: [
+        'node_modules/',
+        'tests/',
+        'dist/',
+        'cypress/',
+        '**/*.d.ts',
+        '**/*.config.{js,ts}',
+        '**/vite.config.ts',
+        '**/vitest.config.ts',
+        'src/main.tsx',
+        'src/vite-env.d.ts',
+        '**/*.stories.{js,ts,jsx,tsx}',
+        '**/types/**',
+        'scripts/'
+      ],
+      include: [
+        'src/**/*.{js,ts,jsx,tsx}'
+      ],
+      thresholds: {
+        global: {
+          branches: 35,
+          functions: 25,
+          lines: 9,
+          statements: 9
+        },
+        // Thresholds baseados na cobertura atual
+        'src/components/ui/**': {
+          branches: 20,
+          functions: 10,
+          lines: 13,
+          statements: 13
+        },
+        'src/services/**': {
+          branches: 35,
+          functions: 25,
+          lines: 9,
+          statements: 9
+        },
+        'src/hooks/**': {
+          branches: 60,
+          functions: 50,
+          lines: 19,
+          statements: 19
+        }
+      }
+    }
   },
   resolve: {
     alias: {

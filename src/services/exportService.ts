@@ -168,21 +168,26 @@ export const exportToCSV = (data: ExportData, options: ExportOptions): Blob => {
  * Exporta relatório em formato Excel
  */
 export const exportToExcel = async (data: ExportData, options: ExportOptions): Promise<Blob> => {
-  const XLSX: any = await import('xlsx');
-  const workbook = XLSX.utils.book_new();
+  const ExcelJS = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
   
   // Planilha de transações
-  const transactionData = data.transactions.map(t => ({
-    Data: new Date(t.data).toLocaleDateString('pt-PT'),
-    Descrição: t.descricao || '',
-    Tipo: t.tipo,
-    Valor: Number(t.valor),
-    Categoria: t.categoria_nome || '',
-    Conta: t.account_nome || '',
-  }));
+  const transactionSheet = workbook.addWorksheet('Transações');
   
-  const transactionSheet = XLSX.utils.json_to_sheet(transactionData);
-  XLSX.utils.book_append_sheet(workbook, transactionSheet, 'Transações');
+  // Cabeçalhos da planilha de transações
+  transactionSheet.addRow(['Data', 'Descrição', 'Tipo', 'Valor', 'Categoria', 'Conta']);
+  
+  // Dados das transações
+  data.transactions.forEach(t => {
+    transactionSheet.addRow([
+      new Date(t.data).toLocaleDateString('pt-PT'),
+      t.descricao || '',
+      t.tipo,
+      Number(t.valor),
+      t.categoria_nome || '',
+      t.account_nome || '',
+    ]);
+  });
   
   // Planilha de estatísticas
   const categoryStats = data.transactions.reduce((acc, t) => {
@@ -198,15 +203,17 @@ export const exportToExcel = async (data: ExportData, options: ExportOptions): P
     return acc;
   }, {} as Record<string, CategoryStats>);
   
-  const statsData = Object.entries(categoryStats).map(([category, stats]) => ({
-    Categoria: category,
-    Receitas: (stats as CategoryStats).receitas,
-    Despesas: (stats as CategoryStats).despesas,
-    Saldo: (stats as CategoryStats).receitas - (stats as CategoryStats).despesas,
-  }));
+  const statsSheet = workbook.addWorksheet('Estatísticas');
+  statsSheet.addRow(['Categoria', 'Receitas', 'Despesas', 'Saldo']);
   
-  const statsSheet = XLSX.utils.json_to_sheet(statsData);
-  XLSX.utils.book_append_sheet(workbook, statsSheet, 'Estatísticas');
+  Object.entries(categoryStats).forEach(([category, stats]) => {
+    statsSheet.addRow([
+      category,
+      (stats as CategoryStats).receitas,
+      (stats as CategoryStats).despesas,
+      (stats as CategoryStats).receitas - (stats as CategoryStats).despesas,
+    ]);
+  });
   
   // Planilha de resumo
   const totalIncome = data.transactions
@@ -217,17 +224,14 @@ export const exportToExcel = async (data: ExportData, options: ExportOptions): P
     .filter(t => t.tipo === 'despesa')
     .reduce((sum, t) => sum + Number(t.valor), 0);
   
-  const summaryData = [
-    { Item: 'Receitas Totais', Valor: totalIncome },
-    { Item: 'Despesas Totais', Valor: totalExpenses },
-    { Item: 'Saldo', Valor: totalIncome - totalExpenses },
-  ];
+  const summarySheet = workbook.addWorksheet('Resumo');
+  summarySheet.addRow(['Item', 'Valor']);
+  summarySheet.addRow(['Receitas Totais', totalIncome]);
+  summarySheet.addRow(['Despesas Totais', totalExpenses]);
+  summarySheet.addRow(['Saldo', totalIncome - totalExpenses]);
   
-  const summarySheet = XLSX.utils.json_to_sheet(summaryData);
-  XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumo');
-  
-  // Usar a sintaxe correta para gerar o blob
-  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  // Gerar o buffer do Excel
+  const excelBuffer = await workbook.xlsx.writeBuffer();
   return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 };
 

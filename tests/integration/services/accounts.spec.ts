@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as svc from '@/services/accounts';
 
 // Mock do supabase
@@ -26,7 +26,7 @@ vi.mock('@/lib/supabaseClient', () => ({
   }
 }));
 
-const { supabase } = await import('../lib/supabaseClient');
+const { supabase } = await import('@/lib/supabaseClient');
 
 function randomEmail() {
   return `test_${Math.random().toString(36).substring(2, 10)}@test.com`;

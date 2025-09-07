@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-globals */
 /// <reference lib="webworker" />
 
 declare let self: ServiceWorkerGlobalScope & { __WB_MANIFEST: any };
@@ -20,7 +19,7 @@ self.addEventListener('push', (event: any) => {
       tag: 'porta-linda-push'
     };
     event.waitUntil(self.registration.showNotification(title, options));
-  } catch (_e) {
+  } catch {
     // ignore
   }
 });
@@ -34,4 +33,4 @@ self.addEventListener('notificationclick', (event: any) => {
     }
     if (self.clients.openWindow) return self.clients.openWindow(url);
   }));
-}); 
+});

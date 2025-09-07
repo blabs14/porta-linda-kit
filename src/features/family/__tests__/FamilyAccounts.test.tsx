@@ -49,7 +49,9 @@ vi.mock('../../../lib/supabaseClient', () => ({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({
           single: vi.fn(() => Promise.resolve({ data: null, error: null })),
+          order: vi.fn(() => Promise.resolve({ data: [], error: null })),
         })),
+        order: vi.fn(() => Promise.resolve({ data: [], error: null })),
       })),
     })),
     auth: {
@@ -144,16 +146,16 @@ const mockBankAccounts = [
     account_id: 'account-1',
     nome: 'Conta Corrente',
     tipo: 'conta corrente',
-    saldo_atual: 5000,
-    saldo_disponivel: 4500,
-    total_reservado: 500,
+    saldo_atual: 500000, // 5000€ em cêntimos
+    saldo_disponivel: 450000, // 4500€ em cêntimos
+    total_reservado: 50000, // 500€ em cêntimos
   },
   {
     account_id: 'account-2',
     nome: 'Poupança',
     tipo: 'poupança',
-    saldo_atual: 10000,
-    saldo_disponivel: 10000,
+    saldo_atual: 1000000, // 10000€ em cêntimos
+    saldo_disponivel: 1000000, // 10000€ em cêntimos
     total_reservado: 0,
   },
 ];
@@ -163,8 +165,8 @@ const mockCreditCards = [
     account_id: 'card-1',
     nome: 'Cartão Principal',
     tipo: 'cartão de crédito',
-    saldo_atual: -1500,
-    saldo_disponivel: -1500,
+    saldo_atual: -150000, // -1500€ em cêntimos
+    saldo_disponivel: -150000, // -1500€ em cêntimos
     total_reservado: 0,
   },
   {
@@ -237,9 +239,10 @@ describe('FamilyAccounts - Cenários de Teste', () => {
       const newAccountButton = screen.getByText('Nova Conta');
       fireEvent.click(newAccountButton);
 
-      // Verificar se o modal de criação aparece
+      // Verificar se o modal de criação aparece com o título correto
       await waitFor(() => {
-        expect(screen.getByText('Nova Conta')).toBeInTheDocument();
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        expect(screen.getByText('Criar nova conta familiar')).toBeInTheDocument();
       });
     });
   });

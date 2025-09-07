@@ -139,9 +139,8 @@ export interface FamilyMethods {
   createFamilyTransaction: (data: UnknownRecord) => Promise<unknown>;
   updateFamilyTransaction: (id: string, data: UnknownRecord) => Promise<unknown>;
   deleteFamilyTransaction: (id: string) => Promise<unknown>;
-}
 
-// Métodos específicos
+  // Métodos específicos
   payCreditCard: (accountId: string, amount: number) => Promise<unknown>;
   allocateToGoal: (goalId: string, amount: number, accountId: string) => Promise<unknown>;
   
