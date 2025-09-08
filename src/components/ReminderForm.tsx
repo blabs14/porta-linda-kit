@@ -14,6 +14,7 @@ import {
   SelectItem,
   SelectValue,
 } from './ui/select';
+import { logger } from '@/shared/lib/logger';
 
 interface ReminderFormData {
   id?: string;
@@ -99,7 +100,7 @@ const ReminderForm = ({ initialData, onSuccess, onCancel }: ReminderFormProps) =
       
       if (onSuccess) onSuccess();
     } catch (err: any) {
-      console.error('Erro ao guardar lembrete:', err);
+      logger.error('Erro ao guardar lembrete:', err);
       // O erro já é tratado pelo hook useCrudMutation
     }
   };
@@ -214,4 +215,4 @@ const ReminderForm = ({ initialData, onSuccess, onCancel }: ReminderFormProps) =
   );
 };
 
-export default ReminderForm; 
+export default ReminderForm;

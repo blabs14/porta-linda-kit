@@ -13,6 +13,7 @@ import {
   SelectItem,
   SelectValue,
 } from './ui/select';
+import { logger } from '@/shared/lib/logger';
 
 interface RegularAccountFormData {
   id: string;
@@ -48,21 +49,19 @@ const RegularAccountForm = ({ initialData, onSuccess, onCancel }: RegularAccount
   
   const isSubmitting = updateAccountMutation.isPending;
 
-  console.log('[RegularAccountForm] initialData:', initialData);
-  console.log('[RegularAccountForm] form state:', form);
-  console.log('[RegularAccountForm] isSubmitting:', isSubmitting);
+  // Debug: initialData, form state, isSubmitting
 
   useEffect(() => {
-    console.log('[RegularAccountForm] useEffect triggered with initialData:', initialData);
+    // Debug: useEffect triggered with initialData
     if (initialData) {
-      console.log('[RegularAccountForm] Setting form with:', initialData);
+      // Debug: Setting form with initialData
       setForm(initialData);
     }
   }, [initialData]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    console.log('[RegularAccountForm] handleChange:', { name, value, currentForm: form });
+    // Debug: handleChange
     
     if (name === 'saldoAtual' || name === 'ajusteSaldo') {
       // Permitir valores vazios
@@ -87,7 +86,7 @@ const RegularAccountForm = ({ initialData, onSuccess, onCancel }: RegularAccount
         setForm({ ...form, [name]: value });
       }
     } else {
-      console.log('[RegularAccountForm] Updating form with:', { ...form, [name]: value });
+      // Debug: Updating form
       setForm({ ...form, [name]: value });
     }
   };
@@ -149,7 +148,7 @@ const RegularAccountForm = ({ initialData, onSuccess, onCancel }: RegularAccount
       await doUpdate();
       onSuccess?.();
     } catch (err: any) {
-      console.error('Erro ao guardar conta:', err);
+      logger.error('Erro ao guardar conta:', err);
     }
   };
 
@@ -167,7 +166,7 @@ const RegularAccountForm = ({ initialData, onSuccess, onCancel }: RegularAccount
       />
       {validationErrors.nome && <div id="nome-error" className="text-red-600 text-sm">{validationErrors.nome}</div>}
       
-      <Select value={form.tipo} onValueChange={handleTipoChange}>
+      <Select value={form.tipo} onValueChange={(value) => setValue('tipo', value as 'corrente' | 'poupanca' | 'investimento' | 'cartao_credito')}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Tipo de Conta" />
         </SelectTrigger>
@@ -246,4 +245,4 @@ const RegularAccountForm = ({ initialData, onSuccess, onCancel }: RegularAccount
   );
 };
 
-export default RegularAccountForm; 
+export default RegularAccountForm;

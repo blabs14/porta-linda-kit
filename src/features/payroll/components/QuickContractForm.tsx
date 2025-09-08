@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { createContract } from '../services/payrollService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { logger } from '@/shared/lib/logger';
 
 interface QuickContractFormProps {
   onContractCreated: (contract: any) => void;
@@ -77,7 +78,7 @@ export function QuickContractForm({ onContractCreated, onCancel }: QuickContract
       
       onContractCreated(newContract);
     } catch (error) {
-      console.error('Erro ao criar contrato:', error);
+      logger.error('Erro ao criar contrato:', error);
       toast({
         title: 'Erro',
         description: 'Ocorreu um erro ao criar o contrato. Tente novamente.',

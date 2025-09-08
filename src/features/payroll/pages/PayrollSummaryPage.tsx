@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../contexts/AuthContext';
 import { calculatePayroll } from '../services/calculation.service';
 import { payrollService } from '../services/payrollService';
+import { logger } from '@/shared/lib/logger';
 import { exportPayrollReport, downloadFile } from '../services/export.service';
 import { ReportExport } from '../../../components/ReportExport';
 import type { PayrollContract } from '../types';
@@ -94,7 +95,7 @@ const PayrollSummaryPage: React.FC = () => {
       const contract = await payrollService.getActiveContract(user.id);
       setContract(contract);
     } catch (error) {
-      console.error('Error loading contract:', error);
+      logger.error('Error loading contract:', error);
     }
   };
 
@@ -134,7 +135,7 @@ const PayrollSummaryPage: React.FC = () => {
         net: calc.netPay || 0
       });
     } catch (error) {
-      console.error('Error loading monthly totals:', error);
+      logger.error('Error loading monthly totals:', error);
       toast({
         title: "Erro ao carregar dados",
         description: "Não foi possível carregar os totais do mês.",
@@ -243,7 +244,7 @@ const PayrollSummaryPage: React.FC = () => {
         description: t('reports.exportSuccess', { format: format.toUpperCase() }),
       });
     } catch (error) {
-      console.error('Export error:', error);
+      logger.error('Export error:', error);
       toast({
         title: t('reports.exportError'),
         description: t('reports.exportErrorDescription'),

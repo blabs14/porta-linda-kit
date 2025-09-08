@@ -16,6 +16,7 @@ import {
 } from './ui/select';
 import { useConfirmation } from '../hooks/useConfirmation';
 import { ConfirmationDialog } from './ui/confirmation-dialog';
+import { logger } from '@/shared/lib/logger';
 
 interface AccountFormData {
   id?: string;
@@ -167,7 +168,7 @@ const AccountForm = ({ initialData, onSuccess, onCancel }: AccountFormProps) => 
       
       onSuccess?.();
     } catch (err: any) {
-      console.error('Erro ao guardar conta:', err);
+      logger.error('Erro ao guardar conta:', err);
       // O erro já é tratado pelo hook useCrudMutation
     }
   };

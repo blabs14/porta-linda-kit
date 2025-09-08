@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Save, X, MapPin, Calculator, Euro } from 'lucide-react';
 import { PayrollMileageTrip, PayrollMileagePolicy } from '../types';
 import { payrollService } from '../services/payrollService';
+import { logger } from '@/shared/lib/logger';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/utils';
@@ -140,7 +141,7 @@ export function MileageTripForm({ trip, policies, onSave, onCancel }: MileageTri
         description: 'Erro ao salvar viagem.',
         variant: 'destructive'
       });
-      console.error('Error saving mileage trip:', error);
+      logger.error('Error saving mileage trip:', error);
     } finally {
       setLoading(false);
     }

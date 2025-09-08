@@ -13,6 +13,7 @@ import { payrollService } from '../services/payrollService';
 import { PayrollVacationForm } from './PayrollVacationForm';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { logger } from '@/shared/lib/logger';
 
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -46,22 +47,22 @@ export function PayrollVacationsManager({ year = new Date().getFullYear(), vacat
   const loadVacationsByContract = async () => {
     if (!user?.id || !contractId) return;
     
-    console.log('🔍 DEBUG loadVacationsByContract called with:', { userId: user.id, contractId, year });
+    logger.debug('loadVacationsByContract called with:', { userId: user.id, contractId, year });
     
     setLoading(true);
     try {
       const data = await payrollService.getVacations(user.id, contractId, year);
-      console.log('🔍 DEBUG loadVacationsByContract received data:', data);
+      logger.debug('loadVacationsByContract received data:', data);
       setVacations(data);
       onVacationsChange?.(data);
     } catch (error) {
-      console.error('🔍 DEBUG loadVacationsByContract error:', error);
+      logger.error('loadVacationsByContract error:', error);
       toast({
         title: 'Erro',
         description: 'Erro ao carregar férias.',
         variant: 'destructive'
       });
-      console.error('Error loading vacations:', error);
+
     } finally {
       setLoading(false);
     }
@@ -70,22 +71,22 @@ export function PayrollVacationsManager({ year = new Date().getFullYear(), vacat
   const loadVacations = async () => {
     if (!user?.id) return;
     
-    console.log('🔍 DEBUG loadVacations called with:', { userId: user.id, year });
+    logger.debug('loadVacations called with:', { userId: user.id, year });
     
     setLoading(true);
     try {
       const data = await payrollService.getVacations(user.id, undefined, year);
-      console.log('🔍 DEBUG loadVacations received data:', data);
+      logger.debug('loadVacations received data:', data);
       setVacations(data);
       onVacationsChange?.(data);
     } catch (error) {
-      console.error('🔍 DEBUG loadVacations error:', error);
+      logger.error('loadVacations error:', error);
       toast({
         title: 'Erro',
         description: 'Erro ao carregar férias.',
         variant: 'destructive'
       });
-      console.error('Error loading vacations:', error);
+
     } finally {
       setLoading(false);
     }
@@ -114,7 +115,7 @@ export function PayrollVacationsManager({ year = new Date().getFullYear(), vacat
       setDialogOpen(false);
       setEditingVacation(null);
     } catch (error) {
-      console.error('Error in handleVacationSubmit:', error);
+      logger.error('Error in handleVacationSubmit:', error);
       toast({
         title: "Erro",
         description: editingVacation ? "Erro ao atualizar férias" : "Erro ao criar férias",
@@ -147,7 +148,7 @@ export function PayrollVacationsManager({ year = new Date().getFullYear(), vacat
         description: 'Erro ao excluir férias.',
         variant: 'destructive'
       });
-      console.error('Error deleting vacation:', error);
+      logger.error('Error deleting vacation:', error);
     } finally {
       setLoading(false);
       setVacationToDelete(null);

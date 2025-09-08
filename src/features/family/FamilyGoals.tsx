@@ -24,6 +24,7 @@ import { useAccountsWithBalances } from '../../hooks/useAccountsQuery';
 import { FormSubmitButton } from '../../components/ui/loading-button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
 import { getAuditLogsByRow } from '../../services/audit_logs';
+import { logger } from '../../shared/lib/logger';
 type AuditEntry = { id: string; timestamp: string; operation: string; old_data?: any; new_data?: any; details?: any };
 
 const FamilyGoals: React.FC = () => {
@@ -162,7 +163,7 @@ const FamilyGoals: React.FC = () => {
       
       handleAllocationSuccess();
     } catch (error: any) {
-      console.error('Erro na alocação:', error);
+      logger.error('Erro na alocação:', error);
       setAllocationError(error.message || 'Erro ao processar alocação');
     } finally {
       setIsAllocating(false);
@@ -622,13 +623,13 @@ const GoalAuditList: React.FC<{ goalId: string }> = ({ goalId }) => {
         const { data, error } = await getAuditLogsByRow('goals', goalId, 20);
         if (!active) return;
         if (error) {
-          console.debug('[GoalAuditList] erro a obter logs:', error);
+          logger.debug('[GoalAuditList] erro a obter logs:', error);
           setLogs([]);
         } else {
           setLogs(Array.isArray(data) ? (data as unknown as AuditEntry[]) : []);
         }
       } catch (e) {
-        console.debug('[GoalAuditList] exceção a obter logs:', e);
+        logger.debug('[GoalAuditList] exceção a obter logs:', e);
         setLogs([]);
       } finally {
         if (active) {
@@ -674,4 +675,4 @@ const GoalAuditList: React.FC<{ goalId: string }> = ({ goalId }) => {
       ))}
     </div>
   );
-}; 
+};

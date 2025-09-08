@@ -18,6 +18,7 @@ import { useTransactions } from '../../hooks/useTransactionsQuery';
 import { useAuth } from '../../contexts/AuthContext';
 import { budgetSchema } from '../../validation/budgetSchema';
 import { useToast } from '../../hooks/use-toast';
+import { logger } from '../../shared/lib/logger';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
@@ -130,14 +131,14 @@ const PersonalBudgets: React.FC = () => {
       } as const;
 
       if (editBudget) {
-        const result = await update(editBudget.id, payload as any, user.id);
+        const result = await update(editBudget.id, payload, user.id);
         if (result.error) {
           toast({
             title: "Erro",
-            description: (result.error as any)?.message || 'Erro ao atualizar orçamento',
+            description: result.error?.message || 'Erro ao atualizar orçamento',
             variant: "destructive",
           });
-          console.error('[PersonalBudgets] update budget error:', result.error);
+          logger.error('[PersonalBudgets] update budget error:', result.error);
         } else {
           toast({
             title: "Sucesso",
@@ -146,14 +147,14 @@ const PersonalBudgets: React.FC = () => {
           handleClose();
         }
       } else {
-        const result = await create(payload as any, user.id);
+        const result = await create(payload, user.id);
         if (result.error) {
           toast({
             title: "Erro",
-            description: (result.error as any)?.message || 'Erro ao criar orçamento',
+            description: result.error?.message || 'Erro ao criar orçamento',
             variant: "destructive",
           });
-          console.error('[PersonalBudgets] create budget error:', result.error);
+          logger.error('[PersonalBudgets] create budget error:', result.error);
         } else {
           toast({
             title: "Sucesso",
@@ -165,7 +166,7 @@ const PersonalBudgets: React.FC = () => {
     } catch (error) {
       toast({
         title: "Erro",
-        description: (error as any)?.message || "Erro inesperado",
+        description: error?.message || "Erro inesperado",
         variant: "destructive",
       });
       setIsSubmitting(false);
@@ -313,7 +314,7 @@ const PersonalBudgets: React.FC = () => {
         </div>
         <div>
           <Label>Estado</Label>
-          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)}>
+          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as FilterStatus)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -369,7 +370,7 @@ const PersonalBudgets: React.FC = () => {
                     {(() => {
                       const categoryName = getCategoryName(budget.categoria_id);
                       const iconName = getCategoryIcon(categoryName);
-                      const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.Target;
+                      const IconComponent = (LucideIcons as Record<string, React.ComponentType<any>>)[iconName] || LucideIcons.Target;
                       return <IconComponent className="h-4 w-4 text-muted-foreground flex-shrink-0" />;
                     })()}
                   </CardHeader>
@@ -556,7 +557,7 @@ const PersonalBudgetAuditList: React.FC<{ budgetId: string }> = ({ budgetId }) =
       try {
         const { data, error } = await getAuditLogsByRow('budgets', budgetId, 20);
         if (!cancelled) {
-          if (!error && Array.isArray(data)) setEntries(data as unknown as AuditEntry[]);
+          if (!error && Array.isArray(data)) setEntries(data);
           else setEntries([]);
         }
       } finally {
@@ -594,4 +595,4 @@ const PersonalBudgetAuditList: React.FC<{ budgetId: string }> = ({ budgetId }) =
       })}
     </div>
   );
-}; 
+};

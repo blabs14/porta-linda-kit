@@ -1,5 +1,6 @@
 import { useCallback, useRef, useEffect, useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { logger } from '@/shared/lib/logger';
 
 // Tipos para métricas de performance
 interface PerformanceMetrics {
@@ -133,7 +134,7 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
       try {
         observer(metrics);
       } catch (error) {
-        console.error('Error in metrics observer:', error);
+        logger.error('Error in metrics observer:', error);
       }
     });
 
@@ -142,7 +143,7 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
       try {
         localStorage.setItem(`family-metrics-${familyId}`, JSON.stringify(metrics));
       } catch (error) {
-        console.error('Error persisting metrics:', error);
+        logger.error('Error persisting metrics:', error);
       }
     }
 
@@ -215,7 +216,7 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
       
       // Log detalhado do erro se analytics estiver ativo
       if (finalConfig.enableAnalytics && error) {
-        console.error(`[FamilyMetrics] Error recorded:`, {
+        logger.error(`[FamilyMetrics] Error recorded:`, {
           familyId,
           errorType,
           error: error.message,
@@ -299,7 +300,7 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
       try {
         localStorage.removeItem(`family-metrics-${familyId}`);
       } catch (error) {
-        console.error('Error clearing persisted metrics:', error);
+        logger.error('Error clearing persisted metrics:', error);
       }
     }
 
@@ -352,7 +353,7 @@ export const useFamilyMetrics = (familyId: string | null, config: Partial<Metric
         setCurrentMetrics(parsed);
       }
     } catch (error) {
-      console.error('Error loading persisted metrics:', error);
+      logger.error('Error loading persisted metrics:', error);
     }
   }, [familyId, finalConfig.enablePersistent]);
 
@@ -474,4 +475,4 @@ export const useFamilyPerformanceMetrics = (familyId: string | null) => {
     getPerformanceSummary,
     getPerformanceAlerts,
   };
-}; 
+};

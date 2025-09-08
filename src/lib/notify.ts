@@ -11,7 +11,7 @@ export function notifySuccess(opts: NotifyOptions) {
 }
 
 export function notifyError(opts: NotifyOptions) {
-  toast({ title: opts.title, description: opts.description, variant: 'destructive' as any });
+  toast({ title: opts.title, description: opts.description, variant: 'destructive' });
 }
 
 export function notifyInfo(opts: NotifyOptions) {
@@ -20,4 +20,4 @@ export function notifyInfo(opts: NotifyOptions) {
 
 export function notifyWarn(opts: NotifyOptions) {
   toast({ title: opts.title, description: opts.description });
-} 
+}

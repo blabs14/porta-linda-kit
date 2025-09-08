@@ -3,6 +3,7 @@ import { getGoals, getGoalsDomain, createGoal, updateGoal, deleteGoal, allocateF
 import { useAuth } from '../contexts/AuthContext';
 import type { GoalInsert, GoalUpdate } from '../integrations/supabase/types';
 import type { GoalDomain } from '../shared/types/goals';
+import { logger } from '@/shared/lib/logger';
 
 export const useGoals = () => {
   const { user } = useAuth();
@@ -117,4 +118,4 @@ export const useGoalProgress = () => {
     },
     enabled: !!user?.id
   });
-}; 
+};

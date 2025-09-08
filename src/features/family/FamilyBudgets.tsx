@@ -574,13 +574,11 @@ const BudgetAuditList: React.FC<{ budgetId: string }> = ({ budgetId }) => {
         const { data, error } = await getAuditLogsByRow('budgets', budgetId, 20);
         if (!active) return;
         if (error) {
-          console.debug('[BudgetAuditList] erro a obter logs:', error);
           setLogs([]);
         } else {
           setLogs(Array.isArray(data) ? (data as unknown as AuditEntry[]) : []);
         }
       } catch (e) {
-        console.debug('[BudgetAuditList] exceção a obter logs:', e);
         setLogs([]);
       } finally {
         if (active) {
@@ -626,4 +624,4 @@ const BudgetAuditList: React.FC<{ budgetId: string }> = ({ budgetId }) => {
       ))}
     </div>
   );
-}; 
+};

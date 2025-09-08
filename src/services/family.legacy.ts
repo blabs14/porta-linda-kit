@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { familyService } from '../features/family/services/family.service';
+import { logger } from '@/shared/lib/logger';
 
 export const updateFamilySettings = async (familyId: string, settings: any) => {
   const { data, error } = await supabase.rpc('update_family_settings', {
@@ -92,7 +93,7 @@ export const getFamilyStatistics = async (familyId: string) => {
 export const getFamilyKPIs = async () => {
   const { data, error } = await supabase.rpc('get_family_kpis');
   if (error) {
-    console.error('Error fetching family KPIs:', error);
+    logger.error('Error fetching family KPIs:', error);
     throw error;
   }
   return {
@@ -152,4 +153,4 @@ export const getFamilyCategoryBreakdown = async (
   }
   const rows = Array.isArray(data) ? data : [];
   return { data: rows as Array<{ category_id: string | null; category_name: string | null; total: number; percentage: number }>, error: null };
-}; 
+};

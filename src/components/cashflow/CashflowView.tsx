@@ -12,6 +12,7 @@ import { CashflowFilters, DailyCashflowSummary, CashflowScope } from '../../type
 import { cashflowService } from '../../services/cashflowService';
 import { exportCashflowData, filterCashflowEventsByDateRange, filterCashflowSummariesByDateRange, CashflowExportOptions } from '../../services/exportService';
 import { useAuth } from '../../contexts/AuthContext';
+import { logger } from '@/shared/lib/logger';
 
 interface CashflowViewProps {
   initialScope?: CashflowScope;
@@ -53,7 +54,7 @@ export function CashflowView({
       const projection = await cashflowService.generateProjection(filters);
       setDailySummaries(projection.daily_summaries);
     } catch (error) {
-      console.error('Erro ao carregar dados de fluxo de caixa:', error);
+      logger.error('Erro ao carregar dados de fluxo de caixa:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar os dados de fluxo de caixa.',
@@ -73,7 +74,7 @@ export function CashflowView({
         tipo: acc.account_type
       })));
     } catch (error) {
-      console.error('Erro ao carregar contas:', error);
+      logger.error('Erro ao carregar contas:', error);
     }
   };
 

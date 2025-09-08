@@ -58,7 +58,7 @@ export default function AccountsPage() {
 
 
   const handleEdit = (account: AccountWithBalances) => {
-    console.log('[AccountsPage] handleEdit called with account:', account);
+    // Debug: handleEdit called
     
     // Para cartões de crédito, usar o saldo da conta diretamente
     // Para outras contas, usar o saldo calculado
@@ -78,16 +78,16 @@ export default function AccountsPage() {
       saldoAtual,
     };
     
-    console.log('[AccountsPage] editData created:', editData);
+    // Debug: editData created
     setEditingAccount(editData);
     setShowCreateModal(true);
   };
 
   const handleSuccess = () => {
-    console.log('[AccountsPage] handleSuccess called');
+    // Debug: handleSuccess called
     setShowCreateModal(false);
     setEditingAccount(null);
-    console.log('[AccountsPage] Forcing refetch...');
+    // Debug: Forcing refetch
     refetch();
   };
 
@@ -110,10 +110,11 @@ export default function AccountsPage() {
       });
       setShowDeleteConfirmation(false);
       setAccountToDelete(null);
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao eliminar a conta.';
       toast({
         title: 'Erro ao eliminar conta',
-        description: error.message || 'Ocorreu um erro ao eliminar a conta.',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
@@ -243,12 +244,11 @@ export default function AccountsPage() {
             </DialogDescription>
           </DialogHeader>
           {(() => {
-            console.log('[AccountsPage] Modal rendering - editingAccount:', editingAccount);
-            console.log('[AccountsPage] editingAccount?.tipo:', editingAccount?.tipo);
+            // Debug: Modal rendering
             
             // TODO: Implementar mais tarde
             // if (editingAccount?.tipo === 'cartão de crédito') {
-            //   console.log('[AccountsPage] Rendering CreditCardForm');
+            //   logger.debug('[AccountsPage] Rendering CreditCardForm');
             //   return (
             //     <CreditCardForm
             //       initialData={editingAccount}
@@ -258,7 +258,7 @@ export default function AccountsPage() {
             //   );
             // } else 
             if (editingAccount) {
-              console.log('[AccountsPage] Rendering RegularAccountForm');
+              // Debug: Rendering RegularAccountForm
               return (
                 <RegularAccountForm
                   initialData={editingAccount}
@@ -267,7 +267,7 @@ export default function AccountsPage() {
                 />
               );
             } else {
-              console.log('[AccountsPage] Rendering AccountForm');
+              // Debug: Rendering AccountForm
               return (
                 <AccountForm
                   initialData={editingAccount}

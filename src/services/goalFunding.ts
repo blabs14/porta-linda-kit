@@ -45,7 +45,7 @@ export interface GoalContribution {
 }
 
 export async function listFundingRules(goalId: string) {
-	return (supabase as any)
+	return supabase
 		.from('goal_funding_rules')
 		.select('*')
 		.eq('goal_id', goalId)
@@ -53,7 +53,7 @@ export async function listFundingRules(goalId: string) {
 }
 
 export async function createFundingRule(rule: GoalFundingRuleInsert) {
-	return (supabase as any)
+	return supabase
 		.from('goal_funding_rules')
 		.insert([{ ...rule }])
 		.select('*')
@@ -61,7 +61,7 @@ export async function createFundingRule(rule: GoalFundingRuleInsert) {
 }
 
 export async function updateFundingRule(id: string, updates: GoalFundingRuleUpdate) {
-	return (supabase as any)
+	return supabase
 		.from('goal_funding_rules')
 		.update({ ...updates })
 		.eq('id', id)
@@ -70,17 +70,17 @@ export async function updateFundingRule(id: string, updates: GoalFundingRuleUpda
 }
 
 export async function deleteFundingRule(id: string) {
-	return (supabase as any)
+	return supabase
 		.from('goal_funding_rules')
 		.delete()
 		.eq('id', id);
 }
 
 export async function listGoalContributions(goalId: string, limit = 20) {
-	return (supabase as any)
+	return supabase
 		.from('goal_contributions')
 		.select('*')
 		.eq('goal_id', goalId)
 		.order('created_at', { ascending: false })
 		.limit(limit);
-} 
+}

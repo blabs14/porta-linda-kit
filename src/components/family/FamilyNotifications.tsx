@@ -11,6 +11,7 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../ui/confirmation-dialog';
+import { logger } from '../../shared/lib/logger';
 
 interface FamilyNotificationsProps {
   familyId: string;
@@ -52,7 +53,7 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
       setNotifications(typedData);
       updateUnreadCount(typedData);
     } catch (error) {
-      console.error('Erro ao carregar notificações familiares:', error);
+      logger.error('Erro ao carregar notificações familiares:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar as notificações',
@@ -79,7 +80,7 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
       );
       updateUnreadCount();
     } catch (error) {
-      console.error('Erro ao marcar notificação como lida:', error);
+      logger.error('Erro ao marcar notificação como lida:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível marcar a notificação como lida',
@@ -105,7 +106,7 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
       );
       setUnreadCount(0);
     } catch (error) {
-      console.error('Erro ao marcar todas as notificações como lidas:', error);
+      logger.error('Erro ao marcar todas as notificações como lidas:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível marcar todas as notificações como lidas',
@@ -126,7 +127,7 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
       setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
       updateUnreadCount();
     } catch (error) {
-      console.error('Erro ao eliminar notificação:', error);
+      logger.error('Erro ao eliminar notificação:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível eliminar a notificação',
@@ -431,4 +432,4 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
       />
     </div>
   );
-}; 
+};

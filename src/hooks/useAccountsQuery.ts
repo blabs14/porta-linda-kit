@@ -12,6 +12,7 @@ import {
 import { getCreditCardSummary } from '../services/transactions';
 import { AccountInsert, AccountUpdateExtended, AccountWithBalances } from '../integrations/supabase/types';
 import { useCrudMutation } from './useMutationWithFeedback';
+import { logger } from '@/shared/lib/logger';
 
 export const useAccounts = () => {
   const { user } = useAuth();
@@ -33,9 +34,9 @@ export const useAccountsDomain = () => {
     queryKey: ['accounts-domain', user?.id],
     queryFn: async () => {
       const { data, error } = await getAccountsWithBalances(user?.id);
-      if (error) throw error as any;
-      const rows = (data || []) as any[];
-      return rows.map(r=> ({ id: r.account_id, nome: r.nome })) as any[];
+      if (error) throw error;
+      const rows = (data || []) as Array<{ account_id: string; nome: string }>;
+      return rows.map(r=> ({ id: r.account_id, nome: r.nome }));
     },
     enabled: !!user?.id
   });

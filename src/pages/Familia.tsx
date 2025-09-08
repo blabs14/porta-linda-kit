@@ -61,8 +61,8 @@ export default function Familia() {
       setShowCreateFamilyModal(false);
       
     } catch (error) {
-      console.error('Erro ao criar família:', error);
-    }
+        logger.error('Erro ao criar família:', error);
+      }
   };
 
   if (isLoading) {
@@ -382,4 +382,4 @@ export default function Familia() {
       )}
     </div>
   );
-} 
+}

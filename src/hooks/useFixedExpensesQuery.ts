@@ -3,6 +3,7 @@ import { getFixedExpenses, createFixedExpense, updateFixedExpense, deleteFixedEx
 import { useAuth } from '../contexts/AuthContext';
 import { useCrudMutation } from './useMutationWithFeedback';
 import type { FixedExpense, FixedExpenseInsert, FixedExpenseUpdate } from '../integrations/supabase/types';
+import { logger } from '@/shared/lib/logger';
 
 export const useFixedExpenses = () => {
   const { user } = useAuth();
@@ -73,4 +74,4 @@ export const useDeleteFixedExpense = () => {
       },
     }
   );
-}; 
+};

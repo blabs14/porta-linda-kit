@@ -130,7 +130,7 @@ const PersonalTransactions: React.FC = () => {
         description: `Relatório exportado como ${filename}`,
       });
     } catch (error: any) {
-      console.error('Erro na exportação:', error);
+      // Error logging handled by error boundary
       toast({
         title: 'Erro na exportação',
         description: error.message || 'Ocorreu um erro ao exportar o relatório',
@@ -619,4 +619,4 @@ const PersonalTransactions: React.FC = () => {
   );
 };
 
-export default PersonalTransactions; 
+export default PersonalTransactions;

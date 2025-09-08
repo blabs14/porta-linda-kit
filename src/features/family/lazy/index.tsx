@@ -3,6 +3,7 @@
 // Otimização de performance com carregamento sob demanda
 
 import React, { lazy, Suspense } from 'react';
+import { logger } from '@/shared/lib/logger';
 
 // Componente de fallback otimizado
 export const LazyFallback: React.FC<{ message?: string }> = ({ message = "A carregar..." }) => (
@@ -138,12 +139,12 @@ export function useLazyService<T>(serviceImport: () => Promise<T>) {
         const startTime = performance.now();
         const serviceModule = await serviceImport();
         const loadTime = performance.now() - startTime;
-        console.log(`✅ Lazy service loaded (${loadTime.toFixed(2)}ms)`);
+        logger.debug(`✅ Lazy service loaded (${loadTime.toFixed(2)}ms)`);
         
         setService(serviceModule);
         setLoading(false);
       } catch (err) {
-        console.warn('⚠️ Lazy service loading failed:', err);
+        logger.warn('⚠️ Lazy service loading failed:', err);
         setError(err as Error);
         setLoading(false);
         // Fornecer um serviço fallback para evitar quebras na aplicação
@@ -177,7 +178,7 @@ export function createLazyComponent<TProps extends Record<string, unknown>>(
 ): React.LazyExoticComponent<React.ComponentType<TProps>> {
   const lazyComp = lazy(() => 
     importFn().catch((error) => {
-      console.warn('Lazy component loading failed:', error);
+      logger.warn('Lazy component loading failed:', error);
       return {
         default: (fallbackComponent || (() => <ComponentFallback message="Componente não disponível" />)) as React.ComponentType<TProps>
       };
@@ -224,7 +225,7 @@ export const LazyErrorBoundary: React.FC<{
 
   React.useEffect(() => {
     const handleError = (event: ErrorEvent) => {
-      console.error('Lazy loading error:', event.error);
+      logger.error('Lazy loading error:', event.error);
       setError(event.error || new Error('Unknown error'));
       setHasError(true);
     };
@@ -245,4 +246,4 @@ export const LazyErrorBoundary: React.FC<{
   }
 
   return <>{children}</>;
-}; 
+};

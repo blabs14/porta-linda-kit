@@ -13,7 +13,7 @@ export const getGoalAllocations = async (goalId: string): Promise<{ data: GoalAl
       .eq('goal_id', goalId)
       .order('data_alocacao', { ascending: false });
 
-    return { data: data as GoalAllocation[] | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -26,7 +26,7 @@ export const getAllGoalAllocations = async (): Promise<{ data: GoalAllocation[] 
       .select('*')
       .order('data_alocacao', { ascending: false });
 
-    return { data: data as GoalAllocation[] | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -40,7 +40,7 @@ export const createGoalAllocation = async (allocationData: GoalAllocationInsert,
       .select()
       .single();
 
-    return { data: data as GoalAllocation | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -56,7 +56,7 @@ export const updateGoalAllocation = async (id: string, updates: GoalAllocationUp
       .select()
       .single();
 
-    return { data: data as GoalAllocation | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -165,4 +165,4 @@ export const deallocateFromGoal = async (
   } catch (error) {
     return { data: null, error };
   }
-}; 
+};

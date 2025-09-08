@@ -311,7 +311,7 @@ describe('PayrollCalculationService', () => {
   describe('validation', () => {
     it('deve validar contrato obrigatório', async () => {
       const input = {
-        contract: null as any,
+        contract: null,
         timeEntries: mockTimeEntries,
         otPolicy: mockOTPolicy,
         holidays: mockHolidays
@@ -324,7 +324,7 @@ describe('PayrollCalculationService', () => {
       const input = {
         contract: mockContract,
         timeEntries: mockTimeEntries,
-        otPolicy: null as any,
+        otPolicy: null,
         holidays: mockHolidays
       };
 

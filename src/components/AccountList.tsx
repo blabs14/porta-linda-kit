@@ -9,6 +9,7 @@ import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Filter } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
+import { logger } from '@/shared/lib/logger';
 
 export type Account = {
   id: string;
@@ -45,7 +46,7 @@ const AccountList = ({ onEdit }: AccountListProps) => {
           const { data: total } = await getAccountAllocationsTotal(account.id, user?.id || '');
           allocationsData[account.id] = total ?? 0;
         } catch (error) {
-          console.error(`Erro ao buscar alocações da conta ${account.id}:`, error);
+          logger.error(`Erro ao buscar alocações da conta ${account.id}:`, error);
           allocationsData[account.id] = 0;
         }
       }

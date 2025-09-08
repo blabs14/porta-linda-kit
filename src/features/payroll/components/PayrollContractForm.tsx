@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleProvider';
 import { useFamily } from '@/features/family/FamilyContext';
 import { getCurrencies } from '@/services/currencies';
+import { logger } from '@/shared/lib/logger';
 
 
 interface PayrollContractFormProps {
@@ -192,7 +193,7 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
             });
           }
         } catch (holidayError) {
-          console.warn('Erro na sincronização de feriados regionais:', holidayError);
+          logger.warn('Erro na sincronização de feriados regionais:', holidayError);
           toast({
             title: 'Aviso',
             description: 'Feriados nacionais sincronizados. Erro ao sincronizar feriados regionais.',

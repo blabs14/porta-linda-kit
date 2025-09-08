@@ -8,6 +8,7 @@ import { FormSubmitButton } from '../ui/loading-button';
 import { useInviteFamilyMember } from '../../hooks/useFamilyQuery';
 import { useToast } from '../../hooks/use-toast';
 import { Mail, Shield, Users, Eye, Crown } from 'lucide-react';
+import { logger } from '@/shared/lib/logger';
 
 interface FamilyInviteModalProps {
   isOpen: boolean;
@@ -83,7 +84,7 @@ export const FamilyInviteModal = ({ isOpen, onClose, familyId, familyName }: Fam
       
     } catch (error) {
       // Erro já tratado no hook
-      console.error('Erro ao enviar convite:', error);
+      logger.error('Erro ao enviar convite:', error);
     }
   };
 
@@ -181,4 +182,4 @@ export const FamilyInviteModal = ({ isOpen, onClose, familyId, familyName }: Fam
       </DialogContent>
     </Dialog>
   );
-}; 
+};

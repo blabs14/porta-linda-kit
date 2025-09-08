@@ -1,6 +1,7 @@
 import { LogOut } from 'lucide-react';
 import { Button } from '../ui/button';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { logger } from '@/shared/lib/logger';
 import { cn } from '../../lib/utils';
 import { useNavigate } from 'react-router-dom';
 
@@ -13,7 +14,7 @@ export default function LogoutButton() {
       await logout();
       navigate('/login', { replace: true });
     } catch (error) {
-      console.error('Erro durante logout:', error);
+      logger.error('Erro durante logout:', error);
       // Em caso de erro, ainda assim redireciona para login
       navigate('/login', { replace: true });
     }

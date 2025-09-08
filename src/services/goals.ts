@@ -44,10 +44,10 @@ export const getGoal = async (id: string, userId: string): Promise<{ data: Goal 
 
 export const createGoal = async (goalData: GoalInsert, userId?: string): Promise<{ data: Goal | null; error: unknown }> => {
   try {
-    let resolvedUserId: string | undefined = userId ?? (goalData as Partial<GoalInsert>)?.user_id as string | undefined;
+    let resolvedUserId: string | undefined = userId ?? goalData.user_id;
     if (!resolvedUserId) {
       const { data: authData } = await supabase.auth.getUser();
-      resolvedUserId = authData?.user?.id as string | undefined;
+      resolvedUserId = authData?.user?.id;
     }
     
     const { data, error } = await supabase
@@ -84,7 +84,7 @@ export const deleteGoal = async (id: string, userId?: string): Promise<{ data: {
     let resolvedUserId = userId;
     if (!resolvedUserId) {
       const { data: authData } = await supabase.auth.getUser();
-      resolvedUserId = authData?.user?.id as string | undefined;
+      resolvedUserId = authData?.user?.id;
     }
     
     const { data, error } = await supabase.rpc('delete_goal_with_restoration', {
@@ -95,7 +95,7 @@ export const deleteGoal = async (id: string, userId?: string): Promise<{ data: {
     if (error) return { data: null, error };
 
     if (data && typeof data === 'object') {
-      const obj = data as Record<string, unknown>;
+      const obj = data;
       if ('success' in obj) {
         return { data: { success: Boolean(obj.success), message: typeof obj.message === 'string' ? obj.message : undefined }, error: null };
       }
@@ -155,7 +155,7 @@ export const getPersonalGoals = async (userId: string): Promise<{ data: Goal[] |
       p_user_id: userId
     });
 
-    return { data: data as Goal[] | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -167,7 +167,7 @@ export const getFamilyGoals = async (userId: string): Promise<{ data: Goal[] | n
       p_user_id: userId
     });
 
-    return { data: data as Goal[] | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }

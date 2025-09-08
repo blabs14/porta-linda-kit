@@ -2,6 +2,8 @@ import React from 'react';
 import { PayrollBreadcrumb } from '../components/PayrollBreadcrumb';
 import PayrollBonusConfig from '../components/PayrollBonusConfig';
 import { useActiveContract } from '../hooks/useActiveContract';
+import { logger } from '@/shared/lib/logger';
+import { useToast } from '@/hooks/use-toast';
 
 export function PayrollBonusSettingsPage() {
   const { activeContract } = useActiveContract();
@@ -29,14 +31,14 @@ export function PayrollBonusSettingsPage() {
           <PayrollBonusConfig 
             bonusType="performance" 
             onSave={(data) => {
-              console.log('Performance bonus saved:', data);
+              logger.debug('Performance bonus saved:', data);
             }} 
           />
           
           <PayrollBonusConfig 
             bonusType="custom" 
             onSave={(data) => {
-              console.log('Custom bonus saved:', data);
+              logger.debug('Custom bonus saved:', data);
             }} 
           />
         </div>

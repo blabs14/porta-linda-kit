@@ -1,3 +1,5 @@
+import { logger } from '@/shared/lib/logger';
+
 // Importação lazy para evitar problemas de build
 let webVitalsModule: any = null;
 
@@ -6,7 +8,7 @@ const loadWebVitals = async () => {
     try {
       webVitalsModule = await import('web-vitals');
     } catch (error) {
-      console.warn('Web Vitals não disponível:', error);
+      logger.warn('Web Vitals não disponível:', error);
       return null;
     }
   }
@@ -178,7 +180,7 @@ class PerformanceService {
 
     // Log em desenvolvimento
     if (!this.isProduction) {
-      console.log('Performance Metric:', metric);
+      logger.debug('Performance Metric:', metric);
     }
   }
 
@@ -192,7 +194,7 @@ class PerformanceService {
         body: JSON.stringify(metric),
       });
     } catch (error) {
-      console.error('Erro ao enviar métrica:', error);
+      logger.error('Erro ao enviar métrica:', error);
     }
   }
 

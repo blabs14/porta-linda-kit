@@ -9,6 +9,7 @@ import { CreditCard } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from '../hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
+import { logger } from '@/shared/lib/logger';
 
 interface CreditCardFormData {
   id: string;
@@ -49,12 +50,12 @@ const CreditCardForm = ({ initialData, onSuccess, onCancel }: CreditCardFormProp
         .eq('id', initialData.id)
         .single();
       if (error) {
-        console.error('[CreditCardForm] Error fetching account balance:', error);
+        logger.error('[CreditCardForm] Error fetching account balance:', error);
         return;
       }
       setForm(prev => ({ ...prev, saldoAtual: (data as any)?.saldo || 0 }));
     } catch (error) {
-      console.error('[CreditCardForm] Error fetching account balance:', error);
+      logger.error('[CreditCardForm] Error fetching account balance:', error);
     }
   }, [initialData.id]);
 
@@ -156,7 +157,7 @@ const CreditCardForm = ({ initialData, onSuccess, onCancel }: CreditCardFormProp
       toast({ title: isEditing ? 'Cartão atualizado' : 'Cartão criado', description: isEditing ? 'Dados do cartão atualizados com sucesso.' : 'Novo cartão criado com sucesso.' });
       onSuccess?.();
     } catch (err: any) {
-      console.error('Erro ao guardar cartão de crédito:', err);
+      logger.error('Erro ao guardar cartão de crédito:', err);
       toast({ title: 'Erro ao guardar cartão', description: err?.message || 'Tente novamente.', variant: 'destructive' });
     }
   };

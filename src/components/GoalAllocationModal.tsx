@@ -18,6 +18,7 @@ import {
   SelectItem,
   SelectValue,
 } from './ui/select';
+import { logger } from '@/shared/lib/logger';
 
 interface GoalAllocationModalProps {
   isOpen: boolean;
@@ -40,8 +41,7 @@ const GoalAllocationModal = ({
   const { allocateToGoal, isAllocating } = useGoalAllocations();
   const { data: accounts = [] } = useAccountsWithBalances();
   
-  console.log('[GoalAllocationModal] Props:', { isOpen, goalId, goalName, currentProgress, targetAmount });
-  console.log('[GoalAllocationModal] Accounts:', accounts);
+  // Debug: GoalAllocationModal props and accounts data
   
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [amount, setAmount] = useState('');
@@ -62,11 +62,7 @@ const GoalAllocationModal = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('[GoalAllocationModal] handleSubmit called');
-    console.log('[GoalAllocationModal] Selected account ID:', selectedAccountId);
-    console.log('[GoalAllocationModal] Selected account data:', selectedAccount);
-    console.log('[GoalAllocationModal] Amount:', amount);
-    console.log('[GoalAllocationModal] Description:', description);
+    // Debug: GoalAllocationModal handleSubmit called with form data
     setValidationError('');
 
     if (!selectedAccountId) {
@@ -85,26 +81,20 @@ const GoalAllocationModal = ({
       return;
     }
 
-    console.log('[GoalAllocationModal] Submitting allocation:', {
-      goalId,
-      accountId: selectedAccountId,
-      amount: numericAmount,
-      description: description || `Alocação para ${goalName}`
-    });
+    // Debug: Submitting allocation with data
 
     try {
       await allocateToGoal({
         goalId,
         accountId: selectedAccountId,
         amount: numericAmount,
-        description: description || `Alocação para ${goalName}`
+        description: description || "Alocacao para " + goalName
       });
 
-      console.log('[GoalAllocationModal] Allocation successful');
       onClose();
     } catch (error) {
-      console.error('[GoalAllocationModal] Error allocating to goal:', error);
-      setValidationError('Erro ao processar alocação');
+      logger.error('[GoalAllocationModal] Error allocating to goal:', error);
+      setValidationError('Erro ao processar alocacao');
     }
   };
 
@@ -203,4 +193,4 @@ const GoalAllocationModal = ({
 
 export default GoalAllocationModal;
 
-export { GoalAllocationModal }; 
+export { GoalAllocationModal };

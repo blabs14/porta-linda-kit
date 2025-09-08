@@ -21,7 +21,7 @@ export type LegacyReminderPayload = {
 
 function mapToDbColumns(data: NewReminderFormPayload | LegacyReminderPayload) {
   // Detectar formato pelo campo chave
-  if ((data as NewReminderFormPayload).titulo !== undefined) {
+  if ('titulo' in data && data.titulo !== undefined) {
     const d = data as NewReminderFormPayload;
     return {
       title: d.titulo,
@@ -68,10 +68,10 @@ export const updateReminder = async (
 ) => {
   const mapped = mapToDbColumns({
     // Fallbacks mínimos para satisfazer o mapper
-    titulo: (data as any).titulo ?? (data as any).title ?? '',
-    descricao: (data as any).descricao ?? (data as any).description ?? '',
-    data_lembrete: (data as any).data_lembrete ?? (data as any).date ?? new Date().toISOString().slice(0, 10),
-    repetir: (data as any).repetir ?? ((data as any).recurring ? 'diario' : 'nenhuma'),
+    titulo: data.titulo ?? data.title ?? '',
+    descricao: data.descricao ?? data.description ?? '',
+    data_lembrete: data.data_lembrete ?? data.date ?? new Date().toISOString().slice(0, 10),
+    repetir: data.repetir ?? (data.recurring ? 'diario' : 'nenhuma'),
   } as NewReminderFormPayload);
 
   const { data: result, error } = await supabase
@@ -85,4 +85,4 @@ export const updateReminder = async (
 export const deleteReminder = async (id: string) => {
   const { data, error } = await supabase.from('reminders').delete().eq('id', id);
   return { data, error };
-}; 
+};

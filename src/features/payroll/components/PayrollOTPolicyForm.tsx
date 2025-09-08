@@ -13,6 +13,7 @@ import { payrollService } from '../services/payrollService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveContract } from '../hooks/useActiveContract';
+import { logger } from '@/shared/lib/logger';
 
 interface PayrollOTPolicyFormProps {
   policy?: PayrollOTPolicy;
@@ -61,7 +62,7 @@ export function PayrollOTPolicyForm({ policy, contractId, onSave, onCancel }: Pa
           setLoadedPolicy(policies[0]); // Usar a primeira política encontrada
         }
       } catch (error) {
-        console.error('Erro ao carregar política de horas extras:', error);
+        logger.error('Erro ao carregar política de horas extras:', error);
       } finally {
         setLoading(false);
       }
@@ -152,7 +153,7 @@ export function PayrollOTPolicyForm({ policy, contractId, onSave, onCancel }: Pa
         onSave(savedPolicy);
       }
     } catch (error) {
-      console.error('Erro ao guardar política de horas extras:', error);
+      logger.error('Erro ao guardar política de horas extras:', error);
       toast({
         title: 'Erro',
         description: 'Erro ao guardar política de horas extras. Tente novamente.',

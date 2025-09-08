@@ -19,6 +19,7 @@ import { useAuth } from '../contexts/AuthContext';
 // exportReport será carregado dinamicamente no ponto de uso
 import { formatCurrency } from '../lib/utils';
 import { useToast } from '../hooks/use-toast';
+import { logger } from '../shared/lib/logger';
 
 type TransactionItem = {
   id: string;
@@ -101,7 +102,7 @@ const TransactionsPage = () => {
         description: `Relatório exportado como ${filename}`,
       });
     } catch (error: unknown) {
-      console.error('Erro na exportação:', error);
+      logger.error('Erro na exportação:', error);
       const message = (error && typeof error === 'object' && 'message' in error) ? String((error as { message?: string }).message) : 'Ocorreu um erro ao exportar o relatório';
       toast({
         title: 'Erro na exportação',
@@ -272,4 +273,4 @@ const TransactionsPage = () => {
   );
 };
 
-export default TransactionsPage; 
+export default TransactionsPage;

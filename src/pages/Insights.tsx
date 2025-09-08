@@ -24,7 +24,7 @@ import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
 import { useGoals, useCreateGoal } from '../hooks/useGoalsQuery';
 import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { useAuth } from '../contexts/AuthContext';
-import { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import TransactionForm from '../components/TransactionForm';
@@ -32,7 +32,37 @@ import { useToast } from '../hooks/use-toast';
 import { notifySuccess, notifyError } from '../lib/notify';
 import { goalSchema } from '../validation/goalSchema';
 import { ZodError } from 'zod';
-import ExcelJS from 'exceljs';
+// Lazy loading para ExcelJS
+const LazyExcelExport = React.lazy(() => import('exceljs').then(module => ({
+  default: ({ data, filename }: { data: any[], filename: string }) => {
+    const exportToExcel = async () => {
+      const workbook = new module.default.Workbook();
+      const worksheet = workbook.addWorksheet('Insights');
+      
+      // Adicionar headers
+      const headers = Object.keys(data[0] || {});
+      worksheet.addRow(headers);
+      
+      // Adicionar dados
+      data.forEach(row => {
+        worksheet.addRow(Object.values(row));
+      });
+      
+      // Gerar e baixar arquivo
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    };
+    
+    exportToExcel();
+    return null;
+  }
+})));
 
 // Tipo auxiliar para objetivos usados nesta página
 type GoalLike = { nome?: string; valor_objetivo?: number | string | null; valor_atual?: number | string | null };
@@ -321,7 +351,7 @@ export default function Insights() {
     }
   };
 
-  // Função para exportar relatório
+  // Função para exportar relatório usando lazy loading
   const handleExport = async () => {
     setIsExporting(true);
     try {
@@ -329,110 +359,95 @@ export default function Insights() {
       const fileName = `relatorio-insights-${currentDate}.xlsx`;
       
       // Preparar dados para exportação
-      const exportData = {
-        dataExportacao: currentDate,
-        insights: insights.map(insight => ({
-          titulo: insight.title,
-          descricao: insight.description,
-          tipo: insight.type,
-          valor: insight.value,
-          tendencia: insight.trend,
-          acao: insight.action
-        })),
-        resumoFinanceiro: {
-          saldoTotal: accounts.reduce((sum, account) => sum + (Number(account.saldo_atual) || 0), 0),
-          totalContas: accounts.length,
-          totalTransacoes: transactions.length,
-          totalObjetivos: goals.length,
-          objetivosAtivos: goals.filter(goal => goal.ativa).length
+      const exportData = [
+        {
+          sheetName: 'Insights',
+          title: 'INSIGHTS FINANCEIROS',
+          headers: ['Título', 'Descrição', 'Tipo', 'Valor', 'Tendência', 'Ação'],
+          data: insights.map(insight => ([
+            insight.title,
+            insight.description,
+            insight.type,
+            insight.value,
+            insight.trend,
+            insight.action
+          ])),
+          metadata: [['Data de Exportação', currentDate]]
         },
-        gastosPorCategoria: categoryData.map(cat => ({
-          categoria: cat.name,
-          valor: cat.amount,
-          percentagem: cat.percentage
-        })),
-        tendenciasMensais: monthlyData.map(month => ({
-          mes: month.month,
-          receitas: month.income,
-          despesas: month.expenses,
-          poupancas: month.savings
-        }))
-      };
+        {
+          sheetName: 'Resumo',
+          title: 'RESUMO FINANCEIRO',
+          headers: ['Métrica', 'Valor'],
+          data: [
+            ['Saldo Total', `€${accounts.reduce((sum, account) => sum + (Number(account.saldo_atual) || 0), 0).toFixed(2)}`],
+            ['Total de Contas', accounts.length],
+            ['Total de Transações', transactions.length],
+            ['Total de Objetivos', goals.length],
+            ['Objetivos Ativos', goals.filter(goal => goal.ativa).length]
+          ]
+        },
+        {
+          sheetName: 'Gastos',
+          title: 'GASTOS POR CATEGORIA',
+          headers: ['Categoria', 'Valor', 'Percentagem'],
+          data: categoryData.map(cat => ([
+            cat.name,
+            `€${cat.amount.toFixed(2)}`,
+            `${cat.percentage}%`
+          ]))
+        },
+        {
+          sheetName: 'Tendências',
+          title: 'TENDÊNCIAS MENSAIS (Últimos 6 meses)',
+          headers: ['Mês', 'Receitas', 'Despesas', 'Poupanças'],
+          data: monthlyData.map(month => ([
+            month.month,
+            `€${month.income.toFixed(2)}`,
+            `€${month.expenses.toFixed(2)}`,
+            `€${month.savings.toFixed(2)}`
+          ]))
+        }
+      ];
 
-      // Criar workbook e worksheets
-      const workbook = new ExcelJS.Workbook();
-      
-      // Worksheet 1: Insights
-      const insightsSheet = workbook.addWorksheet('Insights');
-      
-      insightsSheet.addRow(['INSIGHTS FINANCEIROS']);
-      insightsSheet.addRow(['Data de Exportação', currentDate]);
-      insightsSheet.addRow([]);
-      insightsSheet.addRow(['Título', 'Descrição', 'Tipo', 'Valor', 'Tendência', 'Ação']);
-      
-      exportData.insights.forEach(insight => {
-        insightsSheet.addRow([
-          insight.titulo,
-          insight.descricao,
-          insight.tipo,
-          insight.valor,
-          insight.tendencia,
-          insight.acao
-        ]);
+      // Usar o componente lazy para exportar
+      const LazyExcelExportComponent = await import('exceljs').then(module => {
+        const ExcelJS = module.default;
+        return async (data: typeof exportData, filename: string) => {
+          const workbook = new ExcelJS.Workbook();
+          
+          data.forEach(sheet => {
+            const worksheet = workbook.addWorksheet(sheet.sheetName);
+            
+            // Adicionar título
+            worksheet.addRow([sheet.title]);
+            
+            // Adicionar metadata se existir
+            if (sheet.metadata) {
+              sheet.metadata.forEach(meta => worksheet.addRow(meta));
+            }
+            
+            // Linha vazia
+            worksheet.addRow([]);
+            
+            // Adicionar cabeçalhos
+            worksheet.addRow(sheet.headers);
+            
+            // Adicionar dados
+            sheet.data.forEach(row => worksheet.addRow(row));
+          });
+          
+          const buffer = await workbook.xlsx.writeBuffer();
+          const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          link.click();
+          window.URL.revokeObjectURL(url);
+        };
       });
       
-      // Worksheet 2: Resumo Financeiro
-      const resumoSheet = workbook.addWorksheet('Resumo');
-      
-      resumoSheet.addRow(['RESUMO FINANCEIRO']);
-      resumoSheet.addRow([]);
-      resumoSheet.addRow(['Métrica', 'Valor']);
-      resumoSheet.addRow(['Saldo Total', `€${exportData.resumoFinanceiro.saldoTotal.toFixed(2)}`]);
-      resumoSheet.addRow(['Total de Contas', exportData.resumoFinanceiro.totalContas]);
-      resumoSheet.addRow(['Total de Transações', exportData.resumoFinanceiro.totalTransacoes]);
-      resumoSheet.addRow(['Total de Objetivos', exportData.resumoFinanceiro.totalObjetivos]);
-      resumoSheet.addRow(['Objetivos Ativos', exportData.resumoFinanceiro.objetivosAtivos]);
-      
-      // Worksheet 3: Gastos por Categoria
-      const gastosSheet = workbook.addWorksheet('Gastos');
-      
-      gastosSheet.addRow(['GASTOS POR CATEGORIA']);
-      gastosSheet.addRow([]);
-      gastosSheet.addRow(['Categoria', 'Valor', 'Percentagem']);
-      
-      exportData.gastosPorCategoria.forEach(cat => {
-        gastosSheet.addRow([
-          cat.categoria,
-          `€${cat.valor.toFixed(2)}`,
-          `${cat.percentagem}%`
-        ]);
-      });
-      
-      // Worksheet 4: Tendências Mensais
-      const tendenciasSheet = workbook.addWorksheet('Tendências');
-      
-      tendenciasSheet.addRow(['TENDÊNCIAS MENSAIS (Últimos 6 meses)']);
-      tendenciasSheet.addRow([]);
-      tendenciasSheet.addRow(['Mês', 'Receitas', 'Despesas', 'Poupanças']);
-      
-      exportData.tendenciasMensais.forEach(month => {
-        tendenciasSheet.addRow([
-          month.mes,
-          `€${month.receitas.toFixed(2)}`,
-          `€${month.despesas.toFixed(2)}`,
-          `€${month.poupancas.toFixed(2)}`
-        ]);
-      });
-
-      // Exportar ficheiro XLSX
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      link.click();
-      window.URL.revokeObjectURL(url);
+      await LazyExcelExportComponent(exportData, fileName);
       
       notifySuccess({ title: 'Relatório exportado', description: `O relatório foi descarregado como "${fileName}"` });
     } catch (error) {

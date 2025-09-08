@@ -43,7 +43,8 @@ const FamilySettings: React.FC = () => {
   } = useFamily();
   
   // Funções para futuras implementações
-  const deleteFamily = (useFamily() as any).deleteFamily;
+  const { deleteFamily } = useFamily() as { deleteFamily?: () => Promise<void> };
+  const deleteFamilyFn = deleteFamily || (() => Promise.resolve());
   
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
@@ -97,10 +98,11 @@ const FamilySettings: React.FC = () => {
     try {
       const familyBackups = await backupService.getFamilyBackups(family.id);
       setBackups(familyBackups || []);
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Não foi possível carregar os backups.';
       toast({
         title: 'Erro ao carregar backups',
-        description: error.message || 'Não foi possível carregar os backups.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -119,10 +121,11 @@ const FamilySettings: React.FC = () => {
         description: 'O backup da família foi criado com sucesso.',
       });
       loadBackups();
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Não foi possível criar o backup.';
       toast({
         title: 'Erro ao criar backup',
-        description: error.message || 'Não foi possível criar o backup.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -130,7 +133,7 @@ const FamilySettings: React.FC = () => {
     }
   };
 
-  const handleDownloadBackup = async (backup: any) => {
+  const handleDownloadBackup = async (backup: { id: string; created_at: string; size?: number }) => {
     if (!backupService) return;
     
     try {
@@ -343,7 +346,7 @@ const FamilySettings: React.FC = () => {
               />
             </div>
           </div>
-          {(canEdit as any)('family') && (
+          {canEdit('family') && (
             <Button onClick={() => setEditModalOpen(true)}>
               <Edit className="h-4 w-4 mr-2" />
               Editar Informações
@@ -462,7 +465,7 @@ const FamilySettings: React.FC = () => {
       </Card>
 
       {/* Zona de Perigo */}
-      {((canDelete as any)('family') || myRole === 'owner') && (
+      {(canDelete('family') || myRole === 'owner') && (
         <Card className="border-red-200 bg-red-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-800">
@@ -564,7 +567,7 @@ const FamilySettings: React.FC = () => {
               <select
                 id="export-format"
                 value={exportForm.format}
-                onChange={(e) => setExportForm(prev => ({ ...prev, format: e.target.value as any }))}
+                onChange={(e) => setExportForm(prev => ({ ...prev, format: e.target.value as 'json' | 'csv' }))}
                 className="w-full p-2 border rounded-md mt-1"
               >
                 <option value="pdf">PDF</option>
@@ -674,4 +677,4 @@ const FamilySettings: React.FC = () => {
   );
 };
 
-export default FamilySettings; 
+export default FamilySettings;

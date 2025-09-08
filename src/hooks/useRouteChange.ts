@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { logger } from '@/shared/lib/logger';
 import { useAuth } from '../contexts/AuthContext';
 
 export const useRouteChange = () => {
@@ -76,9 +77,9 @@ export const useRouteChange = () => {
           });
         }
         
-        console.log('🔄 Dados invalidados e revalidados após mudança de rota:', location.pathname);
+        logger.info('🔄 Dados invalidados e revalidados após mudança de rota:', location.pathname);
       } catch (error) {
-        console.warn('⚠️ Erro ao invalidar dados após mudança de rota:', error);
+        logger.warn('⚠️ Erro ao invalidar dados após mudança de rota:', error);
       }
     };
 
@@ -87,4 +88,4 @@ export const useRouteChange = () => {
     
     return () => clearTimeout(timeoutId);
   }, [location.pathname, queryClient, user?.id]);
-}; 
+};

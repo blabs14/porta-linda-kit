@@ -10,6 +10,7 @@ import {
   GoalFundingRuleUpdate
 } from '../services/goalFunding';
 import { showError } from '../lib/utils';
+import { logger } from '@/shared/lib/logger';
 
 export const useGoalFunding = (goalId: string | null | undefined) => {
   const { user } = useAuth();
@@ -24,7 +25,7 @@ export const useGoalFunding = (goalId: string | null | undefined) => {
         if (error) throw error;
         return data || [];
       } catch (err: any) {
-        console.error('Failed to fetch goal funding rules', err);
+        logger.error('Failed to fetch goal funding rules', err);
         showError(err?.message || 'Falha ao obter regras de funding');
         return [] as any[];
       }
@@ -41,7 +42,7 @@ export const useGoalFunding = (goalId: string | null | undefined) => {
         if (error) throw error;
         return data || [];
       } catch (err: any) {
-        console.error('Failed to fetch goal contributions', err);
+        logger.error('Failed to fetch goal contributions', err);
         showError(err?.message || 'Falha ao obter contribuições');
         return [] as any[];
       }
@@ -55,7 +56,7 @@ export const useGoalFunding = (goalId: string | null | undefined) => {
       queryClient.invalidateQueries({ queryKey: ['goalFundingRules'] });
     },
     onError: (err: any) => {
-      console.error('Failed to create funding rule', err);
+      logger.error('Failed to create funding rule', err);
       showError(err?.message || 'Falha ao criar regra');
     }
   });
@@ -66,7 +67,7 @@ export const useGoalFunding = (goalId: string | null | undefined) => {
       queryClient.invalidateQueries({ queryKey: ['goalFundingRules'] });
     },
     onError: (err: any) => {
-      console.error('Failed to update funding rule', err);
+      logger.error('Failed to update funding rule', err);
       showError(err?.message || 'Falha ao atualizar regra');
     }
   });
@@ -77,7 +78,7 @@ export const useGoalFunding = (goalId: string | null | undefined) => {
       queryClient.invalidateQueries({ queryKey: ['goalFundingRules'] });
     },
     onError: (err: any) => {
-      console.error('Failed to delete funding rule', err);
+      logger.error('Failed to delete funding rule', err);
       showError(err?.message || 'Falha ao eliminar regra');
     }
   });

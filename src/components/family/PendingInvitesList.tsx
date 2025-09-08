@@ -7,6 +7,7 @@ import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../ui/confirmation-dialog';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../hooks/use-toast';
+import { logger } from '@/shared/lib/logger';
 import { 
   Mail, 
   Clock, 
@@ -73,7 +74,7 @@ export const PendingInvitesList = ({ familyId, userRole }: PendingInvitesListPro
         try {
           await cancelInviteMutation.mutateAsync(inviteId);
         } catch (error) {
-          console.error('Erro ao cancelar convite:', error);
+          logger.error('Erro ao cancelar convite:', error);
         }
       }
     );
@@ -83,7 +84,7 @@ export const PendingInvitesList = ({ familyId, userRole }: PendingInvitesListPro
     try {
       await acceptInviteMutation.mutateAsync(inviteId);
     } catch (error) {
-      console.error('Erro ao aceitar convite:', error);
+      logger.error('Erro ao aceitar convite:', error);
     }
   };
 
@@ -266,4 +267,4 @@ export const PendingInvitesList = ({ familyId, userRole }: PendingInvitesListPro
       />
     </>
   );
-}; 
+};

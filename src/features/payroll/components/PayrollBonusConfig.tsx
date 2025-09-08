@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { payrollService } from '../services/payrollService';
 import { useActiveContract } from '../hooks/useActiveContract';
+import { logger } from '@/shared/lib/logger';
 
 type BonusType = 'mandatory' | 'performance' | 'custom';
 type SpecificSubsidy = 'vacation' | 'christmas' | 'both';
@@ -113,7 +114,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
   const isCustom = bonusType === 'custom';
   
   // Debug logs
-  console.log('PayrollBonusConfig Debug:', {
+  logger.debug('PayrollBonusConfig Debug:', {
     bonusType,
     isMandatory,
     isPerformance,
@@ -131,7 +132,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
         if (!user?.id || !activeContract?.id) return;
         
         const config = await payrollService.getBonusConfig(user.id, activeContract.id, bonusType);
-        console.log('Loading bonus config for:', { userId: user.id, contractId: activeContract.id, bonusType, config });
+        logger.debug('Loading bonus config for:', { userId: user.id, contractId: activeContract.id, bonusType, config });
         
         if (config && config.config_data) {
           if (isMandatory) {
@@ -143,7 +144,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
           }
         }
       } catch (error) {
-        console.error('Erro ao carregar configuração de bónus:', error);
+        logger.error('Erro ao carregar configuração de bónus:', error);
         toast({
           title: 'Erro',
           description: 'Não foi possível carregar a configuração existente.',
@@ -245,7 +246,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
 
     const loadSalaryData = async () => {
       try {
-        console.log('Loading salary data for contract:', activeContract.id);
+        logger.debug('Loading salary data for contract:', activeContract.id);
         const contractData = await payrollService.getContract(user.id, activeContract.id);
         
         if (contractData) {
@@ -264,7 +265,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
           });
         }
       } catch (error) {
-        console.error('Erro ao carregar dados salariais:', error);
+        logger.error('Erro ao carregar dados salariais:', error);
         toast({
           title: 'Erro',
           description: 'Não foi possível carregar os dados salariais.',
@@ -303,14 +304,14 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
       }
       
       await payrollService.upsertBonusConfig(user.id, activeContract.id, 'mandatory', data);
-       console.log('Guardando configuração de subsídios obrigatórios:', { userId: user.id, contractId: activeContract.id, data });
+       logger.debug('Guardando configuração de subsídios obrigatórios:', { userId: user.id, contractId: activeContract.id, data });
       toast({
         title: 'Configuracao guardada',
         description: 'As configuracoes de bonus obrigatorios foram guardadas com sucesso.'
       });
       onSave?.(data);
     } catch (error) {
-      console.error('Erro ao guardar configuração:', error);
+      logger.error('Erro ao guardar configuração:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível guardar a configuração.',
@@ -340,14 +341,14 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
       }
       
       await payrollService.upsertBonusConfig(user.id, activeContract.id, 'performance', data);
-       console.log('Guardando configuração de prémios de produtividade:', { userId: user.id, contractId: activeContract.id, data });
+       logger.debug('Guardando configuração de prémios de produtividade:', { userId: user.id, contractId: activeContract.id, data });
       toast({
         title: 'Configuracao guardada',
         description: 'As configuracoes de premios de produtividade foram guardadas com sucesso.'
       });
       onSave?.(data);
     } catch (error) {
-      console.error('Erro ao guardar configuração:', error);
+      logger.error('Erro ao guardar configuração:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível guardar a configuração.',
@@ -377,14 +378,14 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
       }
       
       await payrollService.upsertBonusConfig(user.id, activeContract.id, 'custom', data);
-       console.log('Guardando configuração de prémio personalizado:', { userId: user.id, contractId: activeContract.id, data });
+       logger.debug('Guardando configuração de prémio personalizado:', { userId: user.id, contractId: activeContract.id, data });
       toast({
         title: 'Premio guardado',
         description: 'O premio personalizado foi guardado com sucesso.'
       });
       onSave?.(data);
     } catch (error) {
-      console.error('Erro ao guardar configuração:', error);
+      logger.error('Erro ao guardar configuração:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível guardar a configuração.',

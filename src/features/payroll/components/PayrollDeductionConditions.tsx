@@ -14,6 +14,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { logger } from '@/shared/lib/logger';
 import { deductionInferenceService } from '../services/deductionInferenceService';
 import { PayrollDeductionConditionsFormData } from '../types';
 
@@ -123,7 +124,7 @@ export function PayrollDeductionConditions({
           });
         }
       } catch (error) {
-        console.error('Erro ao carregar condições:', error);
+        logger.error('Erro ao carregar condições:', error);
         toast({
           title: 'Erro',
           description: 'Não foi possível carregar as condições existentes.',
@@ -152,7 +153,7 @@ export function PayrollDeductionConditions({
         description: 'Condições guardadas com sucesso.'
       });
     } catch (error) {
-      console.error('Erro ao guardar condições:', error);
+      logger.error('Erro ao guardar condições:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível guardar as condições.',
@@ -192,7 +193,7 @@ export function PayrollDeductionConditions({
         description: 'Percentagens recalculadas com base nas condições.'
       });
     } catch (error) {
-      console.error('Erro ao recalcular percentagens:', error);
+      logger.error('Erro ao recalcular percentagens:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível recalcular as percentagens.',

@@ -14,6 +14,7 @@ import { PayrollMealAllowanceConfig, PayrollMealAllowanceConfigFormData, MealAll
 import { payrollService } from '../services/payrollService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { logger } from '@/shared/lib/logger';
 
 const MONTHS = [
   { value: 1, label: 'Janeiro' },
@@ -62,10 +63,10 @@ export function PayrollMealAllowanceForm({ contractId, config, onSave, onCancel 
 
   // Debug logs
   useEffect(() => {
-    console.log('🔄 DEBUG: PayrollMealAllowanceForm mounted');
-    console.log('🔄 DEBUG: contractId:', contractId);
-    console.log('🔄 DEBUG: user:', user);
-    console.log('🔄 DEBUG: config:', config);
+    logger.debug('PayrollMealAllowanceForm mounted');
+    logger.debug('contractId:', contractId);
+    logger.debug('user:', user);
+    logger.debug('config:', config);
   }, [contractId, user, config]);
 
   const {
@@ -119,12 +120,12 @@ export function PayrollMealAllowanceForm({ contractId, config, onSave, onCancel 
 
   // Submeter formulário
   const onSubmit = async (data: FormData) => {
-    console.log('DEBUG PayrollMealAllowanceForm - onSubmit called with data:', data);
-    console.log('DEBUG PayrollMealAllowanceForm - contractId:', contractId);
-    console.log('DEBUG PayrollMealAllowanceForm - user:', user?.id);
+    logger.debug('PayrollMealAllowanceForm - onSubmit called with data:', data);
+    logger.debug('PayrollMealAllowanceForm - contractId:', contractId);
+    logger.debug('PayrollMealAllowanceForm - user:', user?.id);
     
     if (!user?.id) {
-      console.log('DEBUG PayrollMealAllowanceForm - User not authenticated');
+      logger.warn('PayrollMealAllowanceForm - User not authenticated');
       toast({
         title: 'Erro',
         description: 'Utilizador não autenticado',
@@ -134,7 +135,7 @@ export function PayrollMealAllowanceForm({ contractId, config, onSave, onCancel 
     }
 
     if (!contractId) {
-      console.log('DEBUG PayrollMealAllowanceForm - Contract ID not provided');
+      logger.warn('PayrollMealAllowanceForm - Contract ID not provided');
       toast({
         title: 'Erro',
         description: 'ID do contrato não fornecido',
@@ -152,7 +153,7 @@ export function PayrollMealAllowanceForm({ contractId, config, onSave, onCancel 
           duodecimosEnabled: data.duodecimosEnabled
         };
 
-        console.log('DEBUG PayrollMealAllowanceForm - Calling upsertMealAllowanceConfig with:', {
+        logger.debug('PayrollMealAllowanceForm - Calling upsertMealAllowanceConfig with:', {
           userId: user.id,
           contractId,
           formData
@@ -160,7 +161,7 @@ export function PayrollMealAllowanceForm({ contractId, config, onSave, onCancel 
         
         const savedConfig = await payrollService.upsertMealAllowanceConfig(user.id, contractId, formData);
         
-        console.log('DEBUG PayrollMealAllowanceForm - upsertMealAllowanceConfig result:', savedConfig);
+        logger.debug('PayrollMealAllowanceForm - upsertMealAllowanceConfig result:', savedConfig);
         
         toast({
           title: 'Sucesso',
@@ -169,7 +170,7 @@ export function PayrollMealAllowanceForm({ contractId, config, onSave, onCancel 
 
         onSave?.(savedConfig);
       } catch (error: any) {
-        console.error('DEBUG PayrollMealAllowanceForm - Error saving config:', error);
+        logger.error('PayrollMealAllowanceForm - Error saving config:', error);
         toast({
           title: 'Erro',
           description: error.message || 'Erro ao salvar configuração do subsídio de alimentação',

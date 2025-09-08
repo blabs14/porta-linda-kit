@@ -3,6 +3,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { payrollService } from '../services/payrollService';
 import { PayrollContract } from '../types';
 import { useToast } from '../../../hooks/use-toast';
+import { logger } from '../../../shared/lib/logger';
 
 export interface ActiveContractContextType {
   activeContract: PayrollContract | null;
@@ -35,7 +36,7 @@ export function ActiveContractProvider({ children }: ActiveContractProviderProps
       setContracts(contractsData);
       return contractsData;
     } catch (error) {
-      console.error('Erro ao carregar contratos:', error);
+      logger.error('Erro ao carregar contratos:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar os contratos.',

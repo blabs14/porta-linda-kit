@@ -310,11 +310,15 @@ export async function getTimeEntriesByContract(userId: string, contractId: strin
 }
 
 export async function createTimeEntry(userId: string, contractId: string, entryData: Omit<PayrollTimeEntry, 'id' | 'created_at' | 'updated_at'>): Promise<PayrollTimeEntry> {
+  console.log('[DEBUG] createTimeEntry iniciado', { userId, contractId, entryData });
+  
   // Format date using local timezone to ensure consistency
   entryData.date = formatDateLocal(new Date(entryData.date));
+  console.log('[DEBUG] Data formatada:', entryData.date);
 
   // Check if an entry already exists for this date and contract
-  const { data: existingEntry } = await supabase
+  console.log('[DEBUG] Verificando entrada existente...');
+  const { data: existingEntry, error: checkError } = await supabase
     .from('payroll_time_entries')
     .select('id')
     .eq('user_id', userId)
@@ -322,26 +326,44 @@ export async function createTimeEntry(userId: string, contractId: string, entryD
     .eq('date', entryData.date)
     .single();
 
+  if (checkError && checkError.code !== 'PGRST116') {
+    console.error('[DEBUG] Erro ao verificar entrada existente:', checkError);
+    throw checkError;
+  }
+
   if (existingEntry) {
+    console.log('[DEBUG] Entrada existente encontrada, atualizando...', existingEntry.id);
     // If entry exists, update it instead
     return updateTimeEntry(existingEntry.id, entryData, userId, contractId);
   }
 
+  console.log('[DEBUG] Nenhuma entrada existente, criando nova...');
+  
   // Add work on Sunday notes if applicable
   const entryDate = new Date(entryData.date);
   if (entryDate.getDay() === 0 && (entryData.start_time || entryData.end_time)) { // Sunday
     const currentNote = entryData.description || '';
     const sundayNote = 'Trabalho ao domingo - gera direito a descanso compensatório';
     entryData.description = currentNote ? `${currentNote}. ${sundayNote}` : sundayNote;
+    console.log('[DEBUG] Nota de domingo adicionada:', entryData.description);
   }
+
+  const insertData = { ...entryData, user_id: userId, contract_id: contractId };
+  console.log('[DEBUG] Dados para inserção:', insertData);
 
   const { data, error } = await supabase
     .from('payroll_time_entries')
-    .insert({ ...entryData, user_id: userId, contract_id: contractId })
+    .insert(insertData)
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error('[DEBUG] Erro na inserção:', error);
+    console.error('[DEBUG] Dados que causaram erro:', insertData);
+    throw error;
+  }
+  
+  console.log('[DEBUG] Entrada criada com sucesso:', data);
   return data as any;
 }
 

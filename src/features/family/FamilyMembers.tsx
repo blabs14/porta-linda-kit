@@ -32,6 +32,7 @@ import { Suspense } from 'react';
 import { LazyConfirmationDialog, LazyFallback } from './lazy';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
 import { getAuditLogsByRow } from '../../services/audit_logs';
+import { logger } from '../../shared/lib/logger';
 type AuditEntry = { id: string; timestamp: string; operation: string; old_data?: any; new_data?: any; details?: any };
 
 const roleConfig = {
@@ -654,13 +655,13 @@ const MemberAuditList: React.FC<{ memberId: string }> = ({ memberId }) => {
         const { data, error } = await getAuditLogsByRow('family_members', memberId, 20);
         if (!active) return;
         if (error) {
-          console.debug('[MemberAuditList] erro a obter logs:', error);
+          logger.debug('[MemberAuditList] erro a obter logs:', error);
           setLogs([]);
         } else {
           setLogs(Array.isArray(data) ? (data as unknown as AuditEntry[]) : []);
         }
       } catch (e) {
-        console.debug('[MemberAuditList] exceção a obter logs:', e);
+        logger.debug('[MemberAuditList] exceção a obter logs:', e);
         setLogs([]);
       } finally {
         if (active) {
@@ -703,4 +704,4 @@ const MemberAuditList: React.FC<{ memberId: string }> = ({ memberId }) => {
       ))}
     </div>
   );
-}; 
+};

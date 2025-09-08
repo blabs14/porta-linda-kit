@@ -13,6 +13,7 @@ import {
   PayrollCalculation 
 } from '../types';
 import { formatDateLocal } from '@/lib/dateUtils';
+import { logger } from '../../../shared/lib/logger';
 
 /**
  * Verifica se o trabalho ocorre durante horário noturno
@@ -653,10 +654,7 @@ export function calculateHours(
   const startMs = startTime?.getTime?.();
   const endMs = endTime?.getTime?.();
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
-    if (typeof console !== 'undefined') {
-      // Log leve para diagnóstico; remover após estabilização
-      console.warn('[calculateHours] Horas inválidas recebidas', { start, end });
-    }
+    logger.warn('[calculateHours] Horas inválidas recebidas', { start, end });
     return 0;
   }
 

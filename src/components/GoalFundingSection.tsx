@@ -111,7 +111,7 @@ export const GoalFundingSection = ({ goalId }: Props) => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label>Tipo</Label>
-            <Select value={type} onValueChange={(v)=>setType(v as any)}>
+            <Select value={type} onValueChange={(v)=>setType(v as 'monthly' | 'one_time')}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="income_percent">Percentagem de receitas</SelectItem>

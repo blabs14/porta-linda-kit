@@ -37,7 +37,7 @@ const PersonalGoals: React.FC = () => {
   
   // Usar os hooks robustos que já funcionam
   const goalsQuery = useGoals();
-  const { data: goals = [], isLoading, error, refetch } = goalsQuery as any;
+  const { data: goals = [], isLoading, error, refetch } = goalsQuery;
   const createGoalMutation = useCreateGoal();
   const updateGoalMutation = useUpdateGoal();
   const deleteGoalMutation = useDeleteGoal();
@@ -178,7 +178,7 @@ const PersonalGoals: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <Label>Estado</Label>
-          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)}>
+          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as 'all' | 'active' | 'completed')}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -527,4 +527,4 @@ const PersonalGoalAuditList: React.FC<{ goalId: string }> = ({ goalId }) => {
       })}
     </div>
   );
-}; 
+};

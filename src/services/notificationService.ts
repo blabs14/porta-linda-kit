@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { logger } from '@/shared/lib/logger';
 
 export interface NotificationData {
   goalName?: string;
@@ -41,13 +42,13 @@ export const sendNotification = async (
     });
 
     if (error) {
-      console.error('Erro ao enviar notificação:', error);
+      logger.error('Erro ao enviar notificação:', error);
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (error) {
-    console.error('Erro ao enviar notificação:', error);
+    logger.error('Erro ao enviar notificação:', error);
     return { success: false, error: 'Erro de comunicação' };
   }
 };
@@ -164,4 +165,4 @@ export const sendFamilyJoined = async (
   await sendNotification(userId, 'family_joined', {
     memberName,
   });
-}; 
+};

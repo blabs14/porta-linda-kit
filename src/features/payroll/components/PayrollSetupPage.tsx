@@ -16,6 +16,7 @@ import { PayrollMealAllowanceConfig } from './PayrollMealAllowanceConfig';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirmation } from '@/hooks/useConfirmation';
+import { logger } from '@/shared/lib/logger';
 import { formatCurrency } from '@/lib/utils';
 import { calculateHourlyRate } from '../lib/calc';
 
@@ -126,7 +127,7 @@ export function PayrollSetupPage() {
         description: 'Erro ao carregar dados de configuração.',
         variant: 'destructive'
       });
-      console.error('Error loading payroll data:', error);
+      logger.error('Error loading payroll data:', error);
     } finally {
       setLoading(false);
     }
@@ -158,7 +159,7 @@ export function PayrollSetupPage() {
             description: 'Erro ao eliminar contrato.',
             variant: 'destructive'
           });
-          console.error('Error deleting contract:', error);
+          logger.error('Error deleting contract:', error);
         } finally {
           setLoading(false);
         }
@@ -183,7 +184,7 @@ export function PayrollSetupPage() {
         description: 'Erro ao excluir política.',
         variant: 'destructive'
       });
-      console.error('Error deleting OT policy:', error);
+      logger.error('Error deleting OT policy:', error);
     } finally {
       setLoading(false);
     }

@@ -395,7 +395,10 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
   // Guardar timesheet da semana
   const handleSave = async () => {
+    console.log('[DEBUG] handleSave iniciado', { selectedContractId, userId: user?.id });
+    
     if (!selectedContractId || !user?.id) {
+      console.log('[DEBUG] Erro: contrato ou usuário inválido', { selectedContractId, userId: user?.id });
       toast({
         title: 'Erro',
         description: 'Selecione um contrato válido antes de salvar.',
@@ -404,19 +407,24 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       return;
     }
 
+    console.log('[DEBUG] Iniciando salvamento...');
     setSaving(true);
     try {
+      console.log('[DEBUG] Calculando datas da semana...');
       const weekStart = new Date(selectedWeek);
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
+      console.log('[DEBUG] Datas calculadas', { weekStart, weekEnd, selectedWeek });
 
       // Carregar entradas existentes para decidir remoções
+      console.log('[DEBUG] Carregando entradas existentes...');
       const existing = await payrollService.getTimeEntries(
         user.id,
         selectedContractId,
         selectedWeek,
         formatDateLocal(weekEnd)
       );
+      console.log('[DEBUG] Entradas existentes carregadas', { count: existing.length });
 
       const existingByDate = new Map<string, PayrollTimeEntry>();
       for (const e of existing) {
@@ -437,10 +445,25 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
         const existingForDay = existingByDate.get(dateStr);
 
         if (hasData) {
+          // Para feriados, férias e baixas médicas sem horários, usar horários padrão
+          let startTime = e.startTime;
+          let endTime = e.endTime;
+          
+          if ((e.isHoliday || e.isSick || e.isVacation) && (!startTime || !endTime)) {
+            startTime = '08:00';
+            endTime = '17:00';
+          }
+          
+          // Só criar entrada se temos horários válidos
+          if (!startTime || !endTime) {
+            console.log('[DEBUG] Entrada ignorada - sem horários válidos:', { date: dateStr, startTime, endTime });
+            continue;
+          }
+          
           const payload = {
             date: dateStr,
-            start_time: e.startTime || '',
-            end_time: e.endTime || '',
+            start_time: startTime,
+            end_time: endTime,
             break_minutes: e.breakMinutes || 0,
             description: e.description || '',
             is_overtime: false,
@@ -449,6 +472,8 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
             is_vacation: !!e.isVacation,
             is_exception: !!e.isException,
           } as Omit<PayrollTimeEntry, 'id' | 'created_at' | 'updated_at'>;
+          
+          console.log('[DEBUG] Payload criado:', payload);
 
           // Upsert via createTimeEntry (já faz update se existir)
           const saved = await payrollService.createTimeEntry(
@@ -512,9 +537,19 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       // Recarregar entradas para refletir estado atual
       await loadExistingEntries();
     } catch (error) {
+      console.error('[DEBUG] Erro ao salvar timesheet:', error);
+      console.error('[DEBUG] Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error('[DEBUG] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : 'Unknown',
+        selectedContractId,
+        userId: user?.id,
+        selectedWeek
+      });
+      
       toast({
         title: 'Erro',
-        description: 'Erro ao salvar timesheet.',
+        description: `Erro ao salvar timesheet: ${error instanceof Error ? error.message : String(error)}`,
         variant: 'destructive'
       });
       log.error('Error saving timesheet:', error);
@@ -705,7 +740,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       return { totalHours, regularHours: regular, overtimeHours: overtime };
     } catch (e) {
       if (typeof console !== 'undefined') {
-        console.warn('[Timesheet] segmentEntry falhou, fallback simples aplicado', { error: e, pte });
+        log.warn('[Timesheet] segmentEntry falhou, fallback simples aplicado', { error: e, pte });
       }
       // Fallback conservador
       const regular = Math.min(totalHours, contractDailyHours);
@@ -837,7 +872,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
           )
         ]);
       } catch (err) {
-        console.warn('fillNormalWeek: falha ao obter feriados/licenças', err);
+        log.warn('fillNormalWeek: falha ao obter feriados/licenças', err);
       }
 
       const holidaysSet = new Set<string>((holidays || []).map((h: any) => h.date));
@@ -874,7 +909,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       const standardEnd = schedule.end_time as string | undefined;
       const standardBreak: number = (schedule.break_minutes ?? 0) as number;
 
-      console.debug('fillNormalWeek()', { useStandard, standardStart, standardEnd, standardBreak, schedule });
+      log.debug('fillNormalWeek()', { useStandard, standardStart, standardEnd, standardBreak, schedule });
 
       setTimesheet(prev => {
         const filled = weekDays.map((d) => {
@@ -956,7 +991,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       toast({ title: 'Semana preenchida', description: 'Horas padrão aplicadas segundo o contrato.' });
       setAriaLiveMsg('Semana preenchida com horas padrão.');
     } catch (e) {
-      console.error('Erro ao preencher semana normal:', e);
+      log.error('Erro ao preencher semana normal:', e);
       toast({ title: 'Erro', description: 'Falha ao preencher a semana.', variant: 'destructive' });
     }
   };
@@ -992,7 +1027,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       toast({ title: 'Semana apagada', description: 'Todas as entradas desta semana foram removidas.' });
       setAriaLiveMsg('Entradas da semana foram limpas.');
     } catch (e) {
-      console.error('Erro ao apagar semana:', e);
+      log.error('Erro ao apagar semana:', e);
       toast({ title: 'Erro', description: 'Falha ao apagar as entradas da semana.', variant: 'destructive' });
     } finally {
       setLoading(false);

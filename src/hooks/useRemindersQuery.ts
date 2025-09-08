@@ -1,16 +1,29 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getReminders, createReminder, updateReminder, deleteReminder } from '../services/reminders';
+import { getReminders, createReminder, updateReminder, deleteReminder, NewReminderFormPayload, LegacyReminderPayload } from '../services/reminders';
 import { useAuth } from '../contexts/AuthContext';
 import { useCrudMutation } from './useMutationWithFeedback';
+import { logger } from '@/shared/lib/logger';
+
+// Tipo para Reminder da base de dados
+export interface Reminder {
+  id: string;
+  user_id: string;
+  family_id: string | null;
+  title: string;
+  description: string | null;
+  date: string;
+  recurring: boolean | null;
+  created_at: string;
+}
 
 export const useReminders = () => {
   const { user } = useAuth();
   
-  return useQuery({
+  return useQuery<Reminder[]>({
     queryKey: ['reminders', user?.id],
     queryFn: async () => {
       const { data, error } = await getReminders(user?.id || '');
-      if (error) throw error as any;
+      if (error) throw error;
       return data || [];
     },
     enabled: !!user?.id,
@@ -22,10 +35,10 @@ export const useCreateReminder = () => {
   const { user } = useAuth();
   
   return useCrudMutation(
-    async (payload: Omit<Parameters<typeof createReminder>[0], 'user_id'>) => {
-      const { data, error } = await createReminder({ ...(payload as any), user_id: user?.id || '' });
-      if (error) throw error as any;
-      return data as any;
+    async (payload: NewReminderFormPayload | LegacyReminderPayload) => {
+      const { data, error } = await createReminder({ ...payload, user_id: user?.id || '' });
+      if (error) throw error;
+      return data;
     },
     {
       operation: 'create',
@@ -42,11 +55,11 @@ export const useUpdateReminder = () => {
   const { user } = useAuth();
   
   return useCrudMutation(
-    async (variables: { id: string; data: Parameters<typeof updateReminder>[1] }) => {
+    async (variables: { id: string; data: Partial<NewReminderFormPayload | LegacyReminderPayload> }) => {
       const { id, data } = variables;
       const { data: result, error } = await updateReminder(id, data);
-      if (error) throw error as any;
-      return result as any;
+      if (error) throw error;
+      return result;
     },
     {
       operation: 'update',
@@ -88,4 +101,4 @@ export const useDeleteReminderWithConfirm = () => {
     }
     await deleteMutation.mutateAsync(id);
   };
-}; 
+};

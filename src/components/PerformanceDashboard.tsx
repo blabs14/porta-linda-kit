@@ -6,6 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { usePerformanceMonitoring, PerformanceMetric, PerformanceDashboard } from '@/services/performanceService';
 import { Activity, Zap, Clock, AlertTriangle, Users, HardDrive } from 'lucide-react';
+import { logger } from '@/shared/lib/logger';
+import { useToast } from '@/hooks/use-toast';
 
 const PerformanceDashboardComponent: React.FC = () => {
   const { getDashboardData, getMetrics, clearMetrics } = usePerformanceMonitoring();
@@ -27,7 +29,7 @@ const PerformanceDashboardComponent: React.FC = () => {
       const data = getDashboardData();
       setDashboardData(data);
     } catch (error) {
-      console.error('Erro ao carregar dados do dashboard:', error);
+      logger.error('Erro ao carregar dados do dashboard:', error);
     } finally {
       setIsLoading(false);
     }

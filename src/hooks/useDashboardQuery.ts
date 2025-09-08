@@ -5,6 +5,7 @@ import { getTransactions } from '../services/transactions';
 import { getGoals } from '../services/goals';
 import { getCategories } from '../services/categories';
 import { getPersonalKPIs } from '../services/accounts';
+import { logger } from '@/shared/lib/logger';
 
 export const useDashboardData = () => {
   const { user } = useAuth();
@@ -67,7 +68,7 @@ export const useDashboardData = () => {
         const categoryCounts = transactions.reduce((acc, tx) => {
           const category = categories.find((cat) => cat.id === tx.categoria_id);
           const categoryName = category?.nome || 'Categoria Desconhecida';
-          (acc as any)[categoryName] = ((acc as any)[categoryName] || 0) + 1;
+          acc[categoryName] = (acc[categoryName] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
         const topCategories = Object.entries(categoryCounts)
@@ -87,7 +88,7 @@ export const useDashboardData = () => {
           budgetSpentPercentage: budgetSpentPctFromRPC,     // pode ser null se o RPC não reportar
         } as const;
       } catch (error) {
-        console.error('Erro no dashboard query:', error);
+        logger.error('Erro no dashboard query:', error);
         throw error;
       }
     },
@@ -98,4 +99,4 @@ export const useDashboardData = () => {
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
   });
-}; 
+};

@@ -14,6 +14,7 @@ import {
   SelectItem,
   SelectValue,
 } from './ui/select';
+import { logger } from '@/shared/lib/logger';
 
 interface SettingsFormData {
   id?: string;
@@ -93,7 +94,7 @@ const SettingsForm = ({ familyId, initialData, onSuccess, onCancel }: SettingsFo
       
       if (onSuccess) onSuccess();
     } catch (err: any) {
-      console.error('Erro ao atualizar definições:', err);
+      logger.error('Erro ao atualizar definições:', err);
       // O erro já é tratado pelo hook useCrudMutation
     }
   };
@@ -274,4 +275,4 @@ const SettingsForm = ({ familyId, initialData, onSuccess, onCancel }: SettingsFo
   );
 };
 
-export default SettingsForm; 
+export default SettingsForm;

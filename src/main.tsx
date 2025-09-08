@@ -4,6 +4,7 @@ import App from './App';
 import './index.css';
 // Registo do Service Worker (Vite PWA)
 import { registerSW } from 'virtual:pwa-register';
+import { logger } from '@/shared/lib/logger';
 
 const isDev = import.meta.env.DEV;
 
@@ -35,9 +36,9 @@ if (!isDev) {
         toDelete.forEach(k => localStorage.removeItem(k));
       } catch {}
 
-      console.info('[dev] Service workers desativados, caches e tokens Supabase limpos.');
+      logger.info('[dev] Service workers desativados, caches e tokens Supabase limpos.');
     } catch (e) {
-      console.warn('[dev] Falha ao desativar service workers ou limpar caches:', e);
+      logger.warn('[dev] Falha ao desativar service workers ou limpar caches:', e);
     }
   })();
 }

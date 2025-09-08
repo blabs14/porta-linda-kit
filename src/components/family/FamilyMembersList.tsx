@@ -9,6 +9,7 @@ import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../ui/confirmation-dialog';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../hooks/use-toast';
+import { logger } from '../../shared/lib/logger';
 import { 
   Users, 
   Shield, 
@@ -80,7 +81,7 @@ export const FamilyMembersList = ({ familyId, userRole }: FamilyMembersListProps
       });
       setEditingMember(null);
     } catch (error) {
-      console.error('Erro ao atualizar role:', error);
+      logger.error('Erro ao atualizar role:', error);
     }
   };
 
@@ -97,7 +98,7 @@ export const FamilyMembersList = ({ familyId, userRole }: FamilyMembersListProps
             userId: memberId
           });
         } catch (error) {
-          console.error('Erro ao remover membro:', error);
+          logger.error('Erro ao remover membro:', error);
         }
       }
     );
@@ -308,4 +309,4 @@ export const FamilyMembersList = ({ familyId, userRole }: FamilyMembersListProps
       />
     </>
   );
-}; 
+};

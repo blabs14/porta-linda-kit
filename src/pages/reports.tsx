@@ -48,7 +48,7 @@ const ReportsPage = () => {
   const { data: categories = [] } = useCategoriesDomain();
   const { data: goals = [] } = useGoals();
   const { data: familyData } = useFamilyData();
-  const familyId = (familyData as any)?.family?.id as string | undefined;
+  const familyId = familyData?.family?.id as string | undefined;
   const [rpcExpenses, setRpcExpenses] = useState<Array<{ id: string | null; categoria: string; total: number; percentage: number }> | null>(null);
   const [rpcIncome, setRpcIncome] = useState<Array<{ id: string | null; categoria: string; total: number; percentage: number }> | null>(null);
   const [rpcLoading, setRpcLoading] = useState(false);
@@ -154,9 +154,9 @@ const ReportsPage = () => {
         setKpiLoading(true);
         const { data, error } = await getFamilyKPIsRange(familyId, dateRange.start, dateRange.end, excludeTransfers);
         if (error || !data) { if (!cancelled) setOverspentCount(0); return; }
-        const count = Array.isArray((data as any).overspent_budget_ids)
-          ? ((data as any).overspent_budget_ids as unknown[]).length
-          : Number((data as any).overspent_budgets_count || 0);
+        const count = Array.isArray(data.overspent_budget_ids)
+      ? data.overspent_budget_ids.length
+      : Number(data.overspent_budgets_count || 0);
         if (!cancelled) setOverspentCount(count || 0);
       } finally {
         if (!cancelled) setKpiLoading(false);
@@ -710,23 +710,23 @@ const ReportsPage = () => {
               <div className="space-y-4">
                 {(rpcIncome && selectedAccount === 'all' ? rpcIncome.map(r => ({ id: r.id, nome: r.categoria })) : categories).map(category => {
                   const categoryExpenses = filteredTransactions
-                    .filter(t => t.tipo === 'despesa' && t.categoria_id === (category as any).id)
+                    .filter(t => t.tipo === 'despesa' && t.categoria_id === category.id)
                     .reduce((sum, t) => sum + t.valor, 0);
                   
                   const categoryIncome = filteredTransactions
-                    .filter(t => t.tipo === 'receita' && t.categoria_id === (category as any).id)
+                    .filter(t => t.tipo === 'receita' && t.categoria_id === category.id)
                     .reduce((sum, t) => sum + t.valor, 0);
                   
                   const categoryBalance = categoryIncome - categoryExpenses;
                   
                   return (
                     <div
-                      key={(category as any).id}
+                      key={category.id}
                       className="flex items-center justify-between p-3 border rounded-lg"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                        <span className="font-medium">{(category as any).nome}</span>
+                        <span className="font-medium">{category.nome}</span>
                       </div>
                       <div className="flex items-center gap-6">
                         <div className="text-right">
@@ -850,4 +850,4 @@ const ReportsPage = () => {
   );
 };
 
-export default ReportsPage; 
+export default ReportsPage;

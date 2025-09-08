@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useFamily } from './FamilyContext';
+import { logger } from '@/shared/lib/logger';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -64,7 +65,7 @@ const FamilyAccounts: React.FC = () => {
   };
 
   const handleEdit = (account: AccountWithBalances) => {
-    console.log('[FamilyAccounts] handleEdit called with account:', account);
+    // Debug: handleEdit called
     
     // Para cartões de crédito, usar o saldo da conta diretamente
     // Para outras contas, usar o saldo calculado
@@ -84,16 +85,16 @@ const FamilyAccounts: React.FC = () => {
       saldoAtual,
     };
     
-    console.log('[FamilyAccounts] editData created:', editData);
+    // Debug: editData created
     setEditingAccount(editData);
     setShowCreateModal(true);
   };
 
   const handleSuccess = () => {
-    console.log('[FamilyAccounts] handleSuccess called');
+    // Debug: handleSuccess called
     setShowCreateModal(false);
     setEditingAccount(null);
-    console.log('[FamilyAccounts] Forcing refetch...');
+    // Debug: Forcing refetch
     refetchAll();
   };
 
@@ -442,11 +443,10 @@ const FamilyAccounts: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           {(() => {
-            console.log('[FamilyAccounts] Modal rendering - editingAccount:', editingAccount);
-            console.log('[FamilyAccounts] editingAccount?.tipo:', editingAccount?.tipo);
+            // Debug: Modal rendering
             
             if (editingAccount) {
-              console.log('[FamilyAccounts] Rendering RegularAccountForm');
+              // Debug: Rendering RegularAccountForm
               return (
                 <RegularAccountForm
                   initialData={editingAccount}
@@ -455,7 +455,7 @@ const FamilyAccounts: React.FC = () => {
                 />
               );
             } else {
-              console.log('[FamilyAccounts] Rendering AccountForm');
+              // Debug: Rendering AccountForm
               return (
                 <AccountForm
                   initialData={editingAccount}
@@ -510,13 +510,13 @@ const AccountAuditList: React.FC<{ accountId: string }> = ({ accountId }) => {
         const { data, error } = await getAuditLogsByRow('accounts', accountId, 20);
         if (!active) return;
         if (error) {
-          console.debug('[AccountAuditList] erro a obter logs:', error);
+          logger.debug('[AccountAuditList] erro a obter logs:', error);
           setLogs([]);
         } else {
           setLogs(Array.isArray(data) ? (data as unknown as AuditEntry[]) : []);
         }
       } catch (e) {
-        console.debug('[AccountAuditList] exceção a obter logs:', e);
+        logger.debug('[AccountAuditList] exceção a obter logs:', e);
         setLogs([]);
       } finally {
         if (active) {

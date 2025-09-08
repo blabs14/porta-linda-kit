@@ -45,7 +45,7 @@ export const useGoalAllocations = (goalId?: string) => {
       valor: amount,
       descricao: description,
       user_id: user?.id || ''
-    } as any, user?.id || ''),
+    }, user?.id || ''),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goalAllocations'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
@@ -160,4 +160,4 @@ export const useGoalAllocations = (goalId?: string) => {
     isUpdating: updateAllocationMutation.isPending,
     isDeleting: deleteAllocationMutation.isPending
   };
-}; 
+};

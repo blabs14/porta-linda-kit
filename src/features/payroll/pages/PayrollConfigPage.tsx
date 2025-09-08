@@ -34,6 +34,7 @@ import { PayrollLeavesManager } from '@/features/payroll/components/PayrollLeave
 import { PayrollMileagePolicyForm } from '@/features/payroll/components/PayrollMileagePolicyForm';
 import { PayrollBonusConfig } from '@/features/payroll/components/PayrollBonusConfig';
 import { CompensatoryRestManager } from '@/features/payroll/components/CompensatoryRestManager';
+import { logger } from '@/shared/lib/logger';
 
 // Validation schemas
 const contractSchema = z.object({
@@ -193,29 +194,29 @@ export default function PayrollConfigPage() {
 
   const loadData = async () => {
     if (!user?.id) {
-      console.log('❌ DEBUG: No user ID available for loading data');
+      logger.warn('No user ID available for loading data');
       return;
     }
 
     try {
       setIsLoading(true);
-      console.log('🔄 DEBUG: Loading contracts for user:', user.id);
+      logger.debug('Loading contracts for user:', user.id);
       
       const contractsData = await payrollService.getContracts(user.id);
-      console.log('📋 DEBUG: Loaded contracts:', contractsData);
+      logger.debug('Loaded contracts:', contractsData);
       
       setContracts(contractsData || []);
       
       if (contractsData && contractsData.length > 0) {
         const activeContract = contractsData.find(c => c.is_active) || contractsData[0];
         setSelectedContractId(activeContract.id);
-        console.log('✅ DEBUG: Selected contract:', activeContract.id);
+        logger.debug('Selected contract:', activeContract.id);
       } else {
-        console.log('📝 DEBUG: No contracts found');
+        logger.warn('No contracts found');
         setSelectedContractId(null);
       }
     } catch (error) {
-      console.error('❌ DEBUG: Error loading data:', error);
+      logger.error('Error loading data:', error);
       toast({
         title: 'Erro',
         description: 'Erro ao carregar dados. Tente novamente.',
@@ -233,7 +234,7 @@ export default function PayrollConfigPage() {
       next.set('contract', contractId);
       setSearchParams(next, { replace: true });
     } catch (e) {
-      console.warn('DEBUG: Falha ao atualizar searchParams', e);
+      logger.warn('Falha ao atualizar searchParams', e);
     }
     // Load contract-specific data here if needed
   };
@@ -251,12 +252,12 @@ export default function PayrollConfigPage() {
     const loadMealAllowanceConfig = async () => {
       if (user?.id && selectedContractId) {
         try {
-          console.log('🔄 DEBUG: Loading meal allowance config for contract:', selectedContractId);
+          logger.debug('Loading meal allowance config for contract:', selectedContractId);
           const config = await payrollService.getMealAllowanceConfig(user.id, selectedContractId);
-          console.log('✅ DEBUG: Meal allowance config loaded:', config);
+          logger.debug('Meal allowance config loaded:', config);
           setMealAllowanceConfig(config);
         } catch (error) {
-          console.error('❌ DEBUG: Error loading meal allowance config:', error);
+          logger.error('Error loading meal allowance config:', error);
           setMealAllowanceConfig(null);
         }
       } else {
@@ -279,7 +280,7 @@ export default function PayrollConfigPage() {
         next.delete('new');
         setSearchParams(next, { replace: true });
       } catch (e) {
-        console.warn('Falha ao limpar ?new do URL', e);
+        logger.warn('Falha ao limpar ?new do URL', e);
       }
     }
   }, [location.search]);
@@ -390,8 +391,8 @@ export default function PayrollConfigPage() {
         </CardHeader>
         <CardContent>
           {(() => {
-            console.log('DEBUG: Rendering contracts section, contracts.length:', contracts.length);
-            console.log('DEBUG: Current contracts state:', contracts);
+            logger.debug('Rendering contracts section, contracts.length:', contracts.length);
+            logger.debug('Current contracts state:', contracts);
             return contracts.length > 0;
           })() ? (
             <div className="space-y-4">
@@ -451,8 +452,8 @@ export default function PayrollConfigPage() {
       
       {/* Tabs de Configuração - só aparecem quando há um contrato selecionado */}
       {(() => {
-        console.log('DEBUG PayrollConfigPage - selectedContractId:', selectedContractId);
-        console.log('DEBUG PayrollConfigPage - typeof selectedContractId:', typeof selectedContractId);
+        logger.debug('PayrollConfigPage - selectedContractId:', selectedContractId);
+        logger.debug('PayrollConfigPage - typeof selectedContractId:', typeof selectedContractId);
         return selectedContractId;
       })() && (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -546,7 +547,7 @@ export default function PayrollConfigPage() {
                       contractId={selectedContractId} 
                       config={mealAllowanceConfig}
                       onSave={(savedConfig) => {
-                        console.log('✅ DEBUG: Meal allowance config saved:', savedConfig);
+                        logger.debug('Meal allowance config saved:', savedConfig);
                         setMealAllowanceConfig(savedConfig);
                       }}
                     />
@@ -622,7 +623,7 @@ export default function PayrollConfigPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   {/* Licenças Especiais */}
                   {(() => {
-                    console.log('DEBUG PayrollConfigPage - Rendering PayrollLeavesManager with contractId:', selectedContractId);
+                    logger.debug('PayrollConfigPage - Rendering PayrollLeavesManager with contractId:', selectedContractId);
                     return <PayrollLeavesManager contractId={selectedContractId} />;
                   })()}
 

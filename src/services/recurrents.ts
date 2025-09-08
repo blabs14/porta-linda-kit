@@ -28,7 +28,7 @@ export const recurringRuleSchema = z.object({
 export type RecurringRule = z.infer<typeof recurringRuleSchema> & { id?: string };
 
 // Alias sem tipos para usar tabelas/RPCs ainda não presentes em database.types
-const sb: any = supabase as any;
+const sb = supabase;
 
 export async function listRecurringRules(scope: 'personal'|'family', familyId?: string) {
   let query = sb.from('recurring_rules').select('*').order('created_at', { ascending: false });
@@ -68,4 +68,4 @@ export async function listRecurringInstances(ruleId?: string) {
 
 export async function deleteRecurringRule(id: string) {
   return sb.from('recurring_rules').delete().eq('id', id);
-} 
+}

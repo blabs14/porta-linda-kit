@@ -8,6 +8,7 @@ import { PayrollMealAllowanceConfig } from '../types';
 import { payrollService } from '../services/payrollService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { logger } from '@/shared/lib/logger';
 
 const MONTHS = [
   { value: 1, label: 'Janeiro' },
@@ -45,22 +46,22 @@ export function PayrollMealAllowanceConfig({ config: propConfig, contractId, onC
   }, [contractId]);
 
   const loadConfigByContract = async () => {
-    console.log('🔍 PayrollMealAllowanceConfig - loadConfigByContract chamada com:', { userId: user?.id, contractId });
+    logger.debug('PayrollMealAllowanceConfig - loadConfigByContract chamada com:', { userId: user?.id, contractId });
     
     if (!user?.id || !contractId) {
-      console.log('❌ PayrollMealAllowanceConfig - Faltam dados:', { userId: user?.id, contractId });
+      logger.warn('PayrollMealAllowanceConfig - Faltam dados:', { userId: user?.id, contractId });
       return;
     }
     
     setLoading(true);
     try {
-      console.log('🔄 PayrollMealAllowanceConfig - Carregando configuração...');
+      logger.debug('PayrollMealAllowanceConfig - Carregando configuração...');
       const data = await payrollService.getMealAllowanceConfig(user.id, contractId);
-      console.log('✅ PayrollMealAllowanceConfig - Configuração carregada:', data);
+      logger.debug('PayrollMealAllowanceConfig - Configuração carregada:', data);
       setConfig(data);
       onConfigChange?.(data);
     } catch (error) {
-      console.error('❌ PayrollMealAllowanceConfig - Erro ao carregar configuração:', error);
+      logger.error('PayrollMealAllowanceConfig - Erro ao carregar configuração:', error);
       setConfig(null);
       onConfigChange?.(null);
     } finally {
@@ -85,7 +86,7 @@ export function PayrollMealAllowanceConfig({ config: propConfig, contractId, onC
         onConfigChange?.(null);
       }
     } catch (error) {
-      console.error('Error loading meal allowance config:', error);
+      logger.error('Error loading meal allowance config:', error);
       setConfig(null);
       onConfigChange?.(null);
     } finally {

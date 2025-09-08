@@ -9,6 +9,7 @@ import { Switch } from '../../components/ui/switch';
 import { Settings, User, Shield, Bell, Palette, Eye, EyeOff, Moon, Sun, Smartphone, Mail, Calendar, Save, BarChart3, TrendingUp, Globe, DollarSign } from 'lucide-react';
 import { notifySuccess, notifyError } from '../../lib/notify';
 import { useAuth } from '../../contexts/AuthContext';
+import { logger } from '@/shared/lib/logger';
 import { useToast } from '../../hooks/use-toast';
 import { usePersonalSettings } from '../../hooks/usePersonalSettings';
 import { LoadingSpinner } from '../../components/ui/loading-states';
@@ -17,7 +18,14 @@ import { getAuditLogsByRow } from '../../services/audit_logs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { getCurrencies } from '../../services/currencies';
 
-type AuditEntry = { id: string; timestamp: string; operation: string; old_data?: any; new_data?: any; details?: any };
+type AuditEntry = { 
+  id: string; 
+  timestamp: string; 
+  operation: string; 
+  old_data?: Record<string, unknown>; 
+  new_data?: Record<string, unknown>; 
+  details?: Record<string, unknown>; 
+};
 
 type Currency = {
   id: string;
@@ -46,8 +54,8 @@ const PersonalSettings: React.FC = () => {
   } = usePersonalSettings();
 
   // Wrappers tipados para evitar acessos a propriedades em 'unknown'
-  const typedProfile: any = (profile as any)?.data || {};
-  const typedSettings: any = (settings as any)?.data || {};
+  const typedProfile = (profile as { data?: Record<string, unknown> })?.data || {};
+  const typedSettings = (settings as { data?: Record<string, unknown> })?.data || {};
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
@@ -133,7 +141,7 @@ const PersonalSettings: React.FC = () => {
     try {
       const { data, error } = await getCurrencies();
       if (error) {
-        console.error('Erro ao carregar moedas:', error);
+        logger.error('Erro ao carregar moedas:', error);
         // Fallback para moedas básicas
         setCurrencies([
           { id: '1', code: 'EUR', name: 'Euro', symbol: '€', rate_to_eur: 1 },
@@ -144,7 +152,7 @@ const PersonalSettings: React.FC = () => {
         setCurrencies(data || []);
       }
     } catch (error) {
-      console.error('Erro ao carregar moedas:', error);
+      logger.error('Erro ao carregar moedas:', error);
       // Fallback para moedas básicas
       setCurrencies([
         { id: '1', code: 'EUR', name: 'Euro', symbol: '€', rate_to_eur: 1 },
@@ -215,28 +223,30 @@ const PersonalSettings: React.FC = () => {
   // Atualizar estados locais quando os dados mudarem
   React.useEffect(() => {
     if (profile) {
-      const p: any = (profile as any)?.data || {};
+      const p = (profile as { data?: Record<string, unknown> })?.data || {};
       setProfileData({
-        firstName: p.first_name || '',
-        lastName: p.last_name || '',
-        phone: p.phone || '',
-        birthDate: p.birth_date || ''
+        firstName: (p.first_name as string) || '',
+        lastName: (p.last_name as string) || '',
+        phone: (p.phone as string) || '',
+        birthDate: (p.birth_date as string) || ''
       });
     }
   }, [profile]);
 
   React.useEffect(() => {
-    const ps: any = (settings as any)?.data?.personal_settings;
+    const settingsData = (settings as { data?: { personal_settings?: Record<string, unknown> } })?.data;
+    const ps = settingsData?.personal_settings as { notifications?: Record<string, unknown> } | undefined;
     if (ps?.notifications) {
+      const notifications = ps.notifications as Record<string, unknown>;
       setNotificationSettings({
-        emailNotifications: ps.notifications.email ?? true,
-        pushNotifications: ps.notifications.push ?? true,
-        goalReminders: ps.notifications.goal_reminders ?? true,
-        budgetAlerts: ps.notifications.budget_alerts ?? true,
-        transactionAlerts: ps.notifications.transaction_alerts ?? false
+        emailNotifications: (notifications.email as boolean) ?? true,
+        pushNotifications: (notifications.push as boolean) ?? true,
+        goalReminders: (notifications.goal_reminders as boolean) ?? true,
+        budgetAlerts: (notifications.budget_alerts as boolean) ?? true,
+        transactionAlerts: (notifications.transaction_alerts as boolean) ?? false
       });
       // alinhar toggle local com backend
-      const remoteLocalReminders = ps.notifications.local_reminders;
+      const remoteLocalReminders = notifications.local_reminders;
       if (typeof remoteLocalReminders === 'boolean') {
         setLocalRemindersEnabled(remoteLocalReminders);
         try { localStorage.setItem('local_reminders_enabled', remoteLocalReminders ? '1' : '0'); } catch {}
@@ -245,8 +255,8 @@ const PersonalSettings: React.FC = () => {
     // Atualizar configurações pessoais
     if (ps) {
       setPersonalData({
-        language: ps.language || 'pt-PT',
-        currency: ps.currency || 'EUR'
+        language: (ps.language as string) || 'pt-PT',
+        currency: (ps.currency as string) || 'EUR'
       });
     }
   }, [settings]);
@@ -262,7 +272,7 @@ const PersonalSettings: React.FC = () => {
       });
       setIsProfileOpen(false);
     } catch (error) {
-      console.error('Erro ao salvar perfil:', error);
+      logger.error('Erro ao salvar perfil:', error);
     }
   };
 
@@ -316,7 +326,7 @@ const PersonalSettings: React.FC = () => {
       });
       setIsNotificationsOpen(false);
     } catch (error) {
-      console.error('Erro ao salvar notificações:', error);
+      logger.error('Erro ao salvar notificações:', error);
     }
   };
 
@@ -333,7 +343,7 @@ const PersonalSettings: React.FC = () => {
         description: "Idioma e moeda foram atualizados com sucesso.",
       });
     } catch (error) {
-      console.error('Erro ao salvar configurações pessoais:', error);
+      logger.error('Erro ao salvar configurações pessoais:', error);
       toast({
         title: "Erro",
         description: "Não foi possível salvar as configurações.",

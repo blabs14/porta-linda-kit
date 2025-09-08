@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
+import { logger } from '@/shared/lib/logger';
 import { useToast } from '../../../hooks/use-toast';
 import { Trash2, Plus, AlertTriangle, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
@@ -30,24 +31,24 @@ const PayrollContractsPage: React.FC = () => {
   const [deletingContractId, setDeletingContractId] = useState<string | null>(null);
 
   const loadContracts = async () => {
-    console.log('🔍 PayrollContractsPage: Carregando contratos...', {
+    logger.debug('🔍 PayrollContractsPage: Carregando contratos...', {
       hasUser: !!user,
       userId: user?.id
     });
     
     if (!user) {
-      console.log('❌ PayrollContractsPage: Utilizador não autenticado');
+      logger.warn('❌ PayrollContractsPage: Utilizador não autenticado');
       return;
     }
     
     try {
       setIsLoading(true);
-      console.log('📞 PayrollContractsPage: Chamando payrollService.getContracts com userId:', user.id);
+      logger.debug('📞 PayrollContractsPage: Chamando payrollService.getContracts com userId:', user.id);
       const contractsData = await payrollService.getContracts(user.id);
-      console.log('✅ PayrollContractsPage: Contratos carregados:', contractsData);
+      logger.debug('✅ PayrollContractsPage: Contratos carregados:', contractsData);
       setContracts(contractsData);
     } catch (error) {
-      console.error('❌ PayrollContractsPage: Erro ao carregar contratos:', error);
+      logger.error('❌ PayrollContractsPage: Erro ao carregar contratos:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar os contratos.',
@@ -71,7 +72,7 @@ const PayrollContractsPage: React.FC = () => {
       // Recarregar a lista de contratos
       await loadContracts();
     } catch (error) {
-      console.error('Erro ao eliminar contrato:', error);
+      logger.error('Erro ao eliminar contrato:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível eliminar o contrato.',

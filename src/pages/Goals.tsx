@@ -10,7 +10,7 @@ import { formatCurrency } from '../lib/utils';
 import { Target, Plus, Edit, Trash2, Calendar, CheckCircle, Trophy } from 'lucide-react';
 import { GoalAllocationModal } from '../components/GoalAllocationModal';
 import GoalForm from '../components/GoalForm';
-import { GoalProgress } from '../integrations/supabase/types';
+import { GoalProgress, Goal } from '../integrations/supabase/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { useConfirmation } from '../hooks/useConfirmation';
 import { ConfirmationDialog } from '../components/ui/confirmation-dialog';
@@ -20,7 +20,7 @@ export default function Goals() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAllocationModal, setShowAllocationModal] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<GoalProgress | null>(null);
-  const [editingGoal, setEditingGoal] = useState<any>(null);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   
   const { goals, isLoading, error, refetch, createGoal, updateGoal, deleteGoal } = useGoals();
   const { data: goalProgress = [] } = useGoalProgress();
@@ -45,7 +45,7 @@ export default function Goals() {
     setShowAllocationModal(true);
   };
 
-  const handleEditGoal = (goal: any) => {
+  const handleEditGoal = (goal: GoalProgress) => {
     // Buscar os dados completos do objetivo
     const fullGoal = goals.find(g => g.id === goal.goal_id);
     if (fullGoal) {

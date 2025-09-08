@@ -17,6 +17,7 @@ import {
 } from './ui/popover';
 import { useCategoriesDomain, useCreateCategory } from '../hooks/useCategoriesQuery';
 import { useToast } from '../hooks/use-toast';
+import { logger } from '@/shared/lib/logger';
 
 interface CategorySelectProps {
   value?: string;
@@ -52,7 +53,7 @@ export function CategorySelect({ value, onValueChange, placeholder = "Selecionar
       setSearchValue('');
       setOpen(false);
     } catch (error: any) {
-      console.error('Erro ao criar categoria:', error);
+      logger.error('Erro ao criar categoria:', error);
       toast({
         title: "Erro",
         description: error.message || "Erro ao criar categoria.",
@@ -153,4 +154,4 @@ export function CategorySelect({ value, onValueChange, placeholder = "Selecionar
       </PopoverContent>
     </Popover>
   );
-} 
+}

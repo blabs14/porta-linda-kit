@@ -1,6 +1,7 @@
 import { calculatePayroll } from './calculation.service';
 import { payrollService } from './payrollService';
 import { formatDateLocal } from '@/lib/dateUtils';
+import { logger } from '@/shared/lib/logger';
 
 export interface PayrollExportData {
   period: {
@@ -124,7 +125,7 @@ export const fetchPayrollExportData = async (
       }
     };
   } catch (error) {
-    console.error('Error fetching payroll export data:', error);
+    logger.error('Error fetching payroll export data:', error);
     throw new Error('Erro ao buscar dados para exportação');
   }
 };
@@ -369,7 +370,7 @@ const clampToMonthBoundaries = (dateRange: { start: string; end: string }) => {
   const clampedEnd = requestedEnd > monthEnd ? monthEnd : requestedEnd;
 
   // TEMP LOG: clamp boundaries
-  console.log('[Export] clampToMonthBoundaries', {
+  logger.debug('[Export] clampToMonthBoundaries', {
     input: { start: dateRange.start, end: dateRange.end },
     monthContext: { year, month: month + 1 },
     output: { start: formatDateLocal(clampedStart), end: formatDateLocal(clampedEnd) }
@@ -441,7 +442,7 @@ export const exportPayrollReport = async (
     
     return { blob, filename };
   } catch (error) {
-    console.error('Error exporting payroll report:', error);
+    logger.error('Error exporting payroll report:', error);
     throw new Error('Erro ao exportar relatório do payroll');
   }
 };

@@ -3,6 +3,7 @@ import { getBudgets, createBudget, updateBudget, deleteBudget } from '../service
 import { useAuth } from '../contexts/AuthContext';
 import { useCrudMutation } from './useMutationWithFeedback';
 import type { Budget, BudgetInsert, BudgetUpdate } from '../integrations/supabase/types';
+import { logger } from '@/shared/lib/logger';
 
 export const useBudgets = () => {
   const { user } = useAuth();
@@ -76,4 +77,4 @@ export const useDeleteBudget = () => {
       },
     }
   );
-}; 
+};

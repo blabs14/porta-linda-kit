@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { CategoryDomain } from '../shared/types/categories';
 import type { Category, CategoryInsert, CategoryUpdate } from '../integrations/supabase/types';
 import { showError } from '../lib/utils';
+import { logger } from '@/shared/lib/logger';
 
 export const useCategories = (tipo?: string) => {
   const { user } = useAuth();
@@ -15,14 +16,14 @@ export const useCategories = (tipo?: string) => {
       const { data, error } = await (async ()=>{
         const d1 = await getCategories(undefined, tipo); // defaults
         const d2 = await getCategories(user?.id || '', tipo);
-        return { data: [ ...(d1.data||[]), ...(d2.data||[]) ] as any[], error: (d1.error||d2.error) };
+        return { data: [ ...(d1.data||[]), ...(d2.data||[]) ], error: (d1.error||d2.error) };
       })();
-      if (error) throw error as any;
+      if (error) throw error;
       // map para domínio
-      const merged = (data || []) as any[];
+      const merged = (data || []);
       // ordenar por nome
       merged.sort((a,b)=> String(a.nome||'').localeCompare(String(b.nome||'')));
-      return merged as any;
+      return merged;
     },
     enabled: !!user?.id,
     refetchOnWindowFocus: true,
@@ -51,7 +52,7 @@ export const useCategoriesDomain = (tipo?: string) => {
         const all = [ ...(d1.data||[]), ...(d2.data||[]) ];
         return all.map((row: any) => ({ id: row.id, nome: row.nome, cor: row.cor }));
       } catch (err: any) {
-        console.error('Failed to fetch categories domain', err);
+        logger.error('Failed to fetch categories domain', err);
         showError(err?.message || 'Falha ao obter categorias');
         return [] as CategoryDomain[];
       }
@@ -70,7 +71,7 @@ export const useCreateCategory = (onSuccess?: (created: Category) => void) => {
     mutationFn: async (payload: CategoryInsert) => {
       const body = { ...payload, user_id: payload.user_id || user?.id } as CategoryInsert;
       const { data, error } = await createCategory(body);
-      if (error) throw error as any;
+      if (error) throw error;
       return data as Category;
     },
     onSuccess: (data) => {
@@ -94,7 +95,7 @@ export const useUpdateCategory = (onSuccess?: (updated: Category) => void) => {
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: CategoryUpdate }) => {
       const { data: result, error } = await updateCategory(id, data);
-      if (error) throw error as any;
+      if (error) throw error;
       return result as Category;
     },
     onSuccess: (data) => {
@@ -112,7 +113,7 @@ export const useDeleteCategory = (onSuccess?: () => void) => {
     mutationFn: async (id: string) => {
       const { data, error } = await deleteCategory(id);
       if (error) throw error as any;
-      return data as any;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });

@@ -94,7 +94,7 @@ export const getPersonalBudgets = async (): Promise<{ data: PersonalBudgetRPC[] 
   try {
     const { data, error } = await supabase.rpc('get_personal_budgets');
 
-    return { data: (data as PersonalBudgetRPC[]) || null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }

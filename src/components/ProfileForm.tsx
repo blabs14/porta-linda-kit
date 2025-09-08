@@ -14,6 +14,7 @@ import {
   SelectItem,
   SelectValue,
 } from './ui/select';
+import { logger } from '@/shared/lib/logger';
 
 interface ProfileFormData {
   id?: string;
@@ -106,7 +107,7 @@ const ProfileForm = ({ initialData, onSuccess, onCancel }: ProfileFormProps) => 
       
       if (onSuccess) onSuccess();
     } catch (err: any) {
-      console.error('Erro ao atualizar perfil:', err);
+      logger.error('Erro ao atualizar perfil:', err);
       // O erro já é tratado pelo hook useCrudMutation
     }
   };
@@ -312,4 +313,4 @@ const ProfileForm = ({ initialData, onSuccess, onCancel }: ProfileFormProps) => 
   );
 };
 
-export default ProfileForm; 
+export default ProfileForm;

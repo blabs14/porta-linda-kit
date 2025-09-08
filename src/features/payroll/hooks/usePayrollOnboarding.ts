@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import { payrollService } from '../services/payrollService';
 import { useActiveContract } from './useActiveContract';
+import { logger } from '@/shared/lib/logger';
 
 interface OnboardingStatus {
   needsOnboarding: boolean;
@@ -58,7 +59,7 @@ export function usePayrollOnboarding(): OnboardingStatus {
           navigate('/personal/payroll/onboarding', { replace: true });
         }
       } catch (err) {
-        console.error('Erro ao verificar status do onboarding:', err);
+        logger.error('Erro ao verificar status do onboarding:', err);
         setError(err instanceof Error ? err.message : 'Erro desconhecido');
       } finally {
         setIsLoading(false);

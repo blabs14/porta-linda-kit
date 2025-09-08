@@ -29,6 +29,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/utils';
+import { logger } from '@/shared/lib/logger';
 
 interface ConfigurationStatus {
   isValid: boolean;
@@ -92,7 +93,7 @@ const PayrollPeriodsManager: React.FC = () => {
         setPeriods(existingPeriods);
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      logger.error('Erro ao carregar dados:', error);
       toast({
         title: 'Erro',
         description: 'Erro ao carregar dados dos períodos de folha de pagamento.',
@@ -128,7 +129,7 @@ const PayrollPeriodsManager: React.FC = () => {
       setShowCreateDialog(false);
       await loadData();
     } catch (error) {
-      console.error('Erro ao criar período:', error);
+      logger.error('Erro ao criar período:', error);
       toast({
         title: 'Erro',
         description: error instanceof Error ? error.message : 'Erro ao criar período de folha de pagamento.',

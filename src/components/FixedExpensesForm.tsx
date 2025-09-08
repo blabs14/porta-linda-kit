@@ -17,6 +17,7 @@ import {
   SelectItem,
   SelectValue,
 } from './ui/select';
+import { logger } from '@/shared/lib/logger';
 
 interface FixedExpenseFormData {
   id?: string;
@@ -120,7 +121,7 @@ const FixedExpensesForm = ({ initialData, onSuccess, onCancel }: FixedExpenseFor
       
       if (onSuccess) onSuccess();
     } catch (err: any) {
-      console.error('Erro ao guardar despesa fixa:', err);
+      logger.error('Erro ao guardar despesa fixa:', err);
       // O erro já é tratado pelo hook useCrudMutation
     }
   };
@@ -270,4 +271,4 @@ const FixedExpensesForm = ({ initialData, onSuccess, onCancel }: FixedExpenseFor
   );
 };
 
-export default FixedExpensesForm; 
+export default FixedExpensesForm;

@@ -20,6 +20,7 @@ import { notifySuccess, notifyError } from '../lib/notify';
 import { Trash2, Edit, Eye, ChevronLeft, ChevronRight, Search, Filter, Calendar, ChevronDown } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { formatCurrency } from '../lib/utils';
+import { logger } from '@/shared/lib/logger';
 
 type TransactionItem = {
   id: string;
@@ -49,10 +50,7 @@ const TransactionList = ({
   const confirmation = useConfirmation();
   const { toast } = useToast();
   
-  console.log('[TransactionList] Component rendered');
-  console.log('[TransactionList] Transactions data:', transactions);
-  console.log('[TransactionList] Transactions count:', transactions.length);
-  console.log('[TransactionList] Loading state:', transactionsLoading);
+  // Debug: Component rendered
   
   // Estado para paginação
   const [currentPage, setCurrentPage] = useState(1);
@@ -165,14 +163,7 @@ const TransactionList = ({
   const endIndex = startIndex + itemsPerPage;
   const currentTransactions = filteredTransactions.slice(startIndex, endIndex);
 
-  console.log('[TransactionList] Current page:', currentPage);
-  console.log('[TransactionList] Items per page:', itemsPerPage);
-  console.log('[TransactionList] Total pages:', totalPages);
-  console.log('[TransactionList] Current transactions:', currentTransactions.length);
-  console.log('[TransactionList] Filtered transactions:', filteredTransactions.length);
-  console.log('[TransactionList] Should show pagination:', totalPages > 1);
-  console.log('[TransactionList] Start index:', startIndex);
-  console.log('[TransactionList] End index:', endIndex);
+  // Debug: Pagination info
 
   // Resetar página quando filtros mudam
   React.useEffect(() => {
@@ -181,8 +172,7 @@ const TransactionList = ({
 
   // Resetar página quando o número de transações muda (nova transação criada)
   React.useEffect(() => {
-    console.log('[TransactionList] Number of transactions changed from', transactions.length - 1, 'to', transactions.length);
-    console.log('[TransactionList] Resetting to page 1');
+    // Debug: Resetting to page 1
     setCurrentPage(1);
   }, [transactions.length]);
 
@@ -326,7 +316,7 @@ const TransactionList = ({
                   try {
                     setSearchTerm(e.target.value);
                   } catch (error) {
-                    console.error('Erro ao atualizar searchTerm:', error);
+                    logger.error('Erro ao atualizar searchTerm:', error);
                   }
                 }}
                 className="pl-10"

@@ -1,5 +1,6 @@
 import { PayrollContract, PayrollTimeEntry, PayrollOTPolicy, PayrollHoliday, PayrollMileageTrip, PayrollVacation, PayrollCalculation } from '../types';
 import { calcMonth, validateTimeEntry } from '../lib/calc';
+import { logger } from '@/shared/lib/logger';
 
 /**
  * Calcula o último dia do mês corretamente
@@ -163,7 +164,7 @@ export class PayrollCalculationService {
 
     // Preferir Web Crypto API quando disponível (browser/Node >= 15)
     try {
-      const subtle = (globalThis as any)?.crypto?.subtle;
+      const subtle = globalThis?.crypto?.subtle;
       if (subtle) {
         const encoder = new TextEncoder();
         const data = encoder.encode(dataString);
@@ -457,7 +458,7 @@ export async function calculatePayroll(userId: string, contractId: string, year:
     return await payrollCalculationService.calculate(input);
     
   } catch (error) {
-    console.error('Erro no cálculo da folha de pagamento:', error);
+    logger.error('Erro no cálculo da folha de pagamento:', error);
     throw error;
   }
 }

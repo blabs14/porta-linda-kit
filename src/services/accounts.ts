@@ -9,6 +9,7 @@ import {
   AccountReserved
 } from '../integrations/supabase/types';
 import { AccountDomain, AccountWithBalancesDomain, mapAccountRowToDomain, mapAccountWithBalancesToDomain } from '../shared/types/accounts';
+import { logger } from '@/shared/lib/logger';
 
 export const getAccounts = async (userId?: string): Promise<{ data: Account[] | null; error: unknown }> => {
   try {
@@ -41,7 +42,7 @@ export const getAccount = async (id: string): Promise<{ data: Account | null; er
       .eq('id', id)
       .single();
 
-    return { data: data as Account | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -53,8 +54,8 @@ export const createAccount = async (accountData: AccountInsert, userId?: string)
     if (!resolvedUserId) {
       try {
         const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (!authError) {
-          resolvedUserId = authData?.user?.id as string | undefined;
+        if (!authError && authData?.user?.id) {
+          resolvedUserId = authData.user.id;
         }
       } catch {
         // ignore
@@ -90,7 +91,7 @@ export const createAccount = async (accountData: AccountInsert, userId?: string)
           p_operation: 'create'
         });
         if (creditCardError) {
-          console.warn('Aviso ao aplicar lógica de cartão de crédito:', creditCardError);
+          logger.warn('Aviso ao aplicar lógica de cartão de crédito:', creditCardError);
         }
       } else {
         // Para contas normais: se foi fornecido saldo inicial > 0, criar transação de ajuste até ao alvo
@@ -102,7 +103,7 @@ export const createAccount = async (accountData: AccountInsert, userId?: string)
             p_new_balance: initialBalance
           });
           if (setErr) {
-            console.warn('Aviso ao definir saldo inicial:', setErr);
+            logger.warn('Aviso ao definir saldo inicial:', setErr);
           }
         }
       }
@@ -127,8 +128,8 @@ export const updateAccount = async (id: string, updates: AccountUpdateExtended, 
     if (!resolvedUserId) {
       try {
         const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (!authError) {
-          resolvedUserId = authData?.user?.id as string | undefined;
+        if (!authError && authData?.user?.id) {
+          resolvedUserId = authData.user.id;
         }
       } catch {
         // ignore, ficará undefined se não obtivermos user
@@ -166,7 +167,7 @@ export const updateAccount = async (id: string, updates: AccountUpdateExtended, 
         .single();
 
       if ((accountData as { tipo?: string } | null)?.tipo === 'cartão de crédito') {
-        const target = (updates.saldoAtual || 0) + (Number((updates as any).ajusteSaldo) || 0);
+        const target = (updates.saldoAtual || 0) + (Number(updates.ajusteSaldo) || 0);
         const { error: rpcError } = await supabase.rpc('manage_credit_card_balance', {
           p_user_id: resolvedUserId,
           p_account_id: id,
@@ -231,7 +232,7 @@ export const updateAccount = async (id: string, updates: AccountUpdateExtended, 
         return { data: null, error: balanceError };
       }
 
-      const currentBalance = (currentBalanceData as { saldo_atual?: number } | null)?.saldo_atual || 0;
+      const currentBalance = currentBalanceData?.saldo_atual || 0;
       const newBalance = (updates as Partial<AccountUpdate>).saldo || 0;
       const difference = newBalance - currentBalance;
 
@@ -343,7 +344,7 @@ export const deleteAccount = async (id: string, userId?: string): Promise<{ data
     if (!resolvedUserId) {
       const { data: userData, error: authError } = await supabase.auth.getUser();
       if (authError) return { data: null, error: authError };
-      resolvedUserId = userData?.user?.id as string | undefined;
+      resolvedUserId = userData?.user?.id;
     }
     if (!resolvedUserId) {
       return { data: null, error: { message: 'userId required' } };
@@ -384,7 +385,7 @@ export const getAccountBalances = async (): Promise<{ data: import('../integrati
 export const getAccountReserved = async (): Promise<{ data: AccountReserved[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase.rpc('get_user_account_reserved');
-    return { data: data as AccountReserved[] | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -404,7 +405,7 @@ export const getFamilyAccountsWithBalances = async (userId?: string): Promise<{ 
       return { data: null, error };
     }
 
-    return { data: (data as AccountWithBalances[]) || [], error: null };
+    return { data: data || [], error: null };
   } catch (error) {
     return { data: null, error };
   }
@@ -424,7 +425,7 @@ export const getAccountsWithBalances = async (userId?: string): Promise<{ data: 
       return { data: null, error };
     }
 
-    return { data: (data as AccountWithBalances[]) || [], error: null };
+    return { data: data || [], error: null };
   } catch (error) {
     return { data: null, error };
   }
@@ -476,23 +477,25 @@ export const getPersonalKPIs = async () => {
   const { data, error } = await supabase.rpc('get_personal_kpis');
   
   if (error) {
-    console.error('Error fetching personal KPIs:', error);
+    logger.error('Error fetching personal KPIs:', error);
     throw error;
   }
   
+  const defaultKPIs = {
+    total_balance: 0,
+    credit_card_debt: 0,
+    top_goal_progress: 0,
+    monthly_savings: 0,
+    goals_account_balance: 0,
+    total_goals_value: 0,
+    goals_progress_percentage: 0,
+    total_budget_spent: 0,
+    total_budget_amount: 0,
+    budget_spent_percentage: 0
+  };
+  
   return {
-    data: (Array.isArray(data) && data.length > 0 ? (data[0] as Record<string, unknown>) : {
-      total_balance: 0,
-      credit_card_debt: 0,
-      top_goal_progress: 0,
-      monthly_savings: 0,
-      goals_account_balance: 0,
-      total_goals_value: 0,
-      goals_progress_percentage: 0,
-      total_budget_spent: 0,
-      total_budget_amount: 0,
-      budget_spent_percentage: 0
-    }),
+    data: (Array.isArray(data) && data.length > 0 ? data[0] : defaultKPIs),
     error: null
   };
 };

@@ -42,7 +42,7 @@ export default function RecurrentsPage() {
     is_subscription: true,
     vendor: 'Netflix'
   });
-  const { isOpen, options, confirm, close, onConfirm, onCancel } = useConfirmation() as any;
+  const { isOpen, options, confirm, close, onConfirm, onCancel } = useConfirmation();
 
   const load = React.useCallback(async () => {
     if (!user) return;
@@ -230,7 +230,7 @@ export default function RecurrentsPage() {
               <Input placeholder="Moeda" value={form.currency} onChange={(e)=>setForm(f=>({...f, currency: e.target.value}))} />
             </div>
             <div className="flex gap-2">
-              <Select value={form.interval_unit} onValueChange={(v)=>setForm(f=>({...f, interval_unit: v as any}))}>
+              <Select value={form.interval_unit} onValueChange={(v)=>setForm(f=>({...f, interval_unit: v as 'days' | 'weeks' | 'months' | 'years'}))}>
                 <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="day">Dia</SelectItem>
@@ -241,7 +241,7 @@ export default function RecurrentsPage() {
               </Select>
               <Input type="number" className="w-24" value={form.interval_count} onChange={(e)=>setForm(f=>({...f, interval_count: Number(e.target.value||1)}))} />
             </div>
-            <Select value={form.category_id as any} onValueChange={(v)=>setForm(f=>({...f, category_id: v }))}>
+            <Select value={form.category_id} onValueChange={(v)=>setForm(f=>({...f, category_id: v }))}>
               <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
               <SelectContent>
                 {categories.map((c:any)=>(<SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>))}
@@ -279,4 +279,4 @@ export default function RecurrentsPage() {
       />
     </div>
   );
-} 
+}

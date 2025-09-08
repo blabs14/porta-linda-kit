@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getNotifications, createNotification, updateNotification, deleteNotification } from '../services/notifications';
 import { useAuth } from '../contexts/AuthContext';
 import { useCrudMutation } from './useMutationWithFeedback';
+import { logger } from '@/shared/lib/logger';
 
 export const useNotifications = () => {
   const { user } = useAuth();
@@ -54,4 +55,4 @@ export const useDeleteNotification = () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
-}; 
+};

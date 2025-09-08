@@ -72,7 +72,12 @@ const PersonalAccounts: React.FC = () => {
       saldoAtual = account.saldo_atual || 0;
     }
     
-    const editData = {
+    const editData: {
+      id: string;
+      nome: string;
+      tipo: string;
+      saldoAtual: number;
+    } = {
       id: account.account_id,
       nome: account.nome,
       tipo: account.tipo,
@@ -115,10 +120,11 @@ const PersonalAccounts: React.FC = () => {
       });
       setShowDeleteConfirmation(false);
       setAccountToDelete(null);
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao eliminar a conta.';
       toast({
         title: 'Erro ao eliminar conta',
-        description: error.message || 'Ocorreu um erro ao eliminar a conta.',
+        description: errorMessage,
         variant: 'destructive',
       });
     }

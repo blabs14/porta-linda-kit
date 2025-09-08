@@ -18,6 +18,7 @@ import { payrollService } from '../services/payrollService';
 import { deductionInferenceService } from '../services/deductionInferenceService';
 import { PayrollDeductionConfigFormData } from '../types';
 import { PayrollDeductionConditions } from './PayrollDeductionConditions';
+import { logger } from '@/shared/lib/logger';
 
 // Schema de validação
 const deductionSchema = z.object({
@@ -87,7 +88,7 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
           setAutoDeductionsEnabled(false);
         }
       } catch (error) {
-        console.error('Erro ao carregar configuração de descontos:', error);
+        logger.error('Erro ao carregar configuração de descontos:', error);
         toast({
           title: 'Erro',
           description: 'Não foi possível carregar a configuração de descontos.',
@@ -119,7 +120,7 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
         description: 'Configuração de descontos guardada com sucesso.'
       });
     } catch (error) {
-      console.error('Erro ao guardar configuração de descontos:', error);
+      logger.error('Erro ao guardar configuração de descontos:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível guardar a configuração de descontos.',
@@ -145,7 +146,7 @@ export function PayrollDeductionConfig({ contractId }: PayrollDeductionConfigPro
           : 'Cálculo automático desativado. Pode agora editar as percentagens manualmente.'
       });
     } catch (error) {
-      console.error('Erro ao alterar modo automático:', error);
+      logger.error('Erro ao alterar modo automático:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível alterar o modo de cálculo.',

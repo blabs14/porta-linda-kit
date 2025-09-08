@@ -1,10 +1,7 @@
-import { supabase } from '../lib/supabaseClient';
-import { 
-  Transaction, 
-  TransactionInsert, 
-  TransactionUpdate 
-} from '../integrations/supabase/types';
-import { TransactionDomain, mapTransactionRowToDomain } from '../shared/types/transactions';
+import { supabase } from '@/lib/supabaseClient';
+import { Transaction, TransactionInsert, TransactionUpdate } from '@/types/transaction';
+import { Database } from '@/integrations/supabase/types';
+import { logger } from '@/shared/lib/logger';
 
 export const getTransactions = async (): Promise<{ data: Transaction[] | null; error: unknown }> => {
   try {
@@ -13,7 +10,7 @@ export const getTransactions = async (): Promise<{ data: Transaction[] | null; e
       .select('*')
       .order('created_at', { ascending: false });
 
-    return { data: data as Transaction[] | null, error };
+    return { data, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -27,7 +24,7 @@ export const getTransaction = async (id: string): Promise<{ data: Transaction | 
       .eq('id', id)
       .single();
 
-    return { data: data as Transaction | null, error };
+    return { data, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -63,9 +60,9 @@ export const createTransaction = async (transactionData: TransactionInsert, user
         p_tipo: transactionData.tipo,
         p_descricao: transactionData.descricao || null,
       };
-      if ((transactionData as any).goal_id) rpcPayload.p_goal_id = (transactionData as any).goal_id;
+      if (transactionData.goal_id) rpcPayload.p_goal_id = transactionData.goal_id;
       
-      const { data, error } = await (supabase as unknown as { rpc: (fn: string, args: typeof rpcPayload) => Promise<{ data: unknown; error: unknown }> }).rpc('cc_tx_v1', rpcPayload);
+      const { data, error } = await supabase.rpc('cc_tx_v1', rpcPayload);
     
       if (error) {
         // Fallback genérico: inserir diretamente e atualizar saldo
@@ -89,7 +86,7 @@ export const createTransaction = async (transactionData: TransactionInsert, user
         return { data: null, error: insErr || error };
       }
     
-      const createdId = (data as unknown) as string | null;
+      const createdId = data as string | null;
       if (!createdId) return { data: null, error: new Error('Transação não criada') };
 
       const { data: createdTransaction, error: fetchError } = await supabase
@@ -98,7 +95,7 @@ export const createTransaction = async (transactionData: TransactionInsert, user
         .eq('id', createdId)
         .single();
     
-      return { data: createdTransaction as Transaction | null, error: fetchError };
+      return { data: createdTransaction || null, error: fetchError };
     } else {
       const { data, error } = await supabase
         .from('transactions')
@@ -109,14 +106,14 @@ export const createTransaction = async (transactionData: TransactionInsert, user
       if (!error && data) {
         try {
           await supabase.rpc('update_account_balance', {
-            account_id_param: (data as Pick<Transaction, 'account_id'>).account_id
+            account_id_param: data.account_id
           });
         } catch (balanceError) {
-          console.warn('Erro ao atualizar saldo da conta:', balanceError);
+          logger.warn('Erro ao atualizar saldo da conta:', balanceError);
         }
       }
 
-      return { data: data as Transaction | null, error };
+      return { data, error };
     }
   } catch (error) {
     return { data: null, error };
@@ -135,14 +132,14 @@ export const updateTransaction = async (id: string, updates: TransactionUpdate, 
     if (!error && data) {
       try {
         await supabase.rpc('update_account_balance', {
-          account_id_param: (data as Pick<Transaction, 'account_id'>).account_id
+          account_id_param: data.account_id
         });
       } catch (balanceError) {
-        console.warn('Erro ao atualizar saldo da conta:', balanceError);
+        logger.warn('Erro ao atualizar saldo da conta:', balanceError);
       }
     }
 
-    return { data: data as Transaction | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -167,7 +164,7 @@ export const deleteTransaction = async (id: string, userId: string): Promise<{ d
           account_id_param: (transaction as Pick<Transaction, 'account_id'>).account_id
         });
       } catch (balanceError) {
-        console.warn('Erro ao atualizar saldo da conta:', balanceError);
+        logger.warn('Erro ao atualizar saldo da conta:', balanceError);
       }
     }
 
@@ -180,7 +177,7 @@ export const deleteTransaction = async (id: string, userId: string): Promise<{ d
 export const getPersonalTransactions = async (): Promise<{ data: Transaction[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase.rpc('get_personal_transactions');
-    return { data: data as Transaction[] | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -189,7 +186,7 @@ export const getPersonalTransactions = async (): Promise<{ data: Transaction[] |
 export const getFamilyTransactions = async (): Promise<{ data: Transaction[] | null; error: unknown }> => {
   try {
     const { data, error } = await supabase.rpc('get_family_transactions');
-    return { data: data as Transaction[] | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -219,18 +216,20 @@ export const updateTransactionDomain = async (id: string, updates: TransactionUp
 export const getCreditCardSummary = async (cardAccountId: string): Promise<{ data: { saldo: number; total_gastos: number; total_pagamentos: number; status: string; ciclo_inicio: string } | null; error: unknown }> => {
   try {
     // Alguns tipos gerados podem exigir p_user_id; a função atual só usa p_account_id
-    const { data, error } = await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> }).rpc('get_credit_card_summary', {
+    const { data, error } = await supabase.rpc('get_credit_card_summary', {
       p_account_id: cardAccountId
     });
     if (error) return { data: null, error };
-    const row = Array.isArray(data) ? (data as unknown[])[0] : data;
-    if (!row) return { data: null, error: null };
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row || typeof row !== 'object') return { data: null, error: null };
+    
+    const rowObj = row as Record<string, unknown>;
     const shaped = {
-      saldo: Number((row as Record<string, unknown>).saldo ?? 0),
-      total_gastos: Number((row as Record<string, unknown>).total_gastos ?? 0),
-      total_pagamentos: Number((row as Record<string, unknown>).total_pagamentos ?? 0),
-      status: String((row as Record<string, unknown>).status ?? ''),
-      ciclo_inicio: String((row as Record<string, unknown>).ciclo_inicio ?? '')
+      saldo: Number(rowObj.saldo ?? 0),
+      total_gastos: Number(rowObj.total_gastos ?? 0),
+      total_pagamentos: Number(rowObj.total_pagamentos ?? 0),
+      status: String(rowObj.status ?? ''),
+      ciclo_inicio: String(rowObj.ciclo_inicio ?? '')
     };
     return { data: shaped, error: null };
   } catch (error) {
@@ -255,7 +254,7 @@ export const payCreditCardFromAccount = async (
       .single();
     if (cardErr) return { data: null, error: cardErr };
 
-    const currentBalance = Number((cardAcc as { saldo_atual?: number })?.saldo_atual || 0);
+    const currentBalance = Number(cardAcc?.saldo_atual || 0);
     const currentDebt = Math.max(0, -currentBalance); // dívida é o valor positivo em falta
     const requested = Math.abs(amount);
     const amountToPay = Math.min(requested, currentDebt);
@@ -265,7 +264,7 @@ export const payCreditCardFromAccount = async (
       return { data: { amountPaid: 0 }, error: null };
     }
 
-    const { data, error } = await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> }).rpc('pay_credit_card_from_account', {
+    const { data, error } = await supabase.rpc('pay_credit_card_from_account', {
       p_user_id: userId,
       p_card_account_id: cardAccountId,
       p_bank_account_id: bankAccountId,
@@ -281,7 +280,7 @@ export const payCreditCardFromAccount = async (
           supabase.rpc('update_account_balance', { account_id_param: cardAccountId })
         ]);
       } catch (balanceError) {
-        console.warn('Erro ao recalcular saldos após pagamento de cartão:', balanceError);
+        logger.warn('Erro ao recalcular saldos após pagamento de cartão:', balanceError);
       }
     }
 

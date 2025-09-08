@@ -84,7 +84,7 @@ export const exportToPDF = async (data: ExportData, options: ExportOptions): Pro
       t.account_nome || '-',
     ]);
     
-    (autoTable as unknown as (doc: any, options: any) => void)(doc as any, {
+    (autoTable as any)(doc, {
       head: [['Data', 'Descrição', 'Tipo', 'Valor', 'Categoria', 'Conta']],
       body: tableData,
       startY: 110,
@@ -116,15 +116,15 @@ export const exportToPDF = async (data: ExportData, options: ExportOptions): Pro
     
     const categoryData = Object.entries(categoryStats).map(([category, stats]) => [
       category,
-      (stats as CategoryStats).receitas.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }),
-      (stats as CategoryStats).despesas.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }),
+      stats.receitas.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }),
+        stats.despesas.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }),
     ]);
     
     doc.addPage();
     doc.setFontSize(14);
     doc.text('Estatísticas por Categoria', 20, 20);
     
-    (autoTable as unknown as (doc: any, options: any) => void)(doc as any, {
+    (autoTable as any)(doc, {
       head: [['Categoria', 'Receitas', 'Despesas']],
       body: categoryData,
       startY: 30,
@@ -209,9 +209,9 @@ export const exportToExcel = async (data: ExportData, options: ExportOptions): P
   Object.entries(categoryStats).forEach(([category, stats]) => {
     statsSheet.addRow([
       category,
-      (stats as CategoryStats).receitas,
-      (stats as CategoryStats).despesas,
-      (stats as CategoryStats).receitas - (stats as CategoryStats).despesas,
+      stats.receitas,
+        stats.despesas,
+        stats.receitas - stats.despesas,
     ]);
   });
   

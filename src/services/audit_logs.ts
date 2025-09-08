@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { logger } from '../shared/lib/logger';
 
 // Exemplo de modelo: id, user_id, table_name, operation, row_id, old_data, new_data, details
 export const getAuditLogs = (table_name?: string) => {
@@ -45,7 +46,7 @@ export const logAuditChange = async (
     
     return await createAuditLog(auditData);
   } catch (error) {
-    console.error('Erro ao criar log de auditoria:', error);
+    logger.error('Erro ao criar log de auditoria:', error);
     // Não falhar a operação principal se o log falhar
     return { error: null, data: null };
   }
@@ -63,4 +64,4 @@ export const getAuditLogsByRow = (
     .eq('row_id', row_id)
     .order('timestamp', { ascending: false })
     .limit(limit);
-}; 
+};

@@ -6,7 +6,7 @@ import { Progress } from '../components/ui/progress';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Target, Plus, Edit, Trash2, Loader2, BarChart3 } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, BarChart3 } from 'lucide-react';
 import { getCategoryIcon } from '../lib/utils';
 import * as LucideIcons from 'lucide-react';
 import { useBudgets } from '../hooks/useBudgets';
@@ -15,8 +15,10 @@ import { useTransactions } from '../hooks/useTransactionsQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { budgetSchema } from '../validation/budgetSchema';
 import { useToast } from '../hooks/use-toast';
+import { z } from 'zod';
 import { useConfirmation } from '../hooks/useConfirmation';
 import { ConfirmationDialog } from '../components/ui/confirmation-dialog';
+import type { Budget, Transaction } from '../integrations/supabase/types';
 
 interface BudgetFormData {
   categoria_id: string;
@@ -49,7 +51,7 @@ const BudgetsPage = () => {
     setModalOpen(true);
   };
 
-  const handleEdit = (budget: any) => {
+  const handleEdit = (budget: Budget) => {
     setEditBudget(budget);
     setForm({
       categoria_id: budget.categoria_id || '',
@@ -75,7 +77,7 @@ const BudgetsPage = () => {
     }
   };
 
-  const validateForm = () => {
+  const _validateForm = () => {
     try {
       budgetSchema.parse({
         ...form,
@@ -83,9 +85,10 @@ const BudgetsPage = () => {
       });
       setValidationErrors({});
       return true;
-    } catch (error: any) {
+    } catch (error) {
       const errors: Record<string, string> = {};
-      error.errors?.forEach((err: any) => {
+      if (error instanceof z.ZodError) {
+        error.errors?.forEach((err) => {
         if (err.path) {
           errors[err.path[0]] = err.message;
         }
@@ -148,7 +151,7 @@ const BudgetsPage = () => {
           handleClose();
         }
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Erro",
         description: "Erro inesperado",
@@ -228,19 +231,19 @@ const BudgetsPage = () => {
         month: 'long', 
         year: 'numeric' 
       });
-    } catch (error) {
+    } catch {
       return monthString;
     }
   };
 
   // Calcular gastos reais baseados nas transações
-  const getGastoForBudget = (budget: any) => {
+  const getGastoForBudget = (budget: Budget) => {
     if (!transactions || transactions.length === 0) {
       return 0;
     }
 
     // Filtrar transações que são despesas, da mesma categoria e do mesmo mês
-    const budgetTransactions = transactions.filter((transaction: any) => {
+    const budgetTransactions = transactions.filter((transaction: Transaction) => {
       const transactionDate = new Date(transaction.data);
       const transactionMonth = `${transactionDate.getFullYear()}-${String(transactionDate.getMonth() + 1).padStart(2, '0')}`;
       
@@ -252,7 +255,7 @@ const BudgetsPage = () => {
     });
 
     // Somar todos os valores das transações filtradas
-    const totalGasto = budgetTransactions.reduce((sum: number, transaction: any) => {
+    const totalGasto = budgetTransactions.reduce((sum: number, transaction: Transaction) => {
       return sum + (Number(transaction.valor) || 0);
     }, 0);
 
@@ -307,7 +310,7 @@ const BudgetsPage = () => {
                   {(() => {
                     const categoryName = getCategoryName(budget.categoria_id);
                     const iconName = getCategoryIcon(categoryName);
-                    const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.Target;
+                    const IconComponent = (LucideIcons as Record<string, React.ComponentType<any>>)[iconName] || LucideIcons.Target;
                     return <IconComponent className="h-4 w-4 text-muted-foreground flex-shrink-0" />;
                   })()}
                       </CardHeader>
@@ -468,5 +471,6 @@ const BudgetsPage = () => {
     </div>
   );
 };
+}
 
-export default BudgetsPage; 
+export default BudgetsPage;

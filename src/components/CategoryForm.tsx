@@ -13,6 +13,7 @@ import {
   SelectItem,
   SelectValue,
 } from './ui/select';
+import { logger } from '@/shared/lib/logger';
 
 interface CategoryFormData {
   id?: string;
@@ -89,7 +90,7 @@ const CategoryForm = ({ initialData, onSuccess, onCancel }: CategoryFormProps) =
       
       if (onSuccess) onSuccess();
     } catch (err: any) {
-      console.error('Erro ao guardar categoria:', err);
+      logger.error('Erro ao guardar categoria:', err);
       // O erro já é tratado pelo hook useCrudMutation
     }
   };

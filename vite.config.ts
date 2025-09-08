@@ -84,6 +84,8 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
+            // Bibliotecas grandes que devem ser separadas
+            if (id.includes('/node_modules/exceljs')) return 'exceljs';
             if (id.includes('/node_modules/recharts')) return 'charts';
             if (id.includes('/node_modules/jspdf')) return 'pdf';
             if (id.includes('/node_modules/xlsx')) return 'excel';
@@ -91,6 +93,7 @@ export default defineConfig(({ mode }) => {
 
             // Dividir vendor em subgrupos
             if (id.includes('/node_modules/@tanstack/react-query')) return 'react-query';
+            if (id.includes('/node_modules/@supabase/')) return 'supabase';
             
             // Dividir lucide-react em chunks menores por categoria
             if (id.includes('/node_modules/lucide-react')) {

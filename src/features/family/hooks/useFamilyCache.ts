@@ -221,7 +221,7 @@ export const useFamilyCache = (familyId: string | null) => {
         await preloadCriticalData();
       }
     } catch (error) {
-      console.error('Erro ao sincronizar cache:', error);
+      logger.error('Erro ao sincronizar cache:', error);
     }
   }, [familyId, user?.id, queryClient, getCacheKey, preloadCriticalData, invalidateCache]);
 
@@ -345,4 +345,4 @@ export function useFamilyCachedMutation<TVars, TData = unknown>(
       options?.onError?.(err, vars);
     },
   });
-} 
+}

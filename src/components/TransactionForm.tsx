@@ -20,6 +20,7 @@ import { Label } from './ui/label';
 import { useQueryClient } from '@tanstack/react-query';
 import { payCreditCardFromAccount } from '../services/transactions';
 import { useToast } from '../hooks/use-toast';
+import { logger } from '@/shared/lib/logger';
 
 interface TransactionFormData {
   id?: string;

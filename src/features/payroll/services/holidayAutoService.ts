@@ -4,6 +4,7 @@
 import { fetchExternalApi } from '../../../services/externalApi';
 import { PayrollHoliday, PayrollHolidayFormData } from '../types';
 import { payrollService } from './payrollService';
+import { logger } from '@/shared/lib/logger';
 
 // Tipos para feriados automáticos
 export interface AutoHoliday {
@@ -187,7 +188,7 @@ export async function fetchHolidaysFromAPI(year: number, locationInfo: LocationI
     // Exemplo: API do governo português ou serviços como Calendarific
     
     // Por enquanto, retorna array vazio e usa apenas a base de dados local
-    console.log(`Fetching holidays from external API for ${locationInfo.municipality}, ${year}`);
+    // Debug: Fetching holidays from external API for location and year
     
     // Exemplo de chamada para API externa (comentado até implementação real)
     /*
@@ -206,7 +207,7 @@ export async function fetchHolidaysFromAPI(year: number, locationInfo: LocationI
     
     return [];
   } catch (error) {
-    console.error('Erro ao buscar feriados da API externa:', error);
+    logger.error('Erro ao buscar feriados da API externa:', error);
     return [];
   }
 }
@@ -234,11 +235,11 @@ export async function getRegionalHolidays(year: number, workplaceLocation: strin
   const locationInfo = parseWorkplaceLocation(workplaceLocation);
   
   if (!locationInfo) {
-    console.warn('Não foi possível extrair informação de localização:', workplaceLocation);
+    logger.warn('Não foi possível extrair informação de localização:', workplaceLocation);
     return [];
   }
 
-  console.log('Informação de localização extraída para feriados regionais:', locationInfo);
+  // Debug: Location info extracted for regional holidays
 
   const holidays: AutoHoliday[] = [];
 
@@ -329,7 +330,7 @@ export async function syncNationalHolidays(
   let updated = 0;
 
   try {
-    console.log(`Iniciando sincronização de feriados nacionais para ${year}`);
+    // Debug: Starting national holidays sync for year
     
     // Obter feriados nacionais
     const nationalHolidays = await getNationalHolidays(year);
@@ -375,7 +376,7 @@ export async function syncNationalHolidays(
       }
     }
 
-    console.log(`Sincronização de feriados nacionais concluída para ${year}`);
+    // Debug: National holidays sync completed for year
     return { created, updated, errors };
   } catch (error) {
     errors.push(`Erro geral na sincronização de feriados nacionais: ${error}`);
@@ -395,13 +396,13 @@ export async function syncRegionalHolidays(
   let updated = 0;
 
   try {
-    console.log(`Iniciando sincronização de feriados regionais para ${year} em ${workplaceLocation}`);
+    // Debug: Starting regional holidays sync for year and location
     
     // Obter feriados regionais
     const regionalHolidays = await getRegionalHolidays(year, workplaceLocation);
     
     if (regionalHolidays.length === 0) {
-      console.log('Nenhum feriado regional/municipal encontrado para esta localização');
+      // Debug: No regional/municipal holidays found for this location
       return { created: 0, updated: 0, errors: [] };
     }
 
@@ -441,7 +442,7 @@ export async function syncRegionalHolidays(
       }
     }
 
-    console.log(`Sincronização de feriados regionais/municipais concluída para ${year}`);
+    // Debug: Regional/municipal holidays sync completed for year
     return { created, updated, errors };
   } catch (error) {
     errors.push(`Erro geral na sincronização de feriados regionais/municipais: ${error}`);
@@ -461,7 +462,7 @@ export async function syncAutoHolidays(
   let totalUpdated = 0;
 
   try {
-    console.log(`Iniciando sincronização completa de feriados para ${year} em ${workplaceLocation}`);
+    // Debug: Starting complete holidays sync for year and location
     
     // Sincronizar feriados nacionais primeiro
     const nationalResult = await syncNationalHolidays(userId, contractId, year);
@@ -475,7 +476,7 @@ export async function syncAutoHolidays(
     totalUpdated += regionalResult.updated;
     errors.push(...regionalResult.errors);
 
-    console.log(`Sincronização completa concluída para ${year}`);
+    // Debug: Complete sync finished for year
     return { created: totalCreated, updated: totalUpdated, errors };
   } catch (error) {
     errors.push(`Erro geral na sincronização completa: ${error}`);
@@ -531,15 +532,15 @@ export async function syncAnnualHolidays(
   year: number = new Date().getFullYear()
 ): Promise<{ created: number; updated: number; errors: string[] }> {
   try {
-    console.log(`🔄 Sincronizando feriados automáticos para ${year} - Localização: ${workplaceLocation}`);
+    // Debug: Auto-syncing holidays for year and location
     
     // Usar a função existente de sincronização
     const result = await syncAutoHolidays(userId, contractId, year, workplaceLocation);
     
-    console.log(`✅ Sincronização concluída: ${result.created} novos feriados criados, ${result.updated} atualizados para ${year}`);
+    // Debug: Sync completed with created and updated holidays count
     return result;
   } catch (error) {
-    console.error('❌ Erro na sincronização automática de feriados:', error);
+    logger.error('Erro na sincronização automática de feriados:', error);
     throw error;
   }
 }
@@ -559,7 +560,7 @@ export function scheduleAnnualSync(
   
   // Sincronizar imediatamente para o ano atual se ainda não foi feito
   syncAnnualHolidays(userId, contractId, workplaceLocation, currentYear).catch(error => {
-    console.error('Erro na sincronização inicial:', error);
+    logger.error('Erro na sincronização inicial:', error);
   });
   
   // Agendar para o próximo ano (simplificado - em produção usar um scheduler mais robusto)
@@ -569,7 +570,7 @@ export function scheduleAnnualSync(
   if (timeUntilNextYear > 0) {
     setTimeout(() => {
       syncAnnualHolidays(userId, contractId, workplaceLocation, currentYear + 1).catch(error => {
-        console.error('Erro na sincronização agendada:', error);
+        logger.error('Erro na sincronização agendada:', error);
       });
     }, timeUntilNextYear);
   }

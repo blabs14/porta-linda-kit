@@ -84,12 +84,12 @@ export default function Dashboard() {
     const m = String(today.getMonth() + 1).padStart(2, '0');
     const d = String(today.getDate()).padStart(2, '0');
     const key = `${y}-${m}-${d}`;
-    return (reminders as any[]).filter(r => typeof r.date === 'string' && r.date.startsWith(key));
+    return (reminders || []).filter(r => typeof r.date === 'string' && r.date.startsWith(key));
   })();
 
   // Orçamentos em excesso (quando disponível)
   const overspentBudgetsCount = Array.isArray(budgets)
-    ? (budgets as any[]).filter(b => Number(b.valor_gasto || 0) > Number(b.valor_orcamento || 0)).length
+    ? (budgets || []).filter(b => Number(b.valor_gasto || 0) > Number(b.valor_orcamento || 0)).length
     : 0;
   
   // Distribuição de contas

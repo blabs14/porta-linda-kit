@@ -15,6 +15,7 @@ import {
   SelectItem,
   SelectValue,
 } from './ui/select';
+import { logger } from '@/shared/lib/logger';
 
 interface BudgetFormData {
   id?: string;
@@ -103,7 +104,7 @@ const BudgetForm = ({ initialData, onSuccess, onCancel }: BudgetFormProps) => {
       
       if (onSuccess) onSuccess();
     } catch (err: any) {
-      console.error('Erro ao guardar orçamento:', err);
+      logger.error('Erro ao guardar orçamento:', err);
       // O erro já é tratado pelo hook useCrudMutation
     }
   };
@@ -228,4 +229,4 @@ const BudgetForm = ({ initialData, onSuccess, onCancel }: BudgetFormProps) => {
   );
 };
 
-export default BudgetForm; 
+export default BudgetForm;

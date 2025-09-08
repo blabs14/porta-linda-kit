@@ -9,6 +9,7 @@ import { LoadingSpinner } from '../../../components/ui/loading-states';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { cn } from '../../../lib/utils';
+import { logger } from '@/shared/lib/logger';
 
 interface Vacation {
   id: string;
@@ -66,7 +67,7 @@ export default function PayrollVacationCalendarPage() {
       }));
       setVacations(mappedVacations);
     } catch (error) {
-      console.error('Erro ao carregar férias:', error);
+      logger.error('Erro ao carregar férias:', error);
     } finally {
       setLoading(false);
     }

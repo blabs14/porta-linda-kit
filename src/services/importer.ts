@@ -15,7 +15,7 @@ export const ingestionJobSchema = z.object({
 
 export type IngestionJob = z.infer<typeof ingestionJobSchema> & { id?: string };
 
-const sb: any = supabase as any;
+const sb = supabase;
 
 export async function createIngestionJob(input: IngestionJob){
   const parsed = ingestionJobSchema.parse(input);
@@ -42,7 +42,7 @@ export async function updateNormalized(id: string, patch: any){
 }
 
 export async function edgeIngestCSV(jobId: string, mapping?: any){
-  const { data, error } = await (supabase as any).functions.invoke('ingest_csv', {
+  const { data, error } = await supabase.functions.invoke('ingest_csv', {
     body: { job_id: jobId, mapping }
   });
   if (error) throw error;
@@ -55,7 +55,7 @@ export async function edgeIngestCSV(jobId: string, mapping?: any){
 }
 
 export async function edgeIngestReceipt(jobId: string, fileId: string){
-  const { data, error } = await (supabase as any).functions.invoke('ingest_receipt', {
+  const { data, error } = await supabase.functions.invoke('ingest_receipt', {
     body: { job_id: jobId, file_id: fileId }
   });
   if (error) throw error;
@@ -68,14 +68,14 @@ export async function edgeIngestReceipt(jobId: string, fileId: string){
 
 export async function edgePostStaging(jobId: string, ids: string[]){
   // Tentar primeiro com JWT do utilizador
-  const { data, error } = await (supabase as any).functions.invoke('post_staging', {
+  const { data, error } = await supabase.functions.invoke('post_staging', {
     body: { job_id: jobId, ids }
   });
   if (!error && data?.posted>0) return data;
 
   // Fallback: se não postou nada mas há linhas únicas selecionadas, tentar via RPC com sessão do utilizador
   if (Array.isArray(ids) && ids.length>0) {
-    const { data: staging } = await (supabase as any).from('staging_transactions').select('*').in('id', ids);
+    const { data: staging } = await supabase.from('staging_transactions').select('*').in('id', ids);
     if (Array.isArray(staging) && staging.length>0) {
       let posted = 0; const errors: any[] = [];
       for (const r of staging) {
@@ -83,7 +83,7 @@ export async function edgePostStaging(jobId: string, ids: string[]){
         const n = r.normalized_json || {};
         if (!n.account_id || !n.category_id || !n.date || !n.amount_cents) { errors.push({ id: r.id, error:'missing_fields' }); continue; }
         const payload = {
-          p_user_id: (await (supabase as any).auth.getUser()).data?.user?.id,
+          p_user_id: (await supabase.auth.getUser()).data?.user?.id,
           p_account_id: n.account_id,
           p_categoria_id: n.category_id,
           p_valor: Math.abs(Number(n.amount_cents)/100.0),
@@ -91,9 +91,9 @@ export async function edgePostStaging(jobId: string, ids: string[]){
           p_data: n.date,
           p_tipo: (n.tipo && String(n.tipo)) || (Number(n.amount_cents)>=0 ? 'despesa':'receita')
         };
-        const { data: created, error: rpcErr } = await (supabase as any).rpc('create_regular_transaction', payload);
-        if (rpcErr || !created || !(created as any).transaction_id) { errors.push({ id: r.id, error: String(rpcErr||'insert_failed'), payload }); continue; }
-        await (supabase as any).from('staging_transactions').update({ posted_txn_id: (created as any).transaction_id }).eq('id', r.id);
+        const { data: created, error: rpcErr } = await supabase.rpc('create_regular_transaction', payload);
+        if (rpcErr || !created || !created.transaction_id) { errors.push({ id: r.id, error: String(rpcErr||'insert_failed'), payload }); continue; }
+        await supabase.from('staging_transactions').update({ posted_txn_id: created.transaction_id }).eq('id', r.id);
         posted++;
       }
       return { ok: true, posted, errors, fallback: true };
@@ -109,4 +109,4 @@ export async function uploadToBucket(bucket: 'imports'|'receipts', path: string,
 
 export async function insertIngestionFile(jobId: string, bucket: string, path: string, file: File, sha256?: string){
   return sb.from('ingestion_files').insert({ job_id: jobId, storage_bucket: bucket, storage_path: path, original_filename: file.name, mime_type: file.type, size_bytes: file.size, sha256 }).select('*').single();
-} 
+}

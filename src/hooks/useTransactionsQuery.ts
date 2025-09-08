@@ -2,20 +2,21 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import * as transactionService from '../services/transactions';
 import type { TransactionUpdate } from '../integrations/supabase/types';
+import { logger } from '@/shared/lib/logger';
 
 // Hook para buscar transações
 export const useTransactions = (filters?: { account_id?: string }) => {
   const { user } = useAuth();
   
-  console.log('[useTransactions] Hook called with user:', user?.id);
+  // Debug: useTransactions hook called
   
   return useQuery({
     queryKey: ['transactions', user?.id, filters?.account_id],
     queryFn: async () => {
-      console.log('[useTransactions] Query function called');
+      // Debug: Query function called
       const { data, error } = await transactionService.getTransactions();
       if (error) throw error;
-      console.log('[useTransactions] Query result:', data?.length || 0, 'transactions');
+      // Debug: Query result received
       let list = data || [];
       if (filters?.account_id) {
         list = list.filter(tx => tx.account_id === filters.account_id);
@@ -38,26 +39,24 @@ export const useCreateTransaction = () => {
 
   return useMutation({
     mutationFn: async (transactionData: Parameters<typeof transactionService.createTransaction>[0]) => {
-      console.log('[useCreateTransaction] Mutation function called with data:', transactionData);
+      // Debug: Create transaction mutation called
       const result = await transactionService.createTransaction(transactionData, user?.id || '');
-      console.log('[useCreateTransaction] Service result:', result);
+      // Debug: Service result received
       if (result.error) throw result.error;
       return result.data;
     },
     onSuccess: (data) => {
-      console.log('[useCreateTransaction] onSuccess called with data:', data);
-      console.log('[useCreateTransaction] Invalidating transactions query...');
+      // Debug: Create transaction success, invalidating queries
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      console.log('[useCreateTransaction] Invalidating accountsWithBalances query...');
       queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] });
       // Invalidação mais agressiva
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['creditCardSummary'] });
       queryClient.invalidateQueries({ queryKey: ['creditCardSummary', user?.id] });
-      console.log('[useCreateTransaction] Invalidation complete');
+      // Debug: Invalidation complete
     },
     onError: (error) => {
-      console.error('[useCreateTransaction] onError called with error:', error);
+      logger.error('Erro ao criar transação:', error);
     }
   });
 };
@@ -69,26 +68,24 @@ export const useUpdateTransaction = () => {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: TransactionUpdate }) => {
-      console.log('[useUpdateTransaction] Mutation function called with id:', id, 'data:', data);
+      // Debug: Update transaction mutation called
       const result = await transactionService.updateTransaction(id, data, user?.id || '');
-      console.log('[useUpdateTransaction] Service result:', result);
+      // Debug: Service result received
       if (result.error) throw result.error;
       return result.data;
     },
     onSuccess: (data) => {
-      console.log('[useUpdateTransaction] onSuccess called with data:', data);
-      console.log('[useUpdateTransaction] Invalidating transactions query...');
+      // Debug: Update transaction success, invalidating queries
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      console.log('[useUpdateTransaction] Invalidating accountsWithBalances query...');
       queryClient.invalidateQueries({ queryKey: ['accountsWithBalances', user?.id] });
       // Invalidação mais agressiva
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['creditCardSummary'] });
       queryClient.invalidateQueries({ queryKey: ['creditCardSummary', user?.id] });
-      console.log('[useUpdateTransaction] Invalidation complete');
+      // Debug: Invalidation complete
     },
     onError: (error) => {
-      console.error('[useUpdateTransaction] onError called with error:', error);
+      logger.error('Erro ao atualizar transação:', error);
     }
   });
 };
@@ -101,7 +98,12 @@ export const useDeleteTransaction = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       const result = await transactionService.deleteTransaction(id, user?.id || '');
-      if (result.error) throw new Error((result.error as { message?: string }).message || 'Erro');
+      if (result.error) {
+        const errorMessage = result.error && typeof result.error === 'object' && 'message' in result.error 
+          ? (result.error as { message: string }).message 
+          : 'Erro ao eliminar transação';
+        throw new Error(errorMessage);
+      }
       return result;
     },
     onSuccess: () => {
@@ -112,6 +114,9 @@ export const useDeleteTransaction = () => {
       queryClient.invalidateQueries({ queryKey: ['creditCardSummary'] });
       queryClient.invalidateQueries({ queryKey: ['creditCardSummary', user?.id] });
     },
+    onError: (error) => {
+      logger.error('Erro ao eliminar transação:', error);
+    }
   });
 };
 
@@ -175,4 +180,4 @@ export const useTransactionStats = () => {
     enabled: !!user,
     staleTime: 5 * 60 * 1000, // 5 minutos para estatísticas
   });
-}; 
+};

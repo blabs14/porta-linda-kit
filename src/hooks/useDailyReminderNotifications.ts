@@ -24,9 +24,11 @@ function loadNotifiedSet(): Set<string> {
     const todayKey = getTodayKey();
     const raw = localStorage.getItem('reminders_notified');
     if (!raw) return new Set();
-    const parsed = JSON.parse(raw) as { date: string; ids: string[] };
-    if (parsed.date !== todayKey) return new Set();
-    return new Set(parsed.ids || []);
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+     const date = typeof parsed.date === 'string' ? parsed.date : '';
+     const ids = Array.isArray(parsed.ids) ? parsed.ids.filter((id): id is string => typeof id === 'string') : [];
+     if (date !== todayKey) return new Set();
+     return new Set(ids);
   } catch {
     return new Set();
   }
@@ -100,7 +102,7 @@ async function showBrowserNotification(title: string, body?: string): Promise<vo
 }
 
 export function useDailyReminderNotifications(): void {
-  const { data: reminders = [] } = useReminders();
+  const { data: reminders } = useReminders();
   const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -181,4 +183,4 @@ export function useDailyReminderNotifications(): void {
       }
     };
   }, [reminders]);
-} 
+}

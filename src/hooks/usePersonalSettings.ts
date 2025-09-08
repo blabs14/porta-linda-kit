@@ -13,6 +13,7 @@ import {
   PersonalSettings,
   ProfileData
 } from '../services/personalSettings';
+import { logger } from '../shared/lib/logger';
 
 export const usePersonalSettings = () => {
   const { user } = useAuth();
@@ -64,7 +65,7 @@ export const usePersonalSettings = () => {
         description: "Não foi possível salvar as configurações.",
         variant: "destructive",
       });
-      console.error('Erro ao atualizar configurações:', error);
+      logger.error('Erro ao atualizar configurações:', error);
     },
   });
 
@@ -86,7 +87,7 @@ export const usePersonalSettings = () => {
         description: "Não foi possível atualizar o perfil.",
         variant: "destructive",
       });
-      console.error('Erro ao atualizar perfil:', error);
+      logger.error('Erro ao atualizar perfil:', error);
     },
   });
 
@@ -107,7 +108,7 @@ export const usePersonalSettings = () => {
         description: "Não foi possível alterar o tema.",
         variant: "destructive",
       });
-      console.error('Erro ao alterar tema:', error);
+      logger.error('Erro ao alterar tema:', error);
     },
   });
 
@@ -128,7 +129,7 @@ export const usePersonalSettings = () => {
         description: "Não foi possível salvar as configurações de notificações.",
         variant: "destructive",
       });
-      console.error('Erro ao atualizar notificações:', error);
+      logger.error('Erro ao atualizar notificações:', error);
     },
   });
 
@@ -159,7 +160,7 @@ export const usePersonalSettings = () => {
       queryClient.invalidateQueries({ queryKey: ['personalSettings', user?.id] });
     },
     onError: (error) => {
-      console.error('Erro ao criar perfil inicial:', error);
+      logger.error('Erro ao criar perfil inicial:', error);
     },
   });
 
@@ -270,4 +271,4 @@ export const usePersonalSettings = () => {
     refetchSettings,
     refetchProfile,
   };
-}; 
+};

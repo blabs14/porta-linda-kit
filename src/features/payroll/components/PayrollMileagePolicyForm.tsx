@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/utils';
 import { centsToEuros, eurosToCents } from '../lib/calc';
+import { logger } from '../../../shared/lib/logger';
 
 interface PayrollMileagePolicyFormProps {
   policy?: PayrollMileagePolicy;
@@ -57,7 +58,7 @@ export function PayrollMileagePolicyForm({ policy, contractId, onSave, onCancel 
       const contract = await payrollService.getActiveContract(user.id);
       setContract(contract);
     } catch (error) {
-      console.error('Erro ao carregar contrato:', error);
+      logger.error('Erro ao carregar contrato:', error);
     }
   };
 
@@ -89,7 +90,7 @@ export function PayrollMileagePolicyForm({ policy, contractId, onSave, onCancel 
     }
 
     if (typeof onSave !== 'function') {
-      console.error('onSave is not a function:', onSave);
+      logger.error('onSave is not a function:', onSave);
       return;
     }
 
@@ -128,7 +129,7 @@ export function PayrollMileagePolicyForm({ policy, contractId, onSave, onCancel 
         description: 'Erro ao salvar política de quilometragem.',
         variant: 'destructive'
       });
-      console.error('Error saving mileage policy:', error);
+      logger.error('Error saving mileage policy:', error);
     } finally {
       setLoading(false);
     }

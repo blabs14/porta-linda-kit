@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { Database } from '../integrations/supabase/database.types';
+import type { Database } from '../types/database.types';
+import { logger } from '../shared/lib/logger';
 
 // Em desenvolvimento, remover sessões antigas antes de inicializar o cliente
 try {
@@ -13,18 +14,16 @@ try {
   }
 } catch {}
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  // Preferir erro claro no console sem expor segredos
-  // eslint-disable-next-line no-console
-  console.error('[Supabase] Variáveis de ambiente em falta. Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
+  logger.error('[Supabase] Variáveis de ambiente em falta. Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
+  throw new Error('Variáveis de ambiente do Supabase em falta');
 }
 
 if (import.meta.env.DEV) {
-  // eslint-disable-next-line no-console
-  console.info('🔧 Supabase inicializado (dev). URL presente:', !!supabaseUrl, 'AnonKey length:', supabaseAnonKey?.length);
+  logger.info('🔧 Supabase inicializado (dev). URL presente:', !!supabaseUrl, 'AnonKey length:', supabaseAnonKey?.length);
 }
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {

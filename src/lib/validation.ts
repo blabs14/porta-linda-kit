@@ -51,8 +51,38 @@ export const sanitizeNumber = (input: number): number => {
   return Math.round(input * 100) / 100; // Arredonda para 2 casas decimais
 };
 
+import type { Transaction, Account, Category, Goal } from '../integrations/supabase/types';
+
+type TransactionInput = {
+  account_id: string;
+  valor: number;
+  categoria_id: string;
+  data: string;
+  descricao?: string;
+  tipo?: 'receita' | 'despesa';
+};
+
+type AccountInput = {
+  nome: string;
+  tipo: string;
+  saldo_inicial?: number;
+};
+
+type CategoryInput = {
+  nome: string;
+  tipo?: string;
+  cor?: string;
+};
+
+type GoalInput = {
+  nome: string;
+  valor_objetivo: number;
+  prazo?: string;
+  account_id?: string;
+};
+
 // Função para validar e sanitizar dados de transação
-export const validateAndSanitizeTransaction = (data: any) => {
+export const validateAndSanitizeTransaction = (data: TransactionInput) => {
   try {
     // Sanitizar inputs
     const sanitizedData = {
@@ -93,7 +123,7 @@ export const validateAndSanitizeTransaction = (data: any) => {
 };
 
 // Função para validar e sanitizar dados de conta
-export const validateAndSanitizeAccount = (data: any) => {
+export const validateAndSanitizeAccount = (data: AccountInput) => {
   try {
     // Sanitizar inputs
     const sanitizedData = {
@@ -130,7 +160,7 @@ export const validateAndSanitizeAccount = (data: any) => {
 };
 
 // Função para validar e sanitizar dados de categoria
-export const validateAndSanitizeCategory = (data: any) => {
+export const validateAndSanitizeCategory = (data: CategoryInput) => {
   try {
     // Sanitizar inputs
     const sanitizedData = {
@@ -168,7 +198,7 @@ export const validateAndSanitizeCategory = (data: any) => {
 };
 
 // Função para validar e sanitizar dados de objetivo
-export const validateAndSanitizeGoal = (data: any) => {
+export const validateAndSanitizeGoal = (data: GoalInput) => {
   try {
     // Sanitizar inputs
     const sanitizedData = {
@@ -241,4 +271,4 @@ export const isPastDate = (date: string): boolean => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return dateObj < today;
-}; 
+};

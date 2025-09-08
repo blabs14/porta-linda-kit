@@ -23,9 +23,9 @@ import {
   ProfilePage,
 } from './components/lazy/index';
 
-// Página da Área Pessoal
-import PersonalPage from './pages/Personal';
-import FamilyPage from './pages/Family';
+// Páginas principais (lazy loading)
+const PersonalPage = lazy(() => import('./pages/Personal'));
+const FamilyPage = lazy(() => import('./pages/Family'));
 
 // Página de Relatórios (lazy)
 const ReportsPage = lazy(() => import('./pages/reports'));
@@ -60,7 +60,7 @@ function App() {
   // Inicializar serviço de performance
   React.useEffect(() => {
     // O serviço é inicializado automaticamente no constructor
-    console.log('Performance monitoring initialized');
+    // Performance monitoring initialized silently
   }, []);
 
   return (
@@ -115,10 +115,22 @@ function App() {
               </Route>
               
               {/* Área Pessoal */}
-              <Route path="/personal/*" element={<RequireAuth><PersonalPage /></RequireAuth>} />
+              <Route path="/personal/*" element={
+                <RequireAuth>
+                  <Suspense fallback={<PageLoading />}>
+                    <PersonalPage />
+                  </Suspense>
+                </RequireAuth>
+              } />
               
               {/* Finanças Partilhadas */}
-              <Route path="/family/*" element={<RequireAuth><FamilyPage /></RequireAuth>} />
+              <Route path="/family/*" element={
+                <RequireAuth>
+                  <Suspense fallback={<PageLoading />}>
+                    <FamilyPage />
+                  </Suspense>
+                </RequireAuth>
+              } />
               
               {/* Página 404 */}
               <Route path="*" element={<NotFound />} />

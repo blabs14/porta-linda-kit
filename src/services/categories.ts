@@ -14,12 +14,12 @@ export const getCategories = async (userId?: string, tipo?: string): Promise<{ d
 
     if (tipo) {
       // A coluna 'tipo' pode existir em esquemas anteriores; aplicamos cast controlado para manter compatibilidade
-      query = (query as unknown as { eq: (column: string, value: string) => typeof query }).eq('tipo', tipo);
+      query = query.eq('tipo', tipo);
     }
 
     const { data, error } = await query.order('nome');
 
-    return { data: data as Category[] | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -27,7 +27,7 @@ export const getCategories = async (userId?: string, tipo?: string): Promise<{ d
 
 export const getCategoriesDomain = async (userId?: string, tipo?: string): Promise<{ data: CategoryDomain[]; error: unknown }> => {
   const { data, error } = await getCategories(userId, tipo);
-  return { data: (data || []).map(row => mapCategoryRowToDomain(row as unknown as Record<string, unknown>)), error };
+  return { data: (data || []).map(row => mapCategoryRowToDomain(row)), error };
 };
 
 export const getCategory = async (id: string): Promise<{ data: Category | null; error: unknown }> => {
@@ -38,7 +38,7 @@ export const getCategory = async (id: string): Promise<{ data: Category | null; 
       .eq('id', id)
       .single();
 
-    return { data: data as Category | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -52,7 +52,7 @@ export const createCategory = async (categoryData: CategoryInsert): Promise<{ da
       .select()
       .single();
 
-    return { data: data as Category | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -67,7 +67,7 @@ export const updateCategory = async (id: string, updates: CategoryUpdate): Promi
       .select()
       .single();
 
-    return { data: data as Category | null, error };
+    return { data: data || null, error };
   } catch (error) {
     return { data: null, error };
   }
@@ -103,7 +103,7 @@ export const ensureTransferCategory = async (userId: string): Promise<{ data: Ca
 
     // Se já existe, retornar a primeira encontrada
     if (existingCategories && existingCategories.length > 0) {
-      return { data: existingCategories[0] as Category, error: null };
+      return { data: existingCategories[0], error: null };
     }
 
     // Se não existe, criar uma nova categoria de transferências

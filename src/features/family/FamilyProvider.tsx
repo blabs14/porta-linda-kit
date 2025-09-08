@@ -60,23 +60,17 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   const familyQuery = useQuery({
     queryKey: ['family', 'current', user?.id],
     queryFn: async () => {
-      console.log('[FamilyProvider] Getting family data for user:', user?.id);
-      
       if (!user?.id) {
-        console.log('[FamilyProvider] No user ID, returning null');
         return null;
       }
 
       try {
         // Tentar primeiro a função RPC
         const data = await getFamilyData();
-        console.log('[FamilyProvider] Family data received from RPC:', data);
-        
         if (data) {
           return data;
         }
       } catch (error: unknown) {
-        console.log('[FamilyProvider] RPC failed, trying direct query:', error);
       }
 
       // Fallback: buscar diretamente da tabela family_members
@@ -99,7 +93,6 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
           .single();
 
         if (error) {
-          console.log('[FamilyProvider] Direct query error:', error);
           return null;
         }
 
@@ -112,11 +105,10 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
             shared_goals_count: 0 // Será calculado separadamente
           } as UnknownRecord;
           
-          console.log('[FamilyProvider] Family data from direct query:', result);
           return result;
         }
       } catch (error: unknown) {
-        console.log('[FamilyProvider] Direct query exception:', error);
+        // Silent fallback
       }
 
       return null;
@@ -133,16 +125,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   const family = (familyData as UnknownRecord | null)?.family as Family | null;
   const myRole = ((familyData as UnknownRecord | null)?.user_role ?? (familyData as UnknownRecord | null)?.myRole) as 'owner' | 'admin' | 'member' | 'viewer' | null;
 
-  // Debug log para verificar a estrutura completa
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development' && familyData) {
-      console.log('[FamilyProvider] Full familyData structure:', familyData);
-      console.log('[FamilyProvider] family:', family);
-      console.log('[FamilyProvider] myRole:', myRole);
-      console.log('[FamilyProvider] familyData.family:', (familyData as UnknownRecord | null)?.family);
-      console.log('[FamilyProvider] familyData.user_role:', (familyData as UnknownRecord | null)?.user_role);
-    }
-  }, [familyData, family, myRole]);
+
 
   // Query para membros da família
   const membersQuery = useQuery({
@@ -163,7 +146,6 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
 
   // Query para convites pendentes
   const invitesQuery = useQuery({
-
     queryKey: ['family', 'invites', family?.id],
     queryFn: async () => {
       if (!family?.id) return [] as FamilyInvite[];
@@ -198,7 +180,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
             return ((legacyResp as UnknownRecord).data as unknown[]) as FamilyAccount[];
           }
         } catch {
-          console.debug('[FamilyProvider] getAccountsWithBalances (test) falhou, a continuar para fallback.');
+          // Silent fallback
         }
         try {
           const serviceResp = await getFamilyAccountsWithBalances(user.id);
@@ -209,7 +191,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
             return ((serviceResp as UnknownRecord).data as unknown[]) as FamilyAccount[];
           }
         } catch {
-          console.debug('[FamilyProvider] getFamilyAccountsWithBalances (test) falhou, a continuar para fallback.');
+          // Silent fallback
         }
         return [] as FamilyAccount[];
       }
@@ -224,7 +206,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
           return ((serviceResp as UnknownRecord).data as unknown[]) as FamilyAccount[];
         }
       } catch {
-        console.debug('[FamilyProvider] getFamilyAccountsWithBalances falhou, a continuar para legado.');
+        // Silent fallback
       }
       try {
         const legacyResp = await getAccountsWithBalances(user.id);
@@ -235,7 +217,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
           return ((legacyResp as UnknownRecord).data as unknown[]) as FamilyAccount[];
         }
       } catch {
-        console.debug('[FamilyProvider] getAccountsWithBalances (legado) falhou, a continuar para RPC.');
+        // Silent fallback
       }
       // Fallback direto RPC
       try {
@@ -244,7 +226,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
         } as unknown as UnknownRecord);
         if (Array.isArray(data)) return data as unknown as FamilyAccount[];
       } catch (err: unknown) {
-        console.debug('[FamilyProvider] get_family_accounts_with_balances falhou (ignorado para fallback):', err);
+        // Silent fallback
       }
       return [] as FamilyAccount[];
     },
@@ -346,45 +328,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   // Filtrar transações familiares
   const familyTransactions: FamilyTransaction[] = allTransactions as unknown as FamilyTransaction[];
 
-  // Debug logs
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('FamilyProvider Debug:', {
-        user: user?.id,
-        userEmail: user?.email,
-        allGoals: (allGoals as unknown[] | undefined)?.length || 0,
-        familyGoals: familyGoals?.length || 0,
-        allBudgets: (allBudgets as unknown[] | undefined)?.length || 0,
-        familyBudgets: familyBudgets?.length || 0,
-        allTransactions: (allTransactions as unknown[] | undefined)?.length || 0,
-        familyTransactions: familyTransactions?.length || 0,
-        allAccounts: (allAccounts as unknown[] | undefined)?.length || 0,
-        familyAccounts: familyAccounts?.length || 0,
-        family: family?.id,
-        myRole,
-        goalsLoading,
-        budgetsLoading,
-        transactionsLoading,
-        accountsLoading
-      });
-    }
-  }, [
-    user, 
-    allGoals, 
-    familyGoals, 
-    allBudgets, 
-    familyBudgets, 
-    allTransactions, 
-    familyTransactions, 
-    allAccounts, 
-    familyAccounts, 
-    family, 
-    myRole,
-    goalsLoading,
-    budgetsLoading,
-    transactionsLoading,
-    accountsLoading
-  ]);
+
 
   // Query para KPIs familiares - otimizada com RPC
   const kpisQuery = useQuery({
@@ -743,10 +687,9 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       queryClient.invalidateQueries({ queryKey: ['family', 'transactions', user.id, family?.id] });
       queryClient.invalidateQueries({ queryKey: ['family', 'current', user.id] });
       
-      console.log('[FamilyProvider] Goal allocation successful:', data);
       return data;
     } catch (error: unknown) {
-      console.error('[FamilyProvider] Error allocating to goal:', error);
+      logger.error('[FamilyProvider] Error allocating to goal:', error);
       throw error instanceof Error ? error : new Error('Erro ao alocar objetivo');
     }
   };
@@ -823,7 +766,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
         
         return data as unknown;
       } catch (error: unknown) {
-        console.error('Erro ao cancelar convite:', error);
+        logger.error('Erro ao cancelar convite:', error);
         throw error instanceof Error ? error : new Error('Erro ao cancelar convite');
       }
     },
@@ -845,7 +788,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
         
         return data as unknown;
       } catch (error: unknown) {
-        console.error('Erro ao aceitar convite:', error);
+        logger.error('Erro ao aceitar convite:', error);
         throw error instanceof Error ? error : new Error('Erro ao aceitar convite');
       }
     },
@@ -861,8 +804,7 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
       
       try {
         // Usar a função RPC robusta para eliminar família com cascade
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data, error } = await (supabase as any).rpc('delete_family_with_cascade', {
+        const { data, error } = await supabase.rpc('delete_family_with_cascade', {
           p_family_id: family.id
         });
         
@@ -878,10 +820,9 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
         queryClient.invalidateQueries({ queryKey: ['family', 'transactions'] });
         queryClient.invalidateQueries({ queryKey: ['family', 'current', user.id] });
         
-        console.log('Família eliminada com sucesso:', data);
         return data as unknown;
       } catch (error: unknown) {
-        console.error('Erro ao eliminar família:', error);
+        logger.error('Erro ao eliminar família:', error);
         throw error instanceof Error ? error : new Error('Erro ao eliminar família. Verifique se tem permissões adequadas.');
       }
     },

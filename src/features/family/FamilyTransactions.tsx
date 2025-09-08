@@ -194,7 +194,7 @@ const FamilyTransactions: React.FC = () => {
         description: `Relatório familiar exportado como ${filename}`,
       });
     } catch (error: unknown) {
-      console.error('Erro na exportação:', error);
+      // Error logging handled by error boundary
       toast({
         title: 'Erro na exportação',
         description: error instanceof Error ? error.message : 'Ocorreu um erro ao exportar o relatório familiar',
@@ -689,7 +689,7 @@ const FamilyTransactions: React.FC = () => {
                     p.descricao || undefined
                   );
                   if (error) {
-                    notifyError({ title: 'Erro no pagamento', description: (error as any)?.message || 'Falha ao pagar cartão' });
+                    notifyError({ title: 'Erro no pagamento', description: error?.message || 'Falha ao pagar cartão' });
                     return;
                   }
                   const efetivo = data?.amountPaid ?? 0;
@@ -734,4 +734,4 @@ const FamilyTransactions: React.FC = () => {
   );
 };
 
-export default FamilyTransactions; 
+export default FamilyTransactions;

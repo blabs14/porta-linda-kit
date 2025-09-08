@@ -14,6 +14,7 @@ import {
   SelectItem,
   SelectValue,
 } from './ui/select';
+import { logger } from '@/shared/lib/logger';
 
 interface NotificationFormData {
   id?: string;
@@ -96,7 +97,7 @@ const NotificationForm = ({ initialData, onSuccess, onCancel }: NotificationForm
       
       if (onSuccess) onSuccess();
     } catch (err: any) {
-      console.error('Erro ao guardar notificação:', err);
+      logger.error('Erro ao guardar notificação:', err);
       // O erro já é tratado pelo hook useCrudMutation
     }
   };
@@ -196,4 +197,4 @@ const NotificationForm = ({ initialData, onSuccess, onCancel }: NotificationForm
   );
 };
 
-export default NotificationForm; 
+export default NotificationForm;

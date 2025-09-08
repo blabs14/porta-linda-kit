@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { useActiveContract } from '../hooks/useActiveContract';
 import { useNavigate } from 'react-router-dom';
 import { payrollService } from '@/features/payroll/services/payrollService';
+import { logger } from '@/shared/lib/logger';
 
 interface SubsidyData {
   mealAllowance: {
@@ -62,7 +63,7 @@ export default function PayrollSubsidiesViewPage() {
         
         setSubsidyData(mockData);
       } catch (error) {
-        console.error('Erro ao carregar dados dos subsídios:', error);
+        logger.error('Erro ao carregar dados dos subsídios:', error);
       } finally {
         setIsLoading(false);
       }

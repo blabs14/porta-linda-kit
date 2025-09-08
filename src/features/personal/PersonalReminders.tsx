@@ -13,18 +13,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useConfirmation } from '../../hooks/useConfirmation';
 import { ConfirmationDialog } from '../../components/ui/confirmation-dialog';
 
+interface Reminder {
+  id: string;
+  title?: string;
+  titulo?: string;
+  description?: string;
+  descricao?: string;
+  date?: string;
+  data_lembrete?: string;
+  data?: string;
+  recurring?: boolean;
+  repetir?: string;
+}
+
 const PersonalReminders: React.FC = () => {
   const { data: reminders = [], isLoading } = useReminders();
   const deleteReminderMutation = useDeleteReminder();
   const confirmation = useConfirmation();
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<any | null>(null);
+  const [editing, setEditing] = useState<Reminder | null>(null);
   const [filter, setFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'overdue' | 'today' | 'upcoming' | 'recurring'>('all');
 
   const filtered = React.useMemo(() => {
-    const list = (reminders as any[]) || [];
+    const list = reminders || [];
     if (filter === 'all') return list;
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
@@ -39,7 +52,7 @@ const PersonalReminders: React.FC = () => {
 
     return list
       .filter((r) => {
-        const d = new Date((r as any).date ?? (r as any).data_lembrete ?? (r as any).data);
+        const d = new Date(r.date ?? r.data_lembrete ?? r.data ?? '');
         if (Number.isNaN(d.getTime())) return false;
         switch (filter) {
           case 'today':
@@ -54,11 +67,11 @@ const PersonalReminders: React.FC = () => {
       })
       .filter((r) => {
         if (statusFilter === 'all') return true;
-        const d = new Date((r as any).date ?? (r as any).data_lembrete ?? (r as any).data);
+        const d = new Date(r.date ?? r.data_lembrete ?? r.data ?? '');
         const now = new Date();
         const startOfDayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
         const endOfDayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-        const isRecurring = Boolean((r as any).recurring);
+        const isRecurring = Boolean(r.recurring);
         const isOverdue = d < startOfDayLocal;
         const isToday = d >= startOfDayLocal && d <= endOfDayLocal;
         const isUpcoming = d > endOfDayLocal;
@@ -119,7 +132,7 @@ const PersonalReminders: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs value={filter} onValueChange={(v) => setFilter(v as any)} className="mb-4">
+          <Tabs value={filter} onValueChange={(v) => setFilter(v as 'all' | 'today' | 'week' | 'month')} className="mb-4">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="all">Todos</TabsTrigger>
               <TabsTrigger value="today">Hoje</TabsTrigger>
@@ -131,7 +144,7 @@ const PersonalReminders: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <Label>Estado</Label>
-              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as 'all' | 'overdue' | 'today' | 'upcoming' | 'recurring')}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -150,7 +163,7 @@ const PersonalReminders: React.FC = () => {
             <div className="text-center py-8 text-muted-foreground">Sem lembretes</div>
           ) : (
             <div className="space-y-3">
-              {filtered.map((r: any) => (
+              {filtered.map((r: Reminder) => (
                 <Card key={r.id} className="hover:shadow-sm transition-shadow">
                   <CardContent className="p-4 flex items-center justify-between">
                     <div>

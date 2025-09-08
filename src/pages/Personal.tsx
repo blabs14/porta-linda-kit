@@ -62,7 +62,7 @@ const MobileNavigation: React.FC = () => {
       const month = now.getMonth();
       const start = new Date(year, month, 1, 0, 0, 0, 0);
       const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
-      return (reminders as any[]).filter((r) => {
+      return (reminders || []).filter((r) => {
         const d = new Date(r.date ?? r.data_lembrete ?? r.data);
         return d >= start && d <= end && d >= now;
       }).length;
@@ -139,7 +139,7 @@ const DesktopNavigation: React.FC = () => {
       const month = now.getMonth();
       const start = new Date(year, month, 1, 0, 0, 0, 0);
       const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
-      return (reminders as any[]).filter((r) => {
+      return (reminders || []).filter((r) => {
         const d = new Date(r.date ?? r.data_lembrete ?? r.data);
         return d >= start && d <= end && d >= now;
       }).length;
@@ -222,7 +222,7 @@ const PersonalHeader: React.FC = () => {
       const now = new Date();
       const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
       const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      return (reminders as any[]).filter((r) => {
+      return (reminders || []).filter((r) => {
         const d = new Date(r.date ?? r.data_lembrete ?? r.data);
         return d >= start && d <= end;
       }).length;

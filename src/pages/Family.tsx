@@ -463,7 +463,7 @@ const FamilyArea: React.FC = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         <FamilyHeader 
           onPrimaryAction={() => {}}
-          primaryActionLabel={useLocation().pathname === '/family/recorrentes' ? 'Nova Regra' : undefined as any}
+          primaryActionLabel={useLocation().pathname === '/family/recorrentes' ? 'Nova Regra' : undefined}
         />
         
         {/* KPIs rápidos (apenas em desktop) - removido apenas da página de definições */}

@@ -16,6 +16,7 @@ import { payrollService } from '../services/payrollService';
 import { MileageTripForm } from '../components/MileageTripForm';
 import { PayrollMileagePolicyForm } from '../components/PayrollMileagePolicyForm';
 import { PayrollMileageTrip, PayrollMileagePolicy, MileagePolicyFormData, PayrollContract } from '../types';
+import { logger } from '@/shared/lib/logger';
 
 const PayrollMileagePage: React.FC = () => {
   const navigate = useNavigate();
@@ -47,7 +48,7 @@ const PayrollMileagePage: React.FC = () => {
       const contract = await payrollService.getActiveContract(user.id);
       setContract(contract);
     } catch (error) {
-      console.error('Erro ao carregar contrato:', error);
+      logger.error('Erro ao carregar contrato:', error);
     }
   }, [user?.id]);
 
@@ -75,7 +76,7 @@ const PayrollMileagePage: React.FC = () => {
         description: 'Erro ao carregar dados de quilometragem.',
         variant: 'destructive'
       });
-      console.error('Error loading mileage data:', error);
+      logger.error('Error loading mileage data:', error);
     } finally {
       setLoading(false);
     }
