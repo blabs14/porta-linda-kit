@@ -231,12 +231,23 @@ export async function deleteHoliday(holidayId: string, userId: string): Promise<
 }
 
 // Vacation functions
-export async function getVacations(userId: string): Promise<PayrollVacation[]> {
-  const { data, error } = await supabase
+export async function getVacations(userId: string): Promise<PayrollVacation[]>;
+export async function getVacations(userId: string, contractId: string, year: number): Promise<PayrollVacation[]>;
+export async function getVacations(userId: string, contractId?: string, year?: number): Promise<PayrollVacation[]> {
+  let query = supabase
     .from('payroll_vacations')
     .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+    .eq('user_id', userId);
+
+  if (contractId) {
+    query = query.eq('contract_id', contractId);
+  }
+
+  if (year) {
+    query = query.eq('year', year);
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) throw error;
   return data || [];

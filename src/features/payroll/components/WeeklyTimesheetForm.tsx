@@ -272,7 +272,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       });
 
       // Buscar dados em paralelo
-      const [entries, leaves, holidays] = await Promise.all([
+      const [entries, leaves, holidays, vacations] = await Promise.all([
         payrollService.getTimeEntries(
           user.id,
           selectedContractId,
@@ -289,6 +289,11 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
           user.id,
           new Date(selectedWeek).getFullYear(),
           selectedContractId
+        ),
+        payrollService.getVacations(
+          user.id,
+          selectedContractId,
+          new Date(selectedWeek).getFullYear()
         )
       ]);
 
@@ -307,10 +312,12 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
       const holidaysSet = new Set<string>((holidays || []).map(h => h.date));
 
-      // Para cada dia da semana, verificar se intersects com algum leave
+      // Para cada dia da semana, verificar se intersects com algum leave ou vacation
       const leavesByDate = new Map<string, { isSick?: boolean; isVacation?: boolean; leave_type?: string; percentage_paid?: number }>();
       for (const day of weekDays) {
         const ds = formatDateLocal(day);
+        
+        // Verificar licenças
         const overlaps = (leaves || []).filter(l => {
           const start = new Date((l as any).start_date);
           const end = new Date((l as any).end_date);
@@ -319,17 +326,40 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
           start.setHours(0,0,0,0); end.setHours(0,0,0,0); cur.setHours(0,0,0,0);
           return cur >= start && cur <= end;
         });
-        if (overlaps.length) {
+        
+        // Verificar períodos de férias aprovados
+        const vacationOverlaps = (vacations || []).filter(v => {
+          // Só considerar férias aprovadas
+          if (!(v as any).is_approved) return false;
+          
+          const start = new Date((v as any).start_date);
+          const end = new Date((v as any).end_date);
+          const cur = new Date(ds);
+          // normalizar para ignorar horas
+          start.setHours(0,0,0,0); end.setHours(0,0,0,0); cur.setHours(0,0,0,0);
+          return cur >= start && cur <= end;
+        });
+        
+        if (overlaps.length || vacationOverlaps.length) {
           // Mapear tipos simples: sick, vacation (outros ignorados por enquanto)
           let isSick = false;
           let isVacation = false;
           let percentage_paid: number | undefined = undefined;
+          
+          // Processar licenças
           for (const lv of overlaps) {
             const t = String((lv as any).leave_type || '').toLowerCase();
             if (t.includes('sick') || t === 'doente') isSick = true;
             if (t.includes('vacation') || t === 'férias' || t === 'ferias' || t === 'paid_leave') isVacation = true;
             if (typeof (lv as any).percentage_paid === 'number') percentage_paid = (lv as any).percentage_paid;
           }
+          
+          // Processar períodos de férias (têm precedência sobre licenças de férias)
+          if (vacationOverlaps.length > 0) {
+            isVacation = true;
+            isSick = false; // férias têm precedência sobre doença
+          }
+          
           leavesByDate.set(ds, { isSick, isVacation, leave_type: overlaps[0]?.leave_type, percentage_paid });
         }
       }
@@ -360,6 +390,11 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
       setExistingEntries(entries);
       setTimesheet({ entries: weekEntries });
+      
+      // Salvar automaticamente as entradas de férias detectadas
+      setTimeout(async () => {
+        await autoSaveVacationEntries();
+      }, 100);
 
       log.info('[Timesheet] loadExistingEntries success', {
         action: 'loadExistingEntries',
@@ -854,11 +889,12 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
 
-      // Buscar feriados e licenças para esta semana para garantir flags corretas mesmo sem entradas prévias
+      // Buscar feriados, licenças e férias para esta semana para garantir flags corretas mesmo sem entradas prévias
       let holidays: any[] = [];
       let leaves: any[] = [];
+      let vacations: any[] = [];
       try {
-        [holidays, leaves] = await Promise.all([
+        [holidays, leaves, vacations] = await Promise.all([
           payrollService.getHolidays(
             user!.id,
             weekStart.getFullYear(),
@@ -869,16 +905,23 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
             selectedWeek,
             formatDateLocal(weekEnd),
             selectedContractId
+          ),
+          payrollService.getVacations(
+            user!.id,
+            selectedContractId,
+            weekStart.getFullYear()
           )
         ]);
       } catch (err) {
-        log.warn('fillNormalWeek: falha ao obter feriados/licenças', err);
+        log.warn('fillNormalWeek: falha ao obter feriados/licenças/férias', err);
       }
 
       const holidaysSet = new Set<string>((holidays || []).map((h: any) => h.date));
       const leavesByDate = new Map<string, { isSick?: boolean; isVacation?: boolean }>();
       for (const day of weekDays) {
         const ds = formatDateLocal(day);
+        
+        // Verificar licenças
         const overlaps = (leaves || []).filter((l: any) => {
           const start = new Date(l.start_date);
           const end = new Date(l.end_date);
@@ -888,14 +931,38 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
           cur.setHours(0, 0, 0, 0);
           return cur >= start && cur <= end;
         });
-        if (overlaps.length) {
+        
+        // Verificar períodos de férias aprovados
+        const vacationOverlaps = (vacations || []).filter((v: any) => {
+          // Só considerar férias aprovadas
+          if (!v.is_approved) return false;
+          
+          const start = new Date(v.start_date);
+          const end = new Date(v.end_date);
+          const cur = new Date(ds);
+          start.setHours(0, 0, 0, 0);
+          end.setHours(0, 0, 0, 0);
+          cur.setHours(0, 0, 0, 0);
+          return cur >= start && cur <= end;
+        });
+        
+        if (overlaps.length || vacationOverlaps.length) {
           let isSick = false;
           let isVacation = false;
+          
+          // Processar licenças
           for (const lv of overlaps) {
             const t = String(lv.leave_type || '').toLowerCase();
             if (t.includes('sick') || t === 'doente') isSick = true;
             if (t.includes('vacation') || t === 'férias' || t === 'ferias' || t === 'paid_leave') isVacation = true;
           }
+          
+          // Processar períodos de férias (têm precedência sobre licenças de férias)
+          if (vacationOverlaps.length > 0) {
+            isVacation = true;
+            isSick = false; // férias têm precedência sobre doença
+          }
+          
           leavesByDate.set(ds, { isSick, isVacation });
         }
       }
@@ -990,9 +1057,89 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
       toast({ title: 'Semana preenchida', description: 'Horas padrão aplicadas segundo o contrato.' });
       setAriaLiveMsg('Semana preenchida com horas padrão.');
+      
+      // Salvar automaticamente as entradas de férias detectadas
+      await autoSaveVacationEntries();
     } catch (e) {
       log.error('Erro ao preencher semana normal:', e);
       toast({ title: 'Erro', description: 'Falha ao preencher a semana.', variant: 'destructive' });
+    }
+  };
+
+  // Função para salvar automaticamente entradas de férias
+  const autoSaveVacationEntries = async () => {
+    if (!selectedContractId || !user?.id || !selectedContract) return;
+
+    try {
+      const vacationEntries = timesheet.entries.filter(entry => entry.isVacation);
+      
+      if (vacationEntries.length === 0) return;
+
+      // Obter horários padrão do contrato (usando schedule_json como na fillNormalWeek)
+      const schedule = selectedContract.schedule_json as Record<string, any> || {};
+      const useStandard = !!schedule.use_standard && !!schedule.start_time && !!schedule.end_time;
+      const standardStart = schedule.start_time as string | undefined;
+      const standardEnd = schedule.end_time as string | undefined;
+      const standardBreak: number = (schedule.break_minutes ?? 0) as number;
+
+      const savedEntries: PayrollTimeEntry[] = [];
+
+      for (const entry of vacationEntries) {
+        const dateStr = entry.date.includes('T') ? entry.date.split('T')[0] : entry.date;
+        
+        // Verificar se já existe entrada para este dia
+        const existing = await payrollService.getTimeEntries(
+          user.id,
+          selectedContractId,
+          dateStr,
+          dateStr
+        );
+
+        // Se não existe entrada ou a entrada existente não está marcada como férias, criar/atualizar
+        if (existing.length === 0 || !existing[0].is_vacation) {
+          // Usar a mesma lógica da fillNormalWeek para determinar horários
+          const startTime = useStandard ? (standardStart || '09:00') : '09:00';
+          const endTime = useStandard ? (standardEnd || '18:00') : '18:00';
+          const breakMinutes = useStandard ? (standardBreak || 60) : 60;
+
+          const payload = {
+            date: dateStr,
+            start_time: startTime,
+            end_time: endTime,
+            break_minutes: breakMinutes,
+            description: 'Férias (marcação automática)',
+            is_overtime: false,
+            is_holiday: false,
+            is_sick: false,
+            is_vacation: true,
+            is_exception: false,
+          } as Omit<PayrollTimeEntry, 'id' | 'created_at' | 'updated_at'>;
+
+          const saved = await payrollService.createTimeEntry(
+            user.id,
+            selectedContractId,
+            payload as any
+          );
+          savedEntries.push(saved);
+        }
+      }
+
+      if (savedEntries.length > 0) {
+        toast({
+          title: 'Férias Registadas',
+          description: `${savedEntries.length} dia(s) de férias foram automaticamente registados.`,
+          duration: 5000
+        });
+        
+        log.info('autoSaveVacationEntries: entradas de férias salvas automaticamente', {
+          count: savedEntries.length,
+          contractId: maskId(selectedContractId),
+          userId: maskId(user.id)
+        });
+      }
+    } catch (error) {
+      log.error('autoSaveVacationEntries: erro ao salvar entradas de férias automaticamente', error);
+      // Não mostrar toast de erro para não interromper o fluxo do utilizador
     }
   };
 
