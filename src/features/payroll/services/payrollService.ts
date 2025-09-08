@@ -15,12 +15,16 @@ function getLastDayOfMonth(year: number, month: number): string {
 
 // Contract functions
 export async function getContracts(userId: string): Promise<PayrollContract[]> {
+  console.log('🔍 DEBUG getContracts - called with userId:', userId);
+  
   const { data, error } = await supabase
     .from('payroll_contracts')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
+  console.log('🔍 DEBUG getContracts - result:', { data: data?.length, error });
+  
   if (error) throw new Error(error.message || 'Erro ao obter contratos');
   return data || [];
 }
@@ -174,8 +178,16 @@ export async function getHolidays(
 ): Promise<PayrollHoliday[]> {
   let query = supabase
     .from('payroll_holidays')
-    .select('*')
-    .eq('user_id', userId);
+    .select(`
+      *,
+      payroll_contracts!inner(
+        id,
+        name,
+        is_active
+      )
+    `)
+    .eq('user_id', userId)
+    .eq('payroll_contracts.is_active', true);
 
   // Suporte retrocompatível: (userId, 'YYYY-MM-DD', 'YYYY-MM-DD')
   if (typeof yearOrStart === 'string') {
@@ -185,10 +197,15 @@ export async function getHolidays(
       query = query.gte('date', start).lte('date', end);
     }
   } else if (typeof yearOrStart === 'number' && !isNaN(yearOrStart)) {
-    // Assinatura nova: (userId, year, contractId?) — ignoramos contractId por agora
+    // Assinatura nova: (userId, year, contractId?)
     const start = `${yearOrStart}-01-01`;
     const end = `${yearOrStart}-12-31`;
     query = query.gte('date', start).lte('date', end);
+    
+    // Se contractId foi fornecido, filtrar por ele
+    if (typeof endOrContractId === 'string' && endOrContractId) {
+      query = query.eq('contract_id', endOrContractId);
+    }
   }
 
   const { data, error } = await query.order('date', { ascending: true });
@@ -197,6 +214,20 @@ export async function getHolidays(
 }
 
 export async function createHoliday(holidayData: Omit<PayrollHoliday, 'id' | 'created_at' | 'updated_at'>, userId: string): Promise<PayrollHoliday> {
+  // Validar que o contract_id pertence ao utilizador
+  if (holidayData.contract_id) {
+    const { data: contract } = await supabase
+      .from('payroll_contracts')
+      .select('id')
+      .eq('id', holidayData.contract_id)
+      .eq('user_id', userId)
+      .single();
+    
+    if (!contract) {
+      throw new Error('Contrato não encontrado ou não pertence ao utilizador');
+    }
+  }
+
   const { data, error } = await supabase
     .from('payroll_holidays')
     .insert({ ...holidayData, user_id: userId })
@@ -289,6 +320,13 @@ export async function deleteVacation(vacationId: string, userId: string): Promis
 
 // Time entry functions
 export async function getTimeEntries(userId: string, contractId: string, start_date?: string, end_date?: string): Promise<PayrollTimeEntry[]> {
+  console.log('DEBUG - getTimeEntries chamada com parâmetros:', {
+    userId,
+    contractId,
+    start_date,
+    end_date
+  });
+
   let query = supabase
     .from('payroll_time_entries')
     .select('*')
@@ -303,6 +341,12 @@ export async function getTimeEntries(userId: string, contractId: string, start_d
   }
 
   const { data, error } = await query.order('date', { ascending: true });
+
+  console.log('DEBUG - getTimeEntries resultado:', {
+    data: data?.length || 0,
+    entries: data,
+    error: error?.message || null
+  });
 
   if (error) throw error;
   return data || [];
@@ -559,13 +603,20 @@ export async function getPayrollConfigurationStatus(userId: string, contractId: 
     .single();
   const deductionsValid = !!deductionConfig;
 
-  // Holidays for current year
+  // Holidays for current year (only for active contracts)
   const start = `${currentYear}-01-01`;
   const end = `${currentYear}-12-31`;
   const { data: holidays } = await supabase
     .from('payroll_holidays')
-    .select('id')
+    .select(`
+      id,
+      payroll_contracts!inner(
+        id,
+        is_active
+      )
+    `)
     .eq('user_id', userId)
+    .eq('payroll_contracts.is_active', true)
     .gte('date', start)
     .lte('date', end);
   const holidaysValid = Array.isArray(holidays) && holidays.length > 0;
@@ -610,8 +661,16 @@ export async function validatePayrollConfiguration(userId: string, contractId: s
   const end = `${year}-12-31`;
   const { data: holidays } = await supabase
     .from('payroll_holidays')
-    .select('id')
+    .select(`
+      id,
+      payroll_contracts!inner(
+        id,
+        is_active
+      )
+    `)
     .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .eq('payroll_contracts.is_active', true)
     .gte('date', start)
     .lte('date', end);
   if (!Array.isArray(holidays) || holidays.length === 0) missing.push(`Feriados não configurados para o ano ${year}`);

@@ -27,6 +27,7 @@ export function useTimesheetWeekSchedule(initialWeekStart?: Date) {
     const [year, month, day] = selectedWeek.split('-').map(Number);
     const selectedDate = new Date(year, month - 1, day);
     const monday = getWeekStart(selectedDate);
+    
     return Array.from({ length: 7 }, (_, i) => {
       const date = new Date(monday);
       date.setDate(monday.getDate() + i);

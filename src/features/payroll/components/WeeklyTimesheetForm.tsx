@@ -39,6 +39,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
   const [weekNavigationLoading, setWeekNavigationLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const selectedContractId = contractId || activeContract?.id || '';
+  
   // Definir contrato selecionado (corrige ReferenceError em JSX quando usado no disabled)
   const selectedContract = contracts.find(c => c.id === selectedContractId) || activeContract || null;
   
@@ -109,6 +110,24 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
   }, [goToPrevWeek, goToNextWeek]);
 
   const [timesheet, setTimesheet] = useState<WeeklyTimesheet>({ entries: [] });
+
+  // Effect para garantir que sempre há entradas visíveis na inicialização
+  useEffect(() => {
+    if (weekDays && weekDays.length > 0 && timesheet.entries.length === 0) {
+      const initialEntries = weekDays.map(day => ({
+        date: formatDateLocal(day),
+        startTime: '',
+        endTime: '',
+        breakMinutes: 0,
+        description: '',
+        isHoliday: false,
+        isSick: false,
+        isVacation: false,
+        isException: false
+      }));
+      setTimesheet({ entries: initialEntries });
+    }
+  }, [weekDays]);
   const [existingEntries, setExistingEntries] = useState<PayrollTimeEntry[]>([]);
   const [otPolicy, setOtPolicy] = useState<PayrollOTPolicy | null>(null);
 
@@ -188,6 +207,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       });
     } catch (error) {
       log.error('Error loading holidays for empty entries:', error);
+      console.error('DEBUG: Error loading holidays:', error);
       return weekDays.map(day => {
         const dateStr = formatDateLocal(day);
         return {
@@ -225,7 +245,11 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
   // Effect para carregar entradas quando semana ou contrato muda
   useEffect(() => {
+    console.log('🔍 DEBUG useEffect - TRIGGERED with:', { selectedContractId, selectedWeek, user: user?.id });
+    
     const initializeEntries = async () => {
+      console.log('🔍 DEBUG initializeEntries - CALLED with selectedContractId:', selectedContractId);
+      
       if (selectedContractId) {
         const isWeekNavigation = selectedContractId === activeContract?.id;
         log.info('[Timesheet] week change/init', {
@@ -237,6 +261,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
         });
         await loadExistingEntries(isWeekNavigation);
       } else {
+        // Sempre criar entradas vazias para todos os dias da semana, mesmo sem contrato
         const emptyEntries = await createEmptyWeekEntries();
         setTimesheet({ entries: emptyEntries });
       }
@@ -247,7 +272,10 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
   // loadContracts function removed since useActiveContract handles this
 
   const loadExistingEntries = async (isWeekNavigation = false) => {
+     console.log('🔍 DEBUG loadExistingEntries - CALLED with:', { selectedContractId, userId: user?.id, isWeekNavigation });
+     
      if (!selectedContractId || !user?.id) {
+       console.log('🔍 DEBUG loadExistingEntries - EARLY RETURN:', { selectedContractId, userId: user?.id });
        return;
      }
 
@@ -264,7 +292,10 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
       log.debug('[Timesheet] loadExistingEntries window', {
         userId: maskId(user?.id),
+        userIdRaw: user?.id, // Debug: mostrar user_id real
+        userEmail: user?.email, // Debug: mostrar email do utilizador
         contractId: maskId(selectedContractId),
+        contractIdRaw: selectedContractId, // Debug: mostrar contract_id real
         isWeekNavigation,
         selectedWeek,
         weekStart: formatDateLocal(weekStart),
@@ -272,6 +303,33 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       });
 
       // Buscar dados em paralelo
+      console.log('DEBUG - Fazendo query para timesheet entries:', {
+        userId: user.id,
+        contractId: selectedContractId,
+        startDate: selectedWeek,
+        endDate: formatDateLocal(weekEnd)
+      });
+      
+      // Debug: verificar parâmetros da query
+      console.log('DEBUG - loadExistingEntries: Parâmetros da query:', {
+        userId: user?.id,
+        selectedContractId,
+        selectedWeek,
+        weekEnd: formatDateLocal(weekEnd),
+        hasUser: !!user,
+        hasContract: !!selectedContractId
+      });
+      
+      if (!user?.id) {
+        console.error('DEBUG - loadExistingEntries: User não encontrado');
+        return;
+      }
+      
+      if (!selectedContractId) {
+        console.error('DEBUG - loadExistingEntries: Contract ID não encontrado');
+        return;
+      }
+      
       const [entries, leaves, holidays, vacations] = await Promise.all([
         payrollService.getTimeEntries(
           user.id,
@@ -296,6 +354,14 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
           new Date(selectedWeek).getFullYear()
         )
       ]);
+
+      console.log('DEBUG - Dados retornados da base de dados:', { 
+        entries: entries?.length || 0, 
+        entriesData: entries,
+        leaves: leaves?.length || 0, 
+        holidays: holidays?.length || 0, 
+        vacations: vacations?.length || 0 
+      });
 
       // Normalizar maps auxiliares
       const entriesByDate = new Map<string, PayrollTimeEntry>();
@@ -388,12 +454,26 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
         } as TimesheetEntry;
       });
 
-      setExistingEntries(entries);
+      // Debug: verificar transformação de dados
+      console.log('[DEBUG] Dados após construção das entradas:', {
+        weekStart: formatDateLocal(weekStart),
+        existingEntriesCount: entries?.length || 0,
+        existingEntriesRaw: entries,
+        weekEntriesCount: weekEntries?.length || 0,
+        weekEntriesWithData: weekEntries?.filter(entry => entry.startTime || entry.endTime) || [],
+        weekEntriesRaw: weekEntries,
+        entriesByDateSize: entriesByDate.size,
+        entriesByDateKeys: Array.from(entriesByDate.keys())
+      });
+
+      setExistingEntries(weekEntries);
       setTimesheet({ entries: weekEntries });
       
-      // Salvar automaticamente as entradas de férias detectadas
+      // Salvar automaticamente as entradas de férias, feriados e licenças médicas detectadas
       setTimeout(async () => {
         await autoSaveVacationEntries();
+        await autoSaveHolidayEntries();
+        await autoSaveSickEntries();
       }, 100);
 
       log.info('[Timesheet] loadExistingEntries success', {
@@ -405,7 +485,10 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
         weekNumber: getWeekNumber(weekStart),
         result: 'ok',
         durationMs: Date.now() - t0,
-        entriesCount: entries?.length || 0
+        entriesCount: entries?.length || 0,
+        entriesRaw: entries, // Debug: mostrar entradas retornadas
+        weekEntriesCount: weekEntries?.length || 0,
+        weekEntriesRaw: weekEntries // Debug: mostrar entradas da semana
       });
     } catch (error) {
       toast({
@@ -430,10 +513,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
   // Guardar timesheet da semana
   const handleSave = async () => {
-    console.log('[DEBUG] handleSave iniciado', { selectedContractId, userId: user?.id });
-    
     if (!selectedContractId || !user?.id) {
-      console.log('[DEBUG] Erro: contrato ou usuário inválido', { selectedContractId, userId: user?.id });
       toast({
         title: 'Erro',
         description: 'Selecione um contrato válido antes de salvar.',
@@ -442,24 +522,19 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       return;
     }
 
-    console.log('[DEBUG] Iniciando salvamento...');
     setSaving(true);
     try {
-      console.log('[DEBUG] Calculando datas da semana...');
       const weekStart = new Date(selectedWeek);
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
-      console.log('[DEBUG] Datas calculadas', { weekStart, weekEnd, selectedWeek });
 
       // Carregar entradas existentes para decidir remoções
-      console.log('[DEBUG] Carregando entradas existentes...');
       const existing = await payrollService.getTimeEntries(
         user.id,
         selectedContractId,
         selectedWeek,
         formatDateLocal(weekEnd)
       );
-      console.log('[DEBUG] Entradas existentes carregadas', { count: existing.length });
 
       const existingByDate = new Map<string, PayrollTimeEntry>();
       for (const e of existing) {
@@ -491,7 +566,6 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
           
           // Só criar entrada se temos horários válidos
           if (!startTime || !endTime) {
-            console.log('[DEBUG] Entrada ignorada - sem horários válidos:', { date: dateStr, startTime, endTime });
             continue;
           }
           
@@ -507,8 +581,6 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
             is_vacation: !!e.isVacation,
             is_exception: !!e.isException,
           } as Omit<PayrollTimeEntry, 'id' | 'created_at' | 'updated_at'>;
-          
-          console.log('[DEBUG] Payload criado:', payload);
 
           // Upsert via createTimeEntry (já faz update se existir)
           const saved = await payrollService.createTimeEntry(
@@ -572,15 +644,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       // Recarregar entradas para refletir estado atual
       await loadExistingEntries();
     } catch (error) {
-      console.error('[DEBUG] Erro ao salvar timesheet:', error);
-      console.error('[DEBUG] Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
-      console.error('[DEBUG] Error details:', {
-        message: error instanceof Error ? error.message : String(error),
-        name: error instanceof Error ? error.name : 'Unknown',
-        selectedContractId,
-        userId: user?.id,
-        selectedWeek
-      });
+      console.error('Erro ao salvar timesheet:', error);
       
       toast({
         title: 'Erro',
@@ -1058,8 +1122,10 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       toast({ title: 'Semana preenchida', description: 'Horas padrão aplicadas segundo o contrato.' });
       setAriaLiveMsg('Semana preenchida com horas padrão.');
       
-      // Salvar automaticamente as entradas de férias detectadas
+      // Salvar automaticamente as entradas de férias, feriados e licenças médicas detectadas
       await autoSaveVacationEntries();
+      await autoSaveHolidayEntries();
+      await autoSaveSickEntries();
     } catch (e) {
       log.error('Erro ao preencher semana normal:', e);
       toast({ title: 'Erro', description: 'Falha ao preencher a semana.', variant: 'destructive' });
@@ -1143,6 +1209,161 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
     }
   };
 
+  const autoSaveHolidayEntries = async () => {
+    if (!selectedContractId || !user?.id || !selectedContract) {
+      return;
+    }
+
+    try {
+      const holidayEntries = timesheet.entries.filter(entry => entry.isHoliday);
+      
+      if (holidayEntries.length === 0) {
+        return;
+      }
+
+      // Obter horários padrão do contrato (usando schedule_json como na fillNormalWeek)
+      const schedule = selectedContract.schedule_json as Record<string, any> || {};
+      const useStandard = !!schedule.use_standard && !!schedule.start_time && !!schedule.end_time;
+      const standardStart = schedule.start_time as string | undefined;
+      const standardEnd = schedule.end_time as string | undefined;
+      const standardBreak: number = (schedule.break_minutes ?? 0) as number;
+
+      const savedEntries: PayrollTimeEntry[] = [];
+
+      for (const entry of holidayEntries) {
+        const dateStr = entry.date.includes('T') ? entry.date.split('T')[0] : entry.date;
+        
+        // Verificar se já existe entrada para este dia
+        const existing = await payrollService.getTimeEntries(
+          user.id,
+          selectedContractId,
+          dateStr,
+          dateStr
+        );
+        // Se não existe entrada ou a entrada existente não está marcada como feriado, criar/atualizar
+        if (existing.length === 0 || !existing[0].is_holiday) {
+          // Usar a mesma lógica da fillNormalWeek para determinar horários
+          const startTime = useStandard ? (standardStart || '09:00') : '09:00';
+          const endTime = useStandard ? (standardEnd || '18:00') : '18:00';
+          const breakMinutes = useStandard ? (standardBreak || 60) : 60;
+
+          const payload = {
+            date: dateStr,
+            start_time: startTime,
+            end_time: endTime,
+            break_minutes: breakMinutes,
+            description: 'Feriado (marcação automática)',
+            is_overtime: false,
+            is_holiday: true,
+            is_sick: false,
+            is_vacation: false,
+            is_exception: false,
+          } as Omit<PayrollTimeEntry, 'id' | 'created_at' | 'updated_at'>;
+
+          const saved = await payrollService.createTimeEntry(
+            user.id,
+            selectedContractId,
+            payload as any
+          );
+          savedEntries.push(saved);
+        }
+      }
+
+      if (savedEntries.length > 0) {
+        toast({
+          title: 'Feriados Registados',
+          description: `${savedEntries.length} dia(s) de feriado foram automaticamente registados.`,
+          duration: 5000
+        });
+        
+        log.info('autoSaveHolidayEntries: entradas de feriados salvas automaticamente', {
+          count: savedEntries.length,
+          contractId: maskId(selectedContractId),
+          userId: maskId(user.id)
+        });
+      }
+    } catch (error) {
+      log.error('autoSaveHolidayEntries: erro ao salvar entradas de feriados automaticamente', error);
+      // Não mostrar toast de erro para não interromper o fluxo do utilizador
+    }
+  };
+
+  const autoSaveSickEntries = async () => {
+    if (!selectedContractId || !user?.id || !selectedContract) return;
+
+    try {
+      const sickEntries = timesheet.entries.filter(entry => entry.isSick);
+      
+      if (sickEntries.length === 0) return;
+
+      // Obter horários padrão do contrato (usando schedule_json como na fillNormalWeek)
+      const schedule = selectedContract.schedule_json as Record<string, any> || {};
+      const useStandard = !!schedule.use_standard && !!schedule.start_time && !!schedule.end_time;
+      const standardStart = schedule.start_time as string | undefined;
+      const standardEnd = schedule.end_time as string | undefined;
+      const standardBreak: number = (schedule.break_minutes ?? 0) as number;
+
+      const savedEntries: PayrollTimeEntry[] = [];
+
+      for (const entry of sickEntries) {
+        const dateStr = entry.date.includes('T') ? entry.date.split('T')[0] : entry.date;
+        
+        // Verificar se já existe entrada para este dia
+        const existing = await payrollService.getTimeEntries(
+          user.id,
+          selectedContractId,
+          dateStr,
+          dateStr
+        );
+
+        // Se não existe entrada ou a entrada existente não está marcada como doença, criar/atualizar
+        if (existing.length === 0 || !existing[0].is_sick) {
+          // Usar a mesma lógica da fillNormalWeek para determinar horários
+          const startTime = useStandard ? (standardStart || '09:00') : '09:00';
+          const endTime = useStandard ? (standardEnd || '18:00') : '18:00';
+          const breakMinutes = useStandard ? (standardBreak || 60) : 60;
+
+          const payload = {
+            date: dateStr,
+            start_time: startTime,
+            end_time: endTime,
+            break_minutes: breakMinutes,
+            description: 'Licença médica (marcação automática)',
+            is_overtime: false,
+            is_holiday: false,
+            is_sick: true,
+            is_vacation: false,
+            is_exception: false,
+          } as Omit<PayrollTimeEntry, 'id' | 'created_at' | 'updated_at'>;
+
+          const saved = await payrollService.createTimeEntry(
+            user.id,
+            selectedContractId,
+            payload as any
+          );
+          savedEntries.push(saved);
+        }
+      }
+
+      if (savedEntries.length > 0) {
+        toast({
+          title: 'Licenças Médicas Registadas',
+          description: `${savedEntries.length} dia(s) de licença médica foram automaticamente registados.`,
+          duration: 5000
+        });
+        
+        log.info('autoSaveSickEntries: entradas de licenças médicas salvas automaticamente', {
+          count: savedEntries.length,
+          contractId: maskId(selectedContractId),
+          userId: maskId(user.id)
+        });
+      }
+    } catch (error) {
+      log.error('autoSaveSickEntries: erro ao salvar entradas de licenças médicas automaticamente', error);
+      // Não mostrar toast de erro para não interromper o fluxo do utilizador
+    }
+  };
+
   const clearWeekEntries = async () => {
     if (!selectedContractId || !user?.id) {
       setTimesheet({ entries: await createEmptyWeekEntries() });
@@ -1220,7 +1441,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
 
 
-  if (loading) {
+  if (loading || !selectedContract) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -1396,32 +1617,26 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
               <TableBody>
                 {timesheet.entries.map((entry, index) => {
                   const dayHours = calculateDayHours(entry);
-                  const dayIndex = weekDays.findIndex(d => 
-                    formatDateLocal(d) === entry.date
-                  );
+                  
+                  // Corrigir o mapeamento das datas - usar o índice diretamente
+                  const dayIndex = index < weekDays.length ? index : 0;
+                  const currentDay = weekDays[dayIndex];
+                  
+                  // Usar a data correta do weekDays
+                  const dayOfWeek = currentDay?.getDay() ?? 0;
+                  const dayName = dayNames[dayOfWeek] || 'N/A';
+                  const displayDate = currentDay ? currentDay.toLocaleDateString('pt-PT') : entry.date;
                   
                   return (
                     <TableRow key={`${entry.date}-${index}`}>
                       <TableCell>
-                        <Select
-                          value={entry.date}
-                          onValueChange={(value) => updateEntry(index, 'date', value)}
-                        >
-                          <SelectTrigger className="w-[140px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {weekDays.map((day, i) => (
-                              <SelectItem key={i} value={formatDateLocal(day)}>
-                                {day.toLocaleDateString('pt-PT')}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="w-[140px] px-3 py-2 text-sm">
+                          {displayDate}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {dayIndex >= 0 ? dayNames[weekDays[dayIndex].getDay()] : 'N/A'}
+                          {dayName}
                         </Badge>
                       </TableCell>
                       <TableCell>

@@ -28,7 +28,9 @@ export function ActiveContractProvider({ children }: ActiveContractProviderProps
 
   // Função para carregar contratos
   const loadContracts = async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      return;
+    }
     
     try {
       setLoading(true);
@@ -58,11 +60,12 @@ export function ActiveContractProvider({ children }: ActiveContractProviderProps
     // 1. Verificar query param
     const urlParams = new URLSearchParams(window.location.search);
     const contractIdFromUrl = urlParams.get('contract');
+    
     if (contractIdFromUrl) {
       const contractFromUrl = contractsData.find(c => c.id === contractIdFromUrl);
+      
       if (contractFromUrl && contractFromUrl.is_active) {
         setActiveContractState(contractFromUrl);
-        // Salvar no localStorage
         localStorage.setItem('payroll_active_contract_id', contractFromUrl.id);
         return;
       }
@@ -70,19 +73,27 @@ export function ActiveContractProvider({ children }: ActiveContractProviderProps
 
     // 2. Verificar localStorage
     const contractIdFromStorage = localStorage.getItem('payroll_active_contract_id');
+    
     if (contractIdFromStorage) {
       const contractFromStorage = contractsData.find(c => c.id === contractIdFromStorage);
+      
       if (contractFromStorage && contractFromStorage.is_active) {
         setActiveContractState(contractFromStorage);
         return;
+      } else {
+        localStorage.removeItem('payroll_active_contract_id');
       }
     }
 
     // 3. Usar primeiro contrato ativo
     const firstActiveContract = contractsData.find(c => c.is_active);
+    
     if (firstActiveContract) {
-      setActiveContractState(firstActiveContract);
-      localStorage.setItem('payroll_active_contract_id', firstActiveContract.id);
+      // Usar setTimeout para garantir que o estado é atualizado
+      setTimeout(() => {
+        setActiveContractState(firstActiveContract);
+        localStorage.setItem('payroll_active_contract_id', firstActiveContract.id);
+      }, 0);
     } else {
       setActiveContractState(null);
       localStorage.removeItem('payroll_active_contract_id');

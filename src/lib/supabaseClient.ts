@@ -3,6 +3,8 @@ import type { Database } from '../types/database.types';
 import { logger } from '../shared/lib/logger';
 
 // Em desenvolvimento, remover sessões antigas antes de inicializar o cliente
+// TEMPORARIAMENTE COMENTADO - estava a causar problemas de autenticação
+/*
 try {
   if (import.meta.env.DEV && typeof window !== 'undefined') {
     const toDelete: string[] = [];
@@ -13,6 +15,7 @@ try {
     toDelete.forEach(k => localStorage.removeItem(k));
   }
 } catch {}
+*/
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
