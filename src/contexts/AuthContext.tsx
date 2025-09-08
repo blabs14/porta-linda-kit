@@ -1,86 +1,148 @@
-/* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
-import { Session, User } from '@supabase/supabase-js';
 
-interface AuthContextType {
+export type AuthContextType = {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<{ error: unknown } | void>;
-  register: (email: string, password: string) => Promise<{ error: unknown } | void>;
-  resetPassword: (email: string) => Promise<{ error: unknown } | void>;
+  authInitialized: boolean;
+  login: (email: string, password: string) => Promise<{ user: User | null; session: Session | null } | null>;
+  register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-}
+  resetPassword: (email: string) => Promise<void>;
+};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export const useAuth = (): AuthContextType => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
+};
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [authInitialized, setAuthInitialized] = useState<boolean>(false);
+
+  const DEBUG = import.meta.env.VITE_DEBUG_AUTH === 'true';
+  const log = (...args: any[]) => {
+    if (DEBUG) console.debug('[auth]', ...args);
+  };
 
   useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    let mounted = true;
+
+    const init = async () => {
+      try {
+        setLoading(true);
+        log('Bootstrap: getSession start');
+        const { data, error } = await supabase.auth.getSession();
+        if (error) log('Bootstrap: getSession error', error);
+        const initialSession = data?.session ?? null;
+        if (!mounted) return;
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+        log('Bootstrap: getSession done', { hasSession: !!initialSession, userId: initialSession?.user?.id });
+      } catch (e) {
+        log('Bootstrap: unexpected error', e);
+      } finally {
+        if (!mounted) return;
+        setAuthInitialized(true);
+        setLoading(false);
+        log('Bootstrap: finalized', { authInitialized: true });
+      }
+    };
+
+    init();
+
+    const { data: subscription } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      log('AuthStateChange:', { event, hasSession: !!newSession, userId: newSession?.user?.id });
+      switch (event) {
+        case 'SIGNED_IN':
+        case 'TOKEN_REFRESHED':
+        case 'USER_UPDATED': {
+          setSession(newSession);
+          setUser(newSession?.user ?? null);
+          setLoading(false);
+          setAuthInitialized(true);
+          break;
+        }
+        case 'SIGNED_OUT': {
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+          setAuthInitialized(true);
+          break;
+        }
+        case 'PASSWORD_RECOVERY':
+        default: {
+          // Não altera estado principal; deixar UX própria tratar
+          break;
+        }
+      }
     });
-    
-    supabase.auth.getSession().then(({ data, error }) => {
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      setLoading(false);
-    });
-    
+
     return () => {
-      listener.subscription.unsubscribe();
+      mounted = false;
+      try {
+        subscription?.subscription?.unsubscribe?.();
+      } catch (e) {
+        // ignore
+      }
     };
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    return { error };
-  };
-
-  const register = async (email: string, password: string) => {
-    setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
-    setLoading(false);
-    return { error };
-  };
-
-  const resetPassword = async (email: string) => {
-    setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
-    setLoading(false);
-    return { error };
-  };
-
-  const logout = async () => {
     try {
-      setLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        throw error;
-      }
-    } catch (error) {
-      throw error;
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      // O listener irá sincronizar o estado; retornamos por conveniência
+      return { user: data.user, session: data.session };
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  return (
-    <AuthContext.Provider value={{ user, session, loading, login, register, resetPassword, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
+  const register = useCallback(async (email: string, password: string) => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth deve ser usado dentro de AuthProvider');
-  return ctx;
-}
+  const logout = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const resetPassword = useCallback(async (email: string) => {
+    const redirectTo = `${window.location.origin}/login`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+  }, []);
+
+  const value = useMemo<AuthContextType>(() => ({
+    user,
+    session,
+    loading,
+    authInitialized,
+    login,
+    register,
+    logout,
+    resetPassword,
+  }), [user, session, loading, authInitialized, login, register, logout, resetPassword]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
