@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Auth Refresh Token</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .title {
+            color: #ffff00;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+        }
+        .error { color: #ff4444; }
+        .success { color: #44ff44; }
+        .warning { color: #ffaa00; }
+        .info { color: #4488ff; }
+        button {
+            background: #333;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #555;
+        }
+        pre {
+            background: #111;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .token-info {
+            background: #2a2a3a;
+            border-left: 4px solid #4488ff;
+            padding: 10px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">🔍 Debug Auth Refresh Token - Supabase</h1>
+        
+        <div class="section">
+            <h2 class="title">📦 Tokens no localStorage</h2>
+            <div id="localStorage-info"></div>
+            <button onclick="analyzeTokens()">🔍 Analisar Tokens</button>
+            <button onclick="clearTokens()" class="error">🧹 Limpar Tokens</button>
+        </div>
+        
+        <div class="section">
+            <h2 class="title">🌍 Configuração</h2>
+            <div id="config-info"></div>
+        </div>
+        
+        <div class="section">
+            <h2 class="title">🔧 Ações de Debug</h2>
+            <button onclick="testSupabaseConnection()">🌐 Testar Conexão Supabase</button>
+            <button onclick="forceRefresh()">🔄 Forçar Refresh Token</button>
+            <button onclick="simulateLogin()">🔐 Simular Login</button>
+        </div>
+        
+        <div class="section">
+            <h2 class="title">📋 Log de Debug</h2>
+            <pre id="debug-log"></pre>
+        </div>
+    </div>
+
+    <script type="module">
+        let debugLog = '';
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            debugLog += logEntry;
+            
+            const logElement = document.getElementById('debug-log');
+            logElement.textContent = debugLog;
+            logElement.scrollTop = logElement.scrollHeight;
+            
+            console.log(message);
+        }
+        
+        function analyzeTokens() {
+            log('🔍 Analisando tokens no localStorage...');
+            
+            const supabaseKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && /^(sb-|supabase\.)/i.test(key)) {
+                    supabaseKeys.push(key);
+                }
+            }
+            
+            log(`📦 Encontradas ${supabaseKeys.length} chaves Supabase`);
+            
+            const infoDiv = document.getElementById('localStorage-info');
+            infoDiv.innerHTML = '';
+            
+            supabaseKeys.forEach(key => {
+                const value = localStorage.getItem(key);
+                const tokenDiv = document.createElement('div');
+                tokenDiv.className = 'token-info';
+                
+                let content = `<strong>${key}</strong><br>`;
+                
+                if (value && value.startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(value);
+                        const now = Math.floor(Date.now() / 1000);
+                        const isExpired = parsed.expires_at && now > parsed.expires_at;
+                        
+                        content += `
+                        <div class="${isExpired ? 'error' : 'success'}">
+                            ✅ Access Token: ${parsed.access_token ? 'Presente' : 'Ausente'}<br>
+                            ✅ Refresh Token: ${parsed.refresh_token ? 'Presente' : 'Ausente'}<br>
+                            ⏰ Expira em: ${parsed.expires_at ? new Date(parsed.expires_at * 1000).toISOString() : 'N/A'}<br>
+                            🔴 Expirado: ${isExpired ? 'SIM' : 'NÃO'}<br>
+                            👤 Usuário: ${parsed.user?.email || 'N/A'}
+                        </div>`;
+                        
+                        log(`Token ${key}: ${isExpired ? 'EXPIRADO' : 'VÁLIDO'}`);
+                    } catch (e) {
+                        content += `<span class="error">❌ Erro ao fazer parse: ${e.message}</span>`;
+                        log(`❌ Erro ao analisar ${key}: ${e.message}`);
+                    }
+                } else {
+                    content += `<span class="warning">⚠️ Valor não é JSON válido</span>`;
+                }
+                
+                tokenDiv.innerHTML = content;
+                infoDiv.appendChild(tokenDiv);
+            });
+            
+            // Mostrar configuração
+            const configDiv = document.getElementById('config-info');
+            configDiv.innerHTML = `
+                <div class="token-info">
+                    <strong>🌍 Ambiente:</strong> ${import.meta.env?.DEV ? 'Desenvolvimento' : 'Produção'}<br>
+                    <strong>🌐 URL:</strong> ${window.location.href}<br>
+                    <strong>📡 Supabase URL:</strong> ${import.meta.env?.VITE_SUPABASE_URL || 'N/A'}<br>
+                    <strong>🔑 Anon Key:</strong> ${import.meta.env?.VITE_SUPABASE_ANON_KEY ? 'Presente' : 'Ausente'}
+                </div>
+            `;
+        }
+        
+        function clearTokens() {
+            if (!confirm('⚠️ Tem certeza que deseja limpar todos os tokens? Será necessário fazer login novamente.')) {
+                return;
+            }
+            
+            log('🧹 Limpando tokens Supabase...');
+            
+            const supabaseKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && /^(sb-|supabase\.)/i.test(key)) {
+                    supabaseKeys.push(key);
+                }
+            }
+            
+            supabaseKeys.forEach(key => {
+                localStorage.removeItem(key);
+                log(`✅ Removido: ${key}`);
+            });
+            
+            log('✅ Tokens limpos. Recarregue a página e faça login novamente.');
+            analyzeTokens();
+        }
+        
+        async function testSupabaseConnection() {
+            log('🌐 Testando conexão com Supabase...');
+            
+            try {
+                // Importar Supabase dinamicamente
+                const { createClient } = await import('https://cdn.skypack.dev/@supabase/supabase-js');
+                
+                const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL;
+                const supabaseKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
+                
+                if (!supabaseUrl || !supabaseKey) {
+                    log('❌ Variáveis de ambiente Supabase não encontradas');
+                    return;
+                }
+                
+                const supabase = createClient(supabaseUrl, supabaseKey);
+                
+                // Testar conexão básica
+                const { data, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    log(`❌ Erro ao obter sessão: ${error.message}`);
+                } else {
+                    log(`✅ Conexão OK. Sessão: ${data.session ? 'Ativa' : 'Inativa'}`);
+                }
+            } catch (error) {
+                log(`❌ Erro na conexão: ${error.message}`);
+            }
+        }
+        
+        async function forceRefresh() {
+            log('🔄 Tentando forçar refresh do token...');
+            
+            try {
+                const { createClient } = await import('https://cdn.skypack.dev/@supabase/supabase-js');
+                
+                const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL;
+                const supabaseKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
+                
+                if (!supabaseUrl || !supabaseKey) {
+                    log('❌ Variáveis de ambiente não encontradas');
+                    return;
+                }
+                
+                const supabase = createClient(supabaseUrl, supabaseKey);
+                
+                const { data, error } = await supabase.auth.refreshSession();
+                
+                if (error) {
+                    log(`❌ Erro no refresh: ${error.message}`);
+                } else {
+                    log(`✅ Refresh bem-sucedido. Nova sessão: ${data.session ? 'Ativa' : 'Inativa'}`);
+                }
+            } catch (error) {
+                log(`❌ Erro no refresh: ${error.message}`);
+            }
+        }
+        
+        function simulateLogin() {
+            log('🔐 Para simular login, use o console do browser:');
+            log('supabase.auth.signInWithPassword({ email: "seu@email.com", password: "suasenha" })');
+        }
+        
+        // Expor funções globalmente
+        window.analyzeTokens = analyzeTokens;
+        window.clearTokens = clearTokens;
+        window.testSupabaseConnection = testSupabaseConnection;
+        window.forceRefresh = forceRefresh;
+        window.simulateLogin = simulateLogin;
+        
+        // Análise inicial
+        analyzeTokens();
+        log('🚀 Debug Auth Refresh Token iniciado');
+    </script>
+</body>
+</html>

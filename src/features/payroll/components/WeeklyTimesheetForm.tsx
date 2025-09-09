@@ -392,9 +392,10 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       setExistingEntries(entries);
       setTimesheet({ entries: weekEntries });
       
-      // Salvar automaticamente as entradas de férias detectadas
+      // Salvar automaticamente as entradas de férias e feriados detectadas
       setTimeout(async () => {
         await autoSaveVacationEntries();
+        await autoSaveHolidayEntries();
       }, 100);
 
       log.info('[Timesheet] loadExistingEntries success', {
@@ -1059,8 +1060,9 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       toast({ title: 'Semana preenchida', description: 'Horas padrão aplicadas segundo o contrato.' });
       setAriaLiveMsg('Semana preenchida com horas padrão.');
       
-      // Salvar automaticamente as entradas de férias detectadas
+      // Salvar automaticamente as entradas de férias e feriados detectadas
       await autoSaveVacationEntries();
+      await autoSaveHolidayEntries();
     } catch (e) {
       log.error('Erro ao preencher semana normal:', e);
       toast({ title: 'Erro', description: 'Falha ao preencher a semana.', variant: 'destructive' });
@@ -1140,6 +1142,110 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       }
     } catch (error) {
       log.error('autoSaveVacationEntries: erro ao salvar entradas de férias automaticamente', error);
+      // Não mostrar toast de erro para não interromper o fluxo do utilizador
+    }
+  };
+
+  // Função para salvar automaticamente entradas de feriados
+  const autoSaveHolidayEntries = async () => {
+    if (!selectedContractId || !user?.id || !selectedContract) return;
+
+    try {
+      // Primeiro, atualizar o estado local para marcar as checkboxes
+      const holidayDates = new Set<string>();
+      
+      // Buscar feriados para garantir que temos a lista atualizada
+      const year = new Date(selectedWeek).getFullYear();
+      console.log('🎄 autoSaveHolidayEntries: Carregando feriados para o ano', year);
+      const holidays = await payrollService.getHolidays(user.id, year);
+      console.log('🎄 autoSaveHolidayEntries: Feriados carregados:', holidays);
+      holidays.forEach(holiday => {
+        holidayDates.add(holiday.date);
+      });
+      console.log('🎄 autoSaveHolidayEntries: Datas de feriados:', Array.from(holidayDates));
+      
+      // Atualizar estado local das entradas para marcar feriados
+      setTimesheet(prev => {
+        const updatedEntries = prev.entries.map(entry => {
+          const dateStr = entry.date.includes('T') ? entry.date.split('T')[0] : entry.date;
+          if (holidayDates.has(dateStr)) {
+            console.log('🎄 Marcando entrada como feriado:', dateStr, entry);
+            return {
+              ...entry,
+              isHoliday: true,
+              // Limpar horários se não for exceção
+              startTime: entry.isException ? entry.startTime : '',
+              endTime: entry.isException ? entry.endTime : '',
+              breakMinutes: entry.isException ? entry.breakMinutes : 0
+            };
+          }
+          return entry;
+        });
+        console.log('🎄 Estado atualizado com entradas:', updatedEntries.filter(e => e.isHoliday));
+        return { entries: updatedEntries };
+      });
+      
+      // Depois, salvar na base de dados apenas as entradas que são feriados
+      const holidayEntries = timesheet.entries.filter(entry => {
+        const dateStr = entry.date.includes('T') ? entry.date.split('T')[0] : entry.date;
+        return holidayDates.has(dateStr);
+      });
+      
+      if (holidayEntries.length === 0) return;
+
+      const savedEntries: PayrollTimeEntry[] = [];
+
+      for (const entry of holidayEntries) {
+        const dateStr = entry.date.includes('T') ? entry.date.split('T')[0] : entry.date;
+        
+        // Verificar se já existe entrada para este dia
+        const existing = await payrollService.getTimeEntries(
+          user.id,
+          selectedContractId,
+          dateStr,
+          dateStr
+        );
+
+        // Se não existe entrada ou a entrada existente não está marcada como feriado, criar/atualizar
+        if (existing.length === 0 || !existing[0].is_holiday) {
+          // Para feriados, não definimos horários de trabalho - são dias não trabalhados
+          const payload = {
+            date: dateStr,
+            start_time: '',
+            end_time: '',
+            break_minutes: 0,
+            description: 'Feriado (marcação automática)',
+            is_overtime: false,
+            is_holiday: true,
+            is_sick: false,
+            is_vacation: false,
+            is_exception: false,
+          } as Omit<PayrollTimeEntry, 'id' | 'created_at' | 'updated_at'>;
+
+          const saved = await payrollService.createTimeEntry(
+            user.id,
+            selectedContractId,
+            payload as any
+          );
+          savedEntries.push(saved);
+        }
+      }
+
+      if (savedEntries.length > 0) {
+        toast({
+          title: 'Feriados Registados',
+          description: `${savedEntries.length} feriado(s) foram automaticamente registados.`,
+          duration: 5000
+        });
+        
+        log.info('autoSaveHolidayEntries: entradas de feriados salvas automaticamente', {
+          count: savedEntries.length,
+          contractId: maskId(selectedContractId),
+          userId: maskId(user.id)
+        });
+      }
+    } catch (error) {
+      log.error('autoSaveHolidayEntries: erro ao salvar entradas de feriados automaticamente', error);
       // Não mostrar toast de erro para não interromper o fluxo do utilizador
     }
   };
@@ -1499,8 +1605,8 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
                         <input
                           type="checkbox"
                           checked={entry.isHoliday}
-                          onChange={(e) => updateEntry(index, 'isHoliday', e.target.checked)}
                           disabled
+                          onChange={(e) => updateEntry(index, 'isHoliday', e.target.checked)}
                           className="h-4 w-4"
                           aria-label="Indicador de feriado (sincronizado)"
                           title="Feriado sincronizado pelo calendário. Use 'Exceção' para editar horas num feriado."
