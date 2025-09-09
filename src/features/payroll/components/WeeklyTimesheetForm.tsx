@@ -482,13 +482,14 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
         const existingForDay = existingByDate.get(dateStr);
 
         if (hasData) {
-          // Para feriados, férias e baixas médicas sem horários, usar horários padrão
+          // Para feriados, férias e baixas médicas sem horários, usar horários padrão do contrato
           let startTime = e.startTime;
           let endTime = e.endTime;
           
           if ((e.isHoliday || e.isSick || e.isVacation) && (!startTime || !endTime)) {
-            startTime = '08:00';
-            endTime = '17:00';
+            const contractTimes = getContractDefaultTimes();
+            startTime = contractTimes.startTime;
+            endTime = contractTimes.endTime;
           }
           
           // Só criar entrada se temos horários válidos
@@ -718,6 +719,28 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
     const weekly = (sc as any).weekly_hours || 40;
     const daysPerWeek = (sc as any).work_days_per_week || 5;
     return weekly / daysPerWeek;
+  };
+
+  // Helper para obter horários padrão do contrato
+  const getContractDefaultTimes = (): { startTime: string; endTime: string; breakMinutes: number } => {
+    const sc = contracts.find(c => c.id === selectedContractId) || activeContract;
+    if (!sc || !sc.schedule_json) {
+      return { startTime: '08:00', endTime: '17:00', breakMinutes: 60 };
+    }
+
+    const schedule = sc.schedule_json as Record<string, any>;
+    const useStandard = !!schedule.use_standard && !!schedule.start_time && !!schedule.end_time;
+    
+    if (useStandard) {
+      return {
+        startTime: schedule.start_time || '08:00',
+        endTime: schedule.end_time || '17:00',
+        breakMinutes: schedule.break_minutes ?? 60
+      };
+    }
+
+    // Fallback para horários padrão se não usar standard
+    return { startTime: '08:00', endTime: '17:00', breakMinutes: 60 };
   };
 
   const calculateDayHours = (entry: TimesheetEntry): number => {
@@ -1078,13 +1101,6 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       
       if (vacationEntries.length === 0) return;
 
-      // Obter horários padrão do contrato (usando schedule_json como na fillNormalWeek)
-      const schedule = selectedContract.schedule_json as Record<string, any> || {};
-      const useStandard = !!schedule.use_standard && !!schedule.start_time && !!schedule.end_time;
-      const standardStart = schedule.start_time as string | undefined;
-      const standardEnd = schedule.end_time as string | undefined;
-      const standardBreak: number = (schedule.break_minutes ?? 0) as number;
-
       const savedEntries: PayrollTimeEntry[] = [];
 
       for (const entry of vacationEntries) {
@@ -1100,16 +1116,14 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
         // Se não existe entrada ou a entrada existente não está marcada como férias, criar/atualizar
         if (existing.length === 0 || !existing[0].is_vacation) {
-          // Usar a mesma lógica da fillNormalWeek para determinar horários
-          const startTime = useStandard ? (standardStart || '09:00') : '09:00';
-          const endTime = useStandard ? (standardEnd || '18:00') : '18:00';
-          const breakMinutes = useStandard ? (standardBreak || 60) : 60;
+          // Usar horários padrão do contrato
+          const contractTimes = getContractDefaultTimes();
 
           const payload = {
             date: dateStr,
-            start_time: startTime,
-            end_time: endTime,
-            break_minutes: breakMinutes,
+            start_time: contractTimes.startTime,
+            end_time: contractTimes.endTime,
+            break_minutes: contractTimes.breakMinutes,
             description: 'Férias (marcação automática)',
             is_overtime: false,
             is_holiday: false,
@@ -1208,12 +1222,13 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
         // Se não existe entrada ou a entrada existente não está marcada como feriado, criar/atualizar
         if (existing.length === 0 || !existing[0].is_holiday) {
-          // Para feriados, usar horários padrão (não são trabalhados mas precisam de valores válidos na BD)
+          // Para feriados, usar horários padrão do contrato (não são trabalhados mas precisam de valores válidos na BD)
+          const contractTimes = getContractDefaultTimes();
           const payload = {
             date: dateStr,
-            start_time: '08:00',
-            end_time: '17:00',
-            break_minutes: 0,
+            start_time: contractTimes.startTime,
+            end_time: contractTimes.endTime,
+            break_minutes: contractTimes.breakMinutes,
             description: 'Feriado (marcação automática)',
             is_overtime: false,
             is_holiday: true,

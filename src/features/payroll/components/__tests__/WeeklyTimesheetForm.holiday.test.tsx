@@ -27,7 +27,13 @@ const mockUser = {
 const mockContract = {
   id: 'contract-123',
   name: 'Test Contract',
-  currency: 'EUR'
+  currency: 'EUR',
+  schedule_json: {
+    use_standard: true,
+    start_time: '09:00',
+    end_time: '18:00',
+    break_minutes: 60
+  }
 };
 
 const mockHolidays = [
@@ -58,9 +64,9 @@ describe('WeeklyTimesheetForm - Holiday Auto-fill', () => {
     vi.mocked(payrollService.createTimeEntry).mockResolvedValue({
       id: 'entry-123',
       date: '2024-01-01',
-      start_time: '08:00',
-      end_time: '17:00',
-      break_minutes: 0,
+      start_time: '09:00',
+      end_time: '18:00',
+      break_minutes: 60,
       description: 'Feriado (marcação automática)',
       is_holiday: true,
       is_vacation: false,
