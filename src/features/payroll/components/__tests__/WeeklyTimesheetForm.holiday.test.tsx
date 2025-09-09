@@ -58,8 +58,8 @@ describe('WeeklyTimesheetForm - Holiday Auto-fill', () => {
     vi.mocked(payrollService.createTimeEntry).mockResolvedValue({
       id: 'entry-123',
       date: '2024-01-01',
-      start_time: '',
-      end_time: '',
+      start_time: '08:00',
+      end_time: '17:00',
       break_minutes: 0,
       description: 'Feriado (marcação automática)',
       is_holiday: true,

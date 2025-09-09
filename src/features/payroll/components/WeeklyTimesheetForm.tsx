@@ -1208,11 +1208,11 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
         // Se não existe entrada ou a entrada existente não está marcada como feriado, criar/atualizar
         if (existing.length === 0 || !existing[0].is_holiday) {
-          // Para feriados, não definimos horários de trabalho - são dias não trabalhados
+          // Para feriados, usar horários padrão (não são trabalhados mas precisam de valores válidos na BD)
           const payload = {
             date: dateStr,
-            start_time: '',
-            end_time: '',
+            start_time: '08:00',
+            end_time: '17:00',
             break_minutes: 0,
             description: 'Feriado (marcação automática)',
             is_overtime: false,
