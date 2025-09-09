@@ -652,7 +652,7 @@ export function PayrollDeductionConditions({
                         <AlertDescription>
                           <div className="space-y-1">
                             {inferenceResult.warnings.map((warning, index) => (
-                              <p key={index} className="text-xs">{warning}</p>
+                              <p key={`deduction-warning-${warning.replace(/\s+/g, '-').toLowerCase().slice(0, 20)}-${index}`} className="text-xs">{warning}</p>
                             ))}
                           </div>
                         </AlertDescription>

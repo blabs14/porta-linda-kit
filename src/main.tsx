@@ -26,15 +26,39 @@ if (!isDev) {
             .map(k => caches.delete(k))
         );
       }
-      // Limpar tokens de sessão Supabase antigos para evitar "Invalid Refresh Token" em dev
+      // Limpar apenas tokens expirados/inválidos do Supabase, preservando sessões válidas
       try {
         const toDelete: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i) ?? '';
-          if (/^(sb-|supabase\.)/i.test(k)) toDelete.push(k);
+          // Preservar tokens de sessão válidos, remover apenas caches e tokens temporários
+          if (/^(sb-.*-auth-token-code-verifier|sb-.*-auth-token-pkce|workbox|vite-pwa)/i.test(k)) {
+            toDelete.push(k);
+          }
+          // Verificar se é um token de sessão expirado
+          if (/^sb-.*-auth-token$/i.test(k)) {
+            try {
+              const tokenData = localStorage.getItem(k);
+              if (tokenData) {
+                const parsed = JSON.parse(tokenData);
+                const expiresAt = parsed?.expires_at;
+                if (expiresAt && new Date(expiresAt * 1000) < new Date()) {
+                  toDelete.push(k);
+                }
+              }
+            } catch {
+              // Se não conseguir parsear, remove por segurança
+              toDelete.push(k);
+            }
+          }
         }
         toDelete.forEach(k => localStorage.removeItem(k));
-      } catch {}
+        if (toDelete.length > 0) {
+          logger.info(`[dev] Removidos ${toDelete.length} tokens/caches expirados:`, toDelete);
+        }
+      } catch (e) {
+        logger.warn('[dev] Erro ao limpar tokens expirados:', e);
+      }
 
       logger.info('[dev] Service workers desativados, caches e tokens Supabase limpos.');
     } catch (e) {

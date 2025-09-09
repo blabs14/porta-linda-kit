@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Persistência de Autenticação</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        .refresh-btn { background-color: #28a745; }
+        .refresh-btn:hover { background-color: #1e7e34; }
+        .clear-btn { background-color: #dc3545; }
+        .clear-btn:hover { background-color: #c82333; }
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Teste de Persistência de Autenticação</h1>
+        <p>Este teste verifica se os tokens do Supabase persistem após refresh da página.</p>
+        
+        <div id="status"></div>
+        
+        <div>
+            <button onclick="checkTokens()">🔍 Verificar Tokens</button>
+            <button onclick="simulateRefresh()" class="refresh-btn">🔄 Simular Refresh</button>
+            <button onclick="clearTokens()" class="clear-btn">🗑️ Limpar Tokens</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function checkTokens() {
+            updateStatus('🔍 A verificar tokens no localStorage...', 'info');
+            
+            const tokens = [];
+            const allKeys = Object.keys(localStorage);
+            
+            allKeys.forEach(key => {
+                if (/^sb-/i.test(key)) {
+                    const value = localStorage.getItem(key);
+                    let parsedValue;
+                    
+                    try {
+                        parsedValue = JSON.parse(value);
+                    } catch {
+                        parsedValue = value;
+                    }
+                    
+                    tokens.push({
+                        key,
+                        value: parsedValue,
+                        size: value.length
+                    });
+                }
+            });
+            
+            const resultsDiv = document.getElementById('results');
+            
+            if (tokens.length === 0) {
+                updateStatus('❌ Nenhum token do Supabase encontrado!', 'error');
+                resultsDiv.innerHTML = '<p>Não foram encontrados tokens do Supabase no localStorage.</p>';
+            } else {
+                updateStatus(`✅ Encontrados ${tokens.length} tokens do Supabase`, 'success');
+                
+                let html = '<h3>📋 Tokens Encontrados:</h3>';
+                tokens.forEach((token, index) => {
+                    html += `
+                        <div style="margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;">
+                            <h4>Token ${index + 1}: ${token.key}</h4>
+                            <p><strong>Tamanho:</strong> ${token.size} caracteres</p>
+                            <pre>${JSON.stringify(token.value, null, 2)}</pre>
+                        </div>
+                    `;
+                });
+                
+                resultsDiv.innerHTML = html;
+            }
+        }
+
+        function simulateRefresh() {
+            updateStatus('🔄 A simular refresh da página...', 'info');
+            
+            // Guardar estado antes do refresh
+            const beforeTokens = Object.keys(localStorage).filter(k => /^sb-/i.test(k));
+            localStorage.setItem('test-tokens-before', JSON.stringify(beforeTokens));
+            
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        }
+
+        function clearTokens() {
+            updateStatus('🗑️ A limpar todos os tokens do Supabase...', 'info');
+            
+            const toDelete = [];
+            Object.keys(localStorage).forEach(key => {
+                if (/^sb-/i.test(key)) {
+                    toDelete.push(key);
+                    localStorage.removeItem(key);
+                }
+            });
+            
+            if (toDelete.length > 0) {
+                updateStatus(`✅ Removidos ${toDelete.length} tokens`, 'success');
+                document.getElementById('results').innerHTML = `<p>Tokens removidos: ${toDelete.join(', ')}</p>`;
+            } else {
+                updateStatus('ℹ️ Nenhum token encontrado para remover', 'info');
+            }
+        }
+
+        // Verificar se acabámos de fazer refresh
+        window.onload = function() {
+            const beforeTokens = localStorage.getItem('test-tokens-before');
+            if (beforeTokens) {
+                const tokensBefore = JSON.parse(beforeTokens);
+                const tokensAfter = Object.keys(localStorage).filter(k => /^sb-/i.test(k));
+                
+                localStorage.removeItem('test-tokens-before');
+                
+                if (tokensAfter.length === tokensBefore.length) {
+                    updateStatus(`✅ SUCESSO: ${tokensAfter.length} tokens persistiram após refresh!`, 'success');
+                } else {
+                    updateStatus(`❌ FALHA: Antes: ${tokensBefore.length} tokens, Depois: ${tokensAfter.length} tokens`, 'error');
+                }
+                
+                checkTokens();
+            } else {
+                updateStatus('🚀 Teste carregado. Clique em "Verificar Tokens" para começar.', 'info');
+            }
+        };
+    </script>
+</body>
+</html>

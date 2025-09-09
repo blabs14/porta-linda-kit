@@ -5,6 +5,7 @@ import {
   calcHourly,
   calcMeal,
   calcBonuses,
+  calcSubsidies,
   calcMileage,
   calcMonth,
   centsToEuros,
@@ -293,6 +294,36 @@ describe('Payroll Calculation Functions', () => {
     it('should calculate bonuses correctly', () => {
       const bonuses = calcBonuses(100, 1.75, { eligible: true }); // €1.00 * 1.75
       expect(bonuses).toBe(175); // Total €1.75
+    });
+
+    it('should calculate vacation subsidy correctly', () => {
+      const vacationSubsidy = calcSubsidies('vacation', 95000, 12); // €950 for 12 months
+      expect(vacationSubsidy).toBe(95000); // Full salary
+    });
+
+    it('should calculate vacation subsidy proportionally', () => {
+      const vacationSubsidy = calcSubsidies('vacation', 95000, 6, 22, 700, true); // 6 months worked
+      expect(vacationSubsidy).toBe(47500); // Half salary
+    });
+
+    it('should calculate christmas subsidy correctly', () => {
+      const christmasSubsidy = calcSubsidies('christmas', 95000, 12); // €950 for 12 months
+      expect(christmasSubsidy).toBe(95000); // Full salary
+    });
+
+    it('should calculate christmas subsidy proportionally', () => {
+      const christmasSubsidy = calcSubsidies('christmas', 95000, 8, 22, 700, true); // 8 months worked
+      expect(christmasSubsidy).toBe(63333); // 8/12 of salary
+    });
+
+    it('should calculate meal subsidy correctly', () => {
+      const mealSubsidy = calcSubsidies('meal', 95000, 12, 22, 700); // 22 working days at €7/day
+      expect(mealSubsidy).toBe(15400); // 22 * €7.00
+    });
+
+    it('should return 0 for invalid subsidy type', () => {
+      const invalidSubsidy = calcSubsidies('invalid' as any, 95000, 12);
+      expect(invalidSubsidy).toBe(0);
     });
 
     it('should calculate mileage reimbursement correctly', () => {

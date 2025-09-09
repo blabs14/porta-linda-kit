@@ -11,7 +11,7 @@ import visualizer from 'vite-bundle-visualizer';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+  const env = loadEnv(mode, process.cwd(), "VITE_");
   const supabaseUrl = env.VITE_SUPABASE_URL || "";
   const isDev = mode === "development";
 

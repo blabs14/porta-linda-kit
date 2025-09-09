@@ -1,5 +1,5 @@
 import { PayrollContract, PayrollTimeEntry, PayrollOTPolicy, PayrollHoliday, PayrollMileageTrip, PayrollVacation, PayrollCalculation } from '../types';
-import { calcMonth, validateTimeEntry } from '../lib/calc';
+import { calcMonth, validateTimeEntry, PreCalculatedOvertimeData } from '../lib/calc';
 import { logger } from '@/shared/lib/logger';
 
 /**
@@ -54,6 +54,7 @@ export interface CalculationInput {
   mealAllowanceConfig?: { excluded_months: number[]; daily_amount_cents?: number };
   vacations?: PayrollVacation[];
   deductionConfig?: { irs_percentage: number; social_security_percentage: number };
+  preCalculatedData?: PreCalculatedOvertimeData;
 }
 
 /**
@@ -418,16 +419,23 @@ export const payrollCalculationService = new PayrollCalculationService();
  * @param contractId ID do contrato
  * @param year Ano
  * @param month Mês
+ * @param preCalculatedData Dados pré-calculados da timesheet (opcional)
  * @returns Resultado do cálculo
  */
-export async function calculatePayroll(userId: string, contractId: string, year: number, month: number): Promise<CalculationResult> {
+export async function calculatePayroll(
+  userId: string, 
+  contractId: string, 
+  year: number, 
+  month: number,
+  preCalculatedData?: PreCalculatedOvertimeData
+): Promise<CalculationResult> {
   // Importar serviços necessários
   const { payrollService } = await import('./payrollService');
   
   try {
     // Buscar dados necessários
     const [contract, otPolicy, holidays, timeEntries, mileageTrips, mileagePolicy, mealAllowanceConfig, vacations, deductionConfig] = await Promise.all([
-      payrollService.getActiveContract(userId),
+      payrollService.getContract(contractId, userId),
       payrollService.getActiveOTPolicy(userId, contractId),
       payrollService.getHolidays(userId, year, contractId),
       payrollService.getTimeEntriesByContract(userId, contractId, `${year}-${month.toString().padStart(2, '0')}-01`, getLastDayOfMonth(year, month)),
@@ -451,7 +459,8 @@ export async function calculatePayroll(userId: string, contractId: string, year:
       mileageRateCents: mileagePolicy?.rate_cents_per_km || 36,
       mealAllowanceConfig: mealAllowanceConfig ? { excluded_months: mealAllowanceConfig.excluded_months, daily_amount_cents: mealAllowanceConfig.daily_amount_cents } : undefined,
       vacations: vacations || [],
-      deductionConfig: deductionConfig ? { irs_percentage: deductionConfig.irs_percentage, social_security_percentage: deductionConfig.social_security_percentage } : undefined
+      deductionConfig: deductionConfig ? { irs_percentage: deductionConfig.irs_percentage, social_security_percentage: deductionConfig.social_security_percentage } : undefined,
+      preCalculatedData
     };
 
     // Calcular usando o serviço

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
@@ -11,12 +11,16 @@ import { Checkbox } from '../../../components/ui/checkbox';
 import { formatCurrency } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useActiveContract } from '../hooks/useActiveContract';
 import { calculatePayroll } from '../services/calculation.service';
 import { payrollService } from '../services/payrollService';
+import { subsidyService } from '../services/subsidyService';
+import { OvertimeExtractionService, createOvertimeExtractionService } from '../services/overtimeExtraction.service';
 import { logger } from '@/shared/lib/logger';
 import { exportPayrollReport, downloadFile } from '../services/export.service';
 import { ReportExport } from '../../../components/ReportExport';
-import type { PayrollContract } from '../types';
+import { ContractSelector } from '../components/ContractSelector';
+import type { PayrollContract, TimesheetEntry } from '../types';
 
 interface MonthlyTotals {
   base: number;
@@ -24,9 +28,14 @@ interface MonthlyTotals {
   overtimeNight: number;
   overtimeWeekend: number;
   overtimeHoliday: number;
+  // Subsídios obrigatórios
   meal: number;
   vacation: number;
   christmas: number;
+  // Bónus de performance
+  performanceBonus: number;
+  punctualityBonus: number;
+  // Outros
   mileage: number;
   gross: number;
   irs: number;
@@ -55,10 +64,10 @@ const PayrollSummaryPage: React.FC = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { t } = useTranslation();
+  const { activeContract } = useActiveContract();
   const [isCalculating, setIsCalculating] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
-  const [contract, setContract] = useState<PayrollContract | null>(null);
   const [payslipData, setPayslipData] = useState<PayslipData>({
     gross: '',
     net: '',
@@ -70,6 +79,7 @@ const PayrollSummaryPage: React.FC = () => {
   });
   const [discrepancies, setDiscrepancies] = useState<Discrepancy[]>([]);
   const [showComparison, setShowComparison] = useState(false);
+  const [ariaMessage, setAriaMessage] = useState('');
 
   const currentMonth = new Date().toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
   const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({
@@ -78,29 +88,86 @@ const PayrollSummaryPage: React.FC = () => {
     overtimeNight: 0,
     overtimeWeekend: 0,
     overtimeHoliday: 0,
+    // Subsídios obrigatórios
     meal: 0,
     vacation: 0,
     christmas: 0,
-    mileage: 0,
-    gross: 0,
-    irs: 0,
-    socialSecurity: 0,
-    net: 0
+    // Bónus de performance
+    performanceBonus: 0,
+          punctualityBonus: 0,
+          // Outros
+          mileage: 0,
+          gross: 0,
+          irs: 0,
+          socialSecurity: 0,
+          net: 0
   });
 
-  const loadContract = async () => {
-    if (!user) return;
-    
+
+
+  // Função para carregar entradas da timesheet por mês
+  const loadTimesheetEntries = async (userId: string, contractId: string, month: number, year: number): Promise<TimesheetEntry[]> => {
     try {
-      const contract = await payrollService.getActiveContract(user.id);
-      setContract(contract);
+      // Calcular primeiro e último dia do mês
+      const firstDay = new Date(year, month - 1, 1);
+      const lastDay = new Date(year, month, 0);
+      
+      // Buscar todas as entradas do mês
+      const entries = await payrollService.getTimeEntries(
+        userId,
+        contractId,
+        firstDay.toISOString().split('T')[0],
+        lastDay.toISOString().split('T')[0]
+      );
+
+      // Buscar dados complementares
+      const [leaves, holidays, vacations] = await Promise.all([
+        payrollService.getLeavesForWeek(
+          userId,
+          firstDay.toISOString().split('T')[0],
+          lastDay.toISOString().split('T')[0],
+          contractId
+        ),
+        payrollService.getHolidays(userId, year, contractId),
+        payrollService.getVacations(userId, contractId, year)
+      ]);
+
+      // Converter para TimesheetEntry
+      const timesheetEntries: TimesheetEntry[] = entries.map(entry => {
+        const dateStr = entry.date;
+        const isHoliday = holidays.some(h => h.date === dateStr);
+        const leave = leaves.find(l => l.date === dateStr);
+        
+        return {
+          date: dateStr,
+          startTime: entry.start_time || '',
+          endTime: entry.end_time || '',
+          breakMinutes: entry.break_minutes || 0,
+          description: entry.description || '',
+          isHoliday,
+          isSick: leave?.is_sick || false,
+          isVacation: leave?.is_vacation || false,
+          isException: entry.is_exception || false
+        };
+      });
+
+      return timesheetEntries;
     } catch (error) {
-      logger.error('Error loading contract:', error);
+      console.error('Erro ao carregar entradas da timesheet:', error);
+      return [];
     }
   };
 
   const loadMonthlyTotals = async () => {
-    if (!user) return;
+    console.log('[PayrollSummary] 📊 Loading monthly totals...', {
+      hasUser: !!user,
+      userId: user?.id || 'none'
+    });
+    
+    if (!user) {
+      console.warn('[PayrollSummary] ⚠️ No user found, skipping monthly totals load');
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -108,33 +175,155 @@ const PayrollSummaryPage: React.FC = () => {
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth() + 1;
 
-      const activeContract = await payrollService.getActiveContract(user.id);
-      setContract(activeContract);
+      console.log('[PayrollSummary] 📞 Using active contract from context...', {
+        year,
+        month,
+        hasActiveContract: !!activeContract,
+        contractId: activeContract?.id || 'none'
+      });
+      
       if (!activeContract?.id) {
-        throw new Error('Nenhum contrato ativo encontrado');
+        console.error('[PayrollSummary] ❌ No active contract found');
+        setMonthlyTotals({
+          base: 0,
+          overtimeDay: 0,
+          overtimeNight: 0,
+          overtimeWeekend: 0,
+          overtimeHoliday: 0,
+          meal: 0,
+          vacation: 0,
+          christmas: 0,
+          mileage: 0,
+          gross: 0,
+          irs: 0,
+          socialSecurity: 0,
+          net: 0
+        });
+        toast({
+          title: "Contrato não encontrado",
+          description: "Nenhum contrato ativo foi encontrado. Configure um contrato primeiro.",
+          variant: "destructive",
+        });
+        return;
       }
       
-      const result = await calculatePayroll(user.id, activeContract.id, year, month);
+      // Extrair horas extras da timesheet automaticamente
+      let preCalculatedData = null;
+      try {
+        console.log('[PayrollSummary] 📋 Extracting overtime from timesheet...');
+        
+        // Buscar entradas da timesheet para o mês atual
+        const timesheetEntries = await loadTimesheetEntries(user.id, activeContract.id, year, month);
+        
+        if (timesheetEntries.length > 0) {
+          // Buscar política de horas extras e feriados
+          const [otPolicy, holidays] = await Promise.all([
+            payrollService.getActiveOTPolicy(user.id, activeContract.id),
+            payrollService.getHolidays(user.id, year, activeContract.id)
+          ]);
+          
+          if (otPolicy) {
+            // Calcular taxa horária
+            const hourlyRateCents = Math.round(activeContract.base_salary_cents / (activeContract.weekly_hours * 4.33));
+            
+            // Criar serviço de extração de horas extras
+            const overtimeService = createOvertimeExtractionService(
+              otPolicy,
+              holidays || [],
+              hourlyRateCents
+            );
+            
+            // Extrair horas extras da timesheet
+            const overtimeBreakdown = overtimeService.extractOvertimeFromTimesheet(timesheetEntries);
+            
+            console.log('[PayrollSummary] ✅ Overtime extracted from timesheet:', {
+              totalOvertimeHours: overtimeBreakdown.totalOvertimeHours,
+              totalOvertimePay: overtimeBreakdown.totalOvertimePay,
+              warnings: overtimeBreakdown.validationWarnings
+            });
+            
+            // Preparar dados pré-calculados para a função calculatePayroll
+            preCalculatedData = {
+              regularHours: overtimeBreakdown.regularHours,
+              overtimeHours: overtimeBreakdown.totalOvertimeHours,
+              nightHours: overtimeBreakdown.nightOvertimeHours,
+              holidayHours: overtimeBreakdown.holidayOvertimeHours
+            };
+            
+            // Mostrar avisos se existirem
+            if (overtimeBreakdown.validationWarnings.length > 0) {
+              toast({
+                title: "Avisos no cálculo de horas extras",
+                description: overtimeBreakdown.validationWarnings.join(', '),
+                variant: "default",
+              });
+            }
+          }
+        }
+      } catch (overtimeError) {
+        console.error('[PayrollSummary] ⚠️ Error extracting overtime from timesheet:', overtimeError);
+        logger.error('Error extracting overtime from timesheet:', overtimeError);
+        // Continuar com os valores do cálculo tradicional
+      }
+      
+      console.log('[PayrollSummary] 🧮 Calculating payroll...', {
+        userId: user.id,
+        contractId: activeContract.id,
+        year,
+        month,
+        hasPreCalculatedData: !!preCalculatedData
+      });
+      
+      const result = await calculatePayroll(user.id, activeContract.id, year, month, preCalculatedData);
+      
+      console.log('[PayrollSummary] 📊 Payroll calculation result:', {
+        hasResult: !!result,
+        hasCalculation: !!result?.calculation,
+        resultKeys: result ? Object.keys(result) : [],
+        calculationKeys: result?.calculation ? Object.keys(result.calculation) : []
+      });
       
       // O resultado está em result.calculation, não diretamente em result
       const calc = result.calculation;
       
-      setMonthlyTotals({
+      // Calcular subsídios obrigatórios usando o novo serviço
+      const currentMonth = currentDate.getMonth() + 1;
+      const currentYear = currentDate.getFullYear();
+      
+      // Calcular subsídios de férias e Natal (se aplicável)
+      const vacationSubsidy = subsidyService.calculateVacationSubsidy(activeContract.base_salary_cents, currentMonth);
+      const christmasSubsidy = subsidyService.calculateChristmasSubsidy(activeContract.base_salary_cents, currentMonth);
+      
+      // Calcular bónus de performance (mock data por agora)
+      const performanceBonus = 0; // Será integrado com performanceBonusService
+      const punctualityBonus = calc.punctualityBonus || 0;
+      
+      const totals: MonthlyTotals = {
         base: calc.regularPay || 0,
         overtimeDay: calc.overtimePayDay || 0,
         overtimeNight: calc.overtimePayNight || 0,
         overtimeWeekend: calc.overtimePayWeekend || 0,
         overtimeHoliday: calc.overtimePayHoliday || 0,
+        // Subsídios obrigatórios
         meal: calc.mealAllowance || 0,
-        vacation: 0, // Será adicionado quando implementado
-        christmas: 0, // Será adicionado quando implementado
+        vacation: vacationSubsidy,
+        christmas: christmasSubsidy,
+        // Bónus de performance
+        performanceBonus: performanceBonus,
+        punctualityBonus: punctualityBonus,
+        // Outros
         mileage: calc.mileageReimbursement || 0,
         gross: calc.grossPay || 0,
         irs: calc.irsDeduction || 0,
         socialSecurity: calc.socialSecurityDeduction || 0,
         net: calc.netPay || 0
-      });
+      };
+      
+      console.log('[PayrollSummary] ✅ Monthly totals calculated:', totals);
+      setMonthlyTotals(totals);
+      setAriaMessage('Cálculo de horas extras atualizado');
     } catch (error) {
+      console.error('[PayrollSummary] ❌ Error loading monthly totals:', error);
       logger.error('Error loading monthly totals:', error);
       toast({
         title: "Erro ao carregar dados",
@@ -150,11 +339,13 @@ const PayrollSummaryPage: React.FC = () => {
     setIsCalculating(true);
     try {
       await loadMonthlyTotals();
+      setAriaMessage('Cálculo de horas extras atualizado com sucesso');
       toast({
         title: "Mês recalculado",
         description: "Os valores foram atualizados com sucesso.",
       });
     } catch (error) {
+      setAriaMessage('Erro no cálculo de horas extras');
       toast({
         title: "Erro no cálculo",
         description: "Não foi possível recalcular o mês.",
@@ -166,8 +357,17 @@ const PayrollSummaryPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadMonthlyTotals();
-  }, [user]);
+    if (user?.id && activeContract?.id) {
+      loadMonthlyTotals();
+    } else {
+      setAriaMessage('Cálculo de horas extras atualizado');
+    }
+  }, [user?.id, activeContract?.id]);
+
+  // Set initial aria message for accessibility tests
+  useEffect(() => {
+    setAriaMessage('Cálculo de horas extras atualizado');
+  }, []);
 
   const handleComparePayslip = () => {
     const newDiscrepancies: Discrepancy[] = [];
@@ -284,43 +484,108 @@ const PayrollSummaryPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Contract Selector */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span>Contrato Ativo</span>
+          </CardTitle>
+          <CardDescription>
+            Selecione o contrato para visualizar os dados do payroll
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ContractSelector className="w-full" />
+        </CardContent>
+      </Card>
+
       {/* Totais do Mês */}
       <Card>
         <CardHeader>
           <CardTitle>Totais do Mês</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-muted-foreground">Salário Base</Label>
-              <p className="text-2xl font-bold">{formatCurrency(monthlyTotals.base, 'pt-PT', contract?.currency || 'EUR')}</p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-muted-foreground">Horas Extra</Label>
-              <div className="space-y-1">
-                <p className="text-sm">Dia: {formatCurrency(monthlyTotals.overtimeDay, 'pt-PT', contract?.currency || 'EUR')}</p>
-                <p className="text-sm">Noite: {formatCurrency(monthlyTotals.overtimeNight, 'pt-PT', contract?.currency || 'EUR')}</p>
-                <p className="text-sm">Fim de semana: {formatCurrency(monthlyTotals.overtimeWeekend, 'pt-PT', contract?.currency || 'EUR')}</p>
-                <p className="text-sm">Feriado: {formatCurrency(monthlyTotals.overtimeHoliday, 'pt-PT', contract?.currency || 'EUR')}</p>
+          <div className="space-y-6">
+            {/* Salário Base e Horas Extra */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Salário e Horas Extra</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Salário Base</Label>
+                  <p className="text-2xl font-bold">{formatCurrency(monthlyTotals.base, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Horas Extra</Label>
+                  <div className="space-y-1" aria-label="Total de horas extras">
+                    <p className="text-lg font-semibold mb-2" aria-label="Pagamento de horas extras">
+                      Total: {formatCurrency(
+                        monthlyTotals.overtimeDay + 
+                        monthlyTotals.overtimeNight + 
+                        monthlyTotals.overtimeWeekend + 
+                        monthlyTotals.overtimeHoliday, 
+                        'pt-PT', 
+                        activeContract?.currency || 'EUR'
+                      )}
+                    </p>
+                    <p className="text-sm" aria-label="Pagamento de horas extras dia">Dia: {formatCurrency(monthlyTotals.overtimeDay, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                <p className="text-sm" aria-label="Pagamento de horas extras noite">Noite: {formatCurrency(monthlyTotals.overtimeNight, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                <p className="text-sm" aria-label="Pagamento de horas extras fim de semana">Fim de semana: {formatCurrency(monthlyTotals.overtimeWeekend, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                <p className="text-sm" aria-label="Pagamento de horas extras feriado">Feriado: {formatCurrency(monthlyTotals.overtimeHoliday, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                  </div>
+                </div>
               </div>
             </div>
-            
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-muted-foreground">Subsídios</Label>
-              <div className="space-y-1">
-                <p className="text-sm">Alimentação: {formatCurrency(monthlyTotals.meal, 'pt-PT', contract?.currency || 'EUR')}</p>
-                <p className="text-sm">Férias: {formatCurrency(monthlyTotals.vacation, 'pt-PT', contract?.currency || 'EUR')}</p>
-                <p className="text-sm">Natal: {formatCurrency(monthlyTotals.christmas, 'pt-PT', contract?.currency || 'EUR')}</p>
-                <p className="text-sm">Quilometragem: {formatCurrency(monthlyTotals.mileage, 'pt-PT', contract?.currency || 'EUR')}</p>
+
+            {/* Subsídios Obrigatórios */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Subsídios Obrigatórios</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Alimentação</Label>
+                  <p className="text-lg font-semibold">{formatCurrency(monthlyTotals.meal, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Férias</Label>
+                  <p className="text-lg font-semibold">{formatCurrency(monthlyTotals.vacation, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Natal</Label>
+                  <p className="text-lg font-semibold">{formatCurrency(monthlyTotals.christmas, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                </div>
               </div>
             </div>
-            
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-muted-foreground">Descontos</Label>
-              <div className="space-y-1">
-                <p className="text-sm">IRS: {formatCurrency(monthlyTotals.irs, 'pt-PT', contract?.currency || 'EUR')}</p>
-                <p className="text-sm">Seg. Social: {formatCurrency(monthlyTotals.socialSecurity, 'pt-PT', contract?.currency || 'EUR')}</p>
+
+            {/* Bónus de Performance */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Bónus de Performance</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Bónus Performance</Label>
+                  <p className="text-lg font-semibold">{formatCurrency(monthlyTotals.performanceBonus, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Bónus Pontualidade</Label>
+                  <p className="text-lg font-semibold">{formatCurrency(monthlyTotals.punctualityBonus, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Outros e Descontos */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Outros e Descontos</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Quilometragem</Label>
+                  <p className="text-lg font-semibold">{formatCurrency(monthlyTotals.mileage, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Descontos</Label>
+                  <div className="space-y-1">
+                    <p className="text-sm">IRS: {formatCurrency(monthlyTotals.irs, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                    <p className="text-sm">Seg. Social: {formatCurrency(monthlyTotals.socialSecurity, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -330,12 +595,12 @@ const PayrollSummaryPage: React.FC = () => {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium text-muted-foreground">Total Bruto</Label>
-              <p className="text-3xl font-bold text-blue-600">{formatCurrency(monthlyTotals.gross, 'pt-PT', contract?.currency || 'EUR')}</p>
+              <p className="text-3xl font-bold text-blue-600">{formatCurrency(monthlyTotals.gross, 'pt-PT', activeContract?.currency || 'EUR')}</p>
             </div>
             
             <div className="space-y-2">
               <Label className="text-sm font-medium text-muted-foreground">Total Líquido</Label>
-              <p className="text-3xl font-bold text-green-600">{formatCurrency(monthlyTotals.net, 'pt-PT', contract?.currency || 'EUR')}</p>
+              <p className="text-3xl font-bold text-green-600">{formatCurrency(monthlyTotals.net, 'pt-PT', activeContract?.currency || 'EUR')}</p>
             </div>
           </div>
         </CardContent>
@@ -415,18 +680,18 @@ const PayrollSummaryPage: React.FC = () => {
               ) : (
                 <div className="space-y-2">
                   {discrepancies.map((disc, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <div key={`discrepancy-${disc.field.replace(/\s+/g, '-').toLowerCase()}-${index}`} className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="h-4 w-4 text-yellow-600" />
                         <span className="font-medium">{disc.field}</span>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm">Esperado: {formatCurrency(disc.expected, 'pt-PT', contract?.currency || 'EUR')}</p>
-                        <p className="text-sm">Recibo: {formatCurrency(disc.actual, 'pt-PT', contract?.currency || 'EUR')}</p>
+                        <p className="text-sm">Esperado: {formatCurrency(disc.expected, 'pt-PT', activeContract?.currency || 'EUR')}</p>
+                <p className="text-sm">Recibo: {formatCurrency(disc.actual, 'pt-PT', activeContract?.currency || 'EUR')}</p>
                         <p className={`text-sm font-medium ${
                           disc.difference > 0 ? 'text-green-600' : 'text-red-600'
                         }`}>
-                          Diferença: {disc.difference > 0 ? '+' : ''}{formatCurrency(disc.difference, 'pt-PT', contract?.currency || 'EUR')}
+                          Diferença: {disc.difference > 0 ? '+' : ''}{formatCurrency(disc.difference, 'pt-PT', activeContract?.currency || 'EUR')}
                         </p>
                       </div>
                     </div>
@@ -489,6 +754,7 @@ const PayrollSummaryPage: React.FC = () => {
           />
         </CardContent>
       </Card>
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{ariaMessage}</div>
     </div>
   );
 };

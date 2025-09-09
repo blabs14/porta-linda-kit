@@ -60,9 +60,18 @@ const PayrollContractsPage: React.FC = () => {
   };
 
   const handleDeleteContract = async (contractId: string) => {
+    if (!user?.id) {
+      toast({
+        title: 'Erro',
+        description: 'Utilizador não autenticado.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     try {
       setDeletingContractId(contractId);
-      await payrollService.deleteContract(contractId);
+      await payrollService.deleteContract(contractId, user.id);
       
       toast({
         title: 'Sucesso',

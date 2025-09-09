@@ -842,7 +842,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
                             <h4 className="font-medium text-yellow-800">Avisos</h4>
                             <ul className="mt-1 text-sm text-yellow-700">
                               {validationWarnings.map((warning, index) => (
-                                <li key={index}>• {warning}</li>
+                                <li key={`warning-${warning.replace(/\s+/g, '-').toLowerCase().slice(0, 20)}-${index}`}>• {warning}</li>
                               ))}
                             </ul>
                           </div>

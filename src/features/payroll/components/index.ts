@@ -65,6 +65,7 @@ export {
   calcHourly,
   calcMeal,
   calcBonuses,
+  calcSubsidies,
   calcMileage,
   calcMonth,
   centsToEuros,
@@ -73,3 +74,6 @@ export {
   calculateHours,
   validateTimeEntry
 } from '../lib/calc';
+
+// Re-export subsidy service
+export { subsidyService } from '../services/subsidyService';

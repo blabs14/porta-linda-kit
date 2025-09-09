@@ -507,3 +507,24 @@ export type {
   EvaluationPeriod,
   CalculationStatus
 } from './performanceBonus';
+
+// Subsidy types (férias e Natal)
+export type {
+  SubsidyType,
+  SubsidyStatus,
+  SubsidyPaymentMethod,
+  SubsidyConfig,
+  VacationSubsidyConfig,
+  ChristmasSubsidyConfig,
+  SubsidyCalculation,
+  SubsidyCalculationResult,
+  SubsidyCalculationInput,
+  SubsidyPaymentHistory,
+  SubsidyReport,
+  SubsidyValidationResult,
+  MockSubsidyData,
+  SubsidyConfigUnion,
+  SubsidyTypeConfig
+} from './subsidies';
+
+export { SUBSIDY_CONSTANTS } from './subsidies';

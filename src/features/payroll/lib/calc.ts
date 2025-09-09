@@ -276,7 +276,7 @@ export function calcMeal(
 }
 
 /**
- * Calcula bónus baseado em critérios específicos
+ * Calcula bónus baseado em condições (performance, pontualidade, etc.)
  * @param baseAmount Valor base em centavos
  * @param multiplier Multiplicador do bónus
  * @param conditions Condições para aplicar o bónus
@@ -291,6 +291,42 @@ export function calcBonuses(
   const allConditionsMet = Object.values(conditions).every(condition => condition);
   
   return allConditionsMet ? Math.round(baseAmount * multiplier) : 0;
+}
+
+/**
+ * Calcula subsídios obrigatórios (férias, Natal, refeição)
+ * @param subsidyType Tipo de subsídio ('vacation', 'christmas', 'meal')
+ * @param baseSalaryCents Salário base em centavos
+ * @param workedMonths Meses trabalhados no ano
+ * @param workingDays Dias de trabalho (para subsídio de refeição)
+ * @param dailyMealAllowanceCents Valor diário do subsídio de refeição
+ * @param proportional Se deve calcular proporcionalmente
+ * @returns Valor do subsídio em centavos
+ */
+export function calcSubsidies(
+  subsidyType: 'vacation' | 'christmas' | 'meal',
+  baseSalaryCents: number,
+  workedMonths: number = 12,
+  workingDays: number = 22,
+  dailyMealAllowanceCents: number = 700, // €7.00
+  proportional: boolean = true
+): number {
+  switch (subsidyType) {
+    case 'vacation':
+    case 'christmas':
+      // Subsídios de férias e Natal = 1 salário base
+      if (proportional && workedMonths < 12) {
+        return Math.round((baseSalaryCents * workedMonths) / 12);
+      }
+      return baseSalaryCents;
+    
+    case 'meal':
+      // Subsídio de refeição = valor diário × dias trabalhados
+      return Math.round(dailyMealAllowanceCents * workingDays);
+    
+    default:
+      return 0;
+  }
 }
 
 /**
@@ -309,6 +345,20 @@ export function calcMileage(
 }
 
 /**
+ * Interface para dados pré-calculados da timesheet
+ */
+interface PreCalculatedOvertimeData {
+  regularHours: number;
+  overtimeHours: number;
+  regularPay: number;
+  overtimePayDay: number;
+  overtimePayNight: number;
+  overtimePayWeekend: number;
+  overtimePayHoliday: number;
+  totalOvertimePay: number;
+}
+
+/**
  * Calcula o total mensal de um funcionário
  * @param contract Contrato do funcionário
  * @param timeEntries Entradas de tempo do mês
@@ -318,6 +368,7 @@ export function calcMileage(
  * @param mileageRateCents Taxa de quilometragem em centavos
  * @param mealAllowanceConfig Configuração de subsídio de alimentação
  * @param vacations Períodos de férias
+ * @param preCalculatedData Dados pré-calculados da timesheet (opcional)
  * @returns Cálculo completo da folha de pagamento
  */
 export function calcMonth(
@@ -331,7 +382,8 @@ export function calcMonth(
   vacations: PayrollVacation[] = [],
   weeklyHours?: number,
   annualOvertimeHours?: number,
-  deductionConfig?: { irs_percentage: number; social_security_percentage: number; irs_surcharge_percentage?: number; solidarity_contribution_percentage?: number }
+  deductionConfig?: { irs_percentage: number; social_security_percentage: number; irs_surcharge_percentage?: number; solidarity_contribution_percentage?: number },
+  preCalculatedData?: PreCalculatedOvertimeData
 ): PayrollCalculation {
   // Validar limites semanais e anuais se fornecidos
   const validationErrors: string[] = [];
@@ -351,115 +403,125 @@ export function calcMonth(
   
   let regularHours = 0;
   let overtimeHours = 0;
-
-  // Processar todas as entradas de tempo
-  timeEntries.forEach(entry => {
-    // Validar entrada de tempo individual (incluindo limite diário de horas extras)
-    const entryValidation = validateTimeEntry(
-      entry,
-      contract.weekly_hours / 5, // Horas contratuais por dia (assumindo 5 dias úteis)
-      otPolicy.daily_limit_hours || 2 // Limite diário de horas extras da política
-    );
-    
-    if (!entryValidation.isValid) {
-      validationErrors.push(...entryValidation.errors);
-    }
-    
-    // Verificar descanso compensatório para trabalho ao domingo
-    const entryDate = new Date(entry.date);
-    const totalHours = calculateHours(entry.start_time, entry.end_time, entry.break_minutes);
-    const compensatoryCheck = checkCompensatoryRest(entryDate, totalHours);
-    
-    if (compensatoryCheck.isRequired) {
-      validationErrors.push(`${compensatoryCheck.reason} - ${compensatoryCheck.compensatoryHours.toFixed(2)} horas de descanso compensatório necessárias para ${entry.date}`);
-    }
-    
-    const segments = segmentEntry(entry, otPolicy);
-    
-    segments.forEach(segment => {
-      if (segment.isOvertime) {
-        overtimeHours += segment.hours;
-      } else {
-        regularHours += segment.hours;
-      }
-    });
-  });
-
-  // Calcular pagamentos com multiplicadores corretos
-  // Para horas regulares, precisamos calcular por segmento para aplicar adicional noturno
   let regularPay = 0;
-  
-  timeEntries.forEach(entry => {
-    const entryDate = new Date(entry.date);
-    const isWeekend = entryDate.getDay() === 0 || entryDate.getDay() === 6;
-    const isHoliday = holidays.some(h => h.date === entry.date);
-    
-    const segments = segmentEntry(entry, otPolicy);
-    
-    segments.forEach(segment => {
-      if (!segment.isOvertime) {
-        const segmentPay = calcHourly(
-          segment.hours,
-          contract.hourly_rate_cents,
-          false,
-          isWeekend,
-          isHoliday,
-          segment.isNightShift,
-          false,
-          otPolicy
-        );
-        
-        regularPay += segmentPay;
-      }
-    });
-  });
-  
-  // Para horas extras, precisamos calcular por segmento para aplicar multiplicadores corretos
-  let overtimePay = 0;
   let overtimePayDay = 0;
   let overtimePayNight = 0;
   let overtimePayWeekend = 0;
   let overtimePayHoliday = 0;
-  
-  timeEntries.forEach(entry => {
-    const entryDate = new Date(entry.date);
-    const isWeekend = entryDate.getDay() === 0 || entryDate.getDay() === 6;
-    const isHoliday = holidays.some(h => h.date === entry.date);
-    
-    const segments = segmentEntry(entry, otPolicy);
-    let dailyOvertimeHours = 0;
-    
-    segments.forEach(segment => {
-      if (segment.isOvertime) {
-        const isFirstOvertimeHour = dailyOvertimeHours === 0;
-        const segmentPay = calcHourly(
-          segment.hours,
-          contract.hourly_rate_cents,
-          true,
-          isWeekend,
-          isHoliday,
-          segment.isNightShift,
-          isFirstOvertimeHour,
-          otPolicy
-        );
-        
-        overtimePay += segmentPay;
-        
-        // Categorizar por tipo de hora extra
-        if (isHoliday) {
-          overtimePayHoliday += segmentPay;
-        } else if (isWeekend) {
-          overtimePayWeekend += segmentPay;
-        } else if (segment.isNightShift) {
-          overtimePayNight += segmentPay;
-        } else {
-          overtimePayDay += segmentPay;
-        }
-        
-        dailyOvertimeHours += segment.hours;
+  let overtimePay = 0;
+
+  // Se temos dados pré-calculados da timesheet, usar esses valores
+  if (preCalculatedData) {
+    regularHours = preCalculatedData.regularHours;
+    overtimeHours = preCalculatedData.overtimeHours;
+    regularPay = preCalculatedData.regularPay;
+    overtimePayDay = preCalculatedData.overtimePayDay;
+    overtimePayNight = preCalculatedData.overtimePayNight;
+    overtimePayWeekend = preCalculatedData.overtimePayWeekend;
+    overtimePayHoliday = preCalculatedData.overtimePayHoliday;
+    overtimePay = preCalculatedData.totalOvertimePay;
+  } else {
+    // Processar todas as entradas de tempo (método tradicional)
+    timeEntries.forEach(entry => {
+      // Validar entrada de tempo individual (incluindo limite diário de horas extras)
+      const entryValidation = validateTimeEntry(
+        entry,
+        contract.weekly_hours / 5, // Horas contratuais por dia (assumindo 5 dias úteis)
+        otPolicy.daily_limit_hours || 2 // Limite diário de horas extras da política
+      );
+      
+      if (!entryValidation.isValid) {
+        validationErrors.push(...entryValidation.errors);
       }
+      
+      // Verificar descanso compensatório para trabalho ao domingo
+      const entryDate = new Date(entry.date);
+      const totalHours = calculateHours(entry.start_time, entry.end_time, entry.break_minutes);
+      const compensatoryCheck = checkCompensatoryRest(entryDate, totalHours);
+      
+      if (compensatoryCheck.isRequired) {
+        validationErrors.push(`${compensatoryCheck.reason} - ${compensatoryCheck.compensatoryHours.toFixed(2)} horas de descanso compensatório necessárias para ${entry.date}`);
+      }
+      
+      const segments = segmentEntry(entry, otPolicy);
+      
+      segments.forEach(segment => {
+        if (segment.isOvertime) {
+          overtimeHours += segment.hours;
+        } else {
+          regularHours += segment.hours;
+        }
+      });
     });
-  });
+
+    // Calcular pagamentos com multiplicadores corretos (método tradicional)
+    // Para horas regulares, precisamos calcular por segmento para aplicar adicional noturno
+    timeEntries.forEach(entry => {
+      const entryDate = new Date(entry.date);
+      const isWeekend = entryDate.getDay() === 0 || entryDate.getDay() === 6;
+      const isHoliday = holidays.some(h => h.date === entry.date);
+      
+      const segments = segmentEntry(entry, otPolicy);
+      
+      segments.forEach(segment => {
+        if (!segment.isOvertime) {
+          const segmentPay = calcHourly(
+            segment.hours,
+            contract.hourly_rate_cents,
+            false,
+            isWeekend,
+            isHoliday,
+            segment.isNightShift,
+            false,
+            otPolicy
+          );
+          
+          regularPay += segmentPay;
+        }
+      });
+    });
+    
+    // Para horas extras, precisamos calcular por segmento para aplicar multiplicadores corretos
+    timeEntries.forEach(entry => {
+      const entryDate = new Date(entry.date);
+      const isWeekend = entryDate.getDay() === 0 || entryDate.getDay() === 6;
+      const isHoliday = holidays.some(h => h.date === entry.date);
+      
+      const segments = segmentEntry(entry, otPolicy);
+      let dailyOvertimeHours = 0;
+      
+      segments.forEach(segment => {
+        if (segment.isOvertime) {
+          const isFirstOvertimeHour = dailyOvertimeHours === 0;
+          const segmentPay = calcHourly(
+            segment.hours,
+            contract.hourly_rate_cents,
+            true,
+            isWeekend,
+            isHoliday,
+            segment.isNightShift,
+            isFirstOvertimeHour,
+            otPolicy
+          );
+          
+          overtimePay += segmentPay;
+          
+          // Categorizar por tipo de hora extra
+          if (isHoliday) {
+            overtimePayHoliday += segmentPay;
+          } else if (isWeekend) {
+            overtimePayWeekend += segmentPay;
+          } else if (segment.isNightShift) {
+            overtimePayNight += segmentPay;
+          } else {
+            overtimePayDay += segmentPay;
+          }
+          
+          dailyOvertimeHours += segment.hours;
+        }
+      });
+    });
+  }
   
   // Calcular subsídios de refeição por dia trabalhado
   let mealAllowance = 0;

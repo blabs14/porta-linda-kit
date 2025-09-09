@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Auth</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Debug Supabase Auth</h1>
+    <div id="output"></div>
+    
+    <script>
+        const supabaseUrl = 'https://ebitcwrrcumsvqjgrapw.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY';
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true,
+                detectSessionInUrl: true,
+                flowType: 'pkce',
+            },
+        });
+        
+        const output = document.getElementById('output');
+        
+        function log(message) {
+            console.log(message);
+            output.innerHTML += '<p>' + JSON.stringify(message, null, 2) + '</p>';
+        }
+        
+        async function checkAuth() {
+            log('=== Verificando autenticação ===');
+            
+            // Verificar sessão atual
+            const { data: session, error: sessionError } = await supabase.auth.getSession();
+            log('Sessão atual:', { session: session?.session, error: sessionError });
+            
+            // Verificar utilizador atual
+            const { data: user, error: userError } = await supabase.auth.getUser();
+            log('Utilizador atual:', { user: user?.user, error: userError });
+            
+            // Verificar localStorage
+            const localStorageKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.includes('supabase')) {
+                    localStorageKeys.push({
+                        key,
+                        value: localStorage.getItem(key)?.substring(0, 100) + '...'
+                    });
+                }
+            }
+            log('LocalStorage Supabase keys:', localStorageKeys);
+        }
+        
+        // Executar verificação
+        checkAuth();
+        
+        // Escutar mudanças de autenticação
+        supabase.auth.onAuthStateChange((event, session) => {
+            log('Auth state change:', { event, session });
+        });
+    </script>
+</body>
+</html>

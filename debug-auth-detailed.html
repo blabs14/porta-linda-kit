@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Autenticação Detalhado</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .token-item {
+            background: #f8f9fa;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+        }
+        .valid { border-left: 4px solid #28a745; }
+        .expired { border-left: 4px solid #dc3545; }
+        .unknown { border-left: 4px solid #ffc107; }
+        .log-entry {
+            padding: 8px;
+            margin: 2px 0;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        .log-info { background: #d1ecf1; }
+        .log-warn { background: #fff3cd; }
+        .log-error { background: #f8d7da; }
+        .log-success { background: #d4edda; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        .danger { background: #dc3545; }
+        .danger:hover { background: #c82333; }
+        .success { background: #28a745; }
+        .success:hover { background: #218838; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .monitoring {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug Autenticação Detalhado</h1>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="tokenCount">0</div>
+                <div>Tokens Supabase</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="validTokens">0</div>
+                <div>Tokens Válidos</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="expiredTokens">0</div>
+                <div>Tokens Expirados</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="logCount">0</div>
+                <div>Logs Capturados</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>🎛️ Controlos</h3>
+            <button onclick="analyzeTokens()">🔍 Analisar Tokens</button>
+            <button onclick="simulateRefresh()" class="success">🔄 Simular Refresh</button>
+            <button onclick="monitorChanges()" id="monitorBtn">📊 Iniciar Monitorização</button>
+            <button onclick="clearLogs()">🧹 Limpar Logs</button>
+            <button onclick="exportDebugData()" class="success">📤 Exportar Debug</button>
+            <button onclick="clearAllTokens()" class="danger">⚠️ Limpar Todos os Tokens</button>
+        </div>
+
+        <div class="section monitoring" id="monitoringSection" style="display: none;">
+            <h3>📊 Monitorização em Tempo Real</h3>
+            <p>A monitorizar alterações no localStorage e eventos de autenticação...</p>
+            <div id="realTimeStats"></div>
+        </div>
+
+        <div class="section">
+            <h3>🔑 Tokens do Supabase</h3>
+            <div id="tokensList"></div>
+        </div>
+
+        <div class="section">
+            <h3>📋 Logs de Debug</h3>
+            <div id="debugLogs"></div>
+        </div>
+    </div>
+
+    <script>
+        let logs = [];
+        let monitoring = false;
+        let monitorInterval;
+        let lastTokenState = {};
+
+        function log(message, type = 'info', data = null) {
+            const timestamp = new Date().toLocaleTimeString('pt-PT');
+            const logEntry = {
+                timestamp,
+                message,
+                type,
+                data: data ? JSON.stringify(data, null, 2) : null
+            };
+            logs.push(logEntry);
+            
+            const logsDiv = document.getElementById('debugLogs');
+            const logElement = document.createElement('div');
+            logElement.className = `log-entry log-${type}`;
+            logElement.innerHTML = `
+                <strong>[${timestamp}]</strong> ${message}
+                ${data ? `<pre style="margin: 5px 0; font-size: 10px;">${JSON.stringify(data, null, 2)}</pre>` : ''}
+            `;
+            logsDiv.insertBefore(logElement, logsDiv.firstChild);
+            
+            document.getElementById('logCount').textContent = logs.length;
+            
+            // Auto-scroll para o topo
+            logsDiv.scrollTop = 0;
+        }
+
+        function getSupabaseTokens() {
+            const tokens = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && /^sb-/i.test(key)) {
+                    tokens[key] = localStorage.getItem(key);
+                }
+            }
+            return tokens;
+        }
+
+        function analyzeToken(key, value) {
+            const analysis = {
+                key,
+                type: 'unknown',
+                valid: false,
+                expiresAt: null,
+                size: value.length,
+                data: null
+            };
+
+            try {
+                // Tentar parsear como JSON
+                const parsed = JSON.parse(value);
+                analysis.data = parsed;
+                
+                if (parsed.expires_at) {
+                    analysis.expiresAt = new Date(parsed.expires_at * 1000);
+                    analysis.valid = analysis.expiresAt > new Date();
+                    analysis.type = analysis.valid ? 'valid' : 'expired';
+                }
+                
+                if (parsed.access_token) {
+                    analysis.type = 'session';
+                }
+                
+                if (key.includes('code-verifier') || key.includes('pkce')) {
+                    analysis.type = 'temporary';
+                }
+                
+            } catch (e) {
+                // Não é JSON válido
+                analysis.type = 'string';
+            }
+
+            return analysis;
+        }
+
+        function analyzeTokens() {
+            log('🔍 Iniciando análise de tokens...', 'info');
+            
+            const tokens = getSupabaseTokens();
+            const tokensList = document.getElementById('tokensList');
+            tokensList.innerHTML = '';
+            
+            let validCount = 0;
+            let expiredCount = 0;
+            
+            if (Object.keys(tokens).length === 0) {
+                tokensList.innerHTML = '<p style="color: #666; font-style: italic;">Nenhum token do Supabase encontrado</p>';
+                log('❌ Nenhum token do Supabase encontrado', 'warn');
+            } else {
+                Object.entries(tokens).forEach(([key, value]) => {
+                    const analysis = analyzeToken(key, value);
+                    
+                    if (analysis.valid) validCount++;
+                    if (analysis.type === 'expired') expiredCount++;
+                    
+                    const tokenDiv = document.createElement('div');
+                    tokenDiv.className = `token-item ${analysis.type}`;
+                    tokenDiv.innerHTML = `
+                        <strong>${key}</strong><br>
+                        <small>Tipo: ${analysis.type} | Tamanho: ${analysis.size} chars</small><br>
+                        ${analysis.expiresAt ? `<small>Expira: ${analysis.expiresAt.toLocaleString('pt-PT')}</small><br>` : ''}
+                        <details style="margin-top: 5px;">
+                            <summary>Ver dados</summary>
+                            <pre style="font-size: 10px; margin: 5px 0;">${value}</pre>
+                        </details>
+                    `;
+                    tokensList.appendChild(tokenDiv);
+                });
+                
+                log(`✅ Análise concluída: ${Object.keys(tokens).length} tokens encontrados`, 'success', {
+                    total: Object.keys(tokens).length,
+                    valid: validCount,
+                    expired: expiredCount
+                });
+            }
+            
+            // Atualizar estatísticas
+            document.getElementById('tokenCount').textContent = Object.keys(tokens).length;
+            document.getElementById('validTokens').textContent = validCount;
+            document.getElementById('expiredTokens').textContent = expiredCount;
+        }
+
+        function simulateRefresh() {
+            log('🔄 Simulando refresh da página...', 'info');
+            
+            // Capturar estado antes do refresh
+            const beforeTokens = getSupabaseTokens();
+            log('📸 Estado antes do refresh capturado', 'info', {
+                tokenCount: Object.keys(beforeTokens).length,
+                tokens: Object.keys(beforeTokens)
+            });
+            
+            // Simular refresh
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        }
+
+        function monitorChanges() {
+            const btn = document.getElementById('monitorBtn');
+            const section = document.getElementById('monitoringSection');
+            
+            if (!monitoring) {
+                monitoring = true;
+                btn.textContent = '⏹️ Parar Monitorização';
+                btn.style.background = '#dc3545';
+                section.style.display = 'block';
+                
+                log('📊 Monitorização iniciada', 'success');
+                
+                // Capturar estado inicial
+                lastTokenState = getSupabaseTokens();
+                
+                monitorInterval = setInterval(() => {
+                    const currentTokens = getSupabaseTokens();
+                    const changes = detectChanges(lastTokenState, currentTokens);
+                    
+                    if (changes.length > 0) {
+                        changes.forEach(change => {
+                            log(`🔄 ${change.type}: ${change.key}`, change.type === 'removed' ? 'warn' : 'info', change);
+                        });
+                    }
+                    
+                    lastTokenState = currentTokens;
+                    
+                    // Atualizar estatísticas em tempo real
+                    updateRealTimeStats(currentTokens);
+                }, 1000);
+                
+            } else {
+                monitoring = false;
+                btn.textContent = '📊 Iniciar Monitorização';
+                btn.style.background = '#007bff';
+                section.style.display = 'none';
+                
+                if (monitorInterval) {
+                    clearInterval(monitorInterval);
+                }
+                
+                log('⏹️ Monitorização parada', 'info');
+            }
+        }
+
+        function detectChanges(oldState, newState) {
+            const changes = [];
+            
+            // Verificar tokens removidos
+            Object.keys(oldState).forEach(key => {
+                if (!(key in newState)) {
+                    changes.push({ type: 'removed', key, value: oldState[key] });
+                }
+            });
+            
+            // Verificar tokens adicionados
+            Object.keys(newState).forEach(key => {
+                if (!(key in oldState)) {
+                    changes.push({ type: 'added', key, value: newState[key] });
+                }
+            });
+            
+            // Verificar tokens modificados
+            Object.keys(newState).forEach(key => {
+                if (key in oldState && oldState[key] !== newState[key]) {
+                    changes.push({ type: 'modified', key, oldValue: oldState[key], newValue: newState[key] });
+                }
+            });
+            
+            return changes;
+        }
+
+        function updateRealTimeStats(tokens) {
+            const statsDiv = document.getElementById('realTimeStats');
+            let validCount = 0;
+            let expiredCount = 0;
+            
+            Object.entries(tokens).forEach(([key, value]) => {
+                const analysis = analyzeToken(key, value);
+                if (analysis.valid) validCount++;
+                if (analysis.type === 'expired') expiredCount++;
+            });
+            
+            statsDiv.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 10px 0;">
+                    <div style="text-align: center; padding: 10px; background: white; border-radius: 4px;">
+                        <div style="font-size: 18px; font-weight: bold;">${Object.keys(tokens).length}</div>
+                        <div style="font-size: 12px;">Total</div>
+                    </div>
+                    <div style="text-align: center; padding: 10px; background: white; border-radius: 4px;">
+                        <div style="font-size: 18px; font-weight: bold; color: #28a745;">${validCount}</div>
+                        <div style="font-size: 12px;">Válidos</div>
+                    </div>
+                    <div style="text-align: center; padding: 10px; background: white; border-radius: 4px;">
+                        <div style="font-size: 18px; font-weight: bold; color: #dc3545;">${expiredCount}</div>
+                        <div style="font-size: 12px;">Expirados</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function clearLogs() {
+            logs = [];
+            document.getElementById('debugLogs').innerHTML = '';
+            document.getElementById('logCount').textContent = '0';
+            log('🧹 Logs limpos', 'info');
+        }
+
+        function exportDebugData() {
+            const debugData = {
+                timestamp: new Date().toISOString(),
+                tokens: getSupabaseTokens(),
+                logs: logs,
+                userAgent: navigator.userAgent,
+                url: window.location.href
+            };
+            
+            const blob = new Blob([JSON.stringify(debugData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `debug-auth-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            log('📤 Dados de debug exportados', 'success');
+        }
+
+        function clearAllTokens() {
+            if (confirm('⚠️ Tem a certeza que quer limpar TODOS os tokens? Isto irá fazer logout!')) {
+                const tokens = getSupabaseTokens();
+                Object.keys(tokens).forEach(key => {
+                    localStorage.removeItem(key);
+                });
+                
+                log('🗑️ Todos os tokens foram removidos', 'warn', {
+                    removedCount: Object.keys(tokens).length
+                });
+                
+                analyzeTokens();
+            }
+        }
+
+        // Interceptar console.log para capturar logs da aplicação
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        
+        console.log = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('[Auth]')) {
+                log(`📱 App Log: ${args.join(' ')}`, 'info');
+            }
+            originalLog.apply(console, args);
+        };
+        
+        console.warn = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('[Auth]')) {
+                log(`⚠️ App Warning: ${args.join(' ')}`, 'warn');
+            }
+            originalWarn.apply(console, args);
+        };
+        
+        console.error = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && args[0].includes('[Auth]')) {
+                log(`❌ App Error: ${args.join(' ')}`, 'error');
+            }
+            originalError.apply(console, args);
+        };
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🚀 Debug de autenticação iniciado', 'success');
+            analyzeTokens();
+            
+            // Verificar se há dados de debug anteriores
+            const previousData = sessionStorage.getItem('debugAuthData');
+            if (previousData) {
+                try {
+                    const data = JSON.parse(previousData);
+                    log('📋 Dados de debug anteriores encontrados', 'info', data);
+                } catch (e) {
+                    log('❌ Erro ao carregar dados anteriores', 'error', e);
+                }
+            }
+            
+            // Guardar estado atual
+            sessionStorage.setItem('debugAuthData', JSON.stringify({
+                timestamp: new Date().toISOString(),
+                tokens: getSupabaseTokens()
+            }));
+        });
+
+        // Capturar eventos de storage
+        window.addEventListener('storage', function(e) {
+            if (e.key && e.key.startsWith('sb-')) {
+                log(`🔄 Storage alterado: ${e.key}`, 'info', {
+                    key: e.key,
+                    oldValue: e.oldValue,
+                    newValue: e.newValue
+                });
+                
+                if (monitoring) {
+                    analyzeTokens();
+                }
+            }
+        });
+
+        // Capturar eventos de beforeunload
+        window.addEventListener('beforeunload', function() {
+            const currentState = {
+                timestamp: new Date().toISOString(),
+                tokens: getSupabaseTokens(),
+                logs: logs.slice(-10) // Últimos 10 logs
+            };
+            sessionStorage.setItem('debugAuthBeforeUnload', JSON.stringify(currentState));
+        });
+    </script>
+</body>
+</html>

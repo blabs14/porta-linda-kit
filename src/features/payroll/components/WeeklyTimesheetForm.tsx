@@ -24,6 +24,7 @@ import { useTimesheetWeekSchedule } from '../hooks/useTimesheetWeekSchedule';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLocale } from '@/contexts/LocaleProvider';
 import { useTranslation } from 'react-i18next';
+import { ContractSelector } from './ContractSelector';
 
 interface WeeklyTimesheetFormProps {
   initialWeekStart?: Date;
@@ -1253,23 +1254,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="contract">Contrato</Label>
-              <Select value={selectedContractId || ''} onValueChange={(value) => {
-                const contract = contracts.find(c => c.id === value);
-                if (contract) {
-                  setActiveContract(contract);
-                }
-              }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um contrato" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contracts.map((contract) => (
-                      <SelectItem key={contract.id} value={contract.id}>
-                        {contract.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <ContractSelector />
             </div>
             <div>
               <Label>Horas Regulares</Label>

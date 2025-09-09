@@ -34,7 +34,7 @@ export function ContractSelector({ className }: ContractSelectorProps) {
       
       toast({
         title: 'Contrato alterado',
-        description: t('payroll.contract.selector.switchedTo', { name: selectedContract.job_category || selectedContract.name }),
+        description: t('payroll.contract.selector.switchedTo', { name: selectedContract.name }),
         variant: 'default',
       });
     }
@@ -68,10 +68,14 @@ export function ContractSelector({ className }: ContractSelectorProps) {
     return (
       <div className={`flex items-center gap-2 ${className}`}>
         <FileText className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium">{contract.job_category || contract.name}</span>
-        <Badge variant="outline" className="text-xs">
-          {contract.workplace_location || 'Local não definido'}
-        </Badge>
+        <div className="flex flex-col">
+          <span className="text-sm font-medium">{contract.name}</span>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>{contract.job_category || 'Categoria não definida'}</span>
+            <span>•</span>
+            <span>{contract.workplace_location || 'Local não definido'}</span>
+          </div>
+        </div>
       </div>
     );
   }
@@ -96,11 +100,13 @@ export function ContractSelector({ className }: ContractSelectorProps) {
             className="text-sm"
           >
             {activeContract && (
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{activeContract.job_category || activeContract.name}</span>
-                <Badge variant="outline" className="text-xs">
-                  {activeContract.workplace_location || 'Local não definido'}
-                </Badge>
+              <div className="flex flex-col">
+                <span className="font-medium">{activeContract.name}</span>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>{activeContract.job_category || 'Categoria não definida'}</span>
+                  <span>•</span>
+                  <span>{activeContract.workplace_location || 'Local não definido'}</span>
+                </div>
               </div>
             )}
           </SelectValue>
@@ -114,10 +120,12 @@ export function ContractSelector({ className }: ContractSelectorProps) {
             >
               <div className="flex items-center justify-between w-full">
                 <div className="flex flex-col">
-                  <span className="font-medium">{contract.job_category || contract.name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {contract.workplace_location || 'Local não definido'}
-                  </span>
+                  <span className="font-medium">{contract.name}</span>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{contract.job_category || 'Categoria não definida'}</span>
+                    <span>•</span>
+                    <span>{contract.workplace_location || 'Local não definido'}</span>
+                  </div>
                 </div>
                 {contract.id === activeContract?.id && (
                   <Badge variant="default" className="text-xs ml-2">

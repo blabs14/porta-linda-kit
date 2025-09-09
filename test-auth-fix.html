@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Autenticação - Correções</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Teste de Autenticação - Verificação das Correções</h1>
+    
+    <div>
+        <button onclick="testAuth()">Testar Estado de Autenticação</button>
+        <button onclick="testLogin()">Testar Login</button>
+        <button onclick="testLogout()">Testar Logout</button>
+        <button onclick="clearLogs()">Limpar Logs</button>
+    </div>
+    
+    <div id="logs"></div>
+    
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2';
+        
+        const supabaseUrl = 'https://ebitcwrrcumsvqjgrapw.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY';
+        
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        function log(message, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            logsDiv.appendChild(logDiv);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+        
+        window.clearLogs = function() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        window.testAuth = async function() {
+            try {
+                log('🔍 Verificando estado de autenticação...', 'info');
+                
+                // Verificar sessão atual
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                
+                if (sessionError) {
+                    log(`❌ Erro ao obter sessão: ${sessionError.message}`, 'error');
+                    return;
+                }
+                
+                if (session) {
+                    log(`✅ Utilizador autenticado: ${session.user.email}`, 'success');
+                    log(`🔑 Token válido até: ${new Date(session.expires_at * 1000).toLocaleString()}`, 'info');
+                    log(`📱 Último login: ${new Date(session.user.last_sign_in_at).toLocaleString()}`, 'info');
+                } else {
+                    log('❌ Nenhum utilizador autenticado', 'error');
+                }
+                
+                // Verificar localStorage
+                const localStorageKeys = Object.keys(localStorage).filter(key => key.includes('supabase'));
+                log(`💾 Chaves no localStorage: ${localStorageKeys.length}`, 'info');
+                localStorageKeys.forEach(key => {
+                    const value = localStorage.getItem(key);
+                    log(`   - ${key}: ${value ? 'presente' : 'vazio'}`, 'info');
+                });
+                
+            } catch (error) {
+                log(`❌ Erro inesperado: ${error.message}`, 'error');
+            }
+        }
+        
+        window.testLogin = async function() {
+            try {
+                log('🔐 Iniciando teste de login...', 'info');
+                
+                const email = 'test@example.com';
+                const password = 'password123';
+                
+                log(`📧 Tentando login com: ${email}`, 'info');
+                
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+                
+                if (error) {
+                    log(`❌ Erro no login: ${error.message}`, 'error');
+                    
+                    // Se o utilizador não existe, tentar criar
+                    if (error.message.includes('Invalid login credentials')) {
+                        log('👤 Utilizador não existe, tentando criar...', 'info');
+                        
+                        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                            email: email,
+                            password: password
+                        });
+                        
+                        if (signUpError) {
+                            log(`❌ Erro ao criar utilizador: ${signUpError.message}`, 'error');
+                        } else {
+                            log(`✅ Utilizador criado com sucesso: ${signUpData.user?.email}`, 'success');
+                            if (signUpData.session) {
+                                log(`🎉 Login automático após registo bem-sucedido`, 'success');
+                            } else {
+                                log(`📧 Verificação de email necessária`, 'info');
+                            }
+                        }
+                    }
+                } else {
+                    log(`✅ Login bem-sucedido: ${data.user.email}`, 'success');
+                    log(`🔑 Sessão criada: ${data.session ? 'Sim' : 'Não'}`, 'info');
+                }
+                
+            } catch (error) {
+                log(`❌ Erro inesperado no login: ${error.message}`, 'error');
+            }
+        }
+        
+        window.testLogout = async function() {
+            try {
+                log('🚪 Iniciando logout...', 'info');
+                
+                const { error } = await supabase.auth.signOut();
+                
+                if (error) {
+                    log(`❌ Erro no logout: ${error.message}`, 'error');
+                } else {
+                    log(`✅ Logout bem-sucedido`, 'success');
+                }
+                
+                // Verificar se a sessão foi realmente removida
+                setTimeout(async () => {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session) {
+                        log(`⚠️ Atenção: Sessão ainda presente após logout!`, 'error');
+                    } else {
+                        log(`✅ Sessão removida com sucesso`, 'success');
+                    }
+                }, 100);
+                
+            } catch (error) {
+                log(`❌ Erro inesperado no logout: ${error.message}`, 'error');
+            }
+        }
+        
+        // Listener para mudanças de estado de autenticação
+        supabase.auth.onAuthStateChange((event, session) => {
+            log(`🔄 Mudança de estado: ${event}`, 'info');
+            if (session) {
+                log(`👤 Sessão ativa: ${session.user.email}`, 'success');
+            } else {
+                log(`👤 Nenhuma sessão ativa`, 'info');
+            }
+        });
+        
+        // Teste inicial
+        log('🚀 Sistema de teste carregado. Clique nos botões para testar.', 'info');
+        
+    </script>
+</body>
+</html>

@@ -2,17 +2,18 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../types/database.types';
 import { logger } from '../shared/lib/logger';
 
-// Em desenvolvimento, remover sessões antigas antes de inicializar o cliente
-try {
-  if (import.meta.env.DEV && typeof window !== 'undefined') {
-    const toDelete: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i) ?? '';
-      if (/^(sb-|supabase\.)/i.test(k)) toDelete.push(k);
-    }
-    toDelete.forEach(k => localStorage.removeItem(k));
-  }
-} catch {}
+// PROBLEMA IDENTIFICADO: Este código estava a remover tokens em desenvolvimento
+// Comentado para permitir persistência de sessão
+// try {
+//   if (import.meta.env.DEV && typeof window !== 'undefined') {
+//     const toDelete: string[] = [];
+//     for (let i = 0; i < localStorage.length; i++) {
+//       const k = localStorage.key(i) ?? '';
+//       if (/^(sb-|supabase\.)/i.test(k)) toDelete.push(k);
+//     }
+//     toDelete.forEach(k => localStorage.removeItem(k));
+//   }
+// } catch {}
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;

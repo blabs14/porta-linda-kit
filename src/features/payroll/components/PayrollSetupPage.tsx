@@ -147,7 +147,15 @@ export function PayrollSetupPage() {
       async () => {
         setLoading(true);
         try {
-          await payrollService.deleteContract(contract.id);
+          if (!user?.id) {
+            toast({
+              title: 'Erro',
+              description: 'Utilizador não autenticado.',
+              variant: 'destructive'
+            });
+            return;
+          }
+          await payrollService.deleteContract(contract.id, user.id);
           toast({
             title: 'Contrato eliminado',
             description: 'O contrato foi eliminado com sucesso.'

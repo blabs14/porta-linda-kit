@@ -233,7 +233,7 @@ const PayrollPeriodsManager: React.FC = () => {
                       <p className="font-medium">Configurações em falta:</p>
                       <ul className="list-disc list-inside text-sm space-y-1">
                         {configStatus.missingConfigurations.map((config, index) => (
-                          <li key={index}>{config}</li>
+                          <li key={`missing-config-${config.replace(/\s+/g, '-').toLowerCase()}-${index}`}>{config}</li>
                         ))}
                       </ul>
                       <Button 

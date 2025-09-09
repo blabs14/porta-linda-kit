@@ -3,6 +3,45 @@ import { PayrollContract, PayrollOTPolicy, PayrollHoliday, PayrollVacation, Payr
 import { formatDateLocal } from '../../../lib/dateUtils';
 
 /**
+ * Valida se um userId é válido
+ */
+function validateUserId(userId: string): void {
+  if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
+    throw new Error('ID de utilizador inválido');
+  }
+}
+
+/**
+ * Valida se um contrato tem os campos obrigatórios
+ */
+function validateContract(contract: any): void {
+  if (!contract) {
+    throw new Error('Contrato não pode ser nulo');
+  }
+  if (!contract.id) {
+    throw new Error('Contrato deve ter um ID válido');
+  }
+  if (!contract.user_id) {
+    throw new Error('Contrato deve ter um user_id válido');
+  }
+}
+
+/**
+ * Valida dados de cálculo de folha de pagamento
+ */
+function validateCalculationData(data: any): void {
+  if (!data) {
+    throw new Error('Dados de cálculo não podem ser nulos');
+  }
+  if (typeof data.baseSalary !== 'number' || data.baseSalary < 0) {
+    throw new Error('Salário base deve ser um número positivo');
+  }
+  if (data.overtimeHours && (typeof data.overtimeHours !== 'number' || data.overtimeHours < 0)) {
+    throw new Error('Horas extra devem ser um número positivo');
+  }
+}
+
+/**
  * Calcula o último dia do mês corretamente
  * @param year Ano
  * @param month Mês (1-12)
@@ -15,6 +54,7 @@ function getLastDayOfMonth(year: number, month: number): string {
 
 // Contract functions
 export async function getContracts(userId: string): Promise<PayrollContract[]> {
+  validateUserId(userId);
   const { data, error } = await supabase
     .from('payroll_contracts')
     .select('*')
@@ -28,6 +68,9 @@ export async function getContracts(userId: string): Promise<PayrollContract[]> {
 // Alias para compatibilidade com testes
 export const getPayrollContracts = getContracts;
 export async function getActiveContract(userId: string): Promise<PayrollContract | null> {
+  validateUserId(userId);
+  console.log('[PayrollService] 🔍 Getting active contract for user:', userId);
+  
   const { data, error } = await supabase
     .from('payroll_contracts')
     .select('*')
@@ -35,7 +78,27 @@ export async function getActiveContract(userId: string): Promise<PayrollContract
     .eq('is_active', true)
     .single();
 
-  if (error && (error as any).code !== 'PGRST116') throw error as any;
+  console.log('[PayrollService] 📊 Query result:', {
+    hasData: !!data,
+    error: error?.message || 'none',
+    errorCode: error?.code || 'none'
+  });
+
+  if (error && (error as any).code !== 'PGRST116') {
+    console.error('[PayrollService] ❌ Database error:', error);
+    throw error as any;
+  }
+  
+  if (!data) {
+    console.warn('[PayrollService] ⚠️ No active contract found for user:', userId);
+  } else {
+    console.log('[PayrollService] ✅ Active contract found:', {
+      contractId: data.id,
+      contractName: data.name,
+      userId: data.user_id
+    });
+  }
+  
   return data as any;
 }
 
@@ -772,13 +835,13 @@ export async function getMileageTrips(
     .from('payroll_mileage_trips')
     .select('*')
     .eq('user_id', userId)
-    .order('trip_date', { ascending: false });
+    .order('date', { ascending: false });
 
   if (startDate) {
-    query = query.gte('trip_date', startDate);
+    query = query.gte('date', startDate);
   }
   if (endDate) {
-    query = query.lte('trip_date', endDate);
+    query = query.lte('date', endDate);
   }
   if (contractId) {
     query = query.eq('contract_id', contractId);
