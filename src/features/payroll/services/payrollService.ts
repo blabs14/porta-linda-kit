@@ -12,6 +12,20 @@ function validateUserId(userId: string): void {
 }
 
 /**
+ * Valida se um contractId é válido (formato UUID)
+ */
+function validateContractId(contractId: string): void {
+  if (!contractId || typeof contractId !== 'string') {
+    throw new Error('ID do contrato inválido');
+  }
+  
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(contractId)) {
+    throw new Error('ID do contrato inválido. Formato UUID esperado.');
+  }
+}
+
+/**
  * Valida se um contrato tem os campos obrigatórios
  */
 function validateContract(contract: any): void {
@@ -122,6 +136,9 @@ export async function getActiveContract(userId: string): Promise<PayrollContract
 }
 
 export async function getContract(contractId: string, userId: string): Promise<PayrollContract | null> {
+  validateContractId(contractId);
+  validateUserId(userId);
+  
   const { data, error } = await supabase
     .from('payroll_contracts')
     .select('*')
@@ -153,6 +170,9 @@ export async function createContract(userId: string, contractData: Omit<PayrollC
 }
 
 export async function updateContract(contractId: string, contractData: Partial<PayrollContract>, userId: string): Promise<PayrollContract> {
+  validateContractId(contractId);
+  validateUserId(userId);
+  
   // Deactivate other contracts if this one is set as active
   if (contractData.is_active) {
     await supabase
@@ -180,7 +200,30 @@ export async function deactivateContract(contractId: string, userId: string): Pr
   return updateContract(contractId, { is_active: false }, userId);
 }
 
+export async function saveContract(contractData: Partial<PayrollContract>): Promise<PayrollContract> {
+  // Get current user from auth
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    throw new Error('Utilizador não autenticado');
+  }
+
+  const userId = user.id;
+  validateUserId(userId);
+
+  // If contract has an ID, update it; otherwise, create a new one
+  if (contractData.id) {
+    return updateContract(contractData.id, contractData, userId);
+  } else {
+    // Remove id, created_at, updated_at from contractData for creation
+    const { id, created_at, updated_at, ...createData } = contractData as any;
+    return createContract(userId, createData);
+  }
+}
+
 export async function deleteContract(contractId: string, userId: string): Promise<void> {
+  validateContractId(contractId);
+  validateUserId(userId);
+  
   // First, delete all dependent records to avoid foreign key constraint violations
   const dependentTables = [
     'payroll_ot_policies',
