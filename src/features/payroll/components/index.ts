@@ -76,4 +76,4 @@ export {
 } from '../lib/calc';
 
 // Re-export subsidy service
-export { subsidyService } from '../services/subsidyService';
+export { subsidyDatabaseService } from '../services/subsidyDatabaseService';

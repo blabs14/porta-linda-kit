@@ -26,7 +26,7 @@ const resources = {
             title: 'Criar Contrato',
             description: 'Crie um novo contrato para começar a configurar a sua folha de pagamento.',
             newContract: 'Novo Contrato',
-            createFirst: 'Criar Primeiro Contrato',
+            createFirst: 'Criar Novo Contrato',
         noContracts: 'Nenhum contrato encontrado. Crie o seu primeiro contrato para começar.',
         successMessage: 'Contrato "{{name}}" criado com sucesso!',
             nameLabel: 'Nome do Contrato',

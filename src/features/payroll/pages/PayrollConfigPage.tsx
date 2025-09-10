@@ -405,19 +405,11 @@ export default function PayrollConfigPage() {
           ) : (
             <div className="text-center py-8">
               <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="flex items-center justify-between">
-                  <span>Não existem contratos criados. Por favor, crie o seu primeiro contrato para começar a usar a folha de pagamento.</span>
-                  <Button 
-                    size="sm" 
-                    onClick={() => setShowQuickForm(true)}
-                    className="ml-4"
-                  >
-                    <Settings className="mr-2 h-3 w-3" />
-                    Criar Primeiro Contrato
-                  </Button>
-                </AlertDescription>
-              </Alert>
+                  <Users className="h-4 w-4" />
+                  <AlertDescription>
+                    <span>Não existem contratos criados. Use o seletor de contratos para criar um novo.</span>
+                  </AlertDescription>
+                </Alert>
             </div>
           )}
         </CardContent>

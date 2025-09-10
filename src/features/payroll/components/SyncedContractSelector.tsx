@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { Badge } from '../../../components/ui/badge';
 import { Label } from '../../../components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import { useActiveContract } from '../hooks/useActiveContract';
 import { useToast } from '../../../hooks/use-toast';
 import { FileText, AlertCircle } from 'lucide-react';
@@ -9,6 +10,7 @@ import { PayrollContract } from '../types';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../../lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { QuickContractForm } from './QuickContractForm';
 
 interface SyncedContractSelectorProps {
   className?: string;
@@ -31,16 +33,12 @@ export function SyncedContractSelector({
 }: SyncedContractSelectorProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const { activeContract, contracts, loading, setActiveContract } = useActiveContract();
+  const { activeContract, contracts, loading, setActiveContract, refreshContracts } = useActiveContract();
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const handleContractChange = (contractId: string) => {
     if (contractId === 'create-new') {
-      // TODO: Abrir formulário de criação de contrato
-      toast({
-        title: "Criar Novo Contrato",
-        description: "Funcionalidade em desenvolvimento",
-        variant: "default",
-      });
+      setShowCreateForm(true);
       return;
     }
     
@@ -53,6 +51,21 @@ export function SyncedContractSelector({
         variant: 'default',
       });
     }
+  };
+
+  const handleContractCreated = async (contract: PayrollContract) => {
+    setShowCreateForm(false);
+    await refreshContracts();
+    setActiveContract(contract);
+    toast({
+      title: "Contrato criado com sucesso",
+      description: `O contrato "${contract.name}" foi criado e está agora ativo.`,
+      variant: "default",
+    });
+  };
+
+  const handleCancelCreate = () => {
+    setShowCreateForm(false);
   };
 
   const hasContracts = contracts.length > 0;
@@ -73,14 +86,7 @@ export function SyncedContractSelector({
     return (
       <div className={cn("flex items-center gap-2", className)}>
         <button 
-          onClick={() => {
-            // TODO: Abrir formulário de criação de contrato
-            toast({
-              title: "Criar Novo Contrato",
-              description: "Funcionalidade em desenvolvimento",
-              variant: "default",
-            });
-          }}
+          onClick={() => setShowCreateForm(true)}
           className="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
         >
           <FileText className="h-4 w-4" />
@@ -213,6 +219,19 @@ export function SyncedContractSelector({
           )}
         </SelectContent>
         </Select>
+        
+        {/* Dialog para criação de novo contrato */}
+        <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Criar Novo Contrato</DialogTitle>
+            </DialogHeader>
+            <QuickContractForm
+              onContractCreated={handleContractCreated}
+              onCancel={handleCancelCreate}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -326,6 +345,19 @@ export function SyncedContractSelector({
           )}
         </SelectContent>
       </Select>
+      
+      {/* Dialog para criação de novo contrato */}
+      <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Criar Novo Contrato</DialogTitle>
+          </DialogHeader>
+          <QuickContractForm
+            onContractCreated={handleContractCreated}
+            onCancel={handleCancelCreate}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

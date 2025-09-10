@@ -1,5 +1,5 @@
-import { supabase } from '@/lib/supabase';
-import { logger } from '@/shared/lib/logger';
+import { supabase } from '../../../lib/supabaseClient';
+import { logger } from '../../../shared/lib/logger';
 import {
   SubsidyType,
   SubsidyConfig,
@@ -82,10 +82,10 @@ async function getSubsidyConfigs(userId: string, contractId?: string): Promise<S
       const hasVacationBonus = configData.vacationBonus === true;
       const hasChristmasBonus = configData.christmasBonus === true;
       
-      const configs: SubsidyConfig[] = [];
+      const itemConfigs: SubsidyConfig[] = [];
       
       if (hasVacationBonus) {
-        configs.push({
+        itemConfigs.push({
           id: `${item.id}-vacation`,
           user_id: item.user_id,
           contract_id: item.contract_id,
@@ -102,7 +102,7 @@ async function getSubsidyConfigs(userId: string, contractId?: string): Promise<S
       }
       
       if (hasChristmasBonus) {
-        configs.push({
+        itemConfigs.push({
           id: `${item.id}-christmas`,
           user_id: item.user_id,
           contract_id: item.contract_id,
@@ -117,7 +117,7 @@ async function getSubsidyConfigs(userId: string, contractId?: string): Promise<S
         } as ChristmasSubsidyConfig);
       }
       
-      return configs;
+      return itemConfigs;
     }).flat();
     
     logger.debug('Configurações de subsídios carregadas:', configs);
@@ -206,6 +206,27 @@ function calculateChristmasSubsidy(
 /**
  * Calcula todos os subsídios para um utilizador
  */
+/**
+ * Verifica se um subsídio deve ser pago no mês atual
+ */
+function shouldPaySubsidyInCurrentMonth(config: SubsidyConfig, currentMonth: number): boolean {
+  // Se tem mês de pagamento específico configurado
+  if (config.payment_month) {
+    return config.payment_month === currentMonth;
+  }
+  
+  // Regras padrão por tipo de subsídio
+  if (config.type === 'vacation') {
+    // Subsídio de férias normalmente pago em junho
+    return currentMonth === 6;
+  } else if (config.type === 'christmas') {
+    // Subsídio de Natal normalmente pago em dezembro
+    return currentMonth === 12;
+  }
+  
+  return false;
+}
+
 async function calculateSubsidies(input: SubsidyCalculationInput): Promise<SubsidyCalculationResult> {
   const validation = validateSubsidyCalculationInput(input);
   
@@ -228,11 +249,15 @@ async function calculateSubsidies(input: SubsidyCalculationInput): Promise<Subsi
       };
     }
 
-    // TODO: Obter salário base real do contrato
-    const baseSalaryCents = 95000; // €950 - valor temporário
+    // Usar salário base do input ou valor padrão
+    const baseSalaryCents = input.base_salary_cents || 95000; // €950 - valor padrão
     
-    // TODO: Calcular meses trabalhados reais
-    const workedMonths = 12; // Valor temporário
+    // Usar meses trabalhados do input
+    const workedMonths = input.worked_months || 12;
+    
+    // Obter mês atual da data de cálculo
+    const calculationDate = new Date(input.calculation_date);
+    const currentMonth = calculationDate.getMonth() + 1;
 
     const result: SubsidyCalculationResult = {
       total_subsidies_cents: 0,
@@ -240,6 +265,11 @@ async function calculateSubsidies(input: SubsidyCalculationInput): Promise<Subsi
     };
 
     for (const config of enabledConfigs) {
+      // Verificar se o subsídio deve ser pago no mês atual
+      if (!shouldPaySubsidyInCurrentMonth(config, currentMonth)) {
+        continue; // Pular este subsídio se não for para pagar este mês
+      }
+      
       if (config.type === 'vacation') {
         result.vacation_subsidy = calculateVacationSubsidy(
           config as VacationSubsidyConfig,

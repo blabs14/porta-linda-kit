@@ -11,8 +11,7 @@ import { useActiveContract } from '../hooks/useActiveContract';
 import { useNavigate } from 'react-router-dom';
 import { payrollService } from '@/features/payroll/services/payrollService';
 import { logger } from '@/shared/lib/logger';
-import { subsidyService } from '../../../services/subsidyService';
-import { subsidyDatabaseService } from '../../../services/subsidyDatabaseService';
+import { subsidyDatabaseService } from '../services/subsidyDatabaseService';
 import { useAuth } from '../../../contexts/AuthContext';
 
 interface SubsidyData {
@@ -64,31 +63,41 @@ export default function PayrollSubsidiesViewPage() {
         logger.debug('PayrollSubsidiesViewPage - Carregando dados para userId:', user.id, 'contractId:', activeContract.id);
         
         // Load subsidy configurations from database
-        const subsidyConfigs = await subsidyDatabaseService.loadSubsidyConfigs(user.id);
+        const subsidyConfigs = await subsidyDatabaseService.getSubsidyConfigs(user.id, activeContract.id);
         
-        // Filter configs for the active contract
-        const contractSubsidies = subsidyConfigs.filter(config => config.contract_id === activeContract.id);
+        logger.debug('PayrollSubsidiesViewPage - Configurações carregadas:', subsidyConfigs);
         
-        // Transform configs to SubsidyData format
-        const mealAllowanceConfig = contractSubsidies.find(config => config.subsidy_type === 'meal_allowance');
-        const vacationBonusConfig = contractSubsidies.find(config => config.subsidy_type === 'vacation_bonus');
-        const christmasBonusConfig = contractSubsidies.find(config => config.subsidy_type === 'christmas_bonus');
+        // Find specific subsidy configs
+        const vacationConfig = subsidyConfigs.find(config => config.type === 'vacation');
+        const christmasConfig = subsidyConfigs.find(config => config.type === 'christmas');
+        
+        // Calculate subsidy amounts using the database service
+        const subsidyCalculationResult = await subsidyDatabaseService.calculateSubsidies({
+          user_id: user.id,
+          contract_id: activeContract.id,
+          reference_year: new Date().getFullYear(),
+          calculation_date: new Date().toISOString(),
+          base_salary_cents: activeContract.base_salary_cents || 100000, // Default if not available
+          worked_months: 12 // Assume full year for now
+        });
+        
+        logger.debug('PayrollSubsidiesViewPage - Resultado dos cálculos:', subsidyCalculationResult);
         
         const subsidyData: SubsidyData = {
           mealAllowance: {
-            dailyAmount: mealAllowanceConfig?.daily_amount || 0,
-            monthlyEstimate: mealAllowanceConfig?.monthly_amount || 0,
-            isActive: mealAllowanceConfig?.is_active || false
+            dailyAmount: 0, // Meal allowance not implemented yet
+            monthlyEstimate: 0,
+            isActive: false
           },
           vacationBonus: {
-            amount: vacationBonusConfig?.annual_amount || 0,
-            percentage: vacationBonusConfig?.salary_percentage || 0,
-            isActive: vacationBonusConfig?.is_active || false
+            amount: subsidyCalculationResult.vacation_subsidy?.final_amount_cents ? subsidyCalculationResult.vacation_subsidy.final_amount_cents / 100 : 0,
+            percentage: 100, // Vacation subsidy is typically 100% of salary
+            isActive: vacationConfig?.enabled || false
           },
           christmasBonus: {
-            amount: christmasBonusConfig?.annual_amount || 0,
-            percentage: christmasBonusConfig?.salary_percentage || 0,
-            isActive: christmasBonusConfig?.is_active || false
+            amount: subsidyCalculationResult.christmas_subsidy?.final_amount_cents ? subsidyCalculationResult.christmas_subsidy.final_amount_cents / 100 : 0,
+            percentage: 100, // Christmas subsidy is typically 100% of salary
+            isActive: christmasConfig?.enabled || false
           }
         };
         

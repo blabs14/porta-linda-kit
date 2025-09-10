@@ -14,7 +14,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useActiveContract } from '../hooks/useActiveContract';
 import { calculatePayroll } from '../services/calculation.service';
 import { payrollService } from '../services/payrollService';
-import { subsidyService } from '../services/subsidyService';
+import { subsidyDatabaseService } from '../services/subsidyDatabaseService';
 import { OvertimeExtractionService, createOvertimeExtractionService } from '../services/overtimeExtraction.service';
 import { logger } from '@/shared/lib/logger';
 import { exportPayrollReport, downloadFile } from '../services/export.service';
@@ -291,8 +291,18 @@ const PayrollSummaryPage: React.FC = () => {
       const currentYear = currentDate.getFullYear();
       
       // Calcular subsídios de férias e Natal (se aplicável)
-      const vacationSubsidy = subsidyService.calculateVacationSubsidy(activeContract.base_salary_cents, currentMonth);
-      const christmasSubsidy = subsidyService.calculateChristmasSubsidy(activeContract.base_salary_cents, currentMonth);
+      const subsidyInput = {
+        user_id: user.id,
+        contract_id: activeContract.id,
+        calculation_date: new Date().toISOString(),
+        base_salary_cents: activeContract.base_salary_cents,
+        worked_months: currentMonth, // Usar mês atual como aproximação
+        reference_year: currentYear
+      };
+      
+      const subsidyResult = await subsidyDatabaseService.calculateSubsidies(subsidyInput);
+      const vacationSubsidy = subsidyResult.vacation_subsidy?.final_amount_cents || 0;
+      const christmasSubsidy = subsidyResult.christmas_subsidy?.final_amount_cents || 0;
       
       // Calcular bónus de performance (mock data por agora)
       const performanceBonus = 0; // Será integrado com performanceBonusService

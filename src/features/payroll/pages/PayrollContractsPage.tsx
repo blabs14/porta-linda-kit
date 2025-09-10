@@ -179,13 +179,9 @@ const PayrollContractsPage: React.FC = () => {
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               Nenhum contrato encontrado
             </h3>
-            <p className="text-gray-600 text-center mb-6">
-              Ainda não tem contratos criados. Crie o seu primeiro contrato para começar.
+            <p className="text-gray-600 text-center">
+              Ainda não tem contratos criados. Use o seletor de contratos para criar um novo.
             </p>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Criar Primeiro Contrato
-            </Button>
           </CardContent>
         </Card>
       ) : (

@@ -325,16 +325,8 @@ export function PayrollSetupPage() {
               {contracts.length === 0 ? (
                 <Alert>
                   <Users className="h-4 w-4" />
-                  <AlertDescription className="flex items-center justify-between">
-                    <span>Nenhum contrato configurado. Crie o primeiro contrato para começar a usar a folha de pagamento.</span>
-                    <Button 
-                      size="sm" 
-                      onClick={() => navigate('/personal/payroll/config')}
-                      className="ml-4"
-                    >
-                      <Plus className="mr-2 h-3 w-3" />
-                      Criar Primeiro Contrato
-                    </Button>
+                  <AlertDescription>
+                    <span>Nenhum contrato configurado. Use o seletor de contratos para criar um novo.</span>
                   </AlertDescription>
                 </Alert>
               ) : (

@@ -16,6 +16,7 @@ interface QuickContractFormProps {
 
 export function QuickContractForm({ onContractCreated, onCancel }: QuickContractFormProps) {
   const [contractName, setContractName] = useState('');
+  const [workplaceLocation, setWorkplaceLocation] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -32,17 +33,7 @@ export function QuickContractForm({ onContractCreated, onCancel }: QuickContract
       return;
     }
 
-    // Verificar se o nome parece ser um nome de pessoa
-    const trimmedName = contractName.trim();
-    const commonPersonNames = /^[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+\s+[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+/;
-    if (commonPersonNames.test(trimmedName)) {
-      toast({
-        title: 'Nome inválido',
-        description: 'O nome do contrato não deve ser o nome de uma pessoa. Use algo como "Contrato Principal" ou "Tempo Integral".',
-        variant: 'destructive'
-      });
-      return;
-    }
+    // Validação removida - permite qualquer nome
 
     setIsLoading(true);
     
@@ -57,6 +48,7 @@ export function QuickContractForm({ onContractCreated, onCancel }: QuickContract
         base_salary_cents: 100000, // €1000 como valor mínimo positivo
         weekly_hours: 40,
         currency: 'EUR',
+        workplace_location: workplaceLocation.trim() || undefined,
         schedule_json: {
           monday: { start: '09:00', end: '17:00', enabled: true },
           tuesday: { start: '09:00', end: '17:00', enabled: true },
@@ -92,9 +84,9 @@ export function QuickContractForm({ onContractCreated, onCancel }: QuickContract
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle>Criar Primeiro Contrato</CardTitle>
+        <CardTitle>Criar Novo Contrato</CardTitle>
         <CardDescription>
-          Insira um nome para o seu primeiro contrato (ex: "Contrato Principal", "Tempo Integral"). Não use o nome do funcionário.
+          Insira um nome para o seu contrato.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -104,11 +96,23 @@ export function QuickContractForm({ onContractCreated, onCancel }: QuickContract
             <Input
               id="contractName"
               type="text"
-              placeholder="Ex: Contrato Principal, Tempo Integral, Meio Período"
+              placeholder="Ex: João Silva, Contrato Principal, Tempo Integral"
               value={contractName}
               onChange={(e) => setContractName(e.target.value)}
               disabled={isLoading}
               autoFocus
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="workplaceLocation">Local de Trabalho (Opcional)</Label>
+            <Input
+              id="workplaceLocation"
+              type="text"
+              placeholder="Ex: Lisboa, Porto, Remoto"
+              value={workplaceLocation}
+              onChange={(e) => setWorkplaceLocation(e.target.value)}
+              disabled={isLoading}
             />
           </div>
           
