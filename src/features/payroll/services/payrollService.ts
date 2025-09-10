@@ -902,6 +902,7 @@ export const payrollService = {
   createContract,
   updateContract,
   deactivateContract,
+  saveContract,
   deleteContract,
   getOTPolicies,
   getOTPoliciesByContract,
