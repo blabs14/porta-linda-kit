@@ -133,7 +133,7 @@ export async function getContract(contractId: string, userId: string): Promise<P
   return data as any;
 }
 
-export async function createContract(contractData: Omit<PayrollContract, 'id' | 'created_at' | 'updated_at'>, userId: string): Promise<PayrollContract> {
+export async function createContract(userId: string, contractData: Omit<PayrollContract, 'id' | 'created_at' | 'updated_at'>): Promise<PayrollContract> {
   // Deactivate other contracts if this one is set as active
   if (contractData.is_active) {
     await supabase
@@ -170,7 +170,9 @@ export async function updateContract(contractId: string, contractData: Partial<P
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data as any;
 }
 
@@ -364,10 +366,10 @@ export async function getVacations(userId: string, contractId?: string, year?: n
   return data || [];
 }
 
-export async function createVacation(vacationData: PayrollVacationFormData, userId: string): Promise<PayrollVacation> {
+export async function createVacation(userId: string, contractId: string, vacationData: PayrollVacationFormData): Promise<PayrollVacation> {
   const { data, error } = await supabase
     .from('payroll_vacations')
-    .insert({ ...vacationData, user_id: userId })
+    .insert({ ...vacationData, user_id: userId, contract_id: contractId })
     .select()
     .single();
 
@@ -375,12 +377,13 @@ export async function createVacation(vacationData: PayrollVacationFormData, user
   return data as any;
 }
 
-export async function updateVacation(vacationId: string, vacationData: Partial<PayrollVacationFormData>, userId: string): Promise<PayrollVacation> {
+export async function updateVacation(vacationId: string, vacationData: Partial<PayrollVacationFormData>, userId: string, contractId: string): Promise<PayrollVacation> {
   const { data, error } = await supabase
     .from('payroll_vacations')
     .update(vacationData)
     .eq('id', vacationId)
     .eq('user_id', userId)
+    .eq('contract_id', contractId)
     .select()
     .single();
 
@@ -845,6 +848,10 @@ export const payrollService = {
   deleteDeductionConfig,
   // Payroll calculation
   recalculatePayroll,
+  // Bonus configuration
+  upsertBonusConfig,
+  getBonusConfig,
+  deleteBonusConfig,
 };
 
 // NEW: Get leaves overlapping a given week window
@@ -1117,6 +1124,173 @@ export async function deleteDeductionConfig(userId: string, contractId: string):
     .delete()
     .eq('user_id', userId)
     .eq('contract_id', contractId);
+
+  if (error) throw error;
+}
+
+// Payroll bonus configuration functions
+export async function upsertBonusConfig(
+  userId: string,
+  contractId: string,
+  bonusType: 'mandatory' | 'performance' | 'custom',
+  configData: any
+): Promise<any> {
+  validateUserId(userId);
+  
+  if (!contractId || typeof contractId !== 'string') {
+    throw new Error('ID do contrato inválido');
+  }
+  
+  if (!bonusType || !['mandatory', 'performance', 'custom'].includes(bonusType)) {
+    throw new Error('Tipo de subsídio inválido');
+  }
+  
+  const { data, error } = await supabase
+    .from('payroll_bonus_configs')
+    .upsert({
+      user_id: userId,
+      contract_id: contractId,
+      bonus_type: bonusType,
+      config_data: configData,
+      is_active: true
+    }, {
+      onConflict: 'user_id,contract_id,bonus_type'
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getBonusConfig(
+  userId: string,
+  contractId: string,
+  bonusType: 'mandatory' | 'performance' | 'custom'
+): Promise<any> {
+  validateUserId(userId);
+  
+  const { data, error } = await supabase
+    .from('payroll_bonus_configs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .eq('bonus_type', bonusType)
+    .eq('is_active', true)
+    .single();
+
+  if (error && error.code !== 'PGRST116') throw error;
+  return data;
+}
+
+export async function deleteBonusConfig(
+  userId: string,
+  contractId: string,
+  bonusType: 'mandatory' | 'performance' | 'custom'
+): Promise<void> {
+  validateUserId(userId);
+  
+  const { error } = await supabase
+    .from('payroll_bonus_configs')
+    .delete()
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .eq('bonus_type', bonusType);
+
+  if (error) throw error;
+}
+
+// Subsidy configuration functions for new subsidy_configs table
+export async function getSubsidyConfigs(
+  userId: string,
+  contractId: string
+): Promise<any[]> {
+  validateUserId(userId);
+  
+  const { data, error } = await supabase
+    .from('subsidy_configs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .eq('enabled', true);
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getSubsidyConfig(
+  userId: string,
+  contractId: string,
+  type: 'vacation' | 'christmas'
+): Promise<any> {
+  validateUserId(userId);
+  
+  const { data, error } = await supabase
+    .from('subsidy_configs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .eq('type', type)
+    .eq('enabled', true)
+    .single();
+
+  if (error && error.code !== 'PGRST116') throw error;
+  return data;
+}
+
+export async function upsertSubsidyConfig(
+  userId: string,
+  contractId: string,
+  type: 'vacation' | 'christmas',
+  configData: any
+): Promise<any> {
+  validateUserId(userId);
+  
+  if (!contractId || typeof contractId !== 'string') {
+    throw new Error('ID do contrato inválido');
+  }
+  
+  if (!type || !['vacation', 'christmas'].includes(type)) {
+    throw new Error('Tipo de subsídio inválido');
+  }
+  
+  const { data, error } = await supabase
+    .from('subsidy_configs')
+    .upsert({
+      user_id: userId,
+      contract_id: contractId,
+      type: type,
+      enabled: configData.enabled ?? true,
+      payment_method: configData.payment_method,
+      payment_month: configData.payment_month,
+      advance_percentage: configData.advance_percentage,
+      vacation_days_entitled: type === 'vacation' ? configData.vacation_days_entitled : null,
+      vacation_days_taken: type === 'vacation' ? configData.vacation_days_taken : null,
+      reference_salary_months: type === 'christmas' ? configData.reference_salary_months : null,
+      proportional_calculation: configData.proportional_calculation ?? true
+    }, {
+      onConflict: 'user_id,contract_id,type'
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteSubsidyConfig(
+  userId: string,
+  contractId: string,
+  type: 'vacation' | 'christmas'
+): Promise<void> {
+  validateUserId(userId);
+  
+  const { error } = await supabase
+    .from('subsidy_configs')
+    .delete()
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .eq('type', type);
 
   if (error) throw error;
 }

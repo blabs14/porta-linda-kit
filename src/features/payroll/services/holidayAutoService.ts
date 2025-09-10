@@ -380,12 +380,12 @@ export async function syncNationalHolidays(
           // Atualizar feriado existente se necessário
           if (existingHoliday.holiday_type !== autoHoliday.type || 
               existingHoliday.description !== holidayData.description) {
-            await payrollService.updateHoliday(existingHoliday.id, holidayData, userId, contractId);
+            await payrollService.updateHoliday(existingHoliday.id, holidayData, userId);
             updated++;
           }
         } else {
           // Criar novo feriado
-          await payrollService.createHoliday(userId, holidayData, contractId);
+          await payrollService.createHoliday(holidayData, userId);
           created++;
         }
       } catch (error) {
@@ -446,12 +446,12 @@ export async function syncRegionalHolidays(
           // Atualizar feriado existente se necessário
           if (existingHoliday.holiday_type !== autoHoliday.type || 
               existingHoliday.description !== holidayData.description) {
-            await payrollService.updateHoliday(existingHoliday.id, holidayData, userId, contractId);
+            await payrollService.updateHoliday(existingHoliday.id, holidayData, userId);
             updated++;
           }
         } else {
           // Criar novo feriado
-          await payrollService.createHoliday(userId, holidayData, contractId);
+          await payrollService.createHoliday(holidayData, userId);
           created++;
         }
       } catch (error) {
@@ -599,6 +599,8 @@ export const holidayAutoService = {
   fetchHolidaysFromAPI,
   getAutoHolidays,
   syncAutoHolidays,
+  syncNationalHolidays,
+  syncRegionalHolidays,
   isLocationSupported,
   getLocationHolidayInfo,
   syncAnnualHolidays,

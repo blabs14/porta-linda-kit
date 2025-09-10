@@ -34,6 +34,7 @@ export function PayrollSetupPage() {
   const [deductionConfigs, setDeductionConfigs] = useState<PayrollDeductionConfig[]>([]);
   const [mileagePolicies, setMileagePolicies] = useState<PayrollMileagePolicy[]>([]);
   const [expandedContracts, setExpandedContracts] = useState<Set<string>>(new Set());
+  const [activeContract, setActiveContract] = useState<PayrollContract | null>(null);
 
   const [activeTab, setActiveTab] = useState('contracts');
 
@@ -112,6 +113,7 @@ export function PayrollSetupPage() {
       setHolidays(holidaysData);
       setVacations(vacationsData);
       setDeductionConfigs(deductionConfigsData);
+      setActiveContract(activeContract);
 
       // Depois, carregar dados que dependem do activeContract
       const [mileagePoliciesData, mealConfigData] = await Promise.all([
@@ -734,11 +736,20 @@ export function PayrollSetupPage() {
 
         {/* Tab: Férias */}
         <TabsContent value="vacations">
-          <PayrollVacationsManager 
-            year={new Date().getFullYear()}
-            vacations={vacations}
-            onVacationsChange={setVacations}
-          />
+          {activeContract ? (
+            <PayrollVacationsManager 
+              contractId={activeContract.id}
+              year={new Date().getFullYear()}
+              vacations={vacations}
+              onVacationsChange={setVacations}
+            />
+          ) : (
+            <Card>
+              <CardContent className="p-6">
+                <p className="text-muted-foreground">Selecione um contrato ativo para gerir férias.</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Tab: Subsídio de Alimentação */}

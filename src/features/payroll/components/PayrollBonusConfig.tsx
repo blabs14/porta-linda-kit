@@ -26,6 +26,7 @@ type SpecificSubsidy = 'vacation' | 'christmas' | 'both';
 interface PayrollBonusConfigProps {
   bonusType: BonusType;
   specificSubsidy?: SpecificSubsidy;
+  contractId?: string;
   onSave?: (data: any) => void;
 }
 
@@ -101,7 +102,7 @@ function generateLegalAlerts(formData: any, specificSubsidy: SpecificSubsidy): s
   return alerts;
 }
 
-export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave }: PayrollBonusConfigProps) {
+export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contractId, onSave }: PayrollBonusConfigProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { activeContract } = useActiveContract();
@@ -113,34 +114,59 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
   const isPerformance = bonusType === 'performance';
   const isCustom = bonusType === 'custom';
   
+  // Use contractId prop if provided, otherwise use activeContract
+  const effectiveContractId = contractId || activeContract?.id;
+  
   // Debug logs
   logger.debug('PayrollBonusConfig Debug:', {
     bonusType,
     isMandatory,
     isPerformance,
     isCustom,
-    contractId: activeContract?.id,
+    contractId: effectiveContractId,
+    providedContractId: contractId,
+    activeContractId: activeContract?.id,
     specificSubsidy
   });
 
   // Efeito para carregar configuração existente
   useEffect(() => {
-    if (!activeContract?.id || !bonusType) return;
+    if (!effectiveContractId || !bonusType) return;
 
     const loadBonusConfig = async () => {
       try {
-        if (!user?.id || !activeContract?.id) return;
+        if (!user?.id || !effectiveContractId) return;
         
-        const config = await payrollService.getBonusConfig(user.id, activeContract.id, bonusType);
-        logger.debug('Loading bonus config for:', { userId: user.id, contractId: activeContract.id, bonusType, config });
-        
-        if (config && config.config_data) {
-          if (isMandatory) {
-            mandatoryForm.reset(config.config_data);
-          } else if (isPerformance) {
-            performanceForm.reset(config.config_data);
-          } else if (isCustom) {
-            customForm.reset(config.config_data);
+        // Para subsídios obrigatórios, carregamos ambos os tipos
+        if (isMandatory) {
+          const [vacationConfig, christmasConfig] = await Promise.all([
+            payrollService.getSubsidyConfig(user.id, effectiveContractId, 'vacation').catch(() => null),
+            payrollService.getSubsidyConfig(user.id, effectiveContractId, 'christmas').catch(() => null)
+          ]);
+          
+          logger.debug('Loading subsidy configs:', { vacationConfig, christmasConfig });
+          
+          // Mapear os dados para o formato esperado pelo formulário
+          const formData = {
+            vacationBonus: !!vacationConfig?.enabled,
+            christmasBonus: !!christmasConfig?.enabled,
+            paymentMonth: vacationConfig?.payment_month || christmasConfig?.payment_month || 'december',
+            autoCalculate: true,
+            paymentType: vacationConfig?.proportional_calculation ? 'proportional' : 'full'
+          };
+          
+          mandatoryForm.reset(formData);
+        } else {
+          // Para outros tipos, usar a função original
+          const config = await payrollService.getBonusConfig(user.id, effectiveContractId, bonusType);
+          logger.debug('Loading bonus config for:', { userId: user.id, contractId: effectiveContractId, bonusType, config });
+          
+          if (config && config.config_data) {
+            if (isPerformance) {
+              performanceForm.reset(config.config_data);
+            } else if (isCustom) {
+              customForm.reset(config.config_data);
+            }
           }
         }
       } catch (error) {
@@ -246,8 +272,8 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
 
     const loadSalaryData = async () => {
       try {
-        logger.debug('Loading salary data for contract:', activeContract.id);
-        const contractData = await payrollService.getContract(user.id, activeContract.id);
+        logger.debug('Loading salary data for contract:', effectiveContractId);
+        const contractData = await payrollService.getContract(user.id, effectiveContractId);
         
         if (contractData) {
           // Converter de cêntimos para euros
@@ -303,8 +329,32 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
         return;
       }
       
-      await payrollService.upsertBonusConfig(user.id, activeContract.id, 'mandatory', data);
-       logger.debug('Guardando configuração de subsídios obrigatórios:', { userId: user.id, contractId: activeContract.id, data });
+      // Guardar configuração de subsídio de férias se ativado
+      if (data.vacationBonus) {
+        const vacationData = {
+          enabled: true,
+          payment_method: 'separate_payment',
+          payment_month: data.paymentMonth === 'june' ? 6 : 7,
+          proportional_calculation: data.paymentType === 'proportional',
+          vacation_days_entitled: 22, // Valor padrão
+          vacation_days_taken: 0
+        };
+        await payrollService.upsertSubsidyConfig(user.id, effectiveContractId, 'vacation', vacationData);
+      }
+      
+      // Guardar configuração de subsídio de Natal se ativado
+      if (data.christmasBonus) {
+        const christmasData = {
+          enabled: true,
+          payment_method: 'with_salary',
+          payment_month: 12,
+          proportional_calculation: data.paymentType === 'proportional',
+          reference_salary_months: 12
+        };
+        await payrollService.upsertSubsidyConfig(user.id, effectiveContractId, 'christmas', christmasData);
+      }
+      
+      logger.debug('Guardando configuração de subsídios obrigatórios:', { userId: user.id, contractId: effectiveContractId, data });
       toast({
         title: 'Configuracao guardada',
         description: 'As configuracoes de bonus obrigatorios foram guardadas com sucesso.'
@@ -340,8 +390,8 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
         return;
       }
       
-      await payrollService.upsertBonusConfig(user.id, activeContract.id, 'performance', data);
-       logger.debug('Guardando configuração de prémios de produtividade:', { userId: user.id, contractId: activeContract.id, data });
+      await payrollService.upsertBonusConfig(user.id, effectiveContractId, 'performance', data);
+      logger.debug('Guardando configuração de prémios de produtividade:', { userId: user.id, contractId: effectiveContractId, data });
       toast({
         title: 'Configuracao guardada',
         description: 'As configuracoes de premios de produtividade foram guardadas com sucesso.'
@@ -377,8 +427,8 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
         return;
       }
       
-      await payrollService.upsertBonusConfig(user.id, activeContract.id, 'custom', data);
-       logger.debug('Guardando configuração de prémio personalizado:', { userId: user.id, contractId: activeContract.id, data });
+      await payrollService.upsertBonusConfig(user.id, effectiveContractId, 'custom', data);
+      logger.debug('Guardando configuração de prémio personalizado:', { userId: user.id, contractId: effectiveContractId, data });
       toast({
         title: 'Premio guardado',
         description: 'O premio personalizado foi guardado com sucesso.'
@@ -625,7 +675,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
                 {activeContract?.id && (
                   <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                     <p className="text-sm text-gray-600">
-                      <strong>Contrato:</strong> {activeContract.id}
+                      <strong>Contrato:</strong> {effectiveContractId}
                     </p>
                     <p className="text-sm text-gray-600">
                       <strong>Salário Base:</strong> {formatCurrency(salaryData.baseSalary)}
@@ -1101,7 +1151,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', onSave
                 {activeContract?.id && (
                   <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                     <p className="text-sm text-gray-600">
-                      <strong>Contrato:</strong> {activeContract.id}
+                      <strong>Contrato:</strong> {effectiveContractId}
                     </p>
                     <p className="text-sm text-gray-600">
                       <strong>Salário Base:</strong> {formatCurrency(salaryData.baseSalary)}

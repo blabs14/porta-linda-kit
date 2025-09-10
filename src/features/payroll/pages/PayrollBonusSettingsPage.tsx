@@ -1,6 +1,7 @@
 import React from 'react';
 import { PayrollBreadcrumb } from '../components/PayrollBreadcrumb';
 import PayrollBonusConfig from '../components/PayrollBonusConfig';
+
 import { useActiveContract } from '../hooks/useActiveContract';
 import { logger } from '@/shared/lib/logger';
 import { useToast } from '@/hooks/use-toast';
@@ -26,6 +27,8 @@ export function PayrollBonusSettingsPage() {
             </p>
           </div>
         </div>
+        
+
         
         <div className="grid gap-6">
           <PayrollBonusConfig 

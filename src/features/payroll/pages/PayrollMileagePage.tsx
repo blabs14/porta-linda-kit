@@ -13,19 +13,21 @@ import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/utils';
 import { payrollService } from '../services/payrollService';
+
+import { useActiveContract } from '../hooks/useActiveContract';
 import { MileageTripForm } from '../components/MileageTripForm';
 import { PayrollMileagePolicyForm } from '../components/PayrollMileagePolicyForm';
-import { PayrollMileageTrip, PayrollMileagePolicy, MileagePolicyFormData, PayrollContract } from '../types';
+import { PayrollMileageTrip, PayrollMileagePolicy, MileagePolicyFormData } from '../types';
 import { logger } from '@/shared/lib/logger';
 
 const PayrollMileagePage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
+  const { activeContract, loading: contractLoading } = useActiveContract();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [policies, setPolicies] = useState<PayrollMileagePolicy[]>([]);
   const [trips, setTrips] = useState<PayrollMileageTrip[]>([]);
-  const [contract, setContract] = useState<PayrollContract | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPolicy, setSelectedPolicy] = useState<PayrollMileagePolicy | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<PayrollMileageTrip | null>(null);
@@ -40,36 +42,18 @@ const PayrollMileagePage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [editingTrip, setEditingTrip] = useState<PayrollMileageTrip | null>(null);
   
-  // Carregar contrato
-  const loadContract = useCallback(async () => {
-    if (!user?.id) return;
-    
-    try {
-      const contract = await payrollService.getActiveContract(user.id);
-      setContract(contract);
-    } catch (error) {
-      logger.error('Erro ao carregar contrato:', error);
-    }
-  }, [user?.id]);
-
   // Carregar política e dados
   const loadData = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id || !activeContract?.id) return;
     
     setLoading(true);
     try {
-      await loadContract();
-      
-      // Aguardar o contrato ser carregado antes de buscar os dados
-      const activeContract = await payrollService.getActiveContract(user.id);
-      if (activeContract) {
-        const [policiesData, tripsData] = await Promise.all([
-          payrollService.getMileagePolicies(user.id, activeContract.id),
-          payrollService.getMileageTrips(user.id, undefined, undefined, activeContract.id)
-        ]);
-        setPolicies(policiesData);
-        setTrips(tripsData);
-      }
+      const [policiesData, tripsData] = await Promise.all([
+        payrollService.getMileagePolicies(user.id, activeContract.id),
+        payrollService.getMileageTrips(user.id, undefined, undefined, activeContract.id)
+      ]);
+      setPolicies(policiesData);
+      setTrips(tripsData);
     } catch (error) {
       toast({
         title: 'Erro',
@@ -80,13 +64,13 @@ const PayrollMileagePage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id, loadContract]);
+  }, [user?.id, activeContract?.id, toast]);
   
   useEffect(() => {
-    if (user) {
+    if (user && activeContract) {
       loadData();
     }
-  }, [user, loadData]);
+  }, [user, activeContract, loadData]);
 
   // Filtrar viagens por mês e termo de pesquisa
   const filteredTrips = trips.filter(trip => {
@@ -217,7 +201,7 @@ const PayrollMileagePage: React.FC = () => {
 
   // Handlers para políticas
   const handleSavePolicy = useCallback(async (policyData: PayrollMileagePolicy) => {
-    if (!user || !contract?.id) return;
+    if (!user || !activeContract?.id) return;
     
     setIsSaving(true);
     try {
@@ -226,7 +210,7 @@ const PayrollMileagePage: React.FC = () => {
           name: policyData.name,
           rate_per_km: policyData.rate_cents_per_km ? policyData.rate_cents_per_km / 100 : 0
         };
-        const updatedPolicy = await payrollService.updateMileagePolicy(selectedPolicy.id, formData, user.id, contract.id);
+        const updatedPolicy = await payrollService.updateMileagePolicy(selectedPolicy.id, formData, user.id, activeContract.id);
         setPolicies(prev => prev.map(policy => 
           policy.id === selectedPolicy.id ? updatedPolicy : policy
         ));
@@ -240,7 +224,7 @@ const PayrollMileagePage: React.FC = () => {
           name: policyData.name,
           rate_per_km: policyData.rate_cents_per_km ? policyData.rate_cents_per_km / 100 : 0
         };
-        const newPolicy = await payrollService.createMileagePolicy(user.id, { ...formData, contract_id: contract.id });
+        const newPolicy = await payrollService.createMileagePolicy(user.id, { ...formData, contract_id: activeContract.id });
         setPolicies(prev => [newPolicy, ...prev]);
         toast({
           title: 'Sucesso',
@@ -259,13 +243,13 @@ const PayrollMileagePage: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [user, contract, selectedPolicy, toast]);
+  }, [user, activeContract, selectedPolicy, toast]);
 
   const handleDeletePolicy = async (policyId: string) => {
-    if (!user || !contract) return;
+    if (!user || !activeContract) return;
     
     try {
-      await payrollService.deleteMileagePolicy(policyId, user.id, contract.id);
+      await payrollService.deleteMileagePolicy(policyId, user.id, activeContract.id);
       setPolicies(prev => prev.filter(policy => policy.id !== policyId));
       toast({
         title: 'Sucesso',
@@ -281,7 +265,7 @@ const PayrollMileagePage: React.FC = () => {
     }
   };
 
-  if (authLoading || loading) {
+  if (authLoading || contractLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
@@ -300,6 +284,18 @@ const PayrollMileagePage: React.FC = () => {
     );
   }
 
+  if (!activeContract) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Alert>
+          <AlertDescription>
+            Nenhum contrato ativo encontrado. Por favor, configure um contrato ativo primeiro.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
@@ -308,6 +304,8 @@ const PayrollMileagePage: React.FC = () => {
           <p className="text-gray-600 mt-2">Gerir viagens e políticas de quilometragem</p>
         </div>
       </div>
+
+
 
       {/* Estatísticas do Mês */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -337,7 +335,7 @@ const PayrollMileagePage: React.FC = () => {
             <Euro className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(monthlyStats.totalAmount * 100, 'pt-PT', contract?.currency || 'EUR')}</div>
+            <div className="text-2xl font-bold">{formatCurrency(monthlyStats.totalAmount * 100, 'pt-PT', activeContract?.currency || 'EUR')}</div>
           </CardContent>
         </Card>
       </div>
@@ -425,7 +423,7 @@ const PayrollMileagePage: React.FC = () => {
                         <span className="text-sm font-medium text-green-600">{(() => {
                           const policy = policies.find(p => p.id === trip.policy_id);
                           const amountCents = policy ? trip.km * policy.rate_cents_per_km : 0;
-                          return formatCurrency(amountCents, 'pt-PT', contract?.currency || 'EUR');
+                          return formatCurrency(amountCents, 'pt-PT', activeContract?.currency || 'EUR');
                         })()}</span>
                         </div>
                         <div className="text-sm text-gray-600">
@@ -497,7 +495,7 @@ const PayrollMileagePage: React.FC = () => {
                       <div className="flex-1">
                         <div className="flex items-center gap-4 mb-2">
                           <span className="font-medium">{policy.name}</span>
-                          <span className="text-sm font-medium text-green-600">{formatCurrency(policy.rate_cents_per_km, 'pt-PT', contract?.currency || 'EUR')}/km</span>
+                          <span className="text-sm font-medium text-green-600">{formatCurrency(policy.rate_cents_per_km, 'pt-PT', activeContract?.currency || 'EUR')}/km</span>
                         </div>
 
                         <div className="text-xs text-gray-500">
@@ -546,10 +544,10 @@ const PayrollMileagePage: React.FC = () => {
 
       <Dialog open={showPolicyForm} onOpenChange={setShowPolicyForm}>
         <DialogContent className="max-w-2xl">
-          {contract?.id ? (
+          {activeContract?.id ? (
             <PayrollMileagePolicyForm
               policy={selectedPolicy}
-              contractId={contract.id}
+              contractId={activeContract.id}
               onSave={handleSavePolicy}
               onCancel={() => {
                 setShowPolicyForm(false);

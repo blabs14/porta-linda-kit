@@ -6,10 +6,14 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Utensils, Calendar, Award, Euro, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+
 import { useActiveContract } from '../hooks/useActiveContract';
 import { useNavigate } from 'react-router-dom';
 import { payrollService } from '@/features/payroll/services/payrollService';
 import { logger } from '@/shared/lib/logger';
+import { subsidyService } from '../../../services/subsidyService';
+import { subsidyDatabaseService } from '../../../services/subsidyDatabaseService';
+import { useAuth } from '../../../contexts/AuthContext';
 
 interface SubsidyData {
   mealAllowance: {
@@ -32,45 +36,75 @@ interface SubsidyData {
 export default function PayrollSubsidiesViewPage() {
   const { activeContract } = useActiveContract();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [subsidyData, setSubsidyData] = useState<SubsidyData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadSubsidyData = async () => {
-      if (!activeContract?.id) return;
+      logger.debug('PayrollSubsidiesViewPage - activeContract:', activeContract);
+      logger.debug('PayrollSubsidiesViewPage - activeContract?.id:', activeContract?.id);
+      logger.debug('PayrollSubsidiesViewPage - user:', user);
+      
+      if (!activeContract?.id) {
+        logger.warn('PayrollSubsidiesViewPage - Nenhum contrato ativo encontrado');
+        setIsLoading(false);
+        return;
+      }
+
+      if (!user) {
+        logger.warn('PayrollSubsidiesViewPage - Utilizador não autenticado');
+        setIsLoading(false);
+        return;
+      }
       
       try {
         setIsLoading(true);
-        // Simular carregamento de dados dos subsídios
-        // Em produção, isto seria uma chamada real à API
-        const mockData: SubsidyData = {
+        logger.debug('PayrollSubsidiesViewPage - Carregando dados para userId:', user.id, 'contractId:', activeContract.id);
+        
+        // Load subsidy configurations from database
+        const subsidyConfigs = await subsidyDatabaseService.loadSubsidyConfigs(user.id);
+        
+        // Filter configs for the active contract
+        const contractSubsidies = subsidyConfigs.filter(config => config.contract_id === activeContract.id);
+        
+        // Transform configs to SubsidyData format
+        const mealAllowanceConfig = contractSubsidies.find(config => config.subsidy_type === 'meal_allowance');
+        const vacationBonusConfig = contractSubsidies.find(config => config.subsidy_type === 'vacation_bonus');
+        const christmasBonusConfig = contractSubsidies.find(config => config.subsidy_type === 'christmas_bonus');
+        
+        const subsidyData: SubsidyData = {
           mealAllowance: {
-            dailyAmount: 7.63,
-            monthlyEstimate: 167.86,
-            isActive: true
+            dailyAmount: mealAllowanceConfig?.daily_amount || 0,
+            monthlyEstimate: mealAllowanceConfig?.monthly_amount || 0,
+            isActive: mealAllowanceConfig?.is_active || false
           },
           vacationBonus: {
-            amount: 870,
-            percentage: 100,
-            isActive: true
+            amount: vacationBonusConfig?.annual_amount || 0,
+            percentage: vacationBonusConfig?.salary_percentage || 0,
+            isActive: vacationBonusConfig?.is_active || false
           },
           christmasBonus: {
-            amount: 870,
-            percentage: 100,
-            isActive: true
+            amount: christmasBonusConfig?.annual_amount || 0,
+            percentage: christmasBonusConfig?.salary_percentage || 0,
+            isActive: christmasBonusConfig?.is_active || false
           }
         };
         
-        setSubsidyData(mockData);
-      } catch (error) {
-        logger.error('Erro ao carregar dados dos subsídios:', error);
+        setSubsidyData(subsidyData);
+        setError(null);
+        logger.info('PayrollSubsidiesViewPage - Subsídios carregados com sucesso');
+      } catch (err) {
+        logger.error('PayrollSubsidiesViewPage - Erro ao carregar subsídios:', err);
+        setError('Erro ao carregar dados dos subsídios');
       } finally {
         setIsLoading(false);
       }
     };
 
     loadSubsidyData();
-  }, [activeContract?.id]);
+  }, [activeContract?.id, user?.id]);
 
   const handleConfigureSubsidies = () => {
     navigate('/personal/payroll/config?tab=subsidies');
@@ -110,6 +144,8 @@ export default function PayrollSubsidiesViewPage() {
           Configurar
         </Button>
       </div>
+      
+
       
       <div className="grid gap-6 md:grid-cols-3">
         {/* Subsídio de Alimentação */}

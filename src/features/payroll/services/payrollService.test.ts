@@ -328,7 +328,7 @@ describe('PayrollService Integration Tests', () => {
       };
       (supabase.from as any).mockReturnValue(mockChain);
       
-      const result = await payrollService.createHoliday('user1', mockHoliday);
+      const result = await payrollService.createHoliday(mockHoliday, 'user1');
       
       expect(supabase.from).toHaveBeenCalledWith('payroll_holidays');
       expect(result).toEqual(expectedResult);

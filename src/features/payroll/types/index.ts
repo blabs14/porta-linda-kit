@@ -4,7 +4,6 @@
 export interface PayrollContract {
   id: string;
   user_id: string;
-  family_id?: string;
   name: string;
   base_salary_cents: number;
   hourly_rate_cents: number;
@@ -315,7 +314,7 @@ export interface PayrollContractFormData {
 export interface PayrollVacation {
   id: string;
   user_id: string;
-  family_id?: string;
+  contract_id: string;
   start_date: string;
   end_date: string;
   days_count: number;
@@ -339,7 +338,6 @@ export type MealAllowancePaymentMethod = 'cash' | 'card';
 export interface PayrollMealAllowanceConfig {
   id: string;
   user_id: string;
-  family_id?: string;
   contract_id: string;
   daily_amount_cents: number;
   excluded_months: number[]; // Array de meses (1-12) onde não há pagamento
@@ -360,7 +358,6 @@ export interface PayrollMealAllowanceConfigFormData {
 export interface PayrollDeductionConfig {
   id: string;
   user_id: string;
-  family_id?: string;
   contract_id: string;
   irs_percentage: number; // Percentagem de IRS (0-100)
   social_security_percentage: number; // Percentagem de Segurança Social (0-100)
@@ -381,7 +378,6 @@ export interface PayrollDeductionConfigFormData {
 export interface PayrollLeave {
   id: string;
   user_id: string;
-  family_id?: string;
   contract_id: string;
   leave_type: 'maternity' | 'paternity' | 'parental' | 'adoption' | 'sick' | 'family_assistance' | 'bereavement' | 'marriage' | 'study' | 'unpaid' | 'compensatory_rest' | 'other';
   start_date: string;

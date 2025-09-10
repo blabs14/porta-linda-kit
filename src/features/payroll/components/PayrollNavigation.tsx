@@ -2,7 +2,7 @@ import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
-import { ContractSelector } from './ContractSelector';
+import { SyncedContractSelector } from './SyncedContractSelector';
 import {
   Calculator,
   Clock,
@@ -106,7 +106,7 @@ export function PayrollNavigation({ className }: PayrollNavigationProps) {
             <p className="text-sm text-muted-foreground">Gestão de horários e salários</p>
           </div>
           <div className="flex items-center gap-2">
-            <ContractSelector />
+            <SyncedContractSelector variant="compact" />
           </div>
         </div>
         

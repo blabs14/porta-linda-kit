@@ -10,6 +10,7 @@ import { Clock, Calendar, TrendingUp, AlertTriangle, Download, RefreshCw } from 
 import { payrollService } from '../services/payrollService';
 import { createOvertimeExtractionService } from '../services/overtimeExtraction.service';
 import { logger } from '@/shared/lib/logger';
+import { useActiveContract } from '../hooks/useActiveContract';
 import type { TimesheetEntry, OvertimeBreakdown } from '../types';
 
 interface OvertimeDetailData {
@@ -33,11 +34,11 @@ interface MonthlyOvertimeStats {
 export default function PayrollOvertimeDetailPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { activeContract, loading: contractLoading } = useActiveContract();
   const [isLoading, setIsLoading] = useState(false);
   const [overtimeData, setOvertimeData] = useState<OvertimeDetailData | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [contract, setContract] = useState<any>(null);
   const [stats, setStats] = useState<MonthlyOvertimeStats | null>(null);
 
   const loadTimesheetEntries = async (userId: string, contractId: string, year: number, month: number): Promise<TimesheetEntry[]> => {
@@ -115,22 +116,10 @@ export default function PayrollOvertimeDetailPage() {
   };
 
   const loadOvertimeData = async () => {
-    if (!user) return;
+    if (!user || !activeContract?.id) return;
     
     setIsLoading(true);
     try {
-      // Buscar contrato ativo
-      const activeContract = await payrollService.getActiveContract(user.id);
-      setContract(activeContract);
-      
-      if (!activeContract?.id) {
-        toast({
-          title: "Contrato não encontrado",
-          description: "Nenhum contrato ativo foi encontrado.",
-          variant: "destructive",
-        });
-        return;
-      }
 
       // Buscar entradas da timesheet
       const timesheetEntries = await loadTimesheetEntries(user.id, activeContract.id, selectedYear, selectedMonth);
@@ -266,13 +255,44 @@ export default function PayrollOvertimeDetailPage() {
   };
 
   useEffect(() => {
-    loadOvertimeData();
-  }, [user, selectedMonth, selectedYear]);
+    if (activeContract) {
+      loadOvertimeData();
+    }
+  }, [user, activeContract, selectedMonth, selectedYear]);
 
   const monthNames = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ];
+
+  if (contractLoading) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-32 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!activeContract) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Nenhum contrato ativo</h3>
+            <p className="text-muted-foreground">Por favor, selecione um contrato no cabeçalho.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">

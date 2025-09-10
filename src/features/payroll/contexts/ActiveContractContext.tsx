@@ -236,3 +236,6 @@ export function ActiveContractProvider({ children }: ActiveContractProviderProps
     </ActiveContractContext.Provider>
   );
 }
+
+// Exportação padrão para compatibilidade com Fast Refresh
+export default ActiveContractProvider;

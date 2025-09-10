@@ -25,6 +25,7 @@ import { useSearchParams, useLocation } from 'react-router-dom';
 import { useActiveContract } from '@/features/payroll/hooks/useActiveContract';
 import { PayrollContractForm } from '@/features/payroll/components/PayrollContractForm';
 import { QuickContractForm } from '@/features/payroll/components/QuickContractForm';
+
 import { PayrollDeductionConfig } from '@/features/payroll/components/PayrollDeductionConfig';
 // PayrollHolidaysManager removido - sincronização automática implementada
 import { PayrollVacationsManager } from '@/features/payroll/components/PayrollVacationsManager';
@@ -78,11 +79,11 @@ type VacationFormData = z.infer<typeof vacationSchema>;
 export default function PayrollConfigPage() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAuth();
+  const { activeContract } = useActiveContract();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [activeSection, setActiveSection] = useState('contract');
   const [contracts, setContracts] = useState<any[]>([]);
-  const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [ariaMessage, setAriaMessage] = useState('');
   const [activeTab, setActiveTab] = useState('contract');
   const [showQuickForm, setShowQuickForm] = useState(false);
@@ -208,12 +209,9 @@ export default function PayrollConfigPage() {
       setContracts(contractsData || []);
       
       if (contractsData && contractsData.length > 0) {
-        const activeContract = contractsData.find(c => c.is_active) || contractsData[0];
-        setSelectedContractId(activeContract.id);
-        logger.debug('Selected contract:', activeContract.id);
+        logger.debug('Contracts loaded successfully');
       } else {
         logger.warn('No contracts found');
-        setSelectedContractId(null);
       }
     } catch (error) {
       logger.error('Error loading data:', error);
@@ -227,17 +225,7 @@ export default function PayrollConfigPage() {
     }
   };
 
-  const handleContractChange = (contractId: string) => {
-    setSelectedContractId(contractId);
-    try {
-      const next = new URLSearchParams(searchParams);
-      next.set('contract', contractId);
-      setSearchParams(next, { replace: true });
-    } catch (e) {
-      logger.warn('Falha ao atualizar searchParams', e);
-    }
-    // Load contract-specific data here if needed
-  };
+  // Contract selection is now handled by the global ActiveContractContext
 
 
   
@@ -250,11 +238,11 @@ export default function PayrollConfigPage() {
   // Carregar configuração do subsídio de alimentação quando o contrato mudar
   useEffect(() => {
     const loadMealAllowanceConfig = async () => {
-      if (user?.id && selectedContractId) {
+      if (user?.id && activeContract?.id) {
         try {
-          logger.debug('Loading meal allowance config for contract:', selectedContractId);
-          const config = await payrollService.getMealAllowanceConfig(user.id, selectedContractId);
-          logger.debug('Meal allowance config loaded:', config);
+          logger.debug('Loading meal allowance config for contract:', activeContract.id);
+          const config = await payrollService.getMealAllowanceConfig(user.id, activeContract.id);
+          logger.debug('Loaded meal allowance config:', config);
           setMealAllowanceConfig(config);
         } catch (error) {
           logger.error('Error loading meal allowance config:', error);
@@ -266,7 +254,7 @@ export default function PayrollConfigPage() {
     };
 
     loadMealAllowanceConfig();
-  }, [user?.id, selectedContractId]);
+  }, [user?.id, activeContract?.id]);
   
 
   // Abrir modal automaticamente quando navegamos com ?new=1
@@ -361,10 +349,10 @@ export default function PayrollConfigPage() {
         
         <QuickContractForm
           onContractCreated={(newContract) => {
-            setContracts(prev => [...prev, newContract]);
-            setSelectedContractId(newContract.id);
-            setShowQuickForm(false);
-          }}
+              setContracts(prev => [...prev, newContract]);
+              // O ActiveContractContext será atualizado automaticamente
+              setShowQuickForm(false);
+            }}
           onCancel={() => setShowQuickForm(false)}
         />
       </div>
@@ -396,38 +384,23 @@ export default function PayrollConfigPage() {
             return contracts.length > 0;
           })() ? (
             <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <Label htmlFor="contract-select">Selecionar Contrato</Label>
-                  <Select value={selectedContractId || ''} onValueChange={handleContractChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um contrato" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {contracts.map((contract) => (
-                        <SelectItem key={contract.id} value={contract.id}>
-                          {contract.name} {contract.is_active ? '(Ativo)' : '(Inativo)'}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="flex items-center justify-between">
+                {/* Espaço reservado para futuras funcionalidades */}
               </div>
-              {selectedContractId && (() => {
-                const selectedContract = contracts.find(c => c.id === selectedContractId);
-                return selectedContract && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              {activeContract && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-blue-800">
                       <FileText className="h-4 w-4" />
                       <span className="font-medium">Configurando:</span>
-                      <span className="font-semibold">{selectedContract.name}</span>
-                      {selectedContract.company_name && (
-                        <span className="text-sm text-blue-600">• {selectedContract.company_name}</span>
+                      <span className="font-semibold">{activeContract.name}</span>
+                      {activeContract.company_name && (
+                        <span className="text-sm text-blue-600">• {activeContract.company_name}</span>
                       )}
                     </div>
                   </div>
-                );
-              })()}
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-8">
@@ -451,11 +424,7 @@ export default function PayrollConfigPage() {
       </Card>
       
       {/* Tabs de Configuração - só aparecem quando há um contrato selecionado */}
-      {(() => {
-        logger.debug('PayrollConfigPage - selectedContractId:', selectedContractId);
-        logger.debug('PayrollConfigPage - typeof selectedContractId:', typeof selectedContractId);
-        return selectedContractId;
-      })() && (
+      {activeContract && (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="contract" className="flex items-center gap-2">
@@ -491,7 +460,7 @@ export default function PayrollConfigPage() {
           {/* Tab: Contrato Base */}
           <TabsContent value="contract">
             <PayrollContractForm 
-              contract={contracts.find(c => c.id === selectedContractId)} 
+              contract={activeContract} 
               onSave={(updatedContract) => {
                 // Atualizar contrato existente
                 setContracts(prev => prev.map(c => c.id === updatedContract.id ? updatedContract : c));
@@ -505,12 +474,12 @@ export default function PayrollConfigPage() {
 
           {/* Tab: Descontos */}
           <TabsContent value="deductions">
-            <PayrollDeductionConfig contractId={selectedContractId} />
+            <PayrollDeductionConfig contractId={activeContract.id} />
           </TabsContent>
 
           {/* Tab: Horas Extras */}
           <TabsContent value="overtime">
-            <PayrollOTPolicyForm contractId={selectedContractId} />
+            <PayrollOTPolicyForm contractId={activeContract.id} />
           </TabsContent>
 
           {/* Tab: Subsídios */}
@@ -544,7 +513,7 @@ export default function PayrollConfigPage() {
 
                   <TabsContent value="meal">
                     <PayrollMealAllowanceForm 
-                      contractId={selectedContractId} 
+                      contractId={activeContract.id} 
                       config={mealAllowanceConfig}
                       onSave={(savedConfig) => {
                         logger.debug('Meal allowance config saved:', savedConfig);
@@ -554,11 +523,11 @@ export default function PayrollConfigPage() {
                   </TabsContent>
 
                   <TabsContent value="vacation-bonus">
-                    <PayrollBonusConfig bonusType="mandatory" specificSubsidy="vacation" />
+                    <PayrollBonusConfig bonusType="mandatory" specificSubsidy="vacation" contractId={activeContract.id} />
                   </TabsContent>
 
                   <TabsContent value="christmas-bonus">
-                    <PayrollBonusConfig bonusType="mandatory" specificSubsidy="christmas" />
+                    <PayrollBonusConfig bonusType="mandatory" specificSubsidy="christmas" contractId={activeContract.id} />
                   </TabsContent>
                 </Tabs>
               </CardContent>
@@ -567,7 +536,7 @@ export default function PayrollConfigPage() {
 
           {/* Tab: Férias */}
           <TabsContent value="vacation">
-            <PayrollVacationsManager contractId={selectedContractId} />
+            <PayrollVacationsManager contractId={activeContract.id} />
           </TabsContent>
 
           {/* Tab: Bónus */}
@@ -622,16 +591,13 @@ export default function PayrollConfigPage() {
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2">
                   {/* Licenças Especiais */}
-                  {(() => {
-                    logger.debug('PayrollConfigPage - Rendering PayrollLeavesManager with contractId:', selectedContractId);
-                    return <PayrollLeavesManager contractId={selectedContractId} />;
-                  })()}
+                  <PayrollLeavesManager contractId={activeContract.id} />
 
                   {/* Descanso Compensatório */}
-                  <CompensatoryRestManager contractId={selectedContractId} />
+                  <CompensatoryRestManager contractId={activeContract.id} />
 
                   {/* Quilometragem */}
-                  <PayrollMileagePolicyForm contractId={selectedContractId} />
+                  <PayrollMileagePolicyForm contractId={activeContract.id} />
 
                   {/* Feriados removidos - sincronização automática implementada */}
                   {/* Descontos movidos para tab dedicada */}

@@ -25,7 +25,7 @@ import { useTimesheetWeekSchedule } from '../hooks/useTimesheetWeekSchedule';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLocale } from '@/contexts/LocaleProvider';
 import { useTranslation } from 'react-i18next';
-import { ContractSelector } from './ContractSelector';
+
 
 interface WeeklyTimesheetFormProps {
   initialWeekStart?: Date;
@@ -1449,14 +1449,10 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
         onExportCSV={exportToCSV}
       />
 
-      {/* Seleção de Contrato */}
+      {/* Resumo da Semana */}
       <Card>
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="contract">Contrato</Label>
-              <ContractSelector />
-            </div>
             <div>
               <Label>Horas Regulares</Label>
               <div className="text-2xl font-bold text-green-600">

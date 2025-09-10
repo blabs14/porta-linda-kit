@@ -26,6 +26,7 @@ import { PayrollPeriod, PayrollContract } from '../types';
 import { payrollService } from '../services/payrollService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActiveContract } from '../hooks/useActiveContract';
 import { format, parseISO } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/utils';
@@ -43,10 +44,15 @@ interface ConfigurationStatus {
   };
 }
 
-const PayrollPeriodsManager: React.FC = () => {
+interface PayrollPeriodsManagerProps {
+  contractId?: string;
+}
+
+const PayrollPeriodsManager: React.FC<PayrollPeriodsManagerProps> = ({ contractId }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { activeContract } = useActiveContract();
   const [periods, setPeriods] = useState<PayrollPeriod[]>([]);
   const [contract, setContract] = useState<PayrollContract | null>(null);
   const [configStatus, setConfigStatus] = useState<ConfigurationStatus | null>(null);
@@ -79,17 +85,26 @@ const PayrollPeriodsManager: React.FC = () => {
     try {
       setLoading(true);
       
-      // Carregar contrato ativo
-      const activeContract = await payrollService.getActiveContract(user.id);
-      setContract(activeContract);
+      let currentContract: PayrollContract | null = null;
+      
+      if (selectedContractId) {
+        // Se temos contractId, buscar o contrato específico
+        const contracts = await payrollService.getContracts(user.id);
+        currentContract = contracts.find(c => c.id === selectedContractId) || null;
+      } else {
+        // Fallback para contrato ativo
+        currentContract = await payrollService.getActiveContract(user.id);
+      }
+      
+      setContract(currentContract);
 
-      if (activeContract) {
+      if (currentContract) {
         // Carregar status das configurações
-        const status = await payrollService.getPayrollConfigurationStatus(user.id, activeContract.id);
+        const status = await payrollService.getPayrollConfigurationStatus(user.id, currentContract.id);
         setConfigStatus(status);
 
         // Carregar períodos existentes
-        const existingPeriods = await payrollService.getPayrollPeriods(user.id, activeContract.id);
+        const existingPeriods = await payrollService.getPayrollPeriods(user.id, currentContract.id);
         setPeriods(existingPeriods);
       }
     } catch (error) {
@@ -106,7 +121,7 @@ const PayrollPeriodsManager: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [user?.id]);
+  }, [user?.id, selectedContractId]);
 
   const handleCreatePeriod = async () => {
     if (!user?.id || !contract?.id) return;

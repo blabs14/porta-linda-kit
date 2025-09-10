@@ -104,14 +104,22 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
     let mounted = true;
     (async () => {
       try {
+        console.log('🔄 Loading currencies...');
         const { data, error } = await getCurrencies();
+        console.log('💰 Currency service response:', { data, error });
         if (error) throw error;
         if (!mounted) return;
         const opts = (data || []).map((c: any) => ({ code: c.code as string, name: c.name as string }));
-        setCurrencyOptions(opts.length > 0 ? opts : [{ code: 'EUR', name: 'Euro' }]);
+        const finalOptions = opts.length > 0 ? opts : [{ code: 'EUR', name: 'Euro' }];
+        console.log('✅ Setting currency options:', finalOptions);
+        setCurrencyOptions(finalOptions);
       } catch (e) {
+        console.log('❌ Currency loading error:', e);
         // Em caso de erro, fallback para EUR
-        if (mounted) setCurrencyOptions([{ code: 'EUR', name: 'Euro' }]);
+        if (mounted) {
+          console.log('🔄 Using fallback currency options');
+          setCurrencyOptions([{ code: 'EUR', name: 'Euro' }]);
+        }
       }
     })();
     return () => { mounted = false; };
@@ -142,6 +150,7 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
 
     const isValidISO = /^[A-Z]{3}$/.test(formData.currency || '');
     const inList = currencyOptions.length === 0 ? true : currencyOptions.some(c => c.code === formData.currency);
+    
     if (!isValidISO || !inList) {
       (toast as any).error?.('Por favor escolhe uma moeda válida') ?? toast({ title: 'Erro', description: 'Por favor escolhe uma moeda válida', variant: 'destructive' });
       return;
@@ -153,13 +162,13 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
       let savedContract: PayrollContract;
       
       if (contract?.id) {
-        savedContract = await payrollService.updateContract(contract.id, formData);
+        savedContract = await payrollService.updateContract(contract.id, formData, user.id);
         toast({
           title: 'Contrato atualizado',
           description: 'O contrato foi atualizado com sucesso.'
         });
       } else {
-        savedContract = await payrollService.createContract(user.id, formData, family?.id);
+        savedContract = await payrollService.createContract(user.id, formData);
         toast({
           title: 'Contrato criado',
           description: 'O novo contrato foi criado com sucesso.'

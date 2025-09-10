@@ -19,7 +19,7 @@ import { OvertimeExtractionService, createOvertimeExtractionService } from '../s
 import { logger } from '@/shared/lib/logger';
 import { exportPayrollReport, downloadFile } from '../services/export.service';
 import { ReportExport } from '../../../components/ReportExport';
-import { ContractSelector } from '../components/ContractSelector';
+
 import type { PayrollContract, TimesheetEntry } from '../types';
 
 interface MonthlyTotals {
@@ -484,20 +484,7 @@ const PayrollSummaryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Contract Selector */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <span>Contrato Ativo</span>
-          </CardTitle>
-          <CardDescription>
-            Selecione o contrato para visualizar os dados do payroll
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ContractSelector className="w-full" />
-        </CardContent>
-      </Card>
+
 
       {/* Totais do Mês */}
       <Card>

@@ -57,11 +57,11 @@ export function PayrollVacationForm({ vacation, year, contractId, existingVacati
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    
+
     if (!formData.start_date) {
       newErrors.start_date = 'Data de início é obrigatória';
     }
-    
+
     if (!formData.end_date) {
       newErrors.end_date = 'Data de fim é obrigatória';
     }
@@ -116,11 +116,13 @@ export function PayrollVacationForm({ vacation, year, contractId, existingVacati
     }
     
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const isValid = Object.keys(newErrors).length === 0;
+    return isValid;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     log.debug('handleSubmit started');
     log.debug('Form data', { fields: Object.keys(formData || {}) });
     log.debug('User', { userId: maskId(user?.id) });
@@ -254,7 +256,11 @@ export function PayrollVacationForm({ vacation, year, contractId, existingVacati
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={loading || workingDays === 0}>
+        <Button 
+          type="submit" 
+          className="w-full"
+          disabled={loading}
+        >
           {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {vacation ? 'Atualizar' : 'Criar'} Férias
         </Button>

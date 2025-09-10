@@ -4,6 +4,7 @@ import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
 import { Calendar, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { payrollService } from '../services/payrollService';
+
 import { useActiveContract } from '../hooks/useActiveContract';
 import { LoadingSpinner } from '../../../components/ui/loading-states';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO } from 'date-fns';
@@ -138,6 +139,8 @@ export default function PayrollVacationCalendarPage() {
           </Button>
         </div>
       </div>
+
+
 
       <Card>
         <CardHeader>
