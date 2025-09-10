@@ -181,6 +181,41 @@ export async function deactivateContract(contractId: string, userId: string): Pr
 }
 
 export async function deleteContract(contractId: string, userId: string): Promise<void> {
+  // First, delete all dependent records to avoid foreign key constraint violations
+  const dependentTables = [
+    'payroll_ot_policies',
+    'payroll_time_entries', 
+    'payroll_periods',
+    'payroll_mileage_policies',
+    'payroll_vacations',
+    'payroll_meal_allowance_configs',
+    'payroll_deduction_configs',
+    'payroll_leaves',
+    'payroll_bonus_configs',
+    'payroll_deduction_conditions',
+    'payroll_holidays',
+    'performance_bonus_configs',
+    'performance_bonus_results',
+    'payroll_mileage_trips',
+    'payroll_custom_bonuses'
+  ];
+
+  // Delete dependent records in sequence
+  for (const table of dependentTables) {
+    const { error: depError } = await supabase
+      .from(table)
+      .delete()
+      .eq('contract_id', contractId)
+      .eq('user_id', userId);
+    
+    // Log but don't throw on dependent record deletion errors
+    // as some tables might not have records for this contract
+    if (depError && depError.code !== 'PGRST116') {
+      console.warn(`Warning deleting from ${table}:`, depError);
+    }
+  }
+
+  // Finally, delete the contract itself
   const { error } = await supabase
     .from('payroll_contracts')
     .delete()
