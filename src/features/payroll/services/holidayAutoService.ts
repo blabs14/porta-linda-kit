@@ -99,6 +99,16 @@ export function parseWorkplaceLocation(workplaceLocation: string): LocationInfo 
     };
   }
 
+  // Para trabalho remoto, assumir Lisboa como localização padrão
+  if (location.includes('remoto') || location.includes('remote') || location.includes('home office')) {
+    return {
+      municipality: 'Lisboa',
+      district: 'Lisboa',
+      region: 'Lisboa e Vale do Tejo',
+      country: 'Portugal'
+    };
+  }
+
   // Retornar informação genérica se não conseguir identificar
   return {
     municipality: workplaceLocation,
@@ -232,14 +242,17 @@ export async function getNationalHolidays(year: number): Promise<AutoHoliday[]> 
 
 // Função para obter feriados regionais e municipais baseados na localização
 export async function getRegionalHolidays(year: number, workplaceLocation: string): Promise<AutoHoliday[]> {
+  console.log('🔍 getRegionalHolidays chamada:', { year, workplaceLocation });
+  
   const locationInfo = parseWorkplaceLocation(workplaceLocation);
   
   if (!locationInfo) {
+    console.warn('❌ Não foi possível extrair informação de localização:', workplaceLocation);
     logger.warn('Não foi possível extrair informação de localização:', workplaceLocation);
     return [];
   }
 
-  // Debug: Location info extracted for regional holidays
+  console.log('📍 Informação de localização extraída:', locationInfo);
 
   const holidays: AutoHoliday[] = [];
 
@@ -297,11 +310,15 @@ export async function getRegionalHolidays(year: number, workplaceLocation: strin
   const apiHolidays = await fetchHolidaysFromAPI(year, locationInfo);
   holidays.push(...apiHolidays);
 
+  console.log('🎉 Feriados encontrados antes de remover duplicados:', holidays);
+  
   // Remover duplicados
   const uniqueHolidays = holidays.filter((holiday, index, self) => 
     index === self.findIndex(h => h.date === holiday.date && h.name === holiday.name)
   );
 
+  console.log('✨ Feriados únicos a retornar:', uniqueHolidays);
+  
   return uniqueHolidays.sort((a, b) => a.date.localeCompare(b.date));
 }
 

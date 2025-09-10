@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Fluxo Login React</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .controls {
+            grid-column: 1 / -1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Teste Fluxo Completo de Login React</h1>
+        
+        <div id="status" class="status info">
+            Aguardando teste...
+        </div>
+
+        <div class="controls">
+            <h3>Controlos de Teste</h3>
+            <button onclick="testLoginPage()">1. Testar Página Login</button>
+            <button onclick="testProtectedArea()">2. Testar Área Protegida</button>
+            <button onclick="testFullFlow()">3. Teste Completo</button>
+            <button onclick="clearLogs()">Limpar Logs</button>
+        </div>
+
+        <div class="section">
+            <h3>Logs de Teste</h3>
+            <div id="logs" class="log"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <div class="container">
+            <h3>Página de Login</h3>
+            <iframe id="loginFrame" src="about:blank"></iframe>
+        </div>
+        
+        <div class="container">
+            <h3>Área Protegida</h3>
+            <iframe id="appFrame" src="about:blank"></iframe>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2'
+        
+        // Configuração do Supabase
+        const supabaseUrl = 'https://ebitcwrrcumsvqjgrapw.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY'
+        
+        const supabase = createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true,
+                detectSessionInUrl: true,
+                flowType: 'pkce'
+            }
+        })
+
+        // Credenciais de teste
+        const testCredentials = {
+            email: 'teste2@teste',
+            password: 'teste14'
+        }
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString()
+            const logElement = document.getElementById('logs')
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}\n`
+            logElement.textContent += logEntry
+            logElement.scrollTop = logElement.scrollHeight
+            console.log(`[${type}]`, message)
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusElement = document.getElementById('status')
+            statusElement.textContent = message
+            statusElement.className = `status ${type}`
+        }
+
+        window.testLoginPage = function() {
+            log('Carregando página de login...')
+            updateStatus('Testando página de login...', 'info')
+            
+            const loginFrame = document.getElementById('loginFrame')
+            loginFrame.src = 'http://localhost:8081/login'
+            
+            loginFrame.onload = function() {
+                log('Página de login carregada com sucesso', 'success')
+                updateStatus('Página de login carregada', 'success')
+            }
+            
+            loginFrame.onerror = function() {
+                log('Erro ao carregar página de login', 'error')
+                updateStatus('Erro ao carregar página de login', 'error')
+            }
+        }
+
+        window.testProtectedArea = function() {
+            log('Carregando área protegida...')
+            updateStatus('Testando área protegida...', 'info')
+            
+            const appFrame = document.getElementById('appFrame')
+            appFrame.src = 'http://localhost:8081/app'
+            
+            appFrame.onload = function() {
+                log('Área protegida carregada', 'success')
+                updateStatus('Área protegida carregada', 'success')
+            }
+            
+            appFrame.onerror = function() {
+                log('Erro ao carregar área protegida', 'error')
+                updateStatus('Erro ao carregar área protegida', 'error')
+            }
+        }
+
+        window.testFullFlow = async function() {
+            log('=== INICIANDO TESTE COMPLETO ===', 'info')
+            updateStatus('Executando teste completo...', 'info')
+            
+            try {
+                // 1. Verificar estado inicial
+                log('1. Verificando estado inicial da sessão...')
+                const { data: initialSession } = await supabase.auth.getSession()
+                
+                if (initialSession.session) {
+                    log('Sessão ativa encontrada, fazendo logout primeiro...', 'warning')
+                    await supabase.auth.signOut()
+                    await new Promise(resolve => setTimeout(resolve, 1000))
+                }
+                
+                // 2. Carregar página de login
+                log('2. Carregando página de login...')
+                testLoginPage()
+                await new Promise(resolve => setTimeout(resolve, 2000))
+                
+                // 3. Fazer login via API
+                log('3. Fazendo login via API...')
+                const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+                    email: testCredentials.email,
+                    password: testCredentials.password
+                })
+                
+                if (loginError) {
+                    log(`Erro no login: ${loginError.message}`, 'error')
+                    updateStatus(`Erro no login: ${loginError.message}`, 'error')
+                    return
+                }
+                
+                log('Login realizado com sucesso!', 'success')
+                log(`Utilizador: ${loginData.user.email}`, 'success')
+                
+                // 4. Aguardar e testar área protegida
+                log('4. Aguardando propagação da sessão...')
+                await new Promise(resolve => setTimeout(resolve, 2000))
+                
+                log('5. Testando acesso à área protegida...')
+                testProtectedArea()
+                
+                // 6. Verificar sessão final
+                await new Promise(resolve => setTimeout(resolve, 2000))
+                const { data: finalSession } = await supabase.auth.getSession()
+                
+                if (finalSession.session) {
+                    log('✅ Teste completo: Sessão ativa confirmada', 'success')
+                    updateStatus('✅ Teste completo realizado com sucesso!', 'success')
+                } else {
+                    log('❌ Teste completo: Sessão não encontrada', 'error')
+                    updateStatus('❌ Problema: Sessão não persistiu', 'error')
+                }
+                
+            } catch (error) {
+                log(`Erro no teste completo: ${error.message}`, 'error')
+                updateStatus(`Erro no teste: ${error.message}`, 'error')
+            }
+        }
+
+        window.clearLogs = function() {
+            document.getElementById('logs').textContent = ''
+            log('Logs limpos')
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            log('Sistema de teste carregado')
+            updateStatus('Sistema pronto para testes', 'info')
+        })
+
+        // Listener para mudanças de autenticação
+        supabase.auth.onAuthStateChange((event, session) => {
+            log(`🔄 Evento de auth: ${event}`, 'info')
+            if (session) {
+                log(`👤 Utilizador autenticado: ${session.user.email}`, 'success')
+            } else {
+                log('👤 Utilizador não autenticado', 'warning')
+            }
+        })
+    </script>
+</body>
+</html>

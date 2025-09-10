@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Autenticação com Credenciais .env</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Teste Autenticação com Credenciais .env</h1>
+        
+        <div id="status" class="status info">
+            Aguardando teste...
+        </div>
+
+        <div class="section">
+            <h3>Configuração Supabase</h3>
+            <div id="config-status"></div>
+            <button onclick="checkConfig()">Verificar Configuração</button>
+        </div>
+
+        <div class="section">
+            <h3>Credenciais de Teste (.env)</h3>
+            <input type="email" id="email" placeholder="Email" readonly>
+            <input type="password" id="password" placeholder="Password" readonly>
+            <button onclick="loadTestCredentials()">Carregar Credenciais .env</button>
+            <button onclick="testLogin()" id="loginBtn">Testar Login</button>
+        </div>
+
+        <div class="section">
+            <h3>Estado da Sessão</h3>
+            <div id="session-info"></div>
+            <button onclick="checkSession()">Verificar Sessão</button>
+            <button onclick="logout()">Logout</button>
+        </div>
+
+        <div class="section">
+            <h3>Logs</h3>
+            <div id="logs" class="log"></div>
+            <button onclick="clearLogs()">Limpar Logs</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2'
+        
+        // Configuração do Supabase
+        const supabaseUrl = 'https://ebitcwrrcumsvqjgrapw.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY'
+        
+        const supabase = createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true,
+                detectSessionInUrl: true,
+                flowType: 'pkce'
+            }
+        })
+
+        // Credenciais de teste do .env
+        const testCredentials = {
+            email: 'teste2@teste',
+            password: 'teste14'
+        }
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString()
+            const logElement = document.getElementById('logs')
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}\n`
+            logElement.textContent += logEntry
+            logElement.scrollTop = logElement.scrollHeight
+            console.log(`[${type}]`, message)
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusElement = document.getElementById('status')
+            statusElement.textContent = message
+            statusElement.className = `status ${type}`
+        }
+
+        window.checkConfig = function() {
+            log('Verificando configuração do Supabase...')
+            const configDiv = document.getElementById('config-status')
+            
+            configDiv.innerHTML = `
+                <div class="info">
+                    <strong>URL:</strong> ${supabaseUrl}<br>
+                    <strong>Key:</strong> ${supabaseKey.substring(0, 20)}...<br>
+                    <strong>Cliente criado:</strong> ${supabase ? '✅ Sim' : '❌ Não'}
+                </div>
+            `
+            log('Configuração verificada')
+        }
+
+        window.loadTestCredentials = function() {
+            document.getElementById('email').value = testCredentials.email
+            document.getElementById('password').value = testCredentials.password
+            log(`Credenciais carregadas: ${testCredentials.email}`)
+            updateStatus('Credenciais de teste carregadas', 'success')
+        }
+
+        window.testLogin = async function() {
+            const email = document.getElementById('email').value
+            const password = document.getElementById('password').value
+            
+            if (!email || !password) {
+                updateStatus('Por favor, carregue as credenciais primeiro', 'error')
+                return
+            }
+
+            const loginBtn = document.getElementById('loginBtn')
+            loginBtn.disabled = true
+            loginBtn.textContent = 'A fazer login...'
+            
+            try {
+                log(`Tentando login com: ${email}`)
+                updateStatus('A fazer login...', 'info')
+                
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                })
+                
+                if (error) {
+                    log(`Erro no login: ${error.message}`, 'error')
+                    updateStatus(`Erro: ${error.message}`, 'error')
+                } else {
+                    log('Login realizado com sucesso!', 'success')
+                    log(`Utilizador: ${data.user?.email}`, 'success')
+                    updateStatus('Login realizado com sucesso!', 'success')
+                    checkSession()
+                }
+            } catch (err) {
+                log(`Erro inesperado: ${err.message}`, 'error')
+                updateStatus(`Erro inesperado: ${err.message}`, 'error')
+            } finally {
+                loginBtn.disabled = false
+                loginBtn.textContent = 'Testar Login'
+            }
+        }
+
+        window.checkSession = async function() {
+            try {
+                log('Verificando sessão atual...')
+                const { data: { session }, error } = await supabase.auth.getSession()
+                
+                const sessionDiv = document.getElementById('session-info')
+                
+                if (error) {
+                    log(`Erro ao verificar sessão: ${error.message}`, 'error')
+                    sessionDiv.innerHTML = `<div class="error">Erro: ${error.message}</div>`
+                } else if (session) {
+                    log('Sessão ativa encontrada', 'success')
+                    sessionDiv.innerHTML = `
+                        <div class="success">
+                            <strong>✅ Sessão Ativa</strong><br>
+                            <strong>Email:</strong> ${session.user.email}<br>
+                            <strong>ID:</strong> ${session.user.id}<br>
+                            <strong>Expira:</strong> ${new Date(session.expires_at * 1000).toLocaleString()}
+                        </div>
+                    `
+                } else {
+                    log('Nenhuma sessão ativa', 'warning')
+                    sessionDiv.innerHTML = `<div class="warning">❌ Nenhuma sessão ativa</div>`
+                }
+            } catch (err) {
+                log(`Erro inesperado: ${err.message}`, 'error')
+            }
+        }
+
+        window.logout = async function() {
+            try {
+                log('Fazendo logout...')
+                const { error } = await supabase.auth.signOut()
+                
+                if (error) {
+                    log(`Erro no logout: ${error.message}`, 'error')
+                } else {
+                    log('Logout realizado com sucesso', 'success')
+                    updateStatus('Logout realizado', 'success')
+                    document.getElementById('session-info').innerHTML = `<div class="info">Sessão terminada</div>`
+                }
+            } catch (err) {
+                log(`Erro inesperado: ${err.message}`, 'error')
+            }
+        }
+
+        window.clearLogs = function() {
+            document.getElementById('logs').textContent = ''
+            log('Logs limpos')
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            log('Página carregada')
+            checkConfig()
+            loadTestCredentials()
+            checkSession()
+        })
+
+        // Listener para mudanças de autenticação
+        supabase.auth.onAuthStateChange((event, session) => {
+            log(`Evento de auth: ${event}`, 'info')
+            if (session) {
+                log(`Utilizador: ${session.user.email}`, 'info')
+            }
+        })
+    </script>
+</body>
+</html>

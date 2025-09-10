@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste React Auth</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .iframe-container {
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: none;
+        }
+        .test-section {
+            border-left: 4px solid #007bff;
+            padding-left: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Teste de Autenticação React</h1>
+        
+        <div id="status"></div>
+        
+        <div class="test-section">
+            <h3>1. Testes de Conectividade</h3>
+            <button onclick="testSupabaseConnection()">Testar Supabase</button>
+            <button onclick="testReactApp()">Testar App React</button>
+            <button onclick="testAuthContext()">Testar AuthContext</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>2. Testes de Autenticação</h3>
+            <button onclick="testDirectLogin()">Login Direto</button>
+            <button onclick="testReactLogin()">Login via React</button>
+            <button onclick="checkSession()">Verificar Sessão</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>3. Testes de Navegação</h3>
+            <button onclick="openLoginPage()">Abrir Página Login</button>
+            <button onclick="openAppPage()">Abrir App Principal</button>
+            <button onclick="openPayrollPage()">Abrir Payroll</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>4. Limpeza e Reset</h3>
+            <button onclick="clearSession()">Limpar Sessão</button>
+            <button onclick="clearLogs()">Limpar Logs</button>
+            <button onclick="resetTest()">Reset Completo</button>
+        </div>
+        
+        <div id="logs" class="log"></div>
+    </div>
+    
+    <div class="container">
+        <h3>📱 Aplicação React (Embedded)</h3>
+        <div class="iframe-container">
+            <iframe id="reactFrame" src="http://localhost:8081/" title="React App"></iframe>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2';
+        
+        // Configuração do Supabase (local)
+        const supabaseUrl = 'https://localhost:54321';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
+        
+        let supabase;
+        let testResults = {};
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('logs');
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        function showStatus(message, type = 'info') {
+            const statusElement = document.getElementById('status');
+            statusElement.className = `status ${type}`;
+            statusElement.textContent = message;
+        }
+        
+        // 1. Testes de Conectividade
+        window.testSupabaseConnection = async function() {
+            try {
+                log('🔗 Testando conexão Supabase...');
+                
+                supabase = createClient(supabaseUrl, supabaseKey);
+                log('✅ Cliente Supabase criado');
+                
+                // Teste de conectividade básica
+                const { data, error } = await supabase.from('users').select('count').limit(1);
+                
+                if (error) {
+                    log(`❌ Erro na conexão: ${error.message}`, 'error');
+                    testResults.supabase = false;
+                    showStatus('Erro de conexão Supabase', 'error');
+                } else {
+                    log('✅ Conexão Supabase OK');
+                    testResults.supabase = true;
+                    showStatus('Supabase conectado', 'success');
+                }
+            } catch (err) {
+                log(`❌ Erro crítico: ${err.message}`, 'error');
+                testResults.supabase = false;
+                showStatus('Erro crítico Supabase', 'error');
+            }
+        };
+        
+        window.testReactApp = function() {
+            log('⚛️ Testando aplicação React...');
+            
+            const iframe = document.getElementById('reactFrame');
+            
+            iframe.onload = function() {
+                log('✅ Aplicação React carregada');
+                testResults.reactApp = true;
+                
+                // Tentar aceder ao contexto da aplicação
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    const reactRoot = iframeDoc.getElementById('root');
+                    
+                    if (reactRoot && reactRoot.children.length > 0) {
+                        log('✅ React renderizado com sucesso');
+                        testResults.reactRender = true;
+                    } else {
+                        log('⚠️ React não renderizado ou erro', 'warning');
+                        testResults.reactRender = false;
+                    }
+                } catch (err) {
+                    log(`⚠️ Não foi possível aceder ao conteúdo React: ${err.message}`, 'warning');
+                    testResults.reactAccess = false;
+                }
+                
+                showStatus('React App testado', 'info');
+            };
+            
+            iframe.onerror = function() {
+                log('❌ Erro ao carregar aplicação React', 'error');
+                testResults.reactApp = false;
+                showStatus('Erro no React App', 'error');
+            };
+            
+            // Forçar reload
+            iframe.src = iframe.src;
+        };
+        
+        window.testAuthContext = function() {
+            log('🔐 Testando AuthContext...');
+            
+            // Simular o comportamento do AuthContext
+            if (supabase) {
+                supabase.auth.onAuthStateChange((event, session) => {
+                    log(`🔄 Auth state change: ${event}`);
+                    if (session) {
+                        log(`👤 Usuário: ${session.user?.email}`);
+                        testResults.authContext = true;
+                    } else {
+                        log('👤 Sem sessão ativa');
+                        testResults.authContext = false;
+                    }
+                });
+                
+                log('✅ AuthContext listener configurado');
+                showStatus('AuthContext configurado', 'success');
+            } else {
+                log('❌ Supabase não inicializado', 'error');
+                showStatus('Erro: Supabase não inicializado', 'error');
+            }
+        };
+        
+        // 2. Testes de Autenticação
+        window.testDirectLogin = async function() {
+            if (!supabase) {
+                log('❌ Supabase não inicializado', 'error');
+                return;
+            }
+            
+            try {
+                log('🔐 Testando login direto...');
+                
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: 'test@example.com',
+                    password: 'password123'
+                });
+                
+                if (error) {
+                    log(`❌ Erro no login: ${error.message}`, 'error');
+                    testResults.directLogin = false;
+                    showStatus('Erro no login direto', 'error');
+                } else {
+                    log('✅ Login direto bem-sucedido');
+                    log(`👤 Usuário: ${data.user?.email}`);
+                    testResults.directLogin = true;
+                    showStatus('Login direto OK', 'success');
+                }
+            } catch (err) {
+                log(`❌ Erro crítico no login: ${err.message}`, 'error');
+                testResults.directLogin = false;
+                showStatus('Erro crítico no login', 'error');
+            }
+        };
+        
+        window.testReactLogin = function() {
+            log('⚛️ Testando login via React...');
+            
+            const iframe = document.getElementById('reactFrame');
+            
+            // Navegar para a página de login
+            iframe.src = 'http://localhost:8081/login';
+            
+            iframe.onload = function() {
+                log('✅ Página de login carregada');
+                
+                setTimeout(() => {
+                    try {
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        const emailInput = iframeDoc.querySelector('input[type="email"]');
+                        const passwordInput = iframeDoc.querySelector('input[type="password"]');
+                        const submitButton = iframeDoc.querySelector('button[type="submit"]');
+                        
+                        if (emailInput && passwordInput && submitButton) {
+                            log('✅ Formulário de login encontrado');
+                            
+                            // Preencher formulário
+                            emailInput.value = 'test@example.com';
+                            passwordInput.value = 'password123';
+                            
+                            log('📝 Formulário preenchido');
+                            
+                            // Simular submit
+                            submitButton.click();
+                            
+                            log('🚀 Login submetido');
+                            testResults.reactLogin = true;
+                            showStatus('Login React testado', 'info');
+                        } else {
+                            log('❌ Formulário de login não encontrado', 'error');
+                            testResults.reactLogin = false;
+                            showStatus('Erro: formulário não encontrado', 'error');
+                        }
+                    } catch (err) {
+                        log(`❌ Erro ao interagir com formulário: ${err.message}`, 'error');
+                        testResults.reactLogin = false;
+                        showStatus('Erro na interação com React', 'error');
+                    }
+                }, 2000);
+            };
+        };
+        
+        window.checkSession = async function() {
+            if (!supabase) {
+                log('❌ Supabase não inicializado', 'error');
+                return;
+            }
+            
+            try {
+                log('👤 Verificando sessão...');
+                
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    log(`❌ Erro ao verificar sessão: ${error.message}`, 'error');
+                    showStatus('Erro na verificação de sessão', 'error');
+                } else if (session) {
+                    log('✅ Sessão ativa');
+                    log(`👤 Usuário: ${session.user?.email}`);
+                    log(`⏰ Expira: ${new Date(session.expires_at * 1000).toLocaleString()}`);
+                    testResults.session = true;
+                    showStatus('Sessão ativa', 'success');
+                } else {
+                    log('ℹ️ Nenhuma sessão ativa');
+                    testResults.session = false;
+                    showStatus('Sem sessão', 'info');
+                }
+            } catch (err) {
+                log(`❌ Erro crítico: ${err.message}`, 'error');
+                showStatus('Erro crítico na sessão', 'error');
+            }
+        };
+        
+        // 3. Testes de Navegação
+        window.openLoginPage = function() {
+            log('🔗 Abrindo página de login...');
+            const iframe = document.getElementById('reactFrame');
+            iframe.src = 'http://localhost:8081/login';
+        };
+        
+        window.openAppPage = function() {
+            log('🔗 Abrindo app principal...');
+            const iframe = document.getElementById('reactFrame');
+            iframe.src = 'http://localhost:8081/app';
+        };
+        
+        window.openPayrollPage = function() {
+            log('🔗 Abrindo página payroll...');
+            const iframe = document.getElementById('reactFrame');
+            iframe.src = 'http://localhost:8081/app/payroll';
+        };
+        
+        // 4. Limpeza e Reset
+        window.clearSession = async function() {
+            if (supabase) {
+                log('🧹 Limpando sessão...');
+                await supabase.auth.signOut();
+                log('✅ Sessão limpa');
+                showStatus('Sessão limpa', 'info');
+            }
+        };
+        
+        window.clearLogs = function() {
+            document.getElementById('logs').textContent = '';
+            showStatus('Logs limpos', 'info');
+        };
+        
+        window.resetTest = function() {
+            log('🔄 Reset completo...');
+            testResults = {};
+            clearSession();
+            clearLogs();
+            const iframe = document.getElementById('reactFrame');
+            iframe.src = 'http://localhost:8081/';
+            showStatus('Reset completo', 'info');
+        };
+        
+        // Inicialização
+        log('🚀 Teste React Auth carregado');
+        showStatus('Pronto para testes', 'info');
+        
+        // Auto-inicializar alguns testes
+        setTimeout(() => {
+            testSupabaseConnection();
+        }, 1000);
+    </script>
+</body>
+</html>

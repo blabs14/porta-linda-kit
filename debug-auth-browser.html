@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Supabase Auth</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; background: #f9f9f9; }
+        .error { background: #ffebee; border-color: #f44336; }
+        .success { background: #e8f5e8; border-color: #4caf50; }
+        button { margin: 5px; padding: 10px 15px; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Debug Supabase Auth Session</h1>
+    <div id="results"></div>
+    
+    <button onclick="checkAuth()">Check Auth Status</button>
+    <button onclick="testLogin()">Test Login</button>
+    <button onclick="testPayrollQuery()">Test Payroll Query</button>
+    <button onclick="clearStorage()">Clear Storage</button>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Simulate environment variables
+        const SUPABASE_URL = 'https://ebitcwrrcumsvqjgrapw.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY';
+        
+        // Initialize Supabase client
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true,
+                detectSessionInUrl: true,
+                flowType: 'pkce'
+            }
+        });
+
+        function addResult(message, type = 'result') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = message;
+            document.getElementById('results').appendChild(div);
+        }
+
+        async function checkAuth() {
+            addResult('<h3>🔍 Checking Authentication Status</h3>');
+            
+            try {
+                // Check current session
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                
+                if (sessionError) {
+                    addResult(`❌ Session Error: ${sessionError.message}`, 'error');
+                    return;
+                }
+                
+                if (session) {
+                    addResult(`✅ User authenticated: ${session.user.email}`, 'success');
+                    addResult(`🔑 Access Token: ${session.access_token.substring(0, 50)}...`);
+                    addResult(`⏰ Token expires: ${new Date(session.expires_at * 1000).toLocaleString()}`);
+                    
+                    // Check localStorage
+                    const storageKeys = Object.keys(localStorage).filter(key => key.includes('supabase'));
+                    addResult(`💾 LocalStorage keys: ${storageKeys.join(', ')}`);
+                    
+                    // Test auth.uid()
+                    const { data: authData, error: authError } = await supabase
+                        .from('payroll_contracts')
+                        .select('count')
+                        .limit(1);
+                    
+                    if (authError) {
+                        addResult(`❌ Auth test failed: ${authError.message}`, 'error');
+                    } else {
+                        addResult(`✅ Auth test successful - can access database`, 'success');
+                    }
+                } else {
+                    addResult('❌ No active session found', 'error');
+                    
+                    // Check what's in localStorage anyway
+                    const storageKeys = Object.keys(localStorage).filter(key => key.includes('supabase'));
+                    if (storageKeys.length > 0) {
+                        addResult(`💾 Found storage keys: ${storageKeys.join(', ')}`);
+                        storageKeys.forEach(key => {
+                            const value = localStorage.getItem(key);
+                            addResult(`📄 ${key}: ${value ? value.substring(0, 100) + '...' : 'null'}`);
+                        });
+                    } else {
+                        addResult('💾 No Supabase data in localStorage');
+                    }
+                }
+            } catch (error) {
+                addResult(`❌ Error checking auth: ${error.message}`, 'error');
+            }
+        }
+
+        async function testLogin() {
+            addResult('<h3>🔐 Testing Login</h3>');
+            
+            const email = 'teste2@teste';
+            const password = prompt('Enter password for teste2@teste:');
+            
+            if (!password) {
+                addResult('❌ Password required', 'error');
+                return;
+            }
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+                
+                if (error) {
+                    addResult(`❌ Login failed: ${error.message}`, 'error');
+                } else {
+                    addResult(`✅ Login successful: ${data.user.email}`, 'success');
+                    addResult(`🔑 New session created`);
+                }
+            } catch (error) {
+                addResult(`❌ Login error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPayrollQuery() {
+            addResult('<h3>💼 Testing Payroll Query</h3>');
+            
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                if (!session) {
+                    addResult('❌ No session - please login first', 'error');
+                    return;
+                }
+                
+                addResult(`🔍 Querying payroll_contracts for user: ${session.user.id}`);
+                
+                const { data, error } = await supabase
+                    .from('payroll_contracts')
+                    .select('*')
+                    .eq('user_id', session.user.id);
+                
+                if (error) {
+                    addResult(`❌ Query failed: ${error.message}`, 'error');
+                    addResult(`🔍 Error details: <pre>${JSON.stringify(error, null, 2)}</pre>`);
+                } else {
+                    addResult(`✅ Query successful - found ${data.length} contracts`, 'success');
+                    if (data.length > 0) {
+                        addResult(`📄 Sample data: <pre>${JSON.stringify(data[0], null, 2)}</pre>`);
+                    }
+                }
+            } catch (error) {
+                addResult(`❌ Query error: ${error.message}`, 'error');
+            }
+        }
+
+        function clearStorage() {
+            addResult('<h3>🗑️ Clearing Storage</h3>');
+            
+            const keys = Object.keys(localStorage).filter(key => key.includes('supabase'));
+            keys.forEach(key => {
+                localStorage.removeItem(key);
+                addResult(`🗑️ Removed: ${key}`);
+            });
+            
+            addResult('✅ Storage cleared - refresh page to test', 'success');
+        }
+
+        // Auto-check on load
+        window.onload = function() {
+            addResult('🚀 Debug tool loaded - click buttons to test');
+            checkAuth();
+        };
+    </script>
+</body>
+</html>

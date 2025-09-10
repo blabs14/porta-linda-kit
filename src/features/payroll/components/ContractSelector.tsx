@@ -16,6 +16,14 @@ export function ContractSelector({ className }: ContractSelectorProps) {
   const { activeContract, contracts, loading, setActiveContract } = useActiveContract();
   const { toast } = useToast();
   const { t } = useTranslation();
+  
+  // Debug: verificar contratos carregados
+  console.log('🔍 ContractSelector - Estado atual:', {
+    loading,
+    contractsCount: contracts.length,
+    contracts: contracts.map(c => ({ id: c.id, name: c.name, is_active: c.is_active })),
+    activeContract: activeContract ? { id: activeContract.id, name: activeContract.name } : null
+  });
 
   const handleContractChange = (contractId: string) => {
     const selectedContract = contracts.find(c => c.id === contractId);

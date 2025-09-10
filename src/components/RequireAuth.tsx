@@ -7,6 +7,15 @@ const RequireAuth = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
+  // Debug: verificar estado da autenticação
+  console.log('🔐 RequireAuth - Estado da autenticação:', {
+    userId: user?.id,
+    userEmail: user?.email,
+    loading,
+    hasUser: !!user,
+    timestamp: new Date().toISOString()
+  });
+
   useEffect(() => {
     if (!loading && user === null) {
       navigate('/login', { replace: true });

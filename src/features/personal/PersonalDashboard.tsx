@@ -267,36 +267,38 @@ const PersonalDashboard: React.FC = () => {
                 Nenhum cartão de crédito encontrado
               </p>
             ) : (
-              myCards.map((card) => {
-                const balance = card.saldo || 0;
-                const isInDebt = balance < 0;
-                
-                return (
-                  <div key={card.id} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{card.nome}</p>
-                      <div className="flex items-center gap-2">
-                        {isInDebt ? (
-                          <Badge variant="destructive" className="text-xs">
-                            <AlertCircle className="h-3 w-3 mr-1" />
-                            Em Dívida
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Em Dia
-                          </Badge>
-                        )}
+              <div className="space-y-4">
+                {myCards.map((card) => {
+                  const balance = card.saldo || 0;
+                  const isInDebt = balance < 0;
+                  
+                  return (
+                    <div key={card.id} className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{card.nome}</p>
+                        <div className="flex items-center gap-2">
+                          {isInDebt ? (
+                            <Badge variant="destructive" className="text-xs">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Em Dívida
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Em Dia
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-bold ${isInDebt ? 'text-destructive' : 'text-green-600'}`}>
+                          {balance.toFixed(2)}€
+                        </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className={`font-bold ${isInDebt ? 'text-destructive' : 'text-green-600'}`}>
-                        {balance.toFixed(2)}€
-                      </p>
-                    </div>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -398,7 +400,7 @@ const PersonalDashboard: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {myTransactions.slice(0, 5).map((transaction, index) => (
-                <div key={transaction.id ? `tx-${transaction.id}` : `transaction-fallback-${index}-${transaction.descricao?.slice(0, 10) || 'unknown'}`} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
+                <div key={transaction.id || `transaction-${index}-${transaction.data}-${transaction.valor}`} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
                   <div className="flex items-center gap-3">
                     <div className={`w-2 h-2 rounded-full ${
                       transaction.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'

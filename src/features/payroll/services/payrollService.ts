@@ -54,14 +54,33 @@ function getLastDayOfMonth(year: number, month: number): string {
 
 // Contract functions
 export async function getContracts(userId: string): Promise<PayrollContract[]> {
+  console.log('🔧 PayrollService.getContracts - Iniciando para userId:', userId);
   validateUserId(userId);
+  
+  // Teste de conectividade com Supabase
+  console.log('🔧 PayrollService.getContracts - Testando conectividade Supabase');
+  try {
+    const testQuery = await supabase.from('payroll_contracts').select('*', { count: 'exact', head: true });
+    console.log('🔧 PayrollService.getContracts - Teste de conectividade:', testQuery);
+  } catch (testError) {
+    console.error('🔧 PayrollService.getContracts - Erro de conectividade:', testError);
+  }
+  
+  console.log('🔧 PayrollService.getContracts - Executando query no Supabase');
   const { data, error } = await supabase
     .from('payroll_contracts')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
-  if (error) throw new Error(error.message || 'Erro ao obter contratos');
+  console.log('🔧 PayrollService.getContracts - Resultado da query:', { data, error });
+  
+  if (error) {
+    console.error('🔧 PayrollService.getContracts - Erro:', error);
+    throw new Error(error.message || 'Erro ao obter contratos');
+  }
+  
+  console.log('🔧 PayrollService.getContracts - Retornando:', data?.length || 0, 'contratos');
   return data || [];
 }
 
@@ -233,7 +252,8 @@ export async function deleteOTPolicy(policyId: string, userId: string): Promise<
 export async function getHolidays(
   userId: string,
   yearOrStart?: number | string,
-  endOrContractId?: string
+  endOrContractId?: string,
+  workplaceLocation?: string
 ): Promise<PayrollHoliday[]> {
   let query = supabase
     .from('payroll_holidays')
@@ -248,10 +268,38 @@ export async function getHolidays(
       query = query.gte('date', start).lte('date', end);
     }
   } else if (typeof yearOrStart === 'number' && !isNaN(yearOrStart)) {
-    // Assinatura nova: (userId, year, contractId?) — ignoramos contractId por agora
+    // Assinatura nova: (userId, year, contractId?, workplaceLocation?)
     const start = `${yearOrStart}-01-01`;
     const end = `${yearOrStart}-12-31`;
     query = query.gte('date', start).lte('date', end);
+    
+    // Se temos workplace_location, incluir feriados regionais/municipais
+    if (workplaceLocation && typeof endOrContractId === 'string') {
+      // Importar holidayAutoService dinamicamente para evitar dependências circulares
+      const { syncRegionalHolidays } = await import('./holidayAutoService');
+      
+      try {
+        console.log('🔄 Sincronizando feriados regionais/municipais:', {
+          userId: userId.substring(0, 8) + '...',
+          contractId: endOrContractId,
+          year: yearOrStart,
+          workplaceLocation
+        });
+        
+        // Sincronizar feriados regionais/municipais com a base de dados
+        const result = await syncRegionalHolidays(
+          userId,
+          endOrContractId, // contractId
+          yearOrStart,
+          workplaceLocation
+        );
+        
+        console.log('✅ Resultado da sincronização:', result);
+      } catch (error) {
+        console.warn('❌ Erro ao sincronizar feriados regionais/municipais:', error);
+        // Continuar com feriados manuais apenas
+      }
+    }
   }
 
   const { data, error } = await query.order('date', { ascending: true });

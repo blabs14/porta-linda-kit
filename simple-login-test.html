@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Login Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; background: #f9f9f9; }
+        .error { background: #ffebee; border-color: #f44336; }
+        .success { background: #e8f5e8; border-color: #4caf50; }
+        button { margin: 5px; padding: 10px 15px; }
+    </style>
+</head>
+<body>
+    <h1>🔐 Simple Login Test</h1>
+    <div id="results"></div>
+    
+    <button onclick="testAllLogins()">Test All Login Combinations</button>
+    <button onclick="checkCurrentSession()">Check Current Session</button>
+    <button onclick="clearAndReload()">Clear Storage & Reload</button>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = 'https://ebitcwrrcumsvqjgrapw.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true,
+                detectSessionInUrl: true,
+                flowType: 'pkce'
+            }
+        });
+
+        function addResult(message, type = 'result') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = message;
+            document.getElementById('results').appendChild(div);
+            console.log(message.replace(/<[^>]*>/g, ''));
+        }
+
+        const testUsers = [
+            { email: 'teste@teste', passwords: ['teste123', 'password123', '123456', 'teste', 'password'] },
+            { email: 'teste2@teste', passwords: ['teste123', 'password123', '123456', 'teste', 'password'] },
+            { email: 'teste3@teste', passwords: ['teste123', 'password123', '123456', 'teste', 'password'] }
+        ];
+
+        async function testAllLogins() {
+            addResult('<h3>🔄 Testing All Login Combinations</h3>');
+            
+            for (const user of testUsers) {
+                addResult(`<h4>Testing ${user.email}</h4>`);
+                
+                for (const password of user.passwords) {
+                    try {
+                        addResult(`Trying ${user.email} with password: ${password}`);
+                        
+                        const { data, error } = await supabase.auth.signInWithPassword({
+                            email: user.email,
+                            password: password
+                        });
+                        
+                        if (error) {
+                            addResult(`❌ Failed: ${error.message}`, 'error');
+                        } else {
+                            addResult(`✅ SUCCESS! Logged in as ${data.user.email}`, 'success');
+                            addResult(`🆔 User ID: ${data.user.id}`);
+                            
+                            // Test database access immediately
+                            await testDatabaseAccess();
+                            
+                            // Stop testing once we find a working combination
+                            return;
+                        }
+                    } catch (error) {
+                        addResult(`💥 Exception: ${error.message}`, 'error');
+                    }
+                    
+                    // Small delay between attempts
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+            
+            addResult('❌ No working login combination found', 'error');
+        }
+
+        async function testDatabaseAccess() {
+            addResult('<h4>🗄️ Testing Database Access</h4>');
+            
+            try {
+                const { data: contracts, error: dbError } = await supabase
+                    .from('payroll_contracts')
+                    .select('id, employee_name')
+                    .limit(3);
+                
+                if (dbError) {
+                    addResult(`❌ Database access failed: ${dbError.message}`, 'error');
+                    addResult(`🔍 Error code: ${dbError.code}`);
+                    addResult(`🔍 Error hint: ${dbError.hint}`);
+                } else {
+                    addResult(`✅ Database access successful!`, 'success');
+                    addResult(`📊 Found ${contracts.length} contracts`);
+                    if (contracts.length > 0) {
+                        contracts.forEach(contract => {
+                            addResult(`- Contract ID: ${contract.id}, Employee: ${contract.employee_name}`);
+                        });
+                    }
+                }
+            } catch (error) {
+                addResult(`💥 Database exception: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkCurrentSession() {
+            addResult('<h3>🔍 Checking Current Session</h3>');
+            
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    addResult(`❌ Session error: ${error.message}`, 'error');
+                    return;
+                }
+                
+                if (session) {
+                    addResult(`✅ Active session found`, 'success');
+                    addResult(`👤 User: ${session.user.email}`);
+                    addResult(`🆔 User ID: ${session.user.id}`);
+                    addResult(`⏰ Expires: ${new Date(session.expires_at * 1000).toLocaleString()}`);
+                    
+                    // Test database access
+                    await testDatabaseAccess();
+                } else {
+                    addResult('❌ No active session', 'error');
+                }
+            } catch (error) {
+                addResult(`💥 Error: ${error.message}`, 'error');
+            }
+        }
+
+        function clearAndReload() {
+            localStorage.clear();
+            sessionStorage.clear();
+            location.reload();
+        }
+
+        // Auto-check session on load
+        window.onload = function() {
+            addResult('🚀 Simple Login Test loaded');
+            checkCurrentSession();
+        };
+    </script>
+</body>
+</html>

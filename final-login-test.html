@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Final de Login</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .credentials {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 4px solid #007bff;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Teste Final de Autenticação</h1>
+        
+        <div class="credentials">
+            <h3>Credenciais do .env.local:</h3>
+            <p><strong>Email:</strong> teste2@teste</p>
+            <p><strong>Senhas a testar:</strong> teste14, teste123, teste, password, 123456, admin</p>
+        </div>
+
+        <div id="status"></div>
+        
+        <button onclick="testLogin()">🚀 Testar Login com Credenciais</button>
+        <button onclick="checkCurrentAuth()">👤 Verificar Estado Atual</button>
+        <button onclick="testDatabaseAccess()">🗄️ Testar Acesso à BD</button>
+        <button onclick="clearStorage()">🧹 Limpar Armazenamento</button>
+        <button onclick="goToApp()">🏠 Ir para Aplicação</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2'
+        
+        // Configuração do Supabase
+        const supabaseUrl = 'https://ebitcwrrcumsvqjgrapw.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY'
+        
+        const supabase = createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true,
+                detectSessionInUrl: true,
+                flowType: 'pkce'
+            }
+        })
+        
+        // Credenciais de teste
+        const testEmail = 'teste2@teste'
+        const testPasswords = ['teste14', 'teste123', 'teste', 'password', '123456', 'admin']
+        
+        function log(message, type = 'info') {
+            const statusDiv = document.getElementById('status')
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'info'
+            statusDiv.innerHTML = `<div class="${className}">${message}</div>`
+            console.log(`[${type.toUpperCase()}] ${message}`)
+        }
+        
+        function addResult(title, content) {
+            const resultsDiv = document.getElementById('results')
+            resultsDiv.innerHTML += `
+                <h3>${title}</h3>
+                <pre>${JSON.stringify(content, null, 2)}</pre>
+            `
+        }
+        
+        window.testLogin = async function() {
+            log('🔄 Iniciando teste de login...', 'info')
+            
+            for (const password of testPasswords) {
+                try {
+                    log(`🔑 Testando: ${testEmail} com senha '${password}'`, 'info')
+                    
+                    // Primeiro, fazer logout para garantir estado limpo
+                    await supabase.auth.signOut()
+                    
+                    // Tentar login
+                    const { data, error } = await supabase.auth.signInWithPassword({
+                        email: testEmail,
+                        password: password
+                    })
+                    
+                    if (error) {
+                        log(`❌ Falha com '${password}': ${error.message}`, 'error')
+                        addResult(`Erro com senha '${password}'`, error)
+                        continue
+                    }
+                    
+                    if (data.user && data.session) {
+                        log(`✅ LOGIN SUCESSO com senha '${password}'!`, 'success')
+                        addResult('Login Bem-sucedido', {
+                            user: data.user,
+                            session: {
+                                access_token: data.session.access_token.substring(0, 50) + '...',
+                                refresh_token: data.session.refresh_token.substring(0, 50) + '...',
+                                expires_at: data.session.expires_at,
+                                user: data.session.user
+                            }
+                        })
+                        
+                        // Verificar se a sessão persiste
+                        const { data: sessionData } = await supabase.auth.getSession()
+                        if (sessionData.session) {
+                            log('✅ Sessão persistida com sucesso!', 'success')
+                        } else {
+                            log('⚠️ Sessão não persistiu', 'warning')
+                        }
+                        
+                        return // Parar no primeiro sucesso
+                    }
+                    
+                } catch (err) {
+                    log(`💥 Erro inesperado com '${password}': ${err.message}`, 'error')
+                    addResult(`Erro inesperado com '${password}'`, err)
+                }
+            }
+            
+            log('❌ Nenhuma senha funcionou', 'error')
+        }
+        
+        window.checkCurrentAuth = async function() {
+            try {
+                log('🔍 Verificando estado de autenticação...', 'info')
+                
+                const { data: { session }, error } = await supabase.auth.getSession()
+                
+                if (error) {
+                    log(`❌ Erro ao verificar sessão: ${error.message}`, 'error')
+                    addResult('Erro de Sessão', error)
+                    return
+                }
+                
+                if (session) {
+                    log('✅ Utilizador autenticado!', 'success')
+                    addResult('Sessão Atual', {
+                        user: session.user,
+                        expires_at: session.expires_at,
+                        token_preview: session.access_token.substring(0, 50) + '...'
+                    })
+                } else {
+                    log('❌ Nenhuma sessão ativa', 'error')
+                }
+                
+                // Verificar localStorage
+                const localStorageKeys = Object.keys(localStorage).filter(key => 
+                    key.includes('supabase') || key.includes('auth')
+                )
+                
+                if (localStorageKeys.length > 0) {
+                    addResult('LocalStorage Auth Keys', localStorageKeys.map(key => ({
+                        key,
+                        value: localStorage.getItem(key)?.substring(0, 100) + '...'
+                    })))
+                } else {
+                    log('⚠️ Nenhuma chave de auth no localStorage', 'warning')
+                }
+                
+            } catch (err) {
+                log(`💥 Erro inesperado: ${err.message}`, 'error')
+                addResult('Erro Inesperado', err)
+            }
+        }
+        
+        window.testDatabaseAccess = async function() {
+            try {
+                log('🗄️ Testando acesso à base de dados...', 'info')
+                
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('id, email, full_name')
+                    .limit(1)
+                
+                if (error) {
+                    log(`❌ Erro de acesso à BD: ${error.message}`, 'error')
+                    addResult('Erro de Base de Dados', error)
+                } else {
+                    log('✅ Acesso à BD bem-sucedido!', 'success')
+                    addResult('Dados da BD', data)
+                }
+                
+            } catch (err) {
+                log(`💥 Erro inesperado na BD: ${err.message}`, 'error')
+                addResult('Erro Inesperado BD', err)
+            }
+        }
+        
+        window.clearStorage = function() {
+            localStorage.clear()
+            sessionStorage.clear()
+            log('🧹 Armazenamento limpo', 'info')
+            document.getElementById('results').innerHTML = ''
+        }
+        
+        window.goToApp = function() {
+            window.location.href = '/'
+        }
+        
+        // Verificar estado inicial
+        window.addEventListener('load', () => {
+            log('🚀 Página carregada. Pronto para testes!', 'info')
+            checkCurrentAuth()
+        })
+    </script>
+</body>
+</html>

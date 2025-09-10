@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - Fluxo da Aplicação</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .step {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 4px solid #007bff;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .iframe-container {
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        iframe {
+            width: 100%;
+            height: 400px;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug - Fluxo Completo da Aplicação</h1>
+        
+        <div class="step">
+            <h3>Passo 1: Autenticação</h3>
+            <p>Primeiro vamos autenticar com as credenciais corretas</p>
+            <button onclick="authenticateUser()">🔐 Autenticar Utilizador</button>
+            <button onclick="checkAuthStatus()">👤 Verificar Estado Auth</button>
+        </div>
+
+        <div class="step">
+            <h3>Passo 2: Testar Aplicação Principal</h3>
+            <p>Depois de autenticado, vamos testar o acesso às páginas protegidas</p>
+            <button onclick="testMainApp()">🏠 Testar App Principal</button>
+            <button onclick="testPayrollPage()">💰 Testar Página Payroll</button>
+            <button onclick="testDashboard()">📊 Testar Dashboard</button>
+        </div>
+
+        <div class="step">
+            <h3>Passo 3: Debug de Problemas</h3>
+            <button onclick="checkConsoleErrors()">🐛 Verificar Erros Console</button>
+            <button onclick="checkNetworkRequests()">🌐 Verificar Requests</button>
+            <button onclick="clearAllData()">🧹 Limpar Tudo</button>
+        </div>
+        
+        <div id="status"></div>
+        <div id="results"></div>
+    </div>
+
+    <div class="grid">
+        <div class="container">
+            <h3>🖥️ Aplicação Principal</h3>
+            <div class="iframe-container">
+                <iframe id="mainAppFrame" src="about:blank"></iframe>
+            </div>
+            <button onclick="loadMainApp()">Carregar App Principal</button>
+            <button onclick="loadLoginPage()">Carregar Página Login</button>
+        </div>
+        
+        <div class="container">
+            <h3>📋 Logs e Estado</h3>
+            <div id="logs" style="height: 400px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 4px;"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2'
+        
+        // Configuração do Supabase
+        const supabaseUrl = 'https://ebitcwrrcumsvqjgrapw.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY'
+        
+        const supabase = createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true,
+                detectSessionInUrl: true,
+                flowType: 'pkce'
+            }
+        })
+        
+        // Credenciais de teste
+        const testEmail = 'teste2@teste'
+        const testPassword = 'teste14'
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString()
+            const statusDiv = document.getElementById('status')
+            const logsDiv = document.getElementById('logs')
+            
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'info'
+            statusDiv.innerHTML = `<div class="${className}">[${timestamp}] ${message}</div>`
+            
+            logsDiv.innerHTML += `<div style="margin: 5px 0; padding: 5px; background: ${type === 'error' ? '#fee' : type === 'success' ? '#efe' : '#eef'}; border-radius: 3px;">[${timestamp}] ${message}</div>`
+            logsDiv.scrollTop = logsDiv.scrollHeight
+            
+            console.log(`[${type.toUpperCase()}] ${message}`)
+        }
+        
+        function addResult(title, content) {
+            const resultsDiv = document.getElementById('results')
+            resultsDiv.innerHTML += `
+                <div class="container">
+                    <h3>${title}</h3>
+                    <pre>${JSON.stringify(content, null, 2)}</pre>
+                </div>
+            `
+        }
+        
+        window.authenticateUser = async function() {
+            try {
+                log('🔄 Iniciando autenticação...', 'info')
+                
+                // Limpar sessão anterior
+                await supabase.auth.signOut()
+                log('🧹 Sessão anterior limpa', 'info')
+                
+                // Fazer login
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: testEmail,
+                    password: testPassword
+                })
+                
+                if (error) {
+                    log(`❌ Erro de autenticação: ${error.message}`, 'error')
+                    addResult('Erro de Autenticação', error)
+                    return
+                }
+                
+                if (data.user && data.session) {
+                    log('✅ Autenticação bem-sucedida!', 'success')
+                    addResult('Autenticação Sucesso', {
+                        user: {
+                            id: data.user.id,
+                            email: data.user.email,
+                            created_at: data.user.created_at
+                        },
+                        session: {
+                            expires_at: data.session.expires_at,
+                            token_preview: data.session.access_token.substring(0, 50) + '...'
+                        }
+                    })
+                    
+                    // Verificar persistência
+                    setTimeout(async () => {
+                        const { data: sessionData } = await supabase.auth.getSession()
+                        if (sessionData.session) {
+                            log('✅ Sessão persistida com sucesso!', 'success')
+                        } else {
+                            log('⚠️ Sessão não persistiu', 'warning')
+                        }
+                    }, 1000)
+                }
+                
+            } catch (err) {
+                log(`💥 Erro inesperado: ${err.message}`, 'error')
+                addResult('Erro Inesperado', err)
+            }
+        }
+        
+        window.checkAuthStatus = async function() {
+            try {
+                log('🔍 Verificando estado de autenticação...', 'info')
+                
+                const { data: { session }, error } = await supabase.auth.getSession()
+                
+                if (error) {
+                    log(`❌ Erro ao verificar sessão: ${error.message}`, 'error')
+                    return
+                }
+                
+                if (session) {
+                    log('✅ Utilizador autenticado!', 'success')
+                    addResult('Estado Atual da Sessão', {
+                        user: session.user,
+                        expires_at: session.expires_at,
+                        is_expired: new Date() > new Date(session.expires_at * 1000)
+                    })
+                } else {
+                    log('❌ Nenhuma sessão ativa', 'error')
+                }
+                
+                // Verificar localStorage
+                const authKeys = Object.keys(localStorage).filter(key => 
+                    key.includes('supabase') || key.includes('auth')
+                )
+                
+                if (authKeys.length > 0) {
+                    log(`📦 Encontradas ${authKeys.length} chaves de auth no localStorage`, 'info')
+                    addResult('LocalStorage Auth', authKeys.map(key => ({
+                        key,
+                        hasValue: !!localStorage.getItem(key)
+                    })))
+                } else {
+                    log('⚠️ Nenhuma chave de auth no localStorage', 'warning')
+                }
+                
+            } catch (err) {
+                log(`💥 Erro inesperado: ${err.message}`, 'error')
+            }
+        }
+        
+        window.testMainApp = function() {
+            log('🏠 Carregando aplicação principal...', 'info')
+            const iframe = document.getElementById('mainAppFrame')
+            iframe.src = '/app'
+            
+            iframe.onload = function() {
+                log('✅ Aplicação principal carregada', 'success')
+                
+                // Verificar se foi redirecionado para login
+                setTimeout(() => {
+                    try {
+                        const currentUrl = iframe.contentWindow.location.href
+                        if (currentUrl.includes('/login')) {
+                            log('⚠️ Redirecionado para login - autenticação falhou', 'warning')
+                        } else if (currentUrl.includes('/app')) {
+                            log('✅ Acesso à aplicação bem-sucedido!', 'success')
+                        }
+                    } catch (e) {
+                        log('ℹ️ Não foi possível verificar URL do iframe (CORS)', 'info')
+                    }
+                }, 2000)
+            }
+            
+            iframe.onerror = function() {
+                log('❌ Erro ao carregar aplicação principal', 'error')
+            }
+        }
+        
+        window.testPayrollPage = function() {
+            log('💰 Testando página de payroll...', 'info')
+            const iframe = document.getElementById('mainAppFrame')
+            iframe.src = '/app/payroll'
+        }
+        
+        window.testDashboard = function() {
+            log('📊 Testando dashboard...', 'info')
+            const iframe = document.getElementById('mainAppFrame')
+            iframe.src = '/app'
+        }
+        
+        window.loadMainApp = function() {
+            const iframe = document.getElementById('mainAppFrame')
+            iframe.src = '/'
+            log('🔄 Carregando página inicial...', 'info')
+        }
+        
+        window.loadLoginPage = function() {
+            const iframe = document.getElementById('mainAppFrame')
+            iframe.src = '/login'
+            log('🔄 Carregando página de login...', 'info')
+        }
+        
+        window.checkConsoleErrors = function() {
+            log('🐛 Verificando erros do console...', 'info')
+            // Esta função seria mais útil se pudéssemos acessar o console do iframe
+            log('ℹ️ Para verificar erros, abra as DevTools (F12)', 'info')
+        }
+        
+        window.checkNetworkRequests = function() {
+            log('🌐 Para verificar requests de rede, use a aba Network nas DevTools', 'info')
+        }
+        
+        window.clearAllData = function() {
+            localStorage.clear()
+            sessionStorage.clear()
+            document.getElementById('results').innerHTML = ''
+            document.getElementById('logs').innerHTML = ''
+            log('🧹 Todos os dados limpos', 'info')
+        }
+        
+        // Verificar estado inicial
+        window.addEventListener('load', () => {
+            log('🚀 Debug da aplicação iniciado', 'info')
+            checkAuthStatus()
+        })
+    </script>
+</body>
+</html>

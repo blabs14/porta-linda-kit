@@ -12,6 +12,7 @@ import { Loader2, Clock, Save, Upload, Download, Calendar, Trash2, AlertTriangle
 import { PayrollTimeEntry, PayrollContract, TimesheetEntry, WeeklyTimesheet, PayrollOTPolicy } from '../types';
 import { payrollService } from '../services/payrollService';
 import { performanceBonusService } from '../services/performanceBonusService';
+import { holidayAutoService } from '../services/holidayAutoService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveContract } from '../hooks/useActiveContract';
@@ -42,6 +43,19 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
   const selectedContractId = contractId || activeContract?.id || '';
   // Definir contrato selecionado (corrige ReferenceError em JSX quando usado no disabled)
   const selectedContract = contracts.find(c => c.id === selectedContractId) || activeContract || null;
+  
+  // Debug: verificar user e contrato selecionado
+  console.log('🔧 WeeklyTimesheetForm - User e Contract:', {
+    userId: user?.id,
+    userEmail: user?.email,
+    activeContract: activeContract ? { id: activeContract.id, name: activeContract.name } : null,
+    selectedContractId,
+    selectedContract: selectedContract ? {
+      id: selectedContract.id,
+      name: selectedContract.name,
+      workplace_location: selectedContract.workplace_location
+    } : null
+  });
   
   // CorrelationId e logger com contexto
   const correlationIdRef = useRef<string>('');
@@ -245,6 +259,48 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
     initializeEntries();
   }, [selectedContractId, selectedWeek]);
 
+  // Effect para sincronizar feriados regionais/municipais quando contrato muda
+  useEffect(() => {
+    const syncRegionalHolidaysForContract = async () => {
+      if (!selectedContract?.workplace_location || !selectedContractId || !user?.id) {
+        return;
+      }
+
+      const location = selectedContract.workplace_location.trim();
+      if (location === '') {
+        return;
+      }
+
+      try {
+        const isSupported = holidayAutoService.isLocationSupported(location);
+        if (isSupported) {
+          const currentYear = new Date().getFullYear();
+          await holidayAutoService.syncRegionalHolidays(
+            user.id,
+            selectedContractId,
+            currentYear,
+            location
+          );
+          
+          log.debug('[Timesheet] Regional holidays synced for contract change', {
+            contractId: maskId(selectedContractId),
+            location,
+            year: currentYear
+          });
+          
+          // Recarregar entradas para refletir os novos feriados
+          if (selectedWeek) {
+            await loadExistingEntries();
+          }
+        }
+      } catch (error) {
+        log.warn('[Timesheet] Failed to sync regional holidays for contract', error);
+      }
+    };
+
+    syncRegionalHolidaysForContract();
+  }, [selectedContract?.workplace_location, selectedContractId]);
+
   // loadContracts function removed since useActiveContract handles this
 
   const loadExistingEntries = async (isWeekNavigation = false) => {
@@ -272,6 +328,29 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
         weekEnd: formatDateLocal(weekEnd)
       });
 
+      // Sincronizar feriados regionais/municipais se workplace_location estiver definido
+      if (selectedContract?.workplace_location && selectedContract.workplace_location.trim() !== '') {
+        try {
+          const isSupported = holidayAutoService.isLocationSupported(selectedContract.workplace_location);
+          if (isSupported) {
+            const currentYear = new Date(selectedWeek).getFullYear();
+            await holidayAutoService.syncRegionalHolidays(
+              user.id,
+              selectedContractId,
+              currentYear,
+              selectedContract.workplace_location
+            );
+            log.debug('[Timesheet] Regional holidays synced', {
+              contractId: maskId(selectedContractId),
+              location: selectedContract.workplace_location,
+              year: currentYear
+            });
+          }
+        } catch (error) {
+          log.warn('[Timesheet] Failed to sync regional holidays', error);
+        }
+      }
+
       // Buscar dados em paralelo
       const [entries, leaves, holidays, vacations] = await Promise.all([
         payrollService.getTimeEntries(
@@ -289,7 +368,8 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
         payrollService.getHolidays(
           user.id,
           new Date(selectedWeek).getFullYear(),
-          selectedContractId
+          selectedContractId,
+          selectedContract?.workplace_location
         ),
         payrollService.getVacations(
           user.id,

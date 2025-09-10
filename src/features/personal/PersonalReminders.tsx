@@ -179,15 +179,15 @@ const PersonalReminders: React.FC = () => {
                           const isRecurring = Boolean(r.recurring);
                           const badges = [];
                           if (isOverdue) {
-                            badges.push(<Badge key="overdue" variant="destructive">Em atraso</Badge>);
+                            badges.push(<Badge key={`${r.id}-overdue`} variant="destructive">Em atraso</Badge>);
                           }
                           if (isToday && !isOverdue) {
-                            badges.push(<Badge key="today" variant="secondary">Hoje</Badge>);
+                            badges.push(<Badge key={`${r.id}-today`} variant="secondary">Hoje</Badge>);
                           }
                           if (isRecurring) {
-                            badges.push(<Badge key="recurring" variant="outline" className="flex items-center gap-1"><RefreshCw className="h-3 w-3" /> Recorrente</Badge>);
+                            badges.push(<Badge key={`${r.id}-recurring`} variant="outline" className="flex items-center gap-1"><RefreshCw className="h-3 w-3" /> Recorrente</Badge>);
                           }
-                          return badges;
+                          return <>{badges}</>;
                         })()}
                       </div>
                       <div className="text-sm text-muted-foreground">

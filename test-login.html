@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Login</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; background: #f9f9f9; }
+        .error { background: #ffebee; border-color: #f44336; }
+        .success { background: #e8f5e8; border-color: #4caf50; }
+        button { margin: 5px; padding: 10px 15px; }
+    </style>
+</head>
+<body>
+    <h1>Test Login - Supabase Auth</h1>
+    <div id="results"></div>
+    
+    <button onclick="autoLogin()">Auto Login (teste2@teste)</button>
+    <button onclick="checkSession()">Check Session</button>
+    <button onclick="logout()">Logout</button>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = 'https://ebitcwrrcumsvqjgrapw.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true,
+                detectSessionInUrl: true,
+                flowType: 'pkce'
+            }
+        });
+
+        function addResult(message, type = 'result') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = message;
+            document.getElementById('results').appendChild(div);
+        }
+
+        async function autoLogin() {
+            addResult('<h3>🔐 Attempting Auto Login</h3>');
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: 'teste2@teste',
+                    password: 'teste123' // Assuming this is the password
+                });
+                
+                if (error) {
+                    addResult(`❌ Login failed: ${error.message}`, 'error');
+                    // Try alternative password
+                    const { data: data2, error: error2 } = await supabase.auth.signInWithPassword({
+                        email: 'teste2@teste',
+                        password: 'password123'
+                    });
+                    
+                    if (error2) {
+                        addResult(`❌ Alternative login failed: ${error2.message}`, 'error');
+                    } else {
+                        addResult(`✅ Login successful with alternative password: ${data2.user.email}`, 'success');
+                        addResult(`🔑 User ID: ${data2.user.id}`);
+                    }
+                } else {
+                    addResult(`✅ Login successful: ${data.user.email}`, 'success');
+                    addResult(`🔑 User ID: ${data.user.id}`);
+                }
+            } catch (error) {
+                addResult(`❌ Login error: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkSession() {
+            addResult('<h3>🔍 Checking Current Session</h3>');
+            
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    addResult(`❌ Session error: ${error.message}`, 'error');
+                    return;
+                }
+                
+                if (session) {
+                    addResult(`✅ Active session found`, 'success');
+                    addResult(`👤 User: ${session.user.email}`);
+                    addResult(`🆔 User ID: ${session.user.id}`);
+                    addResult(`⏰ Expires: ${new Date(session.expires_at * 1000).toLocaleString()}`);
+                    
+                    // Test database access
+                    const { data: contracts, error: dbError } = await supabase
+                        .from('payroll_contracts')
+                        .select('count')
+                        .limit(1);
+                    
+                    if (dbError) {
+                        addResult(`❌ Database access failed: ${dbError.message}`, 'error');
+                    } else {
+                        addResult(`✅ Database access successful`, 'success');
+                    }
+                } else {
+                    addResult('❌ No active session', 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function logout() {
+            addResult('<h3>🚪 Logging out</h3>');
+            
+            try {
+                const { error } = await supabase.auth.signOut();
+                
+                if (error) {
+                    addResult(`❌ Logout error: ${error.message}`, 'error');
+                } else {
+                    addResult(`✅ Logged out successfully`, 'success');
+                }
+            } catch (error) {
+                addResult(`❌ Logout error: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-check session on load
+        window.onload = function() {
+            addResult('🚀 Test login page loaded');
+            checkSession();
+        };
+    </script>
+</body>
+</html>

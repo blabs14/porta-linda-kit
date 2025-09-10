@@ -57,7 +57,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Update state atomically
       setSession(session);
-      setUser(session?.user ?? null);
+      if (session?.user) {
+        console.log('🔧 AuthContext: Sessão encontrada, definindo user:', {
+          id: session.user.id,
+          email: session.user.email
+        });
+        console.log('🔧 AuthContext: USER ID COMPLETO para debug:', session.user.id);
+        setUser(session.user);
+      } else {
+        console.log('🔧 AuthContext: Nenhuma sessão encontrada');
+        setUser(null);
+      }
       
       // Only set loading to false after initial session is processed
       if (!initialSessionLoaded && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT')) {

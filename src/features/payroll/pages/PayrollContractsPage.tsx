@@ -8,6 +8,7 @@ import { Trash2, Plus, AlertTriangle, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../contexts/AuthContext';
+import { supabase } from '../../../lib/supabaseClient';
 import { payrollService } from '../services/payrollService';
 import type { PayrollContract } from '../types';
 import {
@@ -24,7 +25,7 @@ import {
 
 const PayrollContractsPage: React.FC = () => {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(true);
   const [contracts, setContracts] = useState<PayrollContract[]>([]);
@@ -33,16 +34,34 @@ const PayrollContractsPage: React.FC = () => {
   const loadContracts = async () => {
     logger.debug('🔍 PayrollContractsPage: Carregando contratos...', {
       hasUser: !!user,
-      userId: user?.id
+      userId: user?.id,
+      hasSession: !!session
     });
     
-    if (!user) {
-      logger.warn('❌ PayrollContractsPage: Utilizador não autenticado');
+    if (!user || !session) {
+      logger.warn('❌ PayrollContractsPage: Utilizador não autenticado ou sem sessão', {
+        hasUser: !!user,
+        hasSession: !!session
+      });
       return;
     }
     
     try {
       setIsLoading(true);
+      
+      // Verificar se a sessão ainda é válida
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !currentSession) {
+        logger.error('❌ PayrollContractsPage: Sessão inválida ou expirada', { sessionError });
+        toast({
+          title: 'Sessão Expirada',
+          description: 'Por favor, faça login novamente.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
       logger.debug('📞 PayrollContractsPage: Chamando payrollService.getContracts com userId:', user.id);
       const contractsData = await payrollService.getContracts(user.id);
       logger.debug('✅ PayrollContractsPage: Contratos carregados:', contractsData);
