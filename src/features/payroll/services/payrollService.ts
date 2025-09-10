@@ -852,6 +852,11 @@ export const payrollService = {
   upsertBonusConfig,
   getBonusConfig,
   deleteBonusConfig,
+  // Subsidy configuration
+  getSubsidyConfigs,
+  getSubsidyConfig,
+  upsertSubsidyConfig,
+  deleteSubsidyConfig,
 };
 
 // NEW: Get leaves overlapping a given week window
