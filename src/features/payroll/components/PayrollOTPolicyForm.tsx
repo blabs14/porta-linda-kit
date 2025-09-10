@@ -131,7 +131,7 @@ export function PayrollOTPolicyForm({ policy, contractId, onSave, onCancel }: Pa
       
       const currentPolicy = policy || loadedPolicy;
       if (currentPolicy?.id) {
-        savedPolicy = await payrollService.updateOTPolicy(currentPolicy.id, convertedData, user.id, contractId);
+        savedPolicy = await payrollService.updateOTPolicy(currentPolicy.id, convertedData, user.id);
         toast({
           title: 'Sucesso',
           description: 'Política de horas extras atualizada com sucesso!'
@@ -142,7 +142,12 @@ export function PayrollOTPolicyForm({ policy, contractId, onSave, onCancel }: Pa
         if (!targetContractId) {
           throw new Error('Nenhum contrato ativo encontrado. É necessário ter um contrato ativo para criar políticas de horas extras.');
         }
-        savedPolicy = await payrollService.createOTPolicy(user.id, convertedData, targetContractId);
+        // Adicionar contract_id aos dados convertidos
+        const policyDataWithContract = {
+          ...convertedData,
+          contract_id: targetContractId
+        };
+        savedPolicy = await payrollService.createOTPolicy(policyDataWithContract, user.id);
         toast({
           title: 'Sucesso',
           description: 'Política de horas extras criada com sucesso!'
