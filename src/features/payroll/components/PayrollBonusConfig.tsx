@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Info } from 'lucide-react';
+import { AlertTriangle, Info, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -38,11 +38,15 @@ interface EmployeeSalaryData {
 // Esquemas de validacao
 
 const mandatoryBonusSchema = z.object({
-  vacationBonus: z.boolean().default(true),
-  christmasBonus: z.boolean().default(true),
-  paymentMonth: z.string(),
-  autoCalculate: z.boolean().default(true),
+  // Subsídios são sempre obrigatórios por lei - removidos os campos de ativação
+  paymentMonth: z.string().optional(), // Apenas para subsídio de férias
   paymentType: z.enum(['full', 'proportional', 'duodecimos']).default('full')
+}).refine((data) => {
+  // Para subsídio de natal, paymentMonth não é necessário (sempre dezembro)
+  // Para subsídio de férias, paymentMonth é obrigatório
+  return true; // Sempre válido pois os campos obrigatórios têm valores padrão
+}, {
+  message: "Configuração inválida"
 });
 
 const performanceBonusSchema = z.object({
@@ -129,71 +133,15 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
     specificSubsidy
   });
 
-  // Efeito para carregar configuração existente
-  useEffect(() => {
-    if (!effectiveContractId || !bonusType) return;
-
-    const loadBonusConfig = async () => {
-      try {
-        if (!user?.id || !effectiveContractId) return;
-        
-        // Para subsídios obrigatórios, carregamos ambos os tipos
-        if (isMandatory) {
-          const [vacationConfig, christmasConfig] = await Promise.all([
-            payrollService.getSubsidyConfig(user.id, effectiveContractId, 'vacation').catch(() => null),
-            payrollService.getSubsidyConfig(user.id, effectiveContractId, 'christmas').catch(() => null)
-          ]);
-          
-          logger.debug('Loading subsidy configs:', { vacationConfig, christmasConfig });
-          
-          // Mapear os dados para o formato esperado pelo formulário
-          const formData = {
-            vacationBonus: !!vacationConfig?.enabled,
-            christmasBonus: !!christmasConfig?.enabled,
-            paymentMonth: vacationConfig?.payment_month || christmasConfig?.payment_month || 'december',
-            autoCalculate: true,
-            paymentType: vacationConfig?.proportional_calculation ? 'proportional' : 'full'
-          };
-          
-          mandatoryForm.reset(formData);
-        } else {
-          // Para outros tipos, usar a função original
-          const config = await payrollService.getBonusConfig(user.id, effectiveContractId, bonusType);
-          logger.debug('Loading bonus config for:', { userId: user.id, contractId: effectiveContractId, bonusType, config });
-          
-          if (config && config.config_data) {
-            if (isPerformance) {
-              performanceForm.reset(config.config_data);
-            } else if (isCustom) {
-              customForm.reset(config.config_data);
-            }
-          }
-        }
-      } catch (error) {
-        logger.error('Erro ao carregar configuração de bónus:', error);
-        toast({
-          title: 'Erro',
-          description: 'Não foi possível carregar a configuração existente.',
-          variant: 'destructive'
-        });
-      }
-    };
-
-    loadBonusConfig();
-  }, [activeContract?.id, bonusType, user?.id, toast]);
-
-
-
-  // Configuracao dos formularios
+  // Configuracao dos formularios (definir antes dos useEffects)
   const mandatoryForm = useForm({
     resolver: zodResolver(mandatoryBonusSchema),
     defaultValues: {
-      vacationBonus: true,
-      christmasBonus: true,
-      paymentMonth: '',
-      autoCalculate: true,
+      // Subsídios são sempre ativos por lei
+      paymentMonth: specificSubsidy === 'christmas' ? undefined : 'july',
       paymentType: 'full'
-    }
+    },
+    mode: 'onChange' // Validação em tempo real para habilitar o botão
   });
 
   const performanceForm = useForm({
@@ -222,14 +170,134 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
     }
   });
 
+  // Função utilitária para validar contrato
+  const validateContract = (contractId: string | undefined): boolean => {
+    if (!contractId) {
+      toast({
+        title: 'Erro',
+        description: 'ID do contrato não encontrado.',
+        variant: 'destructive'
+      });
+      return false;
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(contractId)) {
+      toast({
+        title: 'Erro',
+        description: 'ID do contrato inválido. Por favor, selecione um contrato válido.',
+        variant: 'destructive'
+      });
+      return false;
+    }
+
+    return true;
+  };
+
+  // Efeito para carregar configuração existente
+  useEffect(() => {
+    // Validações mais robustas
+    if (!effectiveContractId || !bonusType || !user?.id) {
+      logger.debug('Skipping loadBonusConfig - missing required data:', {
+        effectiveContractId,
+        bonusType,
+        userId: user?.id
+      });
+      return;
+    }
+
+    // Validar contrato usando função utilitária
+    if (!validateContract(effectiveContractId)) {
+      logger.error('Invalid contract ID:', effectiveContractId);
+      return;
+    }
+
+    const loadBonusConfig = async () => {
+      try {
+        
+        // Para subsídios obrigatórios, carregamos a configuração específica do contrato
+        if (isMandatory) {
+          logger.debug('Loading mandatory subsidy config for contract:', effectiveContractId);
+          
+          let configToLoad = null;
+          
+          // Carregar configuração baseada no tipo específico de subsídio
+          if (specificSubsidy === 'vacation') {
+            configToLoad = await payrollService.getSubsidyConfig(user.id, effectiveContractId, 'vacation').catch(() => null);
+          } else if (specificSubsidy === 'christmas') {
+            configToLoad = await payrollService.getSubsidyConfig(user.id, effectiveContractId, 'christmas').catch(() => null);
+          } else {
+            // Para 'both', carregar configuração de férias como base
+            configToLoad = await payrollService.getSubsidyConfig(user.id, effectiveContractId, 'vacation').catch(() => null);
+          }
+          
+          logger.debug('Loaded subsidy config:', { specificSubsidy, configToLoad });
+          
+          // Mapear os dados para o formato esperado pelo formulário
+          // Subsídios são sempre ativos por lei
+          const formData = {
+            paymentMonth: specificSubsidy === 'christmas' ? undefined : (configToLoad?.payment_month ? 
+              (configToLoad.payment_month === 6 ? 'june' : 'july') : 'july'),
+            paymentType: configToLoad?.proportional_calculation ? 'proportional' : 'full'
+          };
+          
+          logger.debug('Setting form data:', formData);
+          mandatoryForm.reset(formData);
+        } else {
+          // Para outros tipos, usar a função original
+          const config = await payrollService.getBonusConfig(user.id, effectiveContractId, bonusType);
+          logger.debug('Loading bonus config for:', { userId: user.id, contractId: effectiveContractId, bonusType, config });
+          
+          if (config && config.config_data) {
+            if (isPerformance) {
+              performanceForm.reset(config.config_data);
+            } else if (isCustom) {
+              customForm.reset(config.config_data);
+            }
+          }
+        }
+      } catch (error) {
+        logger.error('Erro ao carregar configuração de bónus:', error);
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível carregar a configuração existente.',
+          variant: 'destructive'
+        });
+      }
+    };
+
+    loadBonusConfig();
+  }, [activeContract?.id, bonusType, user?.id, toast]);
+
+  // Efeito para garantir que o formulário seja validado após carregamento
+  useEffect(() => {
+    if (isMandatory && effectiveContractId) {
+      // Forçar validação do formulário para habilitar o botão
+      mandatoryForm.trigger();
+    }
+  }, [effectiveContractId, isMandatory, mandatoryForm]);
+
+
+
+
+
   // useEffect para calcular valores automaticamente
   useEffect(() => {
-    if (isMandatory) {
-      const vacationAmount = mandatoryForm.watch('vacationBonus') ? calculateMandatoryBonus(salaryData, 'vacation') : 0;
-      const christmasAmount = mandatoryForm.watch('christmasBonus') ? calculateMandatoryBonus(salaryData, 'christmas') : 0;
-      setCalculatedAmount(vacationAmount + christmasAmount);
+    if (isMandatory && salaryData.baseSalary > 0) {
+      // Subsídios são sempre obrigatórios - calcular automaticamente
+      let totalAmount = 0;
+      
+      if (specificSubsidy === 'vacation' || specificSubsidy === 'both') {
+        totalAmount += calculateMandatoryBonus(salaryData, 'vacation');
+      }
+      
+      if (specificSubsidy === 'christmas' || specificSubsidy === 'both') {
+        totalAmount += calculateMandatoryBonus(salaryData, 'christmas');
+      }
+      
+      setCalculatedAmount(totalAmount);
     }
-  }, [mandatoryForm.watch(), salaryData, isMandatory]);
+  }, [salaryData, isMandatory, specificSubsidy]);
 
   useEffect(() => {
     if (isPerformance && performanceForm.watch('enabled')) {
@@ -310,14 +378,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
 
   // Handlers para submissao dos formularios
   const onMandatorySubmit = async (data: z.infer<typeof mandatoryBonusSchema>) => {
-    if (!activeContract?.id) {
-      toast({
-        title: 'Erro',
-        description: 'ID do contrato não encontrado.',
-        variant: 'destructive'
-      });
-      return;
-    }
+    if (!validateContract(effectiveContractId)) return;
 
     try {
       if (!user?.id) {
@@ -329,10 +390,12 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
         return;
       }
       
-      // Guardar configuração de subsídio de férias se ativado
-      if (data.vacationBonus) {
+      // Subsídios são sempre obrigatórios por lei - salvar ambos como ativos
+      
+      // Guardar configuração de subsídio de férias (sempre ativo)
+      if (specificSubsidy === 'vacation' || specificSubsidy === 'both') {
         const vacationData = {
-          enabled: true,
+          enabled: true, // Sempre ativo por lei
           payment_method: 'separate_payment',
           payment_month: data.paymentMonth === 'june' ? 6 : 7,
           proportional_calculation: data.paymentType === 'proportional',
@@ -342,12 +405,12 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
         await payrollService.upsertSubsidyConfig(user.id, effectiveContractId, 'vacation', vacationData);
       }
       
-      // Guardar configuração de subsídio de Natal se ativado
-      if (data.christmasBonus) {
+      // Guardar configuração de subsídio de Natal (sempre ativo)
+      if (specificSubsidy === 'christmas' || specificSubsidy === 'both') {
         const christmasData = {
-          enabled: true,
+          enabled: true, // Sempre ativo por lei
           payment_method: 'with_salary',
-          payment_month: 12,
+          payment_month: 12, // Sempre dezembro para subsídio de Natal
           proportional_calculation: data.paymentType === 'proportional',
           reference_salary_months: 12
         };
@@ -371,14 +434,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
   };
 
   const onPerformanceSubmit = async (data: z.infer<typeof performanceBonusSchema>) => {
-    if (!activeContract?.id) {
-      toast({
-        title: 'Erro',
-        description: 'ID do contrato não encontrado.',
-        variant: 'destructive'
-      });
-      return;
-    }
+    if (!validateContract(effectiveContractId)) return;
 
     try {
       if (!user?.id) {
@@ -408,14 +464,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
   };
 
   const onCustomSubmit = async (data: z.infer<typeof customBonusSchema>) => {
-    if (!activeContract?.id) {
-      toast({
-        title: 'Erro',
-        description: 'ID do contrato não encontrado.',
-        variant: 'destructive'
-      });
-      return;
-    }
+    if (!validateContract(effectiveContractId)) return;
 
     try {
       if (!user?.id) {
@@ -427,18 +476,41 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
         return;
       }
       
-      await payrollService.upsertBonusConfig(user.id, effectiveContractId, 'custom', data);
-      logger.debug('Guardando configuração de prémio personalizado:', { userId: user.id, contractId: effectiveContractId, data });
+      // Criar novo bónus personalizado usando a nova função
+      await payrollService.createCustomBonus(user.id, effectiveContractId, {
+        name: data.name,
+        description: data.description,
+        amount: data.amount,
+        isPercentage: data.isPercentage,
+        paymentFrequency: data.paymentFrequency,
+        isTaxable: data.taxable,
+        requiresApproval: data.requiresApproval
+      });
+      
+      logger.debug('Criando novo bónus personalizado:', { userId: user.id, contractId: effectiveContractId, data });
+      
+      // Limpar o formulário após criar o bónus
+      customForm.reset({
+        name: '',
+        description: '',
+        amount: 0,
+        isPercentage: false,
+        paymentFrequency: 'monthly',
+        taxable: true,
+        requiresApproval: false,
+        enabled: false
+      });
+      
       toast({
-        title: 'Premio guardado',
-        description: 'O premio personalizado foi guardado com sucesso.'
+        title: 'Bónus criado',
+        description: 'O novo bónus personalizado foi criado com sucesso.'
       });
       onSave?.(data);
     } catch (error) {
-      logger.error('Erro ao guardar configuração:', error);
+      logger.error('Erro ao criar bónus personalizado:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível guardar a configuração.',
+        description: 'Não foi possível criar o bónus personalizado.',
         variant: 'destructive'
       });
     }
@@ -516,55 +588,38 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
                 <CardTitle>Subsidios Obrigatorios</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Informação sobre subsídios obrigatórios */}
                 <div className="grid grid-cols-1 gap-4">
                   {(specificSubsidy === 'vacation' || specificSubsidy === 'both') && (
-                    <FormField
-                      control={mandatoryForm.control}
-                      name="vacationBonus"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">
-                              Subsidio de Ferias
-                            </FormLabel>
-                            <FormDescription>
-                              Subsidio obrigatorio equivalente a um mes de salario
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
+                    <div className="rounded-lg border p-4 bg-green-50 border-green-200">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <div>
+                          <h4 className="text-base font-medium text-green-900">
+                            Subsídio de Férias
+                          </h4>
+                          <p className="text-sm text-green-700">
+                            Subsídio obrigatório equivalente a um mês de salário - sempre ativo por lei
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   )}
 
                   {(specificSubsidy === 'christmas' || specificSubsidy === 'both') && (
-                    <FormField
-                      control={mandatoryForm.control}
-                      name="christmasBonus"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">
-                              Subsidio de Natal
-                            </FormLabel>
-                            <FormDescription>
-                              Subsidio obrigatorio equivalente a um mes de salario
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
+                    <div className="rounded-lg border p-4 bg-green-50 border-green-200">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <div>
+                          <h4 className="text-base font-medium text-green-900">
+                            Subsídio de Natal
+                          </h4>
+                          <p className="text-sm text-green-700">
+                            Subsídio obrigatório equivalente a um mês de salário - sempre ativo por lei
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -648,28 +703,18 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
 
 
 
-                <FormField
-                  control={mandatoryForm.control}
-                  name="autoCalculate"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>
-                          Calculo Automatico
-                        </FormLabel>
-                        <FormDescription>
-                          Calcular automaticamente com base no salario base
-                        </FormDescription>
-                      </div>
-                    </FormItem>
-                  )}
-                />
+                {/* Informação sobre cálculo automático */}
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2">
+                    <Info className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <h4 className="font-medium text-blue-900">Cálculo Automático</h4>
+                      <p className="text-sm text-blue-700">
+                        Os subsídios são sempre calculados automaticamente com base no salário base (equivalente a um mês de salário)
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Informações sobre o contrato carregado */}
                 {activeContract?.id && (
@@ -697,7 +742,11 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
               </CardContent>
             </Card>
 
-            <Button type="submit" className="w-full">
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={!mandatoryForm.formState.isValid || !effectiveContractId}
+            >
               Guardar Configuracao
             </Button>
           </form>
@@ -904,9 +953,9 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
               </CardContent>
             </Card>
 
-            <Button type="submit" className="w-full">
-              Guardar Configuracao
-            </Button>
+            <Button type="submit" className="w-full" disabled={!performanceForm.formState.isValid}>
+                      Guardar Configuracao
+                    </Button>
           </form>
         </Form>
       </div>
@@ -1161,9 +1210,9 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
               </>
             )}
 
-            <Button type="submit" className="w-full">
-              Guardar Premio Personalizado
-            </Button>
+            <Button type="submit" className="w-full" disabled={!customForm.formState.isValid}>
+                      Criar Novo Bónus Personalizado
+                    </Button>
           </form>
         </Form>
       </div>

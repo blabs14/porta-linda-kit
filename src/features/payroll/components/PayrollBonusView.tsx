@@ -1,122 +1,172 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
-import { Button } from '../../../components/ui/button';
-import { Badge } from '../../../components/ui/badge';
-import { Alert, AlertDescription } from '../../../components/ui/alert';
-import { Separator } from '../../../components/ui/separator';
-import { 
-  Gift, 
-  Settings, 
-  Calendar, 
-  Euro, 
-  TrendingUp, 
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Gift,
+  Settings,
+  Calendar,
+  Euro,
+  TrendingUp,
   AlertCircle,
-  CheckCircle2,
+  CheckCircle,
+  XCircle,
   Clock
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { payrollService } from '../services/payrollService';
+import { useToast } from '@/hooks/use-toast';
+import { logger } from '@/shared/lib/logger';
 
-// Mock data - em produção, estes dados viriam de uma API/contexto
-interface BonusConfig {
+interface PerformanceBonus {
   id: string;
-  type: 'mandatory' | 'performance';
   name: string;
   isActive: boolean;
-  amount?: number;
-  percentage?: number;
+  percentage: number;
+  amount: number;
   frequency: string;
-  nextPaymentDate?: string;
-  lastPaymentDate?: string;
+  nextPaymentDate: string;
+  lastPaymentDate: string;
   description: string;
-  legalInfo?: string;
+  legalInfo: string;
 }
 
-const mockBonusConfigs: BonusConfig[] = [
-  {
-    id: '1',
-    type: 'mandatory',
-    name: 'Subsídio de Férias',
-    isActive: true,
-    amount: 1200,
-    frequency: 'Anual (Junho)',
-    nextPaymentDate: '2025-06-30',
-    lastPaymentDate: '2024-06-30',
-    description: 'Subsídio obrigatório equivalente a um mês de retribuição',
-    legalInfo: 'Artigo 264º do Código do Trabalho'
-  },
-  {
-    id: '2',
-    type: 'mandatory',
-    name: 'Subsídio de Natal',
-    isActive: true,
-    amount: 1200,
-    frequency: 'Anual (Dezembro)',
-    nextPaymentDate: '2025-12-15',
-    lastPaymentDate: '2024-12-15',
-    description: 'Subsídio obrigatório equivalente a um mês de retribuição',
-    legalInfo: 'Artigo 263º do Código do Trabalho'
-  },
-  {
-    id: '3',
-    type: 'performance',
-    name: 'Prémio de Produtividade',
-    isActive: true,
-    percentage: 4.5,
-    amount: 2700,
-    frequency: 'Trimestral',
-    nextPaymentDate: '2025-03-31',
-    lastPaymentDate: '2024-12-31',
-    description: 'Prémio baseado em objetivos de produtividade (4.5% do salário base)',
-    legalInfo: 'Isenção fiscal até 6% do salário base (máx. €4.350/ano)'
-  }
-];
+interface CustomBonus {
+  id: string;
+  name: string;
+  amount: number;
+  payment_frequency: string;
+  next_payment_date: string;
+  is_active: boolean;
+  description?: string;
+}
+
+const mockPerformanceBonus: PerformanceBonus = {
+  id: 'perf-001',
+  name: 'Prémio de Produtividade',
+  isActive: true,
+  percentage: 4.5,
+  amount: 2700,
+  frequency: 'Trimestral',
+  nextPaymentDate: '2025-03-31',
+  lastPaymentDate: '2024-12-31',
+  description: 'Prémio baseado em objetivos de produtividade (4.5% do salário base)',
+  legalInfo: 'Isenção fiscal até 6% do salário base (máx. €4.350/ano)'
+};
 
 export function PayrollBonusView() {
   const navigate = useNavigate();
-  const [bonusConfigs, setBonusConfigs] = useState<BonusConfig[]>([]);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [customBonuses, setCustomBonuses] = useState<CustomBonus[]>([]);
+  const [performanceBonus, setPerformanceBonus] = useState<PerformanceBonus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeContract, setActiveContract] = useState<any>(null);
 
   useEffect(() => {
-    // Simular carregamento de dados
-    const timer = setTimeout(() => {
-      setBonusConfigs(mockBonusConfigs);
+    loadBonusData();
+  }, [user]);
+
+  const loadBonusData = async () => {
+    if (!user?.id) return;
+
+    try {
+      setLoading(true);
+      
+      // Carregar contrato ativo
+      const contract = await payrollService.getActiveContract(user.id);
+      setActiveContract(contract);
+      
+      // Carregar bónus personalizados
+      const bonuses = await payrollService.getCustomBonuses(user.id);
+      setCustomBonuses(bonuses || []);
+      
+      // Para demonstração, usar dados mock para o prémio de produtividade
+      if (contract) {
+        setPerformanceBonus(mockPerformanceBonus);
+      }
+    } catch (error) {
+      logger.error('Erro ao carregar dados de bónus:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os dados de bónus.',
+        variant: 'destructive',
+      });
+    } finally {
       setLoading(false);
-    }, 500);
+    }
+  };
 
-    return () => clearTimeout(timer);
-  }, []);
+  const handleToggleBonus = async (bonusId: string, isActive: boolean) => {
+    try {
+      await payrollService.updateCustomBonus(bonusId, { is_active: isActive });
+      await loadBonusData();
+      toast({
+        title: 'Sucesso',
+        description: `Bónus ${isActive ? 'ativado' : 'desativado'} com sucesso.`,
+      });
+    } catch (error) {
+      logger.error('Erro ao atualizar bónus:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível atualizar o bónus.',
+        variant: 'destructive',
+      });
+    }
+  };
 
-  const activeBonuses = bonusConfigs.filter(bonus => bonus.isActive);
-  const inactiveBonuses = bonusConfigs.filter(bonus => !bonus.isActive);
+  const handleDeleteBonus = async (bonusId: string) => {
+    try {
+      await payrollService.deleteCustomBonus(bonusId);
+      await loadBonusData();
+      toast({
+        title: 'Sucesso',
+        description: 'Bónus removido com sucesso.',
+      });
+    } catch (error) {
+      logger.error('Erro ao remover bónus:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível remover o bónus.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const activeBonuses = customBonuses.filter(bonus => bonus.is_active);
+  const inactiveBonuses = customBonuses.filter(bonus => !bonus.is_active);
 
   const totalAnnualAmount = activeBonuses.reduce((total, bonus) => {
-    if (bonus.type === 'mandatory') {
-      return total + (bonus.amount || 0);
-    } else if (bonus.type === 'performance' && bonus.frequency === 'Trimestral') {
-      return total + (bonus.amount || 0) * 4;
-    }
-    return total + (bonus.amount || 0);
-  }, 0);
+    const multiplier = bonus.payment_frequency === 'monthly' ? 12 : 
+                      bonus.payment_frequency === 'quarterly' ? 4 : 
+                      bonus.payment_frequency === 'biannual' ? 2 : 1;
+    return total + (bonus.amount * multiplier);
+  }, 0) + (performanceBonus?.isActive ? (performanceBonus.amount || 0) * 4 : 0);
 
   const formatCurrencyUtil = (amount: number) => {
-    return formatCurrency(amount * 100); // formatCurrency expects cents
+    return formatCurrency(amount * 100);
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-PT', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric'
-    });
+    return new Date(dateString).toLocaleDateString('pt-PT');
   };
 
-  const getBonusIcon = (type: string) => {
-    return type === 'mandatory' ? Calendar : TrendingUp;
-  };
-
-  const getBonusColor = (type: string) => {
-    return type === 'mandatory' ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200';
+  const getFrequencyLabel = (frequency: string) => {
+    const labels: Record<string, string> = {
+      'monthly': 'Mensal',
+      'quarterly': 'Trimestral',
+      'biannual': 'Semestral',
+      'annual': 'Anual'
+    };
+    return labels[frequency] || frequency;
   };
 
   if (loading) {
@@ -136,21 +186,20 @@ export function PayrollBonusView() {
 
   return (
     <div className="space-y-6">
-      {/* Header com resumo */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Gift className="h-6 w-6 text-primary" />
               <div>
-                <CardTitle>Bónus e Prémios Ativos</CardTitle>
+                <CardTitle>Bónus e Prémios Personalizados</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {activeBonuses.length} configuração{activeBonuses.length !== 1 ? 'ões' : ''} ativa{activeBonuses.length !== 1 ? 's' : ''}
+                  {activeBonuses.length + (performanceBonus?.isActive ? 1 : 0)} configuração{(activeBonuses.length + (performanceBonus?.isActive ? 1 : 0)) !== 1 ? 'ões' : ''} ativa{(activeBonuses.length + (performanceBonus?.isActive ? 1 : 0)) !== 1 ? 's' : ''}
                 </p>
               </div>
             </div>
             <Button 
-              onClick={() => navigate('/personal/payroll/settings/bonus')}
+              onClick={() => navigate('/personal/payroll/config')}
               className="flex items-center gap-2"
             >
               <Settings className="h-4 w-4" />
@@ -168,145 +217,193 @@ export function PayrollBonusView() {
             </div>
             <div className="text-center p-4 bg-blue-50 rounded-lg">
               <div className="text-2xl font-bold text-blue-600">
-                {activeBonuses.filter(b => b.type === 'mandatory').length}
+                {activeBonuses.length}
               </div>
-              <div className="text-sm text-muted-foreground">Subsídios Obrigatórios</div>
+              <div className="text-sm text-muted-foreground">Bónus Personalizados</div>
             </div>
             <div className="text-center p-4 bg-green-50 rounded-lg">
               <div className="text-2xl font-bold text-green-600">
-                {activeBonuses.filter(b => b.type === 'performance').length}
+                {performanceBonus?.isActive ? '1' : '0'}
               </div>
-              <div className="text-sm text-muted-foreground">Prémios de Produtividade</div>
+              <div className="text-sm text-muted-foreground">Prémio de Produtividade</div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Lista de bónus ativos */}
-      {activeBonuses.length > 0 ? (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold">Configurações Ativas</h3>
-          {activeBonuses.map((bonus) => {
-            const Icon = getBonusIcon(bonus.type);
-            return (
-              <Card key={bonus.id} className={getBonusColor(bonus.type)}>
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-4 flex-1">
-                      <div className="p-2 bg-white rounded-lg shadow-sm">
-                        <Icon className="h-5 w-5 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h4 className="font-semibold">{bonus.name}</h4>
-                          <Badge variant="outline" className="text-xs">
-                            {bonus.type === 'mandatory' ? 'Obrigatório' : 'Produtividade'}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          {bonus.description}
-                        </p>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <div className="flex items-center gap-1 text-muted-foreground mb-1">
-                              <Euro className="h-3 w-3" />
-                              <span>Valor</span>
-                            </div>
-                            <div className="font-medium">
-                              {bonus.amount ? formatCurrencyUtil(bonus.amount) : 'N/A'}
-                              {bonus.percentage && (
-                                <span className="text-muted-foreground ml-1">
-                                  ({bonus.percentage}%)
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <div>
-                            <div className="flex items-center gap-1 text-muted-foreground mb-1">
-                              <Clock className="h-3 w-3" />
-                              <span>Frequência</span>
-                            </div>
-                            <div className="font-medium">{bonus.frequency}</div>
-                          </div>
-                          
-                          <div>
-                            <div className="flex items-center gap-1 text-muted-foreground mb-1">
-                              <Calendar className="h-3 w-3" />
-                              <span>Próximo Pagamento</span>
-                            </div>
-                            <div className="font-medium">
-                              {bonus.nextPaymentDate ? formatDate(bonus.nextPaymentDate) : 'N/A'}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {bonus.legalInfo && (
-                          <div className="mt-3 p-2 bg-white/50 rounded text-xs text-muted-foreground">
-                            <AlertCircle className="h-3 w-3 inline mr-1" />
-                            {bonus.legalInfo}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-5 w-5 text-green-500" />
-                      <span className="text-sm font-medium text-green-600">Ativo</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      ) : (
+      {performanceBonus && (
         <Card>
-          <CardContent className="p-8 text-center">
-            <Gift className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nenhum Bónus Configurado</h3>
-            <p className="text-muted-foreground mb-4">
-              Configure subsídios obrigatórios e prémios de produtividade para começar.
-            </p>
-            <Button onClick={() => navigate('/personal/payroll/settings/bonus')}>
-              <Settings className="h-4 w-4 mr-2" />
-              Configurar Bónus
-            </Button>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <TrendingUp className="h-5 w-5 text-green-600" />
+                <div>
+                  <CardTitle className="text-lg">{performanceBonus.name}</CardTitle>
+                  <p className="text-sm text-muted-foreground">{performanceBonus.description}</p>
+                </div>
+              </div>
+              <Badge variant={performanceBonus.isActive ? 'default' : 'secondary'}>
+                {performanceBonus.isActive ? (
+                  <><CheckCircle className="h-3 w-3 mr-1" />Ativo</>
+                ) : (
+                  <><XCircle className="h-3 w-3 mr-1" />Inativo</>
+                )}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-lg font-semibold text-gray-900">
+                  {performanceBonus.percentage}%
+                </div>
+                <div className="text-xs text-gray-600">Percentagem</div>
+              </div>
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-lg font-semibold text-gray-900">
+                  {formatCurrencyUtil(performanceBonus.amount)}
+                </div>
+                <div className="text-xs text-gray-600">Valor {performanceBonus.frequency}</div>
+              </div>
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-lg font-semibold text-gray-900">
+                  <Calendar className="h-4 w-4 inline mr-1" />
+                  {formatDate(performanceBonus.nextPaymentDate)}
+                </div>
+                <div className="text-xs text-gray-600">Próximo Pagamento</div>
+              </div>
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-lg font-semibold text-gray-900">
+                  <Clock className="h-4 w-4 inline mr-1" />
+                  {formatDate(performanceBonus.lastPaymentDate)}
+                </div>
+                <div className="text-xs text-gray-600">Último Pagamento</div>
+              </div>
+            </div>
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Informação Legal:</strong> {performanceBonus.legalInfo}
+              </p>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Bónus inativos (se existirem) */}
-      {inactiveBonuses.length > 0 && (
-        <div className="space-y-4">
-          <Separator />
-          <h3 className="text-lg font-semibold text-muted-foreground">Configurações Inativas</h3>
-          {inactiveBonuses.map((bonus) => {
-            const Icon = getBonusIcon(bonus.type);
-            return (
-              <Card key={bonus.id} className="opacity-60">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 bg-gray-100 rounded-lg">
-                        <Icon className="h-5 w-5 text-gray-400" />
+      <Card>
+        <CardHeader>
+          <CardTitle>Lista de Bónus Personalizados</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {activeBonuses.length === 0 && inactiveBonuses.length === 0 ? (
+            <div className="text-center py-8">
+              <Gift className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum bónus configurado</h3>
+              <p className="text-gray-600 mb-4">Configure bónus personalizados para complementar o seu salário.</p>
+              <Button onClick={() => navigate('/personal/payroll/config')}>
+                <Settings className="h-4 w-4 mr-2" />
+                Configurar Bónus
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {activeBonuses.map((bonus) => (
+                <Card key={bonus.id} className="border-l-4 border-l-green-500">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className="font-medium">{bonus.name}</h4>
+                          <Badge variant="default">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Ativo
+                          </Badge>
+                        </div>
+                        {bonus.description && (
+                          <p className="text-sm text-gray-600 mb-2">{bonus.description}</p>
+                        )}
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <span className="flex items-center gap-1">
+                            <Euro className="h-4 w-4" />
+                            {formatCurrencyUtil(bonus.amount)} ({getFrequencyLabel(bonus.payment_frequency)})
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            Próximo: {formatDate(bonus.next_payment_date)}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-semibold text-muted-foreground">{bonus.name}</h4>
-                        <p className="text-sm text-muted-foreground">{bonus.description}</p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleToggleBonus(bonus.id, false)}
+                        >
+                          Desativar
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteBonus(bonus.id)}
+                        >
+                          Remover
+                        </Button>
                       </div>
                     </div>
-                    <Badge variant="secondary">Inativo</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                  </CardContent>
+                </Card>
+              ))}
 
-      {/* Informação legal */}
+              {inactiveBonuses.map((bonus) => (
+                <Card key={bonus.id} className="border-l-4 border-l-gray-300 opacity-60">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className="font-medium">{bonus.name}</h4>
+                          <Badge variant="secondary">
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Inativo
+                          </Badge>
+                        </div>
+                        {bonus.description && (
+                          <p className="text-sm text-gray-600 mb-2">{bonus.description}</p>
+                        )}
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <span className="flex items-center gap-1">
+                            <Euro className="h-4 w-4" />
+                            {formatCurrencyUtil(bonus.amount)} ({getFrequencyLabel(bonus.payment_frequency)})
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            Próximo: {formatDate(bonus.next_payment_date)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleToggleBonus(bonus.id, true)}
+                        >
+                          Ativar
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteBonus(bonus.id)}
+                        >
+                          Remover
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>

@@ -17,6 +17,7 @@ import { WeeklyTimesheetForm } from './WeeklyTimesheetForm';
 import { PayrollNavigation } from './PayrollNavigation';
 import { PayrollPeriodsManager } from './PayrollPeriodsManager';
 import { ActiveContractProvider } from '../contexts/ActiveContractContext';
+import { PayrollConfigProvider } from '../contexts/PayrollConfigContext';
 import { usePayrollOnboarding } from '../hooks/usePayrollOnboarding';
 import { LoadingSpinner } from '../../../components/ui/loading-states';
 
@@ -68,7 +69,9 @@ function PayrollContent() {
 export function PayrollModule() {
   return (
     <ActiveContractProvider>
-      <PayrollContent />
+      <PayrollConfigProvider>
+        <PayrollContent />
+      </PayrollConfigProvider>
     </ActiveContractProvider>
   );
 }

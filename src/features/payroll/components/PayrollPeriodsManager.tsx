@@ -61,6 +61,9 @@ const PayrollPeriodsManager: React.FC<PayrollPeriodsManagerProps> = ({ contractI
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  
+  // Define selectedContractId based on prop or active contract
+  const selectedContractId = contractId || activeContract?.id || '';
 
   const months = [
     { value: 1, label: 'Janeiro' },
@@ -87,12 +90,15 @@ const PayrollPeriodsManager: React.FC<PayrollPeriodsManagerProps> = ({ contractI
       
       let currentContract: PayrollContract | null = null;
       
-      if (selectedContractId) {
+      if (contractId) {
         // Se temos contractId, buscar o contrato específico
         const contracts = await payrollService.getContracts(user.id);
-        currentContract = contracts.find(c => c.id === selectedContractId) || null;
+        currentContract = contracts.find(c => c.id === contractId) || null;
+      } else if (activeContract) {
+        // Usar contrato ativo do contexto
+        currentContract = activeContract;
       } else {
-        // Fallback para contrato ativo
+        // Fallback para buscar contrato ativo
         currentContract = await payrollService.getActiveContract(user.id);
       }
       

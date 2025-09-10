@@ -216,6 +216,18 @@ export async function getActiveOTPolicy(userId: string, _contractId?: string): P
   if (error) throw error;
   return (data as any) || null;
 }
+
+// Get OT policies by contract
+export async function getOTPoliciesByContract(contractId: string): Promise<PayrollOTPolicy[]> {
+  const { data, error } = await supabase
+    .from('payroll_ot_policies')
+    .select('*')
+    .eq('contract_id', contractId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
 export async function createOTPolicy(policyData: Omit<PayrollOTPolicy, 'id' | 'created_at' | 'updated_at'>, userId: string): Promise<PayrollOTPolicy> {
   const { data, error } = await supabase
     .from('payroll_ot_policies')
@@ -734,6 +746,21 @@ export async function validatePayrollConfiguration(userId: string, contractId: s
 }
 
 // Payroll period creation
+export async function getPayrollPeriods(userId: string, contractId: string): Promise<PayrollPeriod[]> {
+  validateUserId(userId);
+  
+  const { data, error } = await supabase
+    .from('payroll_periods')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .order('year', { ascending: false })
+    .order('month', { ascending: false });
+
+  if (error) throw error;
+  return data as PayrollPeriod[];
+}
+
 export async function createPayrollPeriod(userId: string, contractId: string, year: number, month: number): Promise<PayrollPeriod> {
   // 1) Validate configuration for the given year
   const validation = await validatePayrollConfiguration(userId, contractId);
@@ -799,6 +826,7 @@ export const payrollService = {
   deactivateContract,
   deleteContract,
   getOTPolicies,
+  getOTPoliciesByContract,
   getActiveOTPolicy,
   createOTPolicy,
   updateOTPolicy,
@@ -823,6 +851,7 @@ export const payrollService = {
   processCompensatoryRestForTimeEntries,
   getPayrollConfigurationStatus,
   validatePayrollConfiguration,
+  getPayrollPeriods,
   createPayrollPeriod,
   // Adicionado: permitir uso via payrollService.getLeavesForWeek
   getLeavesForWeek,
@@ -839,6 +868,7 @@ export const payrollService = {
   deleteMileagePolicy,
   // Meal allowance config
   getMealAllowanceConfig,
+  getMealAllowancesByContract,
   upsertMealAllowanceConfig,
   deleteMealAllowanceConfig,
   // Deduction config
@@ -852,6 +882,12 @@ export const payrollService = {
   upsertBonusConfig,
   getBonusConfig,
   deleteBonusConfig,
+  getBonusesByContract,
+  // Custom bonuses
+  createCustomBonus,
+  getCustomBonuses,
+  updateCustomBonus,
+  deleteCustomBonus,
   // Subsidy configuration
   getSubsidyConfigs,
   getSubsidyConfig,
@@ -1048,16 +1084,26 @@ export async function getMealAllowanceConfig(userId: string, contractId: string)
   return (data as any) || null;
 }
 
+export async function getMealAllowancesByContract(contractId: string): Promise<PayrollMealAllowanceConfig[]> {
+  const { data, error } = await supabase
+    .from('payroll_meal_allowance_configs')
+    .select('*')
+    .eq('contract_id', contractId);
+
+  if (error) throw error;
+  return (data as any) || [];
+}
+
 export async function upsertMealAllowanceConfig(userId: string, contractId: string, configData: PayrollMealAllowanceConfigFormData): Promise<PayrollMealAllowanceConfig> {
   const { data, error } = await supabase
     .from('payroll_meal_allowance_configs')
     .upsert({
       user_id: userId,
       contract_id: contractId,
-      daily_amount_cents: Math.round(configData.daily_amount * 100),
+      daily_amount_cents: Math.round(configData.dailyAmount * 100),
       excluded_months: configData.excluded_months || [],
-      payment_method: configData.payment_method,
-      duodecimos_enabled: configData.duodecimos_enabled || false
+      payment_method: configData.paymentMethod,
+      duodecimos_enabled: configData.duodecimosEnabled || false
     }, {
       onConflict: 'user_id,contract_id'
     })
@@ -1205,6 +1251,28 @@ export async function deleteBonusConfig(
   if (error) throw error;
 }
 
+export async function getBonusesByContract(
+  userId: string,
+  contractId: string
+): Promise<any[]> {
+  validateUserId(userId);
+  
+  if (!contractId || typeof contractId !== 'string') {
+    throw new Error('ID do contrato inválido');
+  }
+  
+  const { data, error } = await supabase
+    .from('payroll_bonus_configs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .eq('is_active', true)
+    .order('bonus_type');
+
+  if (error) throw error;
+  return data || [];
+}
+
 // Subsidy configuration functions for new subsidy_configs table
 export async function getSubsidyConfigs(
   userId: string,
@@ -1296,6 +1364,129 @@ export async function deleteSubsidyConfig(
     .eq('user_id', userId)
     .eq('contract_id', contractId)
     .eq('type', type);
+
+  if (error) throw error;
+}
+
+// Custom bonuses functions
+export async function createCustomBonus(
+  userId: string,
+  contractId: string,
+  bonusData: {
+    name: string;
+    description?: string;
+    amount: number;
+    isPercentage: boolean;
+    paymentFrequency: string;
+    isTaxable: boolean;
+    requiresApproval: boolean;
+  }
+): Promise<any> {
+  validateUserId(userId);
+  
+  if (!contractId || typeof contractId !== 'string') {
+    throw new Error('ID do contrato inválido');
+  }
+  
+  const { data, error } = await supabase
+    .from('payroll_custom_bonuses')
+    .insert({
+      user_id: userId,
+      contract_id: contractId,
+      name: bonusData.name,
+      description: bonusData.description || '',
+      amount: bonusData.amount,
+      is_percentage: bonusData.isPercentage,
+      payment_frequency: bonusData.paymentFrequency,
+      is_taxable: bonusData.isTaxable,
+      requires_approval: bonusData.requiresApproval,
+      is_active: true
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getCustomBonuses(
+  userId: string,
+  contractId: string
+): Promise<any[]> {
+  validateUserId(userId);
+  
+  if (!contractId || typeof contractId !== 'string') {
+    throw new Error('ID do contrato inválido');
+  }
+  
+  const { data, error } = await supabase
+    .from('payroll_custom_bonuses')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contract_id', contractId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function updateCustomBonus(
+  userId: string,
+  bonusId: string,
+  bonusData: {
+    name?: string;
+    description?: string;
+    amount?: number;
+    isPercentage?: boolean;
+    paymentFrequency?: string;
+    isTaxable?: boolean;
+    requiresApproval?: boolean;
+    isActive?: boolean;
+  }
+): Promise<any> {
+  validateUserId(userId);
+  
+  if (!bonusId || typeof bonusId !== 'string') {
+    throw new Error('ID do bónus inválido');
+  }
+  
+  const updateData: any = {};
+  if (bonusData.name !== undefined) updateData.name = bonusData.name;
+  if (bonusData.description !== undefined) updateData.description = bonusData.description;
+  if (bonusData.amount !== undefined) updateData.amount = bonusData.amount;
+  if (bonusData.isPercentage !== undefined) updateData.is_percentage = bonusData.isPercentage;
+  if (bonusData.paymentFrequency !== undefined) updateData.payment_frequency = bonusData.paymentFrequency;
+  if (bonusData.isTaxable !== undefined) updateData.is_taxable = bonusData.isTaxable;
+  if (bonusData.requiresApproval !== undefined) updateData.requires_approval = bonusData.requiresApproval;
+  if (bonusData.isActive !== undefined) updateData.is_active = bonusData.isActive;
+  
+  const { data, error } = await supabase
+    .from('payroll_custom_bonuses')
+    .update(updateData)
+    .eq('user_id', userId)
+    .eq('id', bonusId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCustomBonus(
+  userId: string,
+  bonusId: string
+): Promise<void> {
+  validateUserId(userId);
+  
+  if (!bonusId || typeof bonusId !== 'string') {
+    throw new Error('ID do bónus inválido');
+  }
+  
+  const { error } = await supabase
+    .from('payroll_custom_bonuses')
+    .delete()
+    .eq('user_id', userId)
+    .eq('id', bonusId);
 
   if (error) throw error;
 }

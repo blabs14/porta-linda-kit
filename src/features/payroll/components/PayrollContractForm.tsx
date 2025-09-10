@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   PayrollContract,
   ContractFormData
@@ -18,6 +19,8 @@ import { useLocale } from '@/contexts/LocaleProvider';
 import { useFamily } from '@/features/family/FamilyContext';
 import { getCurrencies } from '@/services/currencies';
 import { logger } from '@/shared/lib/logger';
+import { useContractConfig, useConfigurationStatus } from '../hooks/usePayrollConfig';
+import { usePayrollNotifications } from '../hooks/usePayrollNotifications';
 
 
 interface PayrollContractFormProps {
@@ -35,9 +38,24 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
   const { user } = useAuth();
   const { family } = useFamily();
   const { currency: defaultCurrency } = useLocale();
+  
+  // Usar o novo contexto de configuração
+  const { 
+    contracts, 
+    loading: contextLoading, 
+    saveContract, 
+    syncHolidays
+  } = useContractConfig();
+  
+  // Usar o hook de status para validação
+  const { validateConfiguration } = useConfigurationStatus(contract?.id);
+  
+  // Sistema de notificações
+  const { notifications, addNotification, removeNotification } = usePayrollNotifications();
 
   const [loading, setLoading] = useState(false);
   const [syncingHolidays, setSyncingHolidays] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [formData, setFormData] = useState<ContractFormData>({
     name: '',
     base_salary_cents: 0,
@@ -125,122 +143,125 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
     return () => { mounted = false; };
   }, []);
 
+  // Validação em tempo real
+  useEffect(() => {
+    // Verificar se temos todos os dados necessários incluindo um contract válido
+    if (formData.name && formData.base_salary_cents > 0 && contract?.id && validateConfiguration) {
+      validateConfiguration()
+        .then((isValid) => {
+          if (!isValid) {
+            // Se a validação falhou, os erros já estão no contexto
+            // Vamos buscar os erros de validação do contexto
+            const contractErrors = validationErrors.general || [];
+            setValidationErrors(contractErrors);
+          } else {
+            setValidationErrors([]);
+          }
+        })
+        .catch((error) => {
+          console.error('Erro na validação:', error);
+          // Verificar se o erro é relacionado com ID inválido para dar uma mensagem mais clara
+          if (error.message?.includes('ID do contrato inválido')) {
+            setValidationErrors(['Contrato não selecionado ou inválido']);
+          } else {
+            setValidationErrors([error.message || 'Erro na validação']);
+          }
+        });
+    } else {
+      // Limpar erros de validação se não temos dados suficientes
+      setValidationErrors([]);
+    }
+  }, [formData, validateConfiguration, validationErrors.general, contract?.id]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!user?.id) {
-      (toast as any).error?.('Utilizador não encontrado') ?? toast({ title: 'Erro', description: 'Utilizador não encontrado', variant: 'destructive' });
+      addNotification({
+        type: 'error',
+        message: 'Utilizador não encontrado',
+        component: 'contract'
+      });
       return;
     }
 
+    // Validação básica
+    const errors: string[] = [];
+    
     if (!formData.name || formData.name.trim() === '') {
-      (toast as any).error?.('Nome do funcionário é obrigatório') ?? toast({ title: 'Erro', description: 'Nome do funcionário é obrigatório', variant: 'destructive' });
-      return;
+      errors.push('Nome do contrato é obrigatório');
     }
-
+    
     if (isNaN(formData.base_salary_cents) || formData.base_salary_cents <= 0) {
-      (toast as any).error?.('Salário base deve ser maior que 0') ?? toast({ title: 'Erro', description: 'Salário base deve ser maior que 0', variant: 'destructive' });
-      return;
+      errors.push('Salário base deve ser maior que 0');
     }
-
+    
     if (isNaN(formData.weekly_hours) || formData.weekly_hours < 20 || formData.weekly_hours > 60) {
-      (toast as any).error?.('Horas por semana deve estar entre 20 e 60') ?? toast({ title: 'Erro', description: 'Horas por semana deve estar entre 20 e 60', variant: 'destructive' });
-      return;
+      errors.push('Horas por semana deve estar entre 20 e 60');
     }
-
+    
     const isValidISO = /^[A-Z]{3}$/.test(formData.currency || '');
     const inList = currencyOptions.length === 0 ? true : currencyOptions.some(c => c.code === formData.currency);
     
     if (!isValidISO || !inList) {
-      (toast as any).error?.('Por favor escolhe uma moeda válida') ?? toast({ title: 'Erro', description: 'Por favor escolhe uma moeda válida', variant: 'destructive' });
+      errors.push('Por favor escolhe uma moeda válida');
+    }
+    
+    if (errors.length > 0) {
+      errors.forEach(error => {
+        addNotification({
+          type: 'error',
+          message: error,
+          component: 'contract'
+        });
+      });
       return;
     }
 
     setLoading(true);
 
     try {
-      let savedContract: PayrollContract;
+      // Usar o contexto para salvar o contrato
+      const savedContract = await saveContract(formData, contract?.id);
       
-      if (contract?.id) {
-        savedContract = await payrollService.updateContract(contract.id, formData, user.id);
-        toast({
-          title: 'Contrato atualizado',
-          description: 'O contrato foi atualizado com sucesso.'
-        });
-      } else {
-        savedContract = await payrollService.createContract(user.id, formData);
-        toast({
-          title: 'Contrato criado',
-          description: 'O novo contrato foi criado com sucesso.'
-        });
-      }
+      addNotification({
+        type: 'success',
+        message: contract ? 'Contrato atualizado com sucesso' : 'Contrato criado com sucesso',
+        component: 'contract'
+      });
 
-      // Os feriados nacionais são sincronizados automaticamente no backend
-      // Sincronizar feriados regionais/municipais se workplace_location estiver definido
+      // Sincronizar feriados se localização estiver definida
       if (formData.workplace_location && formData.workplace_location.trim() !== '') {
         try {
           setSyncingHolidays(true);
-          const isSupported = holidayAutoService.isLocationSupported(formData.workplace_location);
-          if (isSupported) {
-            const currentYear = new Date().getFullYear();
-            await holidayAutoService.syncRegionalHolidays(
-              user.id,
-              savedContract.id,
-              currentYear,
-              formData.workplace_location
-            );
-            toast({
-              title: 'Feriados sincronizados',
-              description: 'Feriados nacionais e regionais sincronizados com sucesso!',
-              variant: 'default'
-            });
-          } else {
-            toast({
-              title: 'Feriados sincronizados',
-              description: 'Feriados nacionais sincronizados. Localização não suportada para feriados regionais.',
-              variant: 'default'
-            });
-          }
+          const currentYear = new Date().getFullYear();
+          await syncHolidays(savedContract.id, currentYear, formData.workplace_location);
+          
+          addNotification({
+            type: 'success',
+            message: 'Feriados sincronizados com sucesso',
+            component: 'holidays'
+          });
         } catch (holidayError) {
-          logger.warn('Erro na sincronização de feriados regionais:', holidayError);
-          toast({
-            title: 'Aviso',
-            description: 'Feriados nacionais sincronizados. Erro ao sincronizar feriados regionais.',
-            variant: 'default'
+          logger.warn('Erro na sincronização de feriados:', holidayError);
+          addNotification({
+            type: 'warning',
+            message: 'Erro ao sincronizar feriados regionais',
+            component: 'holidays'
           });
         } finally {
           setSyncingHolidays(false);
-          // Emitir evento global após tentativa de sincronização regional
-          try {
-            const currentYear = new Date().getFullYear();
-            window.dispatchEvent(new CustomEvent('holiday-sync:completed', {
-              detail: { contractId: savedContract.id, year: currentYear }
-            }));
-          } catch {}
         }
-      } else {
-        toast({
-          title: 'Feriados sincronizados',
-          description: 'Feriados nacionais sincronizados com sucesso!',
-          variant: 'default'
-        });
-        // Emitir evento global quando apenas feriados nacionais foram sincronizados
-        try {
-          const currentYear = new Date().getFullYear();
-          window.dispatchEvent(new CustomEvent('holiday-sync:completed', {
-            detail: { contractId: savedContract.id, year: currentYear }
-          }));
-        } catch {}
       }
 
       onSave?.(savedContract);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao salvar o contrato.';
       
-      toast({
-        title: 'Erro',
-        description: errorMessage,
-        variant: 'destructive'
+      addNotification({
+        type: 'error',
+        message: errorMessage,
+        component: 'contract'
       });
     } finally {
       setLoading(false);
@@ -317,6 +338,50 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Notificações */}
+        {notifications.length > 0 && (
+          <div className="space-y-2 mb-6">
+            {notifications.map((notification) => (
+              <Alert 
+                key={notification.id} 
+                variant={notification.type === 'error' ? 'destructive' : 'default'}
+                className={notification.type === 'success' ? 'border-green-200 bg-green-50' : 
+                          notification.type === 'warning' ? 'border-yellow-200 bg-yellow-50' : ''}
+              >
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="flex justify-between items-center">
+                  {notification.message}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => removeNotification(notification.id)}
+                    className="h-auto p-1 ml-2"
+                  >
+                    ×
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ))}
+          </div>
+        )}
+        
+        {/* Erros de validação */}
+        {validationErrors.length > 0 && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="space-y-1">
+                <div className="font-medium">Problemas de configuração:</div>
+                <ul className="list-disc list-inside space-y-1">
+                  {validationErrors.map((error, index) => (
+                    <li key={index} className="text-sm">{error}</li>
+                  ))}
+                </ul>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Informações Básicas */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
