@@ -5,8 +5,9 @@ import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Badge } from '../../../components/ui/badge';
 import { Separator } from '../../../components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { useToast } from '../../../hooks/use-toast';
-import { Calculator, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Calculator, AlertTriangle, CheckCircle, Calendar } from 'lucide-react';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { formatCurrency } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
@@ -81,7 +82,28 @@ const PayrollSummaryPage: React.FC = () => {
   const [showComparison, setShowComparison] = useState(false);
   const [ariaMessage, setAriaMessage] = useState('');
 
-  const currentMonth = new Date().toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+  // Estado para filtro por mês
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+
+  const months = [
+    { value: 1, label: 'Janeiro' },
+    { value: 2, label: 'Fevereiro' },
+    { value: 3, label: 'Março' },
+    { value: 4, label: 'Abril' },
+    { value: 5, label: 'Maio' },
+    { value: 6, label: 'Junho' },
+    { value: 7, label: 'Julho' },
+    { value: 8, label: 'Agosto' },
+    { value: 9, label: 'Setembro' },
+    { value: 10, label: 'Outubro' },
+    { value: 11, label: 'Novembro' },
+    { value: 12, label: 'Dezembro' }
+  ];
+
+  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
+
+  const currentMonth = new Date(selectedYear, selectedMonth - 1).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
   const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({
     base: 0,
     overtimeDay: 0,
@@ -171,13 +193,9 @@ const PayrollSummaryPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      const currentDate = new Date();
-      const year = currentDate.getFullYear();
-      const month = currentDate.getMonth() + 1;
-
       console.log('[PayrollSummary] 📞 Using active contract from context...', {
-        year,
-        month,
+        year: selectedYear,
+        month: selectedMonth,
         hasActiveContract: !!activeContract,
         contractId: activeContract?.id || 'none'
       });
@@ -212,14 +230,14 @@ const PayrollSummaryPage: React.FC = () => {
       try {
         console.log('[PayrollSummary] 📋 Extracting overtime from timesheet...');
         
-        // Buscar entradas da timesheet para o mês atual
-        const timesheetEntries = await loadTimesheetEntries(user.id, activeContract.id, year, month);
+        // Buscar entradas da timesheet para o mês selecionado
+        const timesheetEntries = await loadTimesheetEntries(user.id, activeContract.id, selectedMonth, selectedYear);
         
         if (timesheetEntries.length > 0) {
           // Buscar política de horas extras e feriados
           const [otPolicy, holidays] = await Promise.all([
             payrollService.getActiveOTPolicy(user.id, activeContract.id),
-            payrollService.getHolidays(user.id, year, activeContract.id)
+            payrollService.getHolidays(user.id, selectedYear, activeContract.id)
           ]);
           
           if (otPolicy) {
@@ -269,12 +287,12 @@ const PayrollSummaryPage: React.FC = () => {
       console.log('[PayrollSummary] 🧮 Calculating payroll...', {
         userId: user.id,
         contractId: activeContract.id,
-        year,
-        month,
+        year: selectedYear,
+        month: selectedMonth,
         hasPreCalculatedData: !!preCalculatedData
       });
       
-      const result = await calculatePayroll(user.id, activeContract.id, year, month, preCalculatedData);
+      const result = await calculatePayroll(user.id, activeContract.id, selectedYear, selectedMonth, preCalculatedData);
       
       console.log('[PayrollSummary] 📊 Payroll calculation result:', {
         hasResult: !!result,
@@ -287,17 +305,14 @@ const PayrollSummaryPage: React.FC = () => {
       const calc = result.calculation;
       
       // Calcular subsídios obrigatórios usando o novo serviço
-      const currentMonth = currentDate.getMonth() + 1;
-      const currentYear = currentDate.getFullYear();
-      
       // Calcular subsídios de férias e Natal (se aplicável)
       const subsidyInput = {
         user_id: user.id,
         contract_id: activeContract.id,
         calculation_date: new Date().toISOString(),
         base_salary_cents: activeContract.base_salary_cents,
-        worked_months: currentMonth, // Usar mês atual como aproximação
-        reference_year: currentYear
+        worked_months: selectedMonth, // Usar mês selecionado
+        reference_year: selectedYear
       };
       
       const subsidyResult = await subsidyDatabaseService.calculateSubsidies(subsidyInput);
@@ -372,7 +387,7 @@ const PayrollSummaryPage: React.FC = () => {
     } else {
       setAriaMessage('Cálculo de horas extras atualizado');
     }
-  }, [user?.id, activeContract?.id]);
+  }, [user?.id, activeContract?.id, selectedMonth, selectedYear]);
 
   // Set initial aria message for accessibility tests
   useEffect(() => {
@@ -482,7 +497,35 @@ const PayrollSummaryPage: React.FC = () => {
           <h1 className="text-3xl font-bold tracking-tight">Resumo do Payroll</h1>
           <p className="text-muted-foreground">{currentMonth}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {/* Filtro por Mês */}
+          <div className="flex gap-2 items-center">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Mês" />
+              </SelectTrigger>
+              <SelectContent>
+                {months.map((month) => (
+                  <SelectItem key={month.value} value={month.value.toString()}>
+                    {month.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+              <SelectTrigger className="w-20">
+                <SelectValue placeholder="Ano" />
+              </SelectTrigger>
+              <SelectContent>
+                {years.map((year) => (
+                  <SelectItem key={year} value={year.toString()}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Button 
             onClick={handleRecalculate} 
             disabled={isCalculating}

@@ -4,7 +4,7 @@ import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { logger } from '@/shared/lib/logger';
 import { useToast } from '../../../hooks/use-toast';
-import { Trash2, Plus, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Trash2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -159,17 +159,11 @@ const PayrollContractsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Contratos</h1>
-          <p className="text-gray-600 mt-1">
-            Visualize e gira os seus contratos de trabalho
-          </p>
-        </div>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          Novo Contrato
-        </Button>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Contratos</h1>
+        <p className="text-gray-600 mt-1">
+          Visualize e gira os seus contratos de trabalho
+        </p>
       </div>
 
       {contracts.length === 0 ? (
