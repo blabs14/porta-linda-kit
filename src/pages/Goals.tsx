@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useFamily } from '../features/family/FamilyContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
@@ -26,6 +27,7 @@ export default function Goals() {
   const { data: goalProgress = [] } = useGoalProgress();
   const { toast } = useToast();
   const confirmation = useConfirmation();
+  const { canEdit, canDelete } = useFamily();
 
   const handleCreateGoal = () => {
     setShowCreateModal(true);
@@ -158,7 +160,7 @@ export default function Goals() {
     return (
       <div className="container mx-auto p-4 text-center">
         <p className="text-red-600">Erro ao carregar objetivos: {error.message}</p>
-        <Button onClick={() => refetch()} className="mt-4">
+        <Button onClick={() => refetch()} className="mt-4" aria-label="Tentar carregar objetivos novamente">
           Tentar novamente
         </Button>
       </div>
@@ -170,10 +172,12 @@ export default function Goals() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Objetivos</h1>
-        <Button onClick={handleCreateGoal}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Objetivo
-        </Button>
+        {canEdit('goal') && (
+          <Button onClick={handleCreateGoal} aria-label="Criar novo objetivo financeiro">
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Objetivo
+          </Button>
+        )}
       </div>
 
       {/* Goals Grid */}
@@ -230,24 +234,28 @@ export default function Goals() {
                           </Tooltip>
                         </TooltipProvider>
                       )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEditGoal(goal)}
-                        className="h-8 w-8 p-0"
-                        aria-label="Editar objetivo"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteGoal(goal.goal_id)}
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        aria-label="Eliminar objetivo"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {canEdit('goal') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditGoal(goal)}
+                          className="h-8 w-8 p-0"
+                          aria-label="Editar objetivo"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {canDelete('goal') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteGoal(goal.goal_id)}
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                          aria-label="Eliminar objetivo"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                   
@@ -327,10 +335,12 @@ export default function Goals() {
           <p className="text-muted-foreground mb-4">
             Cria o teu primeiro objetivo para começar a poupar
           </p>
-          <Button onClick={handleCreateGoal}>
-            <Plus className="h-4 w-4 mr-2" />
-            Criar Objetivo
-          </Button>
+          {canEdit('goal') && (
+            <Button onClick={handleCreateGoal}>
+              <Plus className="h-4 w-4 mr-2" />
+              Criar Objetivo
+            </Button>
+          )}
         </div>
       )}
 

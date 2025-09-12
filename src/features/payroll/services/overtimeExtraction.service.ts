@@ -1,6 +1,7 @@
 import { TimesheetEntry, PayrollOTPolicy, PayrollHoliday, PayrollTimeEntry } from '../types';
 import { addMinutes, differenceInMinutes, format, isAfter, isBefore, parseISO, startOfDay, addDays } from 'date-fns';
 import { pt } from 'date-fns/locale';
+import { isValidUUID } from '@/lib/validation';
 
 /**
  * Tipos específicos para cálculo de horas extras
@@ -120,6 +121,10 @@ export class OvertimeExtractionService {
     contractId: string,
     userId: string
   ): PayrollTimeEntry {
+    // Validar se o contractId é um UUID válido
+    if (!isValidUUID(contractId)) {
+      throw new Error('ID do contrato deve ser um UUID válido');
+    }
     const dailyCalc = this.calculateSingleDayOvertime(timesheetEntry);
     
     return {

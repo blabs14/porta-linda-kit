@@ -1,6 +1,7 @@
 import { supabase } from '../../../lib/supabaseClient';
 import { PayrollContract, PayrollOTPolicy, PayrollHoliday, PayrollVacation, PayrollVacationFormData, PayrollTimeEntry, PayrollLeave, PayrollLeaveFormData, MileagePolicyFormData, PayrollMealAllowanceConfig, PayrollMealAllowanceConfigFormData, PayrollDeductionConfig, PayrollDeductionConfigFormData, PayrollPeriod, PayrollPeriodFormData, PayrollCalculation, PayrollMileageTrip, PayrollMileagePolicy } from '../types';
 import { formatDateLocal } from '../../../lib/dateUtils';
+import { isValidUUID } from '@/lib/validation';
 
 /**
  * Valida se um userId é válido
@@ -15,13 +16,13 @@ function validateUserId(userId: string): void {
  * Valida se um contractId é válido (formato UUID)
  */
 function validateContractId(contractId: string): void {
-  if (!contractId || typeof contractId !== 'string') {
+  if (!contractId || typeof contractId !== 'string' || contractId.trim().length === 0) {
     throw new Error('ID do contrato inválido');
   }
   
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(contractId)) {
-    throw new Error('ID do contrato inválido. Formato UUID esperado.');
+  // Validação UUID rigorosa
+  if (!isValidUUID(contractId)) {
+    throw new Error('ID do contrato deve ser um UUID válido');
   }
 }
 
@@ -347,6 +348,8 @@ export async function getHolidays(
   endOrContractId?: string,
   workplaceLocation?: string
 ): Promise<PayrollHoliday[]> {
+  console.log('🎄 getHolidays chamada com:', { userId, yearOrStart, endOrContractId, workplaceLocation });
+  
   let query = supabase
     .from('payroll_holidays')
     .select('*')
@@ -364,6 +367,26 @@ export async function getHolidays(
     const start = `${yearOrStart}-01-01`;
     const end = `${yearOrStart}-12-31`;
     query = query.gte('date', start).lte('date', end);
+    
+    // CORREÇÃO: Se contractId é fornecido, incluir feriados desse contrato E feriados de todos os contratos do utilizador
+    // Isto resolve o problema de feriados não aparecerem quando o utilizador tem múltiplos contratos
+    if (typeof endOrContractId === 'string' && endOrContractId) {
+      // Buscar todos os contratos do utilizador
+      const { data: userContracts } = await supabase
+        .from('payroll_contracts')
+        .select('id')
+        .eq('user_id', userId);
+      
+      const contractIds = userContracts?.map(c => c.id) || [endOrContractId];
+      
+      console.log('🔍 Incluindo feriados de todos os contratos do utilizador:', {
+        requestedContractId: endOrContractId,
+        allUserContractIds: contractIds
+      });
+      
+      // Filtrar por qualquer um dos contratos do utilizador
+      query = query.in('contract_id', contractIds);
+    }
     
     // Se temos workplace_location, incluir feriados regionais/municipais
     if (workplaceLocation && typeof endOrContractId === 'string') {
@@ -396,6 +419,12 @@ export async function getHolidays(
 
   const { data, error } = await query.order('date', { ascending: true });
   if (error) throw error;
+  
+  console.log('🎄 getHolidays resultado:', {
+    totalHolidays: data?.length || 0,
+    holidays: data?.slice(0, 3).map(h => ({ date: h.date, name: h.name, contract_id: h.contract_id })) || []
+  });
+  
   return data || [];
 }
 
@@ -508,7 +537,14 @@ export async function getTimeEntries(userId: string, contractId: string, start_d
 
   const { data, error } = await query.order('date', { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    console.error('🎄 Erro ao obter feriados:', error);
+    throw error;
+  }
+  
+  console.log('🎄 Feriados obtidos:', data?.length || 0, 'registos');
+  console.log('🎄 Primeiros 3 feriados:', data?.slice(0, 3));
+  
   return data || [];
 }
 
@@ -737,7 +773,7 @@ export async function getPayrollConfigurationStatus(userId: string, contractId: 
     }
   }
 
-  // OT Policy (active)
+  // OT Policy (active) - agora opcional
   const { data: otPolicy } = await supabase
     .from('payroll_ot_policies')
     .select('*')
@@ -745,7 +781,7 @@ export async function getPayrollConfigurationStatus(userId: string, contractId: 
     .eq('is_active', true)
     .single();
   const otValid = !!otPolicy;
-  if (!otValid) missing.push('Política de horas extras não configurada');
+  // Política de horas extras é agora opcional - não adiciona erro se não configurada
 
   // Meal allowance config (optional for validity, but tracked)
   const { data: mealConfig } = await supabase
@@ -808,7 +844,7 @@ export async function validatePayrollConfiguration(userId: string, contractId: s
     .eq('user_id', userId)
     .eq('is_active', true)
     .single();
-  if (!otPolicy) missing.push('Política de horas extras não configurada');
+  // Política de horas extras é agora opcional - não adiciona erro se não configurada
 
   const start = `${year}-01-01`;
   const end = `${year}-12-31`;
@@ -1267,9 +1303,7 @@ export async function upsertBonusConfig(
 ): Promise<any> {
   validateUserId(userId);
   
-  if (!contractId || typeof contractId !== 'string') {
-    throw new Error('ID do contrato inválido');
-  }
+  validateContractId(contractId);
   
   if (!bonusType || !['mandatory', 'performance', 'custom'].includes(bonusType)) {
     throw new Error('Tipo de subsídio inválido');
@@ -1336,9 +1370,7 @@ export async function getBonusesByContract(
 ): Promise<any[]> {
   validateUserId(userId);
   
-  if (!contractId || typeof contractId !== 'string') {
-    throw new Error('ID do contrato inválido');
-  }
+  validateContractId(contractId);
   
   const { data, error } = await supabase
     .from('payroll_bonus_configs')
@@ -1398,9 +1430,7 @@ export async function upsertSubsidyConfig(
 ): Promise<any> {
   validateUserId(userId);
   
-  if (!contractId || typeof contractId !== 'string') {
-    throw new Error('ID do contrato inválido');
-  }
+  validateContractId(contractId);
   
   if (!type || !['vacation', 'christmas'].includes(type)) {
     throw new Error('Tipo de subsídio inválido');
@@ -1463,9 +1493,7 @@ export async function createCustomBonus(
 ): Promise<any> {
   validateUserId(userId);
   
-  if (!contractId || typeof contractId !== 'string') {
-    throw new Error('ID do contrato inválido');
-  }
+  validateContractId(contractId);
   
   const { data, error } = await supabase
     .from('payroll_custom_bonuses')
@@ -1494,9 +1522,7 @@ export async function getCustomBonuses(
 ): Promise<any[]> {
   validateUserId(userId);
   
-  if (!contractId || typeof contractId !== 'string') {
-    throw new Error('ID do contrato inválido');
-  }
+  validateContractId(contractId);
   
   const { data, error } = await supabase
     .from('payroll_custom_bonuses')

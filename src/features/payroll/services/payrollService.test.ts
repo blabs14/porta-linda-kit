@@ -802,10 +802,10 @@ describe('PayrollService Integration Tests', () => {
         expect(result.missingConfigurations).toContain('Local de trabalho não definido no contrato');
       });
       
-      it('should return invalid configuration when overtime policy is missing', async () => {
+      it('should return valid configuration when overtime policy is missing (now optional)', async () => {
         const { supabase } = await import('@/lib/supabaseClient');
         
-        // Mock complete contract but no overtime policy
+        // Mock complete contract but no overtime policy (now optional)
         const mockCompleteContract = {
           id: 'contract1',
           user_id: 'user1',
@@ -827,7 +827,7 @@ describe('PayrollService Integration Tests', () => {
           if (table === 'payroll_contracts') {
             chain.mockResolvedValue({ data: mockCompleteContract, error: null });
           } else if (table === 'payroll_ot_policies') {
-             // Overtime policy query - simulate missing policy with error
+             // Overtime policy query - simulate missing policy (now optional)
              chain.mockResolvedValue({ data: null, error: { code: 'PGRST116', message: 'No rows found' } });
           } else if (table === 'payroll_meal_allowance_configs') {
             chain.mockResolvedValue({ data: [{ id: 1, user_id: 'user1', daily_amount_cents: 600 }], error: null });
@@ -845,9 +845,10 @@ describe('PayrollService Integration Tests', () => {
         
         const result = await payrollService.getPayrollConfigurationStatus('user1', 'contract1');
         
-        expect(result.isValid).toBe(false);
-        expect(result.configurationDetails.overtimePolicy.isValid).toBe(false);
-        expect(result.missingConfigurations).toContain('Política de horas extras não configurada');
+        // Política de horas extras agora é opcional, então a configuração deve ser válida
+        expect(result.isValid).toBe(true);
+        expect(result.configurationDetails.overtimePolicy.isValid).toBe(true);
+        expect(result.missingConfigurations).not.toContain('Política de horas extras não configurada');
       });
       
       it('should handle database errors gracefully', async () => {

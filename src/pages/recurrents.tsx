@@ -109,7 +109,7 @@ export default function RecurrentsPage() {
               <SelectItem value="amount_asc">Valor (↑)</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={() => setOpen(true)}>Nova Regra</Button>
+          <Button onClick={() => setOpen(true)} aria-label="Criar nova regra de transação recorrente">Nova Regra</Button>
         </div>
       </div>
 
@@ -139,7 +139,7 @@ export default function RecurrentsPage() {
             {categories.map((c:any)=>(<SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>))}
           </SelectContent>
         </Select>
-        <Input placeholder="Método Pagamento" value={filters.method||''} onChange={(e)=>setFilters(f=>({...f, method: e.target.value||undefined }))} />
+        <Input placeholder="Método Pagamento" value={filters.method||''} onChange={(e)=>setFilters(f=>({...f, method: e.target.value||undefined }))} aria-label="Filtrar por método de pagamento" />
       </div>
 
       {loading ? (
@@ -211,9 +211,9 @@ export default function RecurrentsPage() {
             </Card>
           ))}
           <div className="flex justify-between items-center pt-2">
-            <Button variant="outline" size="sm" disabled={page===1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Anterior</Button>
+            <Button variant="outline" size="sm" disabled={page===1} onClick={()=>setPage(p=>Math.max(1,p-1))} aria-label="Página anterior">Anterior</Button>
             <div className="text-xs text-muted-foreground">Página {page} de {Math.max(1, Math.ceil(rules.length/pageSize))}</div>
-            <Button variant="outline" size="sm" disabled={page>=Math.ceil(rules.length/pageSize)} onClick={()=>setPage(p=>p+1)}>Seguinte</Button>
+            <Button variant="outline" size="sm" disabled={page>=Math.ceil(rules.length/pageSize)} onClick={()=>setPage(p=>p+1)} aria-label="Página seguinte">Seguinte</Button>
           </div>
         </div>
       )}

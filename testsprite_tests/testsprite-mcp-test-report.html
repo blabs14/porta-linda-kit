@@ -1,0 +1,228 @@
+
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Markdown Preview</title>
+      <style>
+        body {
+          font-family: sans-serif;
+          padding: 40px;
+          line-height: 1.6;
+          background: #fdfdfd;
+          color: #333;
+        }
+        pre {
+          background: #f4f4f4;
+          padding: 10px;
+          border-radius: 5px;
+          overflow-x: auto;
+        }
+        code {
+          font-family: monospace;
+          background: #eee;
+          padding: 2px 4px;
+        }
+        table {
+          border-collapse: collapse;
+          width: 100%;
+          margin-top: 20px;
+        }
+        th, td {
+          border: 1px solid #ccc;
+          padding: 8px 12px;
+          text-align: left;
+        }
+        th {
+          background-color: #f2f2f2;
+          font-weight: bold;
+        }
+      </style>
+    </head>
+    <body>
+      <h1>Relatório de Testes TestSprite - Porta Linda Kit</h1>
+<p><strong>Data de Execução:</strong> 11 de Setembro de 2025<br>
+<strong>Projeto:</strong> porta-linda-kit<br>
+<strong>Total de Testes:</strong> 20<br>
+<strong>Aprovados:</strong> 5<br>
+<strong>Falhados:</strong> 15<br>
+<strong>Taxa de Sucesso:</strong> 25%</p>
+<hr>
+<h2>📊 Resumo Executivo</h2>
+<p>O sistema de gestão financeira familiar apresenta problemas críticos de segurança e funcionalidade que requerem atenção imediata. Dos 20 testes executados, apenas 5 passaram, revelando falhas significativas no controlo de acesso baseado em funções, persistência de dados e acessibilidade.</p>
+<h3>Problemas Críticos Identificados:</h3>
+<ul>
+<li><strong>Controlo de Acesso:</strong> Utilizadores com função &quot;viewer&quot; conseguem executar operações de escrita</li>
+<li><strong>Persistência de Dados:</strong> Objetivos financeiros não persistem após re-login</li>
+<li><strong>Acessibilidade:</strong> Múltiplos problemas com componentes AlertDialog</li>
+<li><strong>Validação:</strong> Cobertura incompleta de validação de formulários</li>
+</ul>
+<hr>
+<h2>🔴 Testes Falhados (15)</h2>
+<h3>TC001 - Registo de Utilizador com Validação de Email</h3>
+<p><strong>Severidade:</strong> Alta<br>
+<strong>Componente:</strong> frontend - Formulário de Registo<br>
+<strong>Motivo:</strong> Falha na validação de email durante o registo<br>
+<strong>Recomendação:</strong> Corrigir validação de email no formulário de registo e melhorar feedback de erro</p>
+<h3>TC002 - Autenticação de Utilizador e Gestão de Sessão</h3>
+<p><strong>Severidade:</strong> Alta<br>
+<strong>Componente:</strong> frontend - Sistema de Autenticação<br>
+<strong>Motivo:</strong> Problemas na gestão de sessão e autenticação<br>
+<strong>Recomendação:</strong> Revisar fluxo de autenticação e gestão de tokens de sessão</p>
+<h3>TC003 - Criação e Gestão de Transações Financeiras</h3>
+<p><strong>Severidade:</strong> Média<br>
+<strong>Componente:</strong> frontend - Gestão de Transações<br>
+<strong>Motivo:</strong> Problemas na criação e gestão de transações<br>
+<strong>Recomendação:</strong> Verificar validação de dados e persistência de transações</p>
+<h3>TC004 - Gestão de Orçamentos Pessoais</h3>
+<p><strong>Severidade:</strong> Média<br>
+<strong>Componente:</strong> frontend - Gestão de Orçamentos<br>
+<strong>Motivo:</strong> Falhas na criação e gestão de orçamentos pessoais<br>
+<strong>Recomendação:</strong> Corrigir fluxo de criação de orçamentos e validação de dados</p>
+<h3>TC005 - Dashboard de Análise Financeira</h3>
+<p><strong>Severidade:</strong> Média<br>
+<strong>Componente:</strong> frontend - Dashboard e componentes de gráficos<br>
+<strong>Motivo:</strong> Recursos de gráficos em falta (404 errors) e problemas de renderização<br>
+<strong>Recomendação:</strong> Implementar componentes de gráficos em falta e corrigir imports</p>
+<h3>TC006 - Gestão de Convites Familiares</h3>
+<p><strong>Severidade:</strong> Alta<br>
+<strong>Componente:</strong> frontend - Sistema de Convites Familiares<br>
+<strong>Motivo:</strong> Falha no envio de convites familiares<br>
+<strong>Recomendação:</strong> Corrigir fluxo de convites e integração com sistema de email</p>
+<h3>TC007 - Configurações de Privacidade e Partilha</h3>
+<p><strong>Severidade:</strong> Média<br>
+<strong>Componente:</strong> frontend - Configurações de Privacidade<br>
+<strong>Motivo:</strong> Problemas nas configurações de privacidade e partilha<br>
+<strong>Recomendação:</strong> Implementar controlos de privacidade adequados</p>
+<h3>TC008 - Controlo de Acesso Baseado em Funções</h3>
+<p><strong>Severidade:</strong> <strong>CRÍTICA</strong><br>
+<strong>Componente:</strong> frontend - Sistema RBAC<br>
+<strong>Motivo:</strong> Utilizadores com função &quot;viewer&quot; conseguem executar operações de escrita (editar e eliminar) em transações e orçamentos<br>
+<strong>Recomendação:</strong> <strong>URGENTE</strong> - Implementar verificações adequadas de permissões no frontend e backend</p>
+<h3>TC009 - Importação de Dados Financeiros</h3>
+<p><strong>Severidade:</strong> Média<br>
+<strong>Componente:</strong> frontend - Sistema de Importação<br>
+<strong>Motivo:</strong> Falhas na importação de dados financeiros<br>
+<strong>Recomendação:</strong> Verificar parsers de ficheiros e validação de dados importados</p>
+<h3>TC010 - Exportação de Relatórios Financeiros</h3>
+<p><strong>Severidade:</strong> Baixa<br>
+<strong>Componente:</strong> frontend - Sistema de Exportação<br>
+<strong>Motivo:</strong> Problemas na exportação de relatórios<br>
+<strong>Recomendação:</strong> Implementar funcionalidade de exportação completa</p>
+<h3>TC011 - Notificações de Atividade Familiar</h3>
+<p><strong>Severidade:</strong> Média<br>
+<strong>Componente:</strong> frontend - Sistema de Notificações<br>
+<strong>Motivo:</strong> Falhas no carregamento de notificações familiares (TypeError: Failed to fetch)<br>
+<strong>Recomendação:</strong> Corrigir conectividade com API de notificações</p>
+<h3>TC012 - Sincronização de Dados Entre Dispositivos</h3>
+<p><strong>Severidade:</strong> Média<br>
+<strong>Componente:</strong> frontend - Sincronização de Dados<br>
+<strong>Motivo:</strong> Problemas na sincronização entre dispositivos<br>
+<strong>Recomendação:</strong> Verificar mecanismos de sincronização em tempo real</p>
+<h3>TC015 - Políticas RLS da Base de Dados</h3>
+<p><strong>Severidade:</strong> Média<br>
+<strong>Componente:</strong> backend - Políticas RLS Supabase<br>
+<strong>Motivo:</strong> Credenciais inválidas impedem teste completo das políticas RLS<br>
+<strong>Recomendação:</strong> Fornecer credenciais válidas para proprietário da família</p>
+<h3>TC016 - Auditoria de Transações e Gestão Familiar</h3>
+<p><strong>Severidade:</strong> Média<br>
+<strong>Componente:</strong> frontend - Interface de Auditoria<br>
+<strong>Motivo:</strong> Auditoria de transações verificada, mas auditoria de alterações de funções familiares não testada<br>
+<strong>Recomendação:</strong> Estender testes para incluir auditoria de modificações de funções familiares</p>
+<h3>TC017 - Validação de Entrada com Schema Zod</h3>
+<p><strong>Severidade:</strong> Média<br>
+<strong>Componente:</strong> frontend - Camada de Validação<br>
+<strong>Motivo:</strong> Validação de formulários de registo e transações testada, mas validação de criação de orçamentos não testada<br>
+<strong>Recomendação:</strong> Completar cobertura de validação para todos os formulários</p>
+<h3>TC020 - Gestão Colaborativa de Objetivos Financeiros Familiares</h3>
+<p><strong>Severidade:</strong> <strong>CRÍTICA</strong><br>
+<strong>Componente:</strong> frontend - Dashboard Familiar e serviços de persistência<br>
+<strong>Motivo:</strong> Objetivos financeiros não persistem após re-login e convites familiares causam logout inesperado<br>
+<strong>Recomendação:</strong> <strong>URGENTE</strong> - Investigar e corrigir mecanismos de persistência de objetivos e fluxo de convites</p>
+<hr>
+<h2>✅ Testes Aprovados (5)</h2>
+<h3>TC013 - Responsividade Mobile</h3>
+<p><strong>Componente:</strong> frontend - Design Responsivo<br>
+<strong>Descrição:</strong> Interface adapta-se corretamente a diferentes tamanhos de ecrã</p>
+<h3>TC014 - Acessibilidade WCAG 2.1</h3>
+<p><strong>Componente:</strong> frontend - Funcionalidades de Acessibilidade<br>
+<strong>Descrição:</strong> Elementos de acessibilidade básicos funcionam adequadamente</p>
+<h3>TC018 - Teste de Performance do Dashboard</h3>
+<p><strong>Componente:</strong> frontend - Dashboard e serviços de dados<br>
+<strong>Descrição:</strong> Dashboard carrega dados financeiros dentro dos limites de performance</p>
+<h3>TC019 - Gestão de Sessão e Proteção de Rotas</h3>
+<p><strong>Componente:</strong> frontend - Gestão de Sessão<br>
+<strong>Descrição:</strong> Sessões autenticadas persistem adequadamente e utilizadores não autorizados são bloqueados</p>
+<h3>TC021 - Funcionalidade de Pesquisa e Filtros</h3>
+<p><strong>Componente:</strong> frontend - Sistema de Pesquisa<br>
+<strong>Descrição:</strong> Pesquisa e filtros funcionam corretamente</p>
+<hr>
+<h2>🚨 Problemas de Acessibilidade Recorrentes</h2>
+<p>Foram identificados múltiplos erros de acessibilidade que se repetem em vários testes:</p>
+<ol>
+<li>
+<p><strong>AlertDialogContent sem AlertDialogTitle</strong></p>
+<ul>
+<li>Componentes AlertDialog não têm títulos acessíveis</li>
+<li>Solução: Adicionar AlertDialogTitle ou usar VisuallyHidden</li>
+</ul>
+</li>
+<li>
+<p><strong>Chaves duplicadas em listas React</strong></p>
+<ul>
+<li>Componentes filhos com a mesma chave em FamilyDashboard</li>
+<li>Solução: Garantir chaves únicas para todos os elementos de lista</li>
+</ul>
+</li>
+<li>
+<p><strong>Descrições em falta em AlertDialog</strong></p>
+<ul>
+<li>Falta aria-describedby em componentes AlertDialog</li>
+<li>Solução: Adicionar descrições adequadas</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2>📋 Recomendações Prioritárias</h2>
+<h3>🔥 Críticas (Implementar Imediatamente)</h3>
+<ol>
+<li><strong>Corrigir Controlo de Acesso (TC008)</strong> - Utilizadores &quot;viewer&quot; não devem ter permissões de escrita</li>
+<li><strong>Corrigir Persistência de Objetivos (TC020)</strong> - Objetivos financeiros devem persistir entre sessões</li>
+<li><strong>Corrigir Fluxo de Convites</strong> - Convites não devem causar logout inesperado</li>
+</ol>
+<h3>⚠️ Altas (Implementar Esta Semana)</h3>
+<ol>
+<li><strong>Corrigir Validação de Email (TC001)</strong></li>
+<li><strong>Corrigir Sistema de Autenticação (TC002)</strong></li>
+<li><strong>Corrigir Sistema de Convites Familiares (TC006)</strong></li>
+</ol>
+<h3>📊 Médias (Implementar Próximas 2 Semanas)</h3>
+<ol>
+<li><strong>Implementar Componentes de Gráficos em Falta (TC005)</strong></li>
+<li><strong>Corrigir Sistema de Notificações (TC011)</strong></li>
+<li><strong>Completar Validação de Formulários (TC017)</strong></li>
+<li><strong>Corrigir Problemas de Acessibilidade</strong></li>
+</ol>
+<h3>📈 Baixas (Implementar Próximo Mês)</h3>
+<ol>
+<li><strong>Implementar Exportação de Relatórios (TC010)</strong></li>
+<li><strong>Melhorar Testes de Performance</strong></li>
+</ol>
+<hr>
+<h2>🔧 Próximos Passos</h2>
+<ol>
+<li><strong>Análise de Segurança:</strong> Revisar todas as implementações de RBAC</li>
+<li><strong>Auditoria de Persistência:</strong> Verificar todos os mecanismos de gravação de dados</li>
+<li><strong>Revisão de Acessibilidade:</strong> Implementar correções para todos os problemas identificados</li>
+<li><strong>Testes de Regressão:</strong> Re-executar testes após correções</li>
+<li><strong>Documentação:</strong> Atualizar documentação de segurança e permissões</li>
+</ol>
+<hr>
+<h2>📞 Contacto</h2>
+<p>Para questões sobre este relatório ou implementação das correções, contactar a equipa de desenvolvimento.</p>
+<p><strong>Relatório gerado automaticamente pelo TestSprite MCP</strong></p>
+
+    </body>
+    </html>
+  

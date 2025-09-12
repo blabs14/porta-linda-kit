@@ -8,6 +8,7 @@ import { createContract } from '../services/payrollService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { logger } from '@/shared/lib/logger';
+import { contractSyncService } from '../services/contractSyncService';
 
 interface QuickContractFormProps {
   onContractCreated: (contract: any) => void;
@@ -63,9 +64,21 @@ export function QuickContractForm({ onContractCreated, onCancel }: QuickContract
 
       const newContract = await createContract(user.id, contractData);
       
+      // Sincronizar todos os parâmetros obrigatórios após criação do contrato
+      try {
+        await contractSyncService.syncAllContractParameters(newContract.id, newContract.user_id);
+        logger.info('Parâmetros do contrato sincronizados automaticamente', { contractId: newContract.id });
+      } catch (syncError) {
+        logger.error('Erro na sincronização automática de parâmetros do contrato', {
+          contractId: newContract.id,
+          error: syncError instanceof Error ? syncError.message : 'Erro desconhecido'
+        });
+        // Não falhar a criação do contrato por erro na sincronização
+      }
+      
       toast({
         title: 'Contrato criado',
-        description: `O contrato "${contractName}" foi criado com sucesso.`
+        description: 'Contrato criado e configurações inicializadas com sucesso.'
       });
       
       onContractCreated(newContract);

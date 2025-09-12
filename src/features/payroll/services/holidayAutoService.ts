@@ -1,10 +1,10 @@
 // Serviço para gestão automática de feriados baseados na localização
 // Integra com APIs externas e base de dados local para obter feriados regionais/municipais
-
+import { supabase } from '../../../lib/supabaseClient';
 import { fetchExternalApi } from '../../../services/externalApi';
 import { PayrollHoliday, PayrollHolidayFormData } from '../types';
-import { payrollService } from './payrollService';
 import { logger } from '@/shared/lib/logger';
+import { isValidUUID } from '@/lib/validation';
 
 // Tipos para feriados automáticos
 export interface AutoHoliday {
@@ -356,6 +356,9 @@ export async function syncNationalHolidays(
       return { created: 0, updated: 0, errors: ['Nenhum feriado nacional encontrado'] };
     }
 
+    // Importar payrollService dinamicamente para evitar dependências circulares
+    const { payrollService } = await import('./payrollService');
+    
     // Obter feriados existentes
     const existingHolidays = await payrollService.getHolidays(userId, year, contractId);
     
@@ -459,6 +462,14 @@ export async function syncRegionalHolidays(
       }
     }
 
+    // Disparar evento para notificar que os feriados foram sincronizados
+    if (created > 0 || updated > 0) {
+      const event = new CustomEvent('holiday-sync:completed', {
+        detail: { contractId, year, created, updated }
+      });
+      window.dispatchEvent(event);
+    }
+
     // Debug: Regional/municipal holidays sync completed for year
     return { created, updated, errors };
   } catch (error) {
@@ -492,6 +503,14 @@ export async function syncAutoHolidays(
     totalCreated += regionalResult.created;
     totalUpdated += regionalResult.updated;
     errors.push(...regionalResult.errors);
+
+    // Disparar evento para notificar que os feriados foram sincronizados
+    if (totalCreated > 0 || totalUpdated > 0) {
+      const event = new CustomEvent('holiday-sync:completed', {
+        detail: { contractId, year, created: totalCreated, updated: totalUpdated }
+      });
+      window.dispatchEvent(event);
+    }
 
     // Debug: Complete sync finished for year
     return { created: totalCreated, updated: totalUpdated, errors };
@@ -593,6 +612,59 @@ export function scheduleAnnualSync(
   }
 }
 
+/**
+ * Sincroniza feriados para um contrato específico
+ * Esta função obtém os dados do contrato e sincroniza os feriados apropriados
+ */
+export async function syncHolidaysForContract(
+  contractId: string
+): Promise<{ created: number; updated: number; errors: string[] }> {
+  try {
+    // Validar se o contractId é um UUID válido
+    if (!isValidUUID(contractId)) {
+      return { created: 0, updated: 0, errors: ['ID do contrato deve ser um UUID válido'] };
+    }
+
+    // Obter dados do contrato
+    const { data: contract, error } = await supabase
+      .from('payroll_contracts')
+      .select('*')
+      .eq('id', contractId)
+      .single();
+
+    if (error || !contract) {
+      throw new Error(`Contrato ${contractId} não encontrado`);
+    }
+
+    if (!contract.workplace_location) {
+      return { created: 0, updated: 0, errors: ['Localização do trabalho não definida no contrato'] };
+    }
+
+    const currentYear = new Date().getFullYear();
+    
+    // Sincronizar feriados usando a função existente
+    const result = await syncAutoHolidays(
+      contract.user_id,
+      contractId,
+      currentYear,
+      contract.workplace_location
+    );
+
+    logger.info('Feriados sincronizados para contrato', {
+      contractId,
+      userId: contract.user_id,
+      location: contract.workplace_location,
+      year: currentYear,
+      result
+    });
+
+    return result;
+  } catch (error) {
+    logger.error('Erro na sincronização de feriados para contrato:', error);
+    throw error;
+  }
+}
+
 export const holidayAutoService = {
   parseWorkplaceLocation,
   getLocalHolidays,
@@ -604,5 +676,6 @@ export const holidayAutoService = {
   isLocationSupported,
   getLocationHolidayInfo,
   syncAnnualHolidays,
-  scheduleAnnualSync
+  scheduleAnnualSync,
+  syncHolidaysForContract
 };

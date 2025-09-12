@@ -51,7 +51,7 @@ export default defineConfig(({ mode }) => {
           type: 'module',
         },
         manifest: {
-          name: "Porta Linda Kit",
+          name: "Family Flow Finance",
           short_name: "PortaLinda",
           start_url: "/",
           display: "standalone",

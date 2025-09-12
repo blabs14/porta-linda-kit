@@ -9,12 +9,20 @@ import {
 import { TimeEntry } from '../types';
 import { formatDateLocal } from '@/lib/dateUtils';
 import { logger } from '../../../shared/lib/logger';
+import { isValidUUID } from '@/lib/validation';
 
 export class PerformanceBonusService {
   // Configuration management
   static async getConfigs(contractId?: string): Promise<PerformanceBonusConfig[]> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
+
+    // Validar se o contractId é um UUID válido (quando fornecido)
+    if (contractId) {
+      if (!isValidUUID(contractId)) {
+        throw new Error('ID do contrato deve ser um UUID válido');
+      }
+    }
 
     let query = supabase
       .from('performance_bonus_configs')
@@ -338,6 +346,10 @@ export class PerformanceBonusService {
     periodStart: Date,
     periodEnd: Date
   ): Promise<PerformanceBonusResult[]> {
+    // Validar se o contractId é um UUID válido
+    if (!isValidUUID(contractId)) {
+      throw new Error('ID do contrato deve ser um UUID válido');
+    }
     try {
       // Get active performance bonus configurations for this contract
       const configs = await this.getConfigs(contractId);

@@ -44,18 +44,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
   // Definir contrato selecionado (corrige ReferenceError em JSX quando usado no disabled)
   const selectedContract = contracts.find(c => c.id === selectedContractId) || activeContract || null;
   
-  // Debug: verificar user e contrato selecionado
-  console.log('🔧 WeeklyTimesheetForm - User e Contract:', {
-    userId: user?.id,
-    userEmail: user?.email,
-    activeContract: activeContract ? { id: activeContract.id, name: activeContract.name } : null,
-    selectedContractId,
-    selectedContract: selectedContract ? {
-      id: selectedContract.id,
-      name: selectedContract.name,
-      workplace_location: selectedContract.workplace_location
-    } : null
-  });
+
   
   // CorrelationId e logger com contexto
   const correlationIdRef = useRef<string>('');
@@ -179,11 +168,13 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
     try {
       // Carregar feriados para o ano da semana selecionada
       const weekYear = new Date(selectedWeek).getFullYear();
+      console.log('🎄 createEmptyWeekEntries: Carregando feriados', { userId: user.id, weekYear, selectedContractId });
       const holidays = await payrollService.getHolidays(
         user.id,
         weekYear,
         selectedContractId
       );
+      console.log('🎄 createEmptyWeekEntries: Feriados carregados:', holidays);
 
       return weekDays.map(day => {
         const dateStr = formatDateLocal(day);
@@ -273,8 +264,10 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
 
       try {
         const isSupported = holidayAutoService.isLocationSupported(location);
+
         if (isSupported) {
           const currentYear = new Date().getFullYear();
+
           await holidayAutoService.syncRegionalHolidays(
             user.id,
             selectedContractId,
@@ -351,6 +344,40 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
         }
       }
 
+      // Debug: verificar parâmetros antes de carregar feriados
+      console.log('🎄 WeeklyTimesheetForm - Parâmetros para getHolidays:', {
+        userId: user.id,
+        year: new Date(selectedWeek).getFullYear(),
+        selectedContractId,
+        activeContractId: activeContract?.id,
+        workplaceLocation: selectedContract?.workplace_location,
+        allContracts: contracts.map(c => ({ id: c.id, name: c.name, workplace_location: c.workplace_location }))
+      });
+      
+      // Debug: verificar se existe feriado para 15/08/2025 especificamente
+      if (new Date(selectedWeek).getFullYear() === 2025) {
+        console.log('🔍 Verificando feriado 15/08/2025 para diferentes contratos...');
+        
+        // Testar com todos os contratos do utilizador
+        for (const contract of contracts) {
+          try {
+            const testHolidays = await payrollService.getHolidays(
+              user.id,
+              2025,
+              contract.id,
+              contract.workplace_location
+            );
+            const august15Holiday = testHolidays.find(h => h.date === '2025-08-15');
+            console.log(`🎄 Contrato ${contract.id} (${contract.name}):`, {
+              totalHolidays: testHolidays.length,
+              august15Holiday: august15Holiday ? { date: august15Holiday.date, name: august15Holiday.name } : 'NÃO ENCONTRADO'
+            });
+          } catch (error) {
+            console.error(`❌ Erro ao testar contrato ${contract.id}:`, error);
+          }
+        }
+      }
+
       // Buscar dados em paralelo
       const [entries, leaves, holidays, vacations] = await Promise.all([
         payrollService.getTimeEntries(
@@ -392,6 +419,23 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       }
 
       const holidaysSet = new Set<string>((holidays || []).map(h => h.date));
+      
+      // Debug: verificar feriados carregados
+      console.log('🎄 WeeklyTimesheetForm - Feriados carregados:', {
+        holidaysCount: holidays?.length || 0,
+        holidays: holidays?.slice(0, 5), // primeiros 5 feriados
+        holidaysSet: Array.from(holidaysSet).slice(0, 5), // primeiras 5 datas no Set
+        weekDays: weekDays.map(d => formatDateLocal(d)),
+        august15Holiday: holidays?.find(h => h.date === '2025-08-15') ? 'ENCONTRADO ✅' : 'NÃO ENCONTRADO ❌'
+      });
+      
+      // Debug específico para 15/08/2025
+      const august15 = '2025-08-15';
+      if (weekDays.some(d => formatDateLocal(d) === august15)) {
+        console.log('🎯 SEMANA CONTÉM 15/08/2025! Verificando se está marcado como feriado...');
+        console.log('🎯 holidaysSet.has("2025-08-15"):', holidaysSet.has(august15));
+        console.log('🎯 Feriado 15/08 nos dados:', holidays?.find(h => h.date === august15));
+      }
 
       // Para cada dia da semana, verificar se intersects com algum leave ou vacation
       const leavesByDate = new Map<string, { isSick?: boolean; isVacation?: boolean; leave_type?: string; percentage_paid?: number }>();
@@ -811,16 +855,15 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
     const schedule = sc.schedule_json as Record<string, any>;
     const useStandard = !!schedule.use_standard && !!schedule.start_time && !!schedule.end_time;
     
-    if (useStandard) {
-      return {
-        startTime: schedule.start_time || '08:00',
-        endTime: schedule.end_time || '17:00',
-        breakMinutes: schedule.break_minutes ?? 60
-      };
-    }
-
-    // Fallback para horários padrão se não usar standard
-    return { startTime: '08:00', endTime: '17:00', breakMinutes: 60 };
+    return useStandard ? {
+      startTime: schedule.start_time || '08:00',
+      endTime: schedule.end_time || '17:00',
+      breakMinutes: schedule.break_minutes ?? 60
+    } : {
+      startTime: '08:00', 
+      endTime: '17:00', 
+      breakMinutes: 60
+    };
   };
 
   const calculateDayHours = (entry: TimesheetEntry): number => {
@@ -980,6 +1023,7 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
   const fillNormalWeek = async () => {
     try {
       const sc = contracts.find(c => c.id === selectedContractId) || activeContract;
+
       if (!sc || !sc.schedule_json) {
         toast({
           title: 'Sem horário padrão',
@@ -1017,9 +1061,10 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
             weekStart.getFullYear()
           )
         ]);
+
       } catch (err) {
-        log.warn('fillNormalWeek: falha ao obter feriados/licenças/férias', err);
-      }
+          log.warn('fillNormalWeek: falha ao obter feriados/licenças/férias', err);
+        }
 
       const holidaysSet = new Set<string>((holidays || []).map((h: any) => h.date));
       const leavesByDate = new Map<string, { isSick?: boolean; isVacation?: boolean }>();
@@ -1075,11 +1120,14 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
       const schedule = sc.schedule_json as Record<string, any>;
       const dayKeyByIndex = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
 
-      // Suporte a formato "standard" (top-level): { use_standard, start_time, end_time, break_minutes }
+      // Obter horários padrão usando a função helper
+      const contractTimes = getContractDefaultTimes();
       const useStandard = !!schedule.use_standard && !!schedule.start_time && !!schedule.end_time;
-      const standardStart = schedule.start_time as string | undefined;
-      const standardEnd = schedule.end_time as string | undefined;
-      const standardBreak: number = (schedule.break_minutes ?? 0) as number;
+      const standardStart = contractTimes.startTime;
+      const standardEnd = contractTimes.endTime;
+      const standardBreak = contractTimes.breakMinutes;
+
+
 
       log.debug('fillNormalWeek()', { useStandard, standardStart, standardEnd, standardBreak, schedule });
 
@@ -1097,6 +1145,8 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
             isSick: !holidaysSet.has(dateStr) && !!(leavesByDate.get(dateStr)?.isSick),
             isVacation: !holidaysSet.has(dateStr) && !!(leavesByDate.get(dateStr)?.isVacation),
           };
+
+
 
           const base: TimesheetEntry = existing ? {
             ...existing,
@@ -1132,6 +1182,8 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
             const end = dayCfg.end || dayCfg.end_time || (useStandard ? standardEnd : undefined) || base.endTime || '18:00';
             const breakM = (dayCfg.break_minutes ?? (useStandard ? standardBreak : undefined) ?? base.breakMinutes ?? 0) as number;
 
+
+
             return {
               ...base,
               startTime: start,
@@ -1141,11 +1193,17 @@ export function WeeklyTimesheetForm({ initialWeekStart, contractId, onSave }: We
           }
 
           if (useStandard && isWeekday) {
+            const finalStart = standardStart || base.startTime || '09:00';
+            const finalEnd = standardEnd || base.endTime || '18:00';
+            const finalBreak = (standardBreak ?? base.breakMinutes ?? 0) as number;
+
+
+
             return {
               ...base,
-              startTime: standardStart || base.startTime || '09:00',
-              endTime: standardEnd || base.endTime || '18:00',
-              breakMinutes: (standardBreak ?? base.breakMinutes ?? 0) as number,
+              startTime: finalStart,
+              endTime: finalEnd,
+              breakMinutes: finalBreak,
             };
           }
 

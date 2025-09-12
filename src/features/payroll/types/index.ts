@@ -6,7 +6,7 @@ export interface PayrollContract {
   user_id: string;
   name: string;
   base_salary_cents: number;
-  hourly_rate_cents: number;
+  hourly_rate_cents: number | null;
   currency: string;
   weekly_hours: number;
   schedule_json: Record<string, any>;

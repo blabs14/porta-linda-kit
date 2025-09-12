@@ -285,9 +285,9 @@ describe('Goals Service', () => {
         error: null,
       });
 
-      const result = await getGoalProgress();
+      const result = await getGoalProgress('user-123');
 
-      expect(mockSupabase.rpc).toHaveBeenCalledWith('get_user_goal_progress');
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('get_user_goal_progress', { user_id: 'user-123' });
       expect(result.data).toEqual(mockProgress);
       expect(result.error).toBeNull();
     });
@@ -298,7 +298,7 @@ describe('Goals Service', () => {
         error: { message: 'Progress calculation failed' },
       });
 
-      const result = await getGoalProgress('goal-1');
+      const result = await getGoalProgress('user-123');
 
       expect(result.error).toEqual({ message: 'Progress calculation failed' });
     });

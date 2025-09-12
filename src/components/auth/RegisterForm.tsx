@@ -1,97 +1,159 @@
 
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../../contexts/AuthContext';
-import { showSuccess, showError } from '../../lib/utils';
+import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Mail, Lock, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from '../ui/alert';
+import { signupSchema, type SignupFormData } from '../../models/authSchema';
 
-export default function RegisterForm() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const { register, loading } = useAuth();
+export const RegisterForm: React.FC = () => {
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [success, setSuccess] = useState('');
   const emailRef = useRef<HTMLInputElement>(null);
+  const { register } = useAuth();
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    
-    const { error } = await register(email, password) || {};
-    
-    if (error) {
-      setError(error.message);
-      showError('Erro ao criar conta: ' + error.message);
-      emailRef.current?.focus();
-    } else {
-      showSuccess('Registo efetuado! Verifica o teu email para confirmar a conta.');
+  const {
+    register: registerField,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    setError,
+    clearErrors
+  } = useForm<SignupFormData>({
+    resolver: zodResolver(signupSchema),
+    mode: 'onBlur'
+  });
+
+  const handleRegister = async (data: SignupFormData) => {
+    setSuccess('');
+    clearErrors();
+    setIsLoading(true);
+
+    try {
+      const result = await register(data.email, data.password, data.nome);
+      
+      if (result?.error) {
+        // Mapear erros específicos para campos
+        const errorMessage = result.error.message || 'Erro ao criar conta';
+        
+        if (errorMessage.includes('email')) {
+          setError('email', {
+            type: 'server',
+            message: errorMessage
+          });
+          if (emailRef.current) {
+            emailRef.current.focus();
+          }
+        } else if (errorMessage.includes('password')) {
+          setError('password', {
+            type: 'server',
+            message: errorMessage
+          });
+        } else {
+          setError('root', {
+            type: 'server',
+            message: errorMessage
+          });
+        }
+      } else {
+        setSuccess('Conta criada com sucesso! Pode fazer login.');
+      }
+    } catch (err: any) {
+      setError('root', {
+        type: 'server',
+        message: err.message || 'Erro inesperado ao criar conta'
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleRegister} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="email" className="text-sm font-medium">
-            Email
-          </Label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="exemplo@email.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              ref={emailRef}
-              autoFocus
-              className="pl-10"
-              aria-invalid={!!error}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">O seu email de acesso.</p>
-        </div>
+    <form onSubmit={handleSubmit(handleRegister)} className="space-y-4">
+      {errors.root && (
+        <Alert variant="destructive">
+          <AlertDescription>{errors.root.message}</AlertDescription>
+        </Alert>
+      )}
+      
+      {success && (
+        <Alert className="border-green-200 bg-green-50 text-green-800">
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      )}
 
-        <div className="space-y-2">
-          <Label htmlFor="password" className="text-sm font-medium">
-            Password
-          </Label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              className="pl-10"
-              aria-invalid={!!error}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">Deve ter pelo menos 6 caracteres.</p>
+      <div className="space-y-2">
+        <Label htmlFor="nome">Nome</Label>
+        <div className="relative">
+          <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <Input
+            id="nome"
+            type="text"
+            placeholder="Seu nome completo"
+            {...registerField('nome')}
+            className={`pl-10 ${errors.nome ? 'border-red-500 focus:border-red-500' : ''}`}
+          />
         </div>
-
-        {error && (
-          <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
-            {error}
-          </div>
+        {errors.nome && (
+          <p className="text-sm text-red-600 mt-1">{errors.nome.message}</p>
         )}
+      </div>
 
-        <Button 
-          type="submit" 
-          disabled={loading} 
-          className="w-full"
-          variant="default"
-        >
-          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {loading ? 'A registar...' : 'Registar'}
-        </Button>
-      </form>
-    </div>
+      <div className="space-y-2">
+        <Label htmlFor="email">Email</Label>
+        <div className="relative">
+          <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <Input
+            ref={emailRef}
+            id="email"
+            type="email"
+            placeholder="seu@email.com"
+            {...registerField('email')}
+            className={`pl-10 ${errors.email ? 'border-red-500 focus:border-red-500' : ''}`}
+          />
+        </div>
+        {errors.email && (
+          <p className="text-sm text-red-600 mt-1">{errors.email.message}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="password">Password</Label>
+        <div className="relative">
+          <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <Input
+            id="password"
+            type={showPassword ? 'text' : 'password'}
+            placeholder="Sua password"
+            {...registerField('password')}
+            className={`pl-10 pr-10 ${errors.password ? 'border-red-500 focus:border-red-500' : ''}`}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
+        {errors.password && (
+          <p className="text-sm text-red-600 mt-1">{errors.password.message}</p>
+        )}
+      </div>
+
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={isLoading || isSubmitting}
+      >
+        {isLoading || isSubmitting ? 'Criando conta...' : 'Criar conta'}
+      </Button>
+    </form>
   );
-}
+};
+
+export default RegisterForm;

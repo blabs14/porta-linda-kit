@@ -107,7 +107,7 @@ export default function ProfilePage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-red-600">Erro ao carregar perfil</h1>
           <p className="text-gray-600 mt-2">Não foi possível carregar os dados do perfil</p>
-          <Button onClick={() => navigate('/app')} className="mt-4">
+          <Button onClick={() => navigate('/app')} className="mt-4" aria-label="Voltar à aplicação principal">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar ao Dashboard
           </Button>
@@ -247,13 +247,13 @@ export default function ProfilePage() {
       {/* Botões de Ação */}
       <div className="flex justify-end gap-4 mt-6">
         {!isEditing ? (
-          <Button onClick={() => setIsEditing(true)}>
+          <Button onClick={() => setIsEditing(true)} aria-label="Editar perfil de utilizador">
             <User className="h-4 w-4 mr-2" />
             Editar Perfil
           </Button>
         ) : (
           <>
-            <Button variant="outline" onClick={handleCancel}>
+            <Button variant="outline" onClick={handleCancel} aria-label="Cancelar edição do perfil">
               Cancelar
             </Button>
             <Button 
@@ -268,4 +268,4 @@ export default function ProfilePage() {
       </div>
     </div>
   );
-} 
+}

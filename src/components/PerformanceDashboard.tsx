@@ -320,7 +320,7 @@ const PerformanceDashboardComponent: React.FC = () => {
                     .sort((a, b) => b.timestamp - a.timestamp)
                     .slice(0, 10)
                     .map((metric, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 border rounded">
+                  <div key={`performance-metric-${metric.name?.replace(/\s+/g, '-').toLowerCase() || index}`} className="flex items-center justify-between p-2 border rounded">
                         <div className="flex items-center gap-2">
                           <Badge variant={getRatingBadgeVariant(metric.rating)}>
                             {metric.name}

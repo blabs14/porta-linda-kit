@@ -1,5 +1,6 @@
 import { supabase } from '../../../lib/supabaseClient';
 import { logger } from '../../../shared/lib/logger';
+import { isValidUUID } from '@/lib/validation';
 import {
   SubsidyType,
   SubsidyConfig,
@@ -133,6 +134,11 @@ async function getSubsidyConfigs(userId: string, contractId?: string): Promise<S
  * Carrega a configuração de um tipo específico de subsídio
  */
 async function getSubsidyConfig(userId: string, contractId: string, type: SubsidyType): Promise<SubsidyConfig | null> {
+  // Validar se o contractId é um UUID válido
+  if (!isValidUUID(contractId)) {
+    throw new Error('ID do contrato deve ser um UUID válido');
+  }
+
   const configs = await getSubsidyConfigs(userId, contractId);
   return configs.find(config => config.type === type) || null;
 }
@@ -376,6 +382,11 @@ async function deleteSubsidyConfig(userId: string, configId: string): Promise<bo
  */
 async function getSubsidyData(userId: string, contractId: string) {
   try {
+    // Validar se o contractId é um UUID válido
+    if (!isValidUUID(contractId)) {
+      throw new Error('ID do contrato deve ser um UUID válido');
+    }
+
     logger.debug('subsidyDatabaseService.getSubsidyData', { userId, contractId });
     
     // Carregar configurações de subsídios

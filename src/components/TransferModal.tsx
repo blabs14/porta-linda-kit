@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useFamily } from '../features/family/FamilyContext';
 import { useCreateTransaction } from '../hooks/useTransactionsQuery';
 import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
 import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
@@ -34,6 +35,7 @@ interface TransferModalProps {
 
 const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
   const { user } = useAuth();
+  const { canEdit } = useFamily();
   const queryClient = useQueryClient();
   const { mutateAsync: createTransaction, isPending: isCreating } = useCreateTransaction();
   const { data: accounts = [] } = useAccountsWithBalances();
@@ -72,6 +74,17 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError('');
+
+    // Verificar permissões RBAC
+    if (!canEdit('transaction')) {
+      setValidationError('Não tem permissões para realizar transferências');
+      toast({
+        title: 'Acesso negado',
+        description: 'Não tem permissões para realizar transferências',
+        variant: 'destructive'
+      });
+      return;
+    }
 
     if (!fromAccountId || !toAccountId) {
       setValidationError('Selecione as contas de origem e destino');
@@ -185,6 +198,7 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
 
   // Filtrar contas com saldo disponível
   const availableAccounts = accounts.filter(account => account.saldo_disponivel > 0);
+  const hasEditPermission = canEdit('transaction');
 
   return (
     <Dialog open={isOpen} onOpenChange={(open)=>{ if (!open) onClose(); }}>
@@ -192,16 +206,27 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
         <DialogHeader>
           <DialogTitle>Transferir entre Contas</DialogTitle>
           <DialogDescription>
-            Transfere dinheiro de uma conta para outra. A transferência não afeta as estatísticas de receitas e despesas.
+            {hasEditPermission 
+              ? "Transfere dinheiro de uma conta para outra. A transferência não afeta as estatísticas de receitas e despesas."
+              : "Não tem permissões para realizar transferências. Contacte um administrador da família."
+            }
           </DialogDescription>
         </DialogHeader>
         
+        {!hasEditPermission ? (
+          <div className="text-center py-4">
+            <p className="text-muted-foreground mb-4">Acesso restrito</p>
+            <Button onClick={onClose} variant="outline">
+              Fechar
+            </Button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="fromAccount" className="text-sm font-medium">
                 Conta de Origem
               </label>
-              <Select value={fromAccountId} onValueChange={setFromAccountId}>
+              <Select value={fromAccountId} onValueChange={setFromAccountId} disabled={!hasEditPermission}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar conta de origem" />
                 </SelectTrigger>
@@ -219,7 +244,7 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
               <label htmlFor="toAccount" className="text-sm font-medium">
                 Conta de Destino
               </label>
-              <Select value={toAccountId} onValueChange={setToAccountId}>
+              <Select value={toAccountId} onValueChange={setToAccountId} disabled={!hasEditPermission}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar conta de destino" />
                 </SelectTrigger>
@@ -244,6 +269,7 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
                 value={amount}
                 onChange={handleAmountChange}
                 required
+                disabled={!hasEditPermission}
                 className="w-full"
               />
             </div>
@@ -258,6 +284,7 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
                 placeholder="Descrição da transferência"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                disabled={!hasEditPermission}
                 className="w-full"
               />
             </div>
@@ -271,6 +298,7 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
                 isSubmitting={isCreating}
                 submitText="Transferir"
                 submittingText="A transferir..."
+                disabled={!hasEditPermission}
                 className="flex-1"
               />
               <Button 
@@ -282,7 +310,8 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
                 Cancelar
               </Button>
             </div>
-          </form>
+        </form>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -290,4 +319,4 @@ const TransferModal = ({ isOpen, onClose }: TransferModalProps) => {
 
 export default TransferModal;
 
-export { TransferModal }; 
+export { TransferModal };

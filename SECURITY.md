@@ -1,8 +1,8 @@
-# Guia de Segurança - Porta Linda Kit
+# Guia de Segurança - Family Flow Finance
 
 ## 🛡️ Visão Geral
 
-Este documento descreve as práticas de segurança implementadas no projeto Porta Linda Kit, incluindo ferramentas de monitorização, verificações automáticas e diretrizes de desenvolvimento seguro.
+Este documento descreve as práticas de segurança implementadas no projeto Family Flow Finance, incluindo ferramentas de monitorização, verificações automáticas e diretrizes de desenvolvimento seguro.
 
 ## 📋 Verificações de Segurança Implementadas
 

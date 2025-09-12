@@ -24,6 +24,7 @@ import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
 import { useGoals, useCreateGoal } from '../hooks/useGoalsQuery';
 import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { useAuth } from '../contexts/AuthContext';
+import { useFamily } from '../features/family/FamilyContext';
 import React, { useMemo, useState, useEffect, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
@@ -100,6 +101,7 @@ export default function Insights() {
   const createGoalMutation = useCreateGoal();
   const createGoal = createGoalMutation.mutateAsync;
   const isCreating = createGoalMutation.isPending;
+  const { canEdit } = useFamily();
   const categoriesQuery = useCategoriesDomain();
   
   // Memorizar resultados para estabilizar dependências de useMemo a jusante
@@ -493,6 +495,11 @@ export default function Insights() {
   const handleGoalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!canEdit('goal')) {
+      notifyError({ title: 'Acesso negado', description: 'Não tem permissões para criar objetivos.' });
+      return;
+    }
+    
     if (!validateGoalForm()) {
       notifyError({ title: 'Erro de validação', description: 'Por favor, corrija os erros no formulário.' });
       return;
@@ -853,9 +860,11 @@ export default function Insights() {
                   <p className="text-sm text-muted-foreground mb-3">
                     Crie objetivos financeiros para receber insights personalizados sobre o seu progresso.
                   </p>
-                  <Button size="sm" variant="outline" className="border-warning text-warning hover:bg-warning hover:text-warning-foreground" onClick={() => setShowGoalModal(true)}>
-                    Criar Objetivo
-                  </Button>
+                  {canEdit('goal') && (
+                    <Button size="sm" variant="outline" className="border-warning text-warning hover:bg-warning hover:text-warning-foreground" onClick={() => setShowGoalModal(true)}>
+                      Criar Objetivo
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

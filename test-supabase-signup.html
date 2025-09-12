@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Supabase Signup Direto</title>
+    <script type="module" src="/src/main.tsx"></script>
+    <link rel="stylesheet" href="/src/index.css">
+</head>
+<body>
+    <div id="root">
+        <div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+            <div class="w-full max-w-md bg-white rounded-lg shadow-md p-6">
+                <h1 class="text-2xl font-bold text-center mb-6">Teste Supabase Signup Direto</h1>
+                <button id="testSignup" class="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600">
+                    Testar Signup
+                </button>
+                <div id="result" class="mt-4 p-4 border rounded"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { supabase } from '/src/lib/supabaseClient.js';
+        
+        document.getElementById('testSignup').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testando signup...';
+            
+            try {
+                const { data, error } = await supabase.auth.signUp({
+                    email: 'testetotal@teste.com',
+                    password: 'password123',
+                    options: {
+                        data: {
+                            nome: 'Teste Total'
+                        }
+                    }
+                });
+                
+                resultDiv.innerHTML = `
+                    <h3>Resultado:</h3>
+                    <p><strong>Data:</strong> ${JSON.stringify(data, null, 2)}</p>
+                    <p><strong>Error:</strong> ${JSON.stringify(error, null, 2)}</p>
+                `;
+                
+                console.log('Signup result:', { data, error });
+            } catch (err) {
+                resultDiv.innerHTML = `
+                    <h3>Erro capturado:</h3>
+                    <p>${err.message}</p>
+                    <pre>${JSON.stringify(err, null, 2)}</pre>
+                `;
+                console.error('Signup error:', err);
+            }
+        });
+    </script>
+</body>
+</html>

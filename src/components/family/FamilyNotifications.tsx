@@ -31,7 +31,7 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
 
   const updateUnreadCount = useCallback((notifList?: FamilyNotification[]) => {
     const list = notifList || notifications;
-    const unread = list.filter(n => !n.read).length;
+    const unread = list.filter(n => !n.lida).length;
     setUnreadCount(unread);
   }, [notifications]);
 
@@ -68,14 +68,14 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
+        .update({ lida: true })
         .eq('id', notificationId);
 
       if (error) throw error;
 
       setNotifications(prev => 
         prev.map(notif => 
-          notif.id === notificationId ? { ...notif, read: true } : notif
+          notif.id === notificationId ? { ...notif, lida: true } : notif
         )
       );
       updateUnreadCount();
@@ -95,14 +95,14 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
+        .update({ lida: true })
         .eq('family_id', familyId)
-        .eq('read', false);
+        .eq('lida', false);
 
       if (error) throw error;
 
       setNotifications(prev => 
-        prev.map(notif => ({ ...notif, read: true }))
+        prev.map(notif => ({ ...notif, lida: true }))
       );
       setUnreadCount(0);
     } catch (error) {
@@ -183,8 +183,8 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
 
   const filteredNotifications = useMemo(() => {
     return (notifications || [])
-      .filter(n => (filterType === 'all' ? true : n.type === filterType))
-      .filter(n => (filterRead === 'all' ? true : filterRead === 'unread' ? !n.read : n.read))
+      .filter(n => (filterType === 'all' ? true : n.tipo === filterType))
+      .filter(n => (filterRead === 'all' ? true : filterRead === 'unread' ? !n.lida : n.lida))
       .filter(n => (filterCategory === 'all' ? true : n.category === filterCategory));
   }, [notifications, filterType, filterRead, filterCategory]);
 
@@ -213,12 +213,12 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
           setUnreadCount(prev => prev + 1);
           
           // Mostrar toast para nova notificação
-          if (newNotification.type === 'error') {
-            notifyError({ title: newNotification.title, description: newNotification.message });
-          } else if (newNotification.type === 'success') {
-            notifySuccess({ title: newNotification.title, description: newNotification.message });
+          if (newNotification.tipo === 'error') {
+            notifyError({ title: newNotification.titulo, description: newNotification.mensagem });
+          } else if (newNotification.tipo === 'success') {
+            notifySuccess({ title: newNotification.titulo, description: newNotification.mensagem });
           } else {
-            notifyInfo({ title: newNotification.title, description: newNotification.message });
+            notifyInfo({ title: newNotification.titulo, description: newNotification.mensagem });
           }
         }
       )
@@ -360,27 +360,27 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
                   <div
                     key={notification.id}
                     className={`p-4 hover:bg-gray-50 transition-colors ${
-                      !notification.read ? 'bg-blue-50' : ''
+                      !notification.lida ? 'bg-blue-50' : ''
                     }`}
                   >
                     <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-full ${getNotificationColor(notification.type)}`}>
+                      <div className={`p-2 rounded-full ${getNotificationColor(notification.tipo)}`}>
                         {getNotificationIcon(notification.category)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start">
                           <p className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                            {notification.title}
-                            {!notification.read && (
+                            {notification.titulo}
+                            {!notification.lida && (
                               <Badge variant="secondary" className="text-[10px]">Por ler</Badge>
                             )}
-                            <Badge variant="outline" className="text-[10px] capitalize">{notification.type}</Badge>
+                            <Badge variant="outline" className="text-[10px] capitalize">{notification.tipo}</Badge>
                             {notification.category && (
                               <Badge variant="outline" className="text-[10px] capitalize">{notification.category}</Badge>
                             )}
                           </p>
                           <div className="flex gap-1">
-                            {!notification.read && (
+                            {!notification.lida && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -403,11 +403,11 @@ export const FamilyNotifications: React.FC<FamilyNotificationsProps> = ({ family
                           </div>
                         </div>
                         <p className="text-sm text-gray-600 mt-1">
-                          {notification.message}
+                          {notification.mensagem}
                         </p>
                         <p className="text-xs text-gray-400 mt-2">
-                          {new Date(notification.created_at).toLocaleString('pt-PT')}
-                        </p>
+                           {new Date(notification.created_at).toLocaleString('pt-PT')}
+                         </p>
                       </div>
                     </div>
                   </div>

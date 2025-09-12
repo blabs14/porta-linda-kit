@@ -11,16 +11,32 @@ export const useGoals = () => {
   return useQuery({
     queryKey: ['goals', user?.id],
     queryFn: async () => {
-      const { data, error } = await getGoals(user?.id || '');
-      if (error) throw error;
+      // Garantir que temos um userId válido antes de fazer a query
+      if (!user?.id) {
+        logger.warn('[useGoals] Tentativa de query sem userId válido');
+        return [];
+      }
+      
+      const { data, error } = await getGoals(user.id);
+      if (error) {
+        logger.error('[useGoals] Erro ao buscar objetivos:', error);
+        throw error;
+      }
       return data || [];
     },
     enabled: !!user?.id,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false, // Reduzir refetches desnecessários
     refetchOnMount: true,
     refetchOnReconnect: true,
-    staleTime: 0,
-    gcTime: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000, // 2 minutos para permitir persistência
+    gcTime: 10 * 60 * 1000, // Aumentar tempo de cache
+    retry: (failureCount, error) => {
+      // Não tentar novamente se não há userId
+      if (!user?.id) return false;
+      // Em ambiente de teste, não fazer retry
+      if (process.env.NODE_ENV === 'test') return false;
+      return failureCount < 3;
+    },
   });
 };
 
@@ -29,18 +45,32 @@ export const useGoalsDomain = () => {
   return useQuery<GoalDomain[]>({
     queryKey: ['goals-domain', user?.id],
     queryFn: async () => {
-      const { data, error } = await getGoalsDomain(user?.id || '');
-      if (error) throw error;
-      return data;
+      // Garantir que temos um userId válido antes de fazer a query
+      if (!user?.id) {
+        logger.warn('[useGoalsDomain] Tentativa de query sem userId válido');
+        return [];
+      }
+      
+      const { data, error } = await getGoalsDomain(user.id);
+      if (error) {
+        logger.error('[useGoalsDomain] Erro ao buscar domínio dos objetivos:', error);
+        throw error;
+      }
+      return data || [];
     },
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+    retry: (failureCount, error) => {
+      if (!user?.id) return false;
+      return failureCount < 3;
+    },
   });
 };
 
 export const useCreateGoal = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (data: GoalInsert) => {
       const result = await createGoal(data);
@@ -50,13 +80,14 @@ export const useCreateGoal = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['goals-domain'] });
-      queryClient.invalidateQueries({ queryKey: ['goalProgress'] });
+      queryClient.invalidateQueries({ queryKey: ['goalProgress', user?.id] });
     },
   });
 };
 
 export const useUpdateGoal = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (
       variables: { id: string; data?: GoalUpdate } & Partial<GoalUpdate>
@@ -70,13 +101,14 @@ export const useUpdateGoal = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['goals-domain'] });
-      queryClient.invalidateQueries({ queryKey: ['goalProgress'] });
+      queryClient.invalidateQueries({ queryKey: ['goalProgress', user?.id] });
     }
   });
 };
 
 export const useDeleteGoal = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (id: string) => {
       const result = await deleteGoal(id);
@@ -86,13 +118,14 @@ export const useDeleteGoal = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['goals-domain'] });
-      queryClient.invalidateQueries({ queryKey: ['goalProgress'] });
+      queryClient.invalidateQueries({ queryKey: ['goalProgress', user?.id] });
     }
   });
 };
 
 export const useAllocateFunds = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ goalId, amount }: { goalId: string; amount: number }) => {
       const result = await allocateFunds(goalId, amount);
@@ -102,20 +135,35 @@ export const useAllocateFunds = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['goals-domain'] });
-      queryClient.invalidateQueries({ queryKey: ['goalProgress'] });
+      queryClient.invalidateQueries({ queryKey: ['goalProgress', user?.id] });
     }
   });
 };
 
 export const useGoalProgress = () => {
   const { user } = useAuth();
+  
   return useQuery({
     queryKey: ['goalProgress', user?.id],
     queryFn: async () => {
-      const { data, error } = await getGoalProgress();
-      if (error) throw error;
-      return data || [];
+      if (!user?.id) {
+        logger.warn('[useGoalProgress] Tentativa de query sem userId válido');
+        return { data: null, error: 'User ID não disponível' };
+      }
+      try {
+        const { data, error } = await getGoalProgress(user.id);
+        if (error) {
+          logger.error('[useGoalProgress] Erro ao buscar progresso dos objetivos:', error);
+          throw error;
+        }
+        return data;
+      } catch (error) {
+        logger.error('[useGoalProgress] Erro inesperado:', error);
+        throw error;
+      }
     },
-    enabled: !!user?.id
+    enabled: !!user?.id,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
   });
 };

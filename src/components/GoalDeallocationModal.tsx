@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useGoalAllocations } from '../hooks/useGoalAllocations';
+import { useFamily } from '../features/family/FamilyContext';
 import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -19,6 +20,7 @@ const GoalDeallocationModal = ({ isOpen, onClose, goalId, goalName }: GoalDeallo
   const { user } = useAuth();
   const { allocations, deallocate, isDeleting, isAllocating } = useGoalAllocations(goalId);
   const { data: accounts = [] } = useAccountsWithBalances();
+  const { canEdit } = useFamily();
 
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [amount, setAmount] = useState('');
@@ -58,6 +60,11 @@ const GoalDeallocationModal = ({ isOpen, onClose, goalId, goalName }: GoalDeallo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError('');
+    
+    if (!canEdit('goal')) {
+      setValidationError('Não tem permissões para desalocar fundos de objetivos');
+      return;
+    }
 
     if (!selectedAccountId) {
       setValidationError('Selecione a conta de onde deseja libertar o valor');
@@ -144,4 +151,4 @@ const GoalDeallocationModal = ({ isOpen, onClose, goalId, goalName }: GoalDeallo
 };
 
 export default GoalDeallocationModal;
-export { GoalDeallocationModal }; 
+export { GoalDeallocationModal };

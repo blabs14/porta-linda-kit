@@ -9,6 +9,12 @@ import { GoalDomain, mapGoalRowToDomain } from '../shared/types/goals';
 
 export const getGoals = async (userId: string): Promise<{ data: Goal[] | null; error: unknown }> => {
   try {
+    // Validar userId antes de fazer a query
+    if (!userId || userId.trim() === '') {
+      console.warn('[getGoals] userId inválido ou vazio:', userId);
+      return { data: [], error: null };
+    }
+
     const { data, error } = await supabase
       .from('goals')
       .select('*')
@@ -18,11 +24,18 @@ export const getGoals = async (userId: string): Promise<{ data: Goal[] | null; e
 
     return { data, error };
   } catch (error) {
+    console.error('[getGoals] Erro ao buscar objetivos:', error);
     return { data: null, error };
   }
 };
 
 export const getGoalsDomain = async (userId: string): Promise<{ data: GoalDomain[]; error: unknown }> => {
+  // Validar userId antes de fazer a query
+  if (!userId || userId.trim() === '') {
+    console.warn('[getGoalsDomain] userId inválido ou vazio:', userId);
+    return { data: [], error: null };
+  }
+
   const { data, error } = await getGoals(userId);
   return { data: (data || []).map(mapGoalRowToDomain), error };
 };
@@ -140,9 +153,13 @@ export const allocateFunds = async (
   return { data: null, error: null };
 };
 
-export const getGoalProgress = async (): Promise<{ data: GoalProgressRPC[] | null; error: unknown }> => {
+export const getGoalProgress = async (userId: string): Promise<{ data: GoalProgressRPC[] | null; error: unknown }> => {
   try {
-    const { data, error } = await supabase.rpc('get_user_goal_progress');
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    const { data, error } = await supabase.rpc('get_user_goal_progress', { user_id: userId });
     return { data, error };
   } catch (error) {
     return { data: null, error };

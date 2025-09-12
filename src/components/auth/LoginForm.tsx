@@ -1,5 +1,7 @@
 
 import { useState, useRef, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { signInWithGoogle, signInWithApple, signInWithFacebook } from '../../services/authProviders';
@@ -7,21 +9,33 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Separator } from '../ui/separator';
+import { Alert, AlertDescription } from '../ui/alert';
 import { Mail, Lock, Loader2 } from 'lucide-react';
 import { showError } from '../../lib/utils';
+import { loginSchema, type LoginFormData } from '../../models/authSchema';
 
 export default function LoginForm() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const { login, loading, user } = useAuth();
   const navigate = useNavigate();
   const emailRef = useRef<HTMLInputElement>(null);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    setError: setFormError,
+    clearErrors
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    mode: 'onBlur'
+  });
+
+  const handleLogin = async (data: LoginFormData) => {
     setError('');
-    const { error } = await login(email, password) || {};
+    clearErrors();
+    
+    const { error } = await login(data.email, data.password) || {};
     if (error) {
       setError(error.message);
       showError('Erro ao iniciar sessão: ' + error.message);
@@ -52,7 +66,13 @@ export default function LoginForm() {
 
   return (
     <div className="space-y-6">
-      <form onSubmit={handleLogin} className="space-y-4">
+      <form onSubmit={handleSubmit(handleLogin)} className="space-y-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
         <div className="space-y-2">
           <Label htmlFor="email" className="text-sm font-medium">
             Email
@@ -61,18 +81,18 @@ export default function LoginForm() {
             <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
               id="email"
-              name="email"
               type="email"
               placeholder="exemplo@email.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
+              {...register('email')}
               ref={emailRef}
               autoFocus
-              className="pl-10"
-              aria-invalid={!!error}
+              className={`pl-10 ${errors.email ? 'border-red-500 focus:border-red-500' : ''}`}
+              aria-invalid={!!errors.email}
             />
           </div>
+          {errors.email && (
+            <p className="text-sm text-red-600 mt-1">{errors.email.message}</p>
+          )}
           <p className="text-xs text-muted-foreground">O seu email de acesso.</p>
         </div>
 
@@ -84,33 +104,27 @@ export default function LoginForm() {
             <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
               id="password"
-              name="password"
               type="password"
               placeholder="Password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              className="pl-10"
-              aria-invalid={!!error}
+              {...register('password')}
+              className={`pl-10 ${errors.password ? 'border-red-500 focus:border-red-500' : ''}`}
+              aria-invalid={!!errors.password}
             />
           </div>
+          {errors.password && (
+            <p className="text-sm text-red-600 mt-1">{errors.password.message}</p>
+          )}
           <p className="text-xs text-muted-foreground">Deve ter pelo menos 6 caracteres.</p>
         </div>
 
-        {error && (
-          <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
-            {error}
-          </div>
-        )}
-
         <Button 
           type="submit" 
-          disabled={loading} 
+          disabled={isSubmitting || loading} 
           className="w-full"
           variant="default"
         >
-          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {loading ? 'A entrar...' : 'Entrar'}
+          {(isSubmitting || loading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {(isSubmitting || loading) ? 'A entrar...' : 'Entrar'}
         </Button>
       </form>
 

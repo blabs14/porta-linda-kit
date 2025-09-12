@@ -3,13 +3,14 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
 import { logger } from '@/shared/lib/logger';
+import { useUserDataInvalidation } from '../hooks/useUserDataInvalidation';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ error: unknown } | void>;
-  register: (email: string, password: string) => Promise<{ error: unknown } | void>;
+  register: (email: string, password: string, nome?: string) => Promise<{ error: unknown } | void>;
   resetPassword: (email: string) => Promise<{ error: unknown } | void>;
   logout: () => Promise<void>;
 }
@@ -20,6 +21,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Hook para invalidar dados do utilizador quando há mudanças de autenticação
+  useUserDataInvalidation(user);
 
   useEffect(() => {
     let mounted = true;
@@ -69,11 +73,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
       }
       
-      // Only set loading to false after initial session is processed
-      if (!initialSessionLoaded && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT')) {
-        console.log('[Auth] 🏁 Setting loading to false after initial auth state');
-        initialSessionLoaded = true;
+      // Always stop loading after any auth state change
+      if (loading) {
+        console.log('[Auth] 🏁 Auth state changed, stopping loading');
         setLoading(false);
+      }
+      
+      // Mark as initialized
+      if (!initialSessionLoaded) {
+        initialSessionLoaded = true;
       }
     });
     
@@ -95,11 +103,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.error('[Auth] ❌ Error getting initial session:', error);
           logger.warn('[Auth] Erro ao obter sessão inicial:', error);
-          // Even on error, we should stop loading
-          if (!initialSessionLoaded) {
-            initialSessionLoaded = true;
-            setLoading(false);
-          }
+          
+          // Set state and stop loading on error
+          setUser(null);
+          setSession(null);
+          setLoading(false);
+          initialSessionLoaded = true;
         } else {
           console.log('[Auth] 📋 Initial session result:', {
             hasSession: !!data.session,
@@ -114,13 +123,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             userId: data.session?.user?.id
           });
           
-          // The onAuthStateChange will handle the state update
-          // But if no session exists, we need to ensure loading stops
-          if (!data.session && !initialSessionLoaded) {
-            console.log('[Auth] 🏁 No initial session, stopping loading');
-            initialSessionLoaded = true;
-            setLoading(false);
-          }
+          // Set initial state immediately
+          setUser(data.session?.user ?? null);
+          setSession(data.session);
+          setLoading(false);
+          initialSessionLoaded = true;
         }
       } catch (error) {
         if (!mounted) return;
@@ -128,10 +135,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('[Auth] 💥 Exception getting initial session:', error);
         logger.error('[Auth] Erro crítico ao inicializar autenticação:', error);
         
-        if (!initialSessionLoaded) {
-          initialSessionLoaded = true;
-          setLoading(false);
-        }
+        // Set safe state and stop loading on exception
+        setUser(null);
+        setSession(null);
+        setLoading(false);
+        initialSessionLoaded = true;
       }
     };
     
@@ -185,9 +193,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (email: string, password: string) => {
+  const register = async (email: string, password: string, nome?: string) => {
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
+    
+    const signUpData: any = { email, password };
+    if (nome) {
+      signUpData.options = {
+        data: {
+          nome: nome
+        }
+      };
+    }
+    
+    const { error } = await supabase.auth.signUp(signUpData);
     setLoading(false);
     return { error };
   };

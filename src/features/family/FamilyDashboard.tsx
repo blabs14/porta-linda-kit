@@ -169,7 +169,7 @@ const FamilyDashboard: React.FC = () => {
               {formatCurrency(familyKPIs.totalBalance)}
             </div>
             <div className="flex items-center mt-1">
-              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/accounts')}>Ver contas</Button>
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/accounts')} aria-label="Ver todas as contas familiares">Ver contas</Button>
             </div>
           </CardContent>
         </Card>
@@ -191,7 +191,7 @@ const FamilyDashboard: React.FC = () => {
               {formatCurrency(familyKPIs.creditCardDebt)}
             </div>
             <div className="flex items-center mt-1">
-              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/accounts')}>Gerir cartões</Button>
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/accounts')} aria-label="Gerir cartões de crédito familiares">Gerir cartões</Button>
             </div>
           </CardContent>
         </Card>
@@ -216,7 +216,7 @@ const FamilyDashboard: React.FC = () => {
               <span className={((familyKPIs.deltaVsPrev || 0) >= 0) ? 'text-green-600' : 'text-red-600'}>
                 {((familyKPIs.deltaVsPrev || 0) >= 0 ? '+' : '')}{(familyKPIs.deltaVsPrev || 0).toFixed(2)}€ vs mês anterior
               </span>
-              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/transactions')}>Ver transações</Button>
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/transactions')} aria-label="Ver todas as transações familiares">Ver transações</Button>
             </div>
           </CardContent>
         </Card>
@@ -238,7 +238,7 @@ const FamilyDashboard: React.FC = () => {
               {familyKPIs.topGoalProgress.toFixed(1)}%
             </div>
             <div className="flex items-center mt-1">
-              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/goals')}>Ver objetivos</Button>
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/goals')} aria-label="Ver objetivos financeiros familiares">Ver objetivos</Button>
             </div>
           </CardContent>
         </Card>
@@ -262,7 +262,7 @@ const FamilyDashboard: React.FC = () => {
           <CardContent>
             <div className="text-2xl font-bold">{familyKPIs.goalsProgressPercentage.toFixed(1)}%</div>
             <div className="flex items-center mt-1">
-              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/goals')}>Detalhar</Button>
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/goals')} aria-label="Ver detalhes dos objetivos">Detalhar</Button>
             </div>
           </CardContent>
         </Card>
@@ -287,7 +287,7 @@ const FamilyDashboard: React.FC = () => {
               )}
             </div>
             <div className="flex items-center mt-1">
-              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/budgets')}>Ver orçamentos</Button>
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/budgets')} aria-label="Ver orçamentos familiares">Ver orçamentos</Button>
             </div>
           </CardContent>
         </Card>
@@ -338,7 +338,7 @@ const FamilyDashboard: React.FC = () => {
                 </p>
               )}
               <div className="flex justify-end">
-                <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/accounts')}>Gerir contas</Button>
+                <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/accounts')} aria-label="Gerir contas bancárias familiares">Gerir contas</Button>
               </div>
             </div>
           )}
@@ -386,7 +386,7 @@ const FamilyDashboard: React.FC = () => {
                 </p>
               )}
               <div className="flex justify-end">
-                <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/goals')}>Gerir objetivos</Button>
+                <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/goals')} aria-label="Gerir objetivos financeiros">Gerir objetivos</Button>
               </div>
             </div>
           )}
@@ -436,7 +436,7 @@ const FamilyDashboard: React.FC = () => {
                   </p>
                 )}
                 <div className="flex justify-end">
-                  <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/members')}>Gerir membros</Button>
+                  <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/members')} aria-label="Gerir membros da família">Gerir membros</Button>
                 </div>
               </div>
             )}
@@ -477,7 +477,7 @@ const FamilyDashboard: React.FC = () => {
                     </div>
                   ))}
                 <div className="flex justify-end">
-                  <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/members')}>Gerir convites</Button>
+                  <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/family/members')} aria-label="Gerir convites pendentes">Gerir convites</Button>
                 </div>
               </div>
             )}
@@ -534,4 +534,4 @@ const FamilyDashboard: React.FC = () => {
   );
 };
 
-export default FamilyDashboard; 
+export default FamilyDashboard;

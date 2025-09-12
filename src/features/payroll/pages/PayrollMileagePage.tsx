@@ -200,7 +200,7 @@ const PayrollMileagePage: React.FC = () => {
   };
 
   // Handlers para políticas
-  const handleSavePolicy = useCallback(async (policyData: PayrollMileagePolicy) => {
+  const handleSavePolicy = async (policyData: PayrollMileagePolicy) => {
     if (!user || !activeContract?.id) return;
     
     setIsSaving(true);
@@ -243,7 +243,7 @@ const PayrollMileagePage: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [user, activeContract, selectedPolicy, toast]);
+  };
 
   const handleDeletePolicy = async (policyId: string) => {
     if (!user || !activeContract) return;

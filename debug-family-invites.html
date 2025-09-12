@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Family Invites</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Debug Family Invites System</h1>
+    
+    <div id="auth-status"></div>
+    
+    <div id="family-info"></div>
+    
+    <div id="invite-form" style="margin: 20px 0;">
+        <h3>Enviar Convite</h3>
+        <input type="email" id="invite-email" placeholder="Email para convidar" />
+        <select id="invite-role">
+            <option value="member">Membro</option>
+            <option value="admin">Admin</option>
+        </select>
+        <button onclick="sendInvite()">Enviar Convite</button>
+    </div>
+    
+    <div id="results"></div>
+    
+    <script>
+        const supabaseUrl = 'https://wnprcqzgvnlqjqjqjqjq.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InducHJjcXpndm5scWpxanFqcWpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY5NjI4NjQsImV4cCI6MjA1MjUzODg2NH0.Ej6Ej6Ej6Ej6Ej6Ej6Ej6Ej6Ej6Ej6Ej6Ej6Ej6Ej6'
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+        
+        let currentUser = null;
+        let currentFamily = null;
+        
+        async function init() {
+            // Check auth status
+            const { data: { user } } = await supabase.auth.getUser()
+            currentUser = user;
+            
+            const authDiv = document.getElementById('auth-status');
+            if (user) {
+                authDiv.innerHTML = `<p>✅ Autenticado como: ${user.email}</p>`;
+                await loadFamilyInfo();
+            } else {
+                authDiv.innerHTML = `<p>❌ Não autenticado</p>`;
+                // Try to login with test credentials
+                await loginTest();
+            }
+        }
+        
+        async function loginTest() {
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: 'test@example.com',
+                    password: 'password123'
+                });
+                
+                if (error) {
+                    console.log('Login failed:', error);
+                    document.getElementById('auth-status').innerHTML = `<p>❌ Login falhou: ${error.message}</p>`;
+                } else {
+                    currentUser = data.user;
+                    document.getElementById('auth-status').innerHTML = `<p>✅ Login bem-sucedido: ${data.user.email}</p>`;
+                    await loadFamilyInfo();
+                }
+            } catch (err) {
+                console.error('Login error:', err);
+            }
+        }
+        
+        async function loadFamilyInfo() {
+            try {
+                // Get user's family
+                const { data: familyMembers, error: memberError } = await supabase
+                    .from('family_members')
+                    .select('family_id, role, families(name)')
+                    .eq('user_id', currentUser.id)
+                    .single();
+                
+                const familyDiv = document.getElementById('family-info');
+                
+                if (memberError || !familyMembers) {
+                    familyDiv.innerHTML = `<p>❌ Erro ao carregar família: ${memberError?.message || 'Não encontrada'}</p>`;
+                    return;
+                }
+                
+                currentFamily = {
+                    id: familyMembers.family_id,
+                    name: familyMembers.families.name,
+                    userRole: familyMembers.role
+                };
+                
+                familyDiv.innerHTML = `
+                    <p>✅ Família: ${currentFamily.name}</p>
+                    <p>✅ Função: ${currentFamily.userRole}</p>
+                    <p>✅ ID: ${currentFamily.id}</p>
+                `;
+                
+                // Load pending invites
+                await loadPendingInvites();
+                
+            } catch (err) {
+                console.error('Family info error:', err);
+                document.getElementById('family-info').innerHTML = `<p>❌ Erro: ${err.message}</p>`;
+            }
+        }
+        
+        async function loadPendingInvites() {
+            try {
+                const { data: invites, error } = await supabase
+                    .from('family_invites')
+                    .select('*')
+                    .eq('family_id', currentFamily.id)
+                    .eq('status', 'pending');
+                
+                if (error) {
+                    console.log('Error loading invites:', error);
+                    return;
+                }
+                
+                const resultsDiv = document.getElementById('results');
+                resultsDiv.innerHTML += `<h3>Convites Pendentes (${invites.length})</h3>`;
+                
+                if (invites.length > 0) {
+                    invites.forEach(invite => {
+                        resultsDiv.innerHTML += `<p>📧 ${invite.email} - ${invite.role} (${invite.created_at})</p>`;
+                    });
+                } else {
+                    resultsDiv.innerHTML += `<p>Nenhum convite pendente</p>`;
+                }
+                
+            } catch (err) {
+                console.error('Invites error:', err);
+            }
+        }
+        
+        async function sendInvite() {
+            const email = document.getElementById('invite-email').value;
+            const role = document.getElementById('invite-role').value;
+            
+            if (!email || !currentFamily) {
+                alert('Email e família são obrigatórios');
+                return;
+            }
+            
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML += `<h3>Enviando convite...</h3>`;
+            
+            try {
+                // Test RPC function directly
+                const { data, error } = await supabase.rpc('invite_family_member_by_email_safe', {
+                    p_family_id: currentFamily.id,
+                    p_email: email,
+                    p_role: role
+                });
+                
+                resultsDiv.innerHTML += `<h3>Resultado do RPC:</h3>`;
+                resultsDiv.innerHTML += `<pre>${JSON.stringify({ data, error }, null, 2)}</pre>`;
+                
+                if (error) {
+                    resultsDiv.innerHTML += `<p>❌ Erro RPC: ${error.message}</p>`;
+                } else if (data && !data.success) {
+                    resultsDiv.innerHTML += `<p>❌ Erro estruturado: ${data.error} - ${data.message}</p>`;
+                } else {
+                    resultsDiv.innerHTML += `<p>✅ Convite enviado com sucesso!</p>`;
+                    // Reload pending invites
+                    await loadPendingInvites();
+                }
+                
+            } catch (err) {
+                console.error('Send invite error:', err);
+                resultsDiv.innerHTML += `<p>❌ Erro de rede: ${err.message}</p>`;
+            }
+        }
+        
+        // Initialize when page loads
+        window.onload = init;
+    </script>
+</body>
+</html>

@@ -19,11 +19,11 @@ export default function AuthTest() {
   return (
     <div style={{ maxWidth: 400, margin: 'auto', padding: 20 }}>
       <h2>Teste Supabase Auth</h2>
-      <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', marginBottom: 8 }} />
-      <input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', marginBottom: 8 }} />
-      <button onClick={handleSignup} style={{ width: '100%', marginBottom: 8 }}>Registar</button>
-      <button onClick={handleLogin} style={{ width: '100%' }}>Login</button>
+      <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', marginBottom: 8 }} aria-label="Endereço de email" />
+      <input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', marginBottom: 8 }} aria-label="Palavra-passe" />
+      <button onClick={handleSignup} style={{ width: '100%', marginBottom: 8 }} aria-label="Registar nova conta">Registar</button>
+      <button onClick={handleLogin} style={{ width: '100%' }} aria-label="Iniciar sessão">Login</button>
       <pre style={{ marginTop: 16, background: '#eee', padding: 8 }}>{log}</pre>
     </div>
   );
-} 
+}

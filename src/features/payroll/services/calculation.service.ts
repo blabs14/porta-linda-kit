@@ -1,6 +1,7 @@
 import { PayrollContract, PayrollTimeEntry, PayrollOTPolicy, PayrollHoliday, PayrollMileageTrip, PayrollVacation, PayrollCalculation } from '../types';
 import { calcMonth, validateTimeEntry, PreCalculatedOvertimeData } from '../lib/calc';
 import { logger } from '@/shared/lib/logger';
+import { isValidUUID } from '@/lib/validation';
 
 /**
  * Calcula o último dia do mês corretamente
@@ -136,14 +137,14 @@ export class PayrollCalculationService {
           entry_type: entry.entry_type
         }))
         .sort((a, b) => a.date.localeCompare(b.date)), // Ordenar para consistência
-      otPolicy: {
+      otPolicy: input.otPolicy ? {
         multiplier: input.otPolicy.multiplier,
         daily_limit_hours: input.otPolicy.daily_limit_hours,
         weekly_limit_hours: input.otPolicy.weekly_limit_hours,
         night_start: input.otPolicy.night_start,
         night_end: input.otPolicy.night_end,
         night_multiplier: input.otPolicy.night_multiplier
-      },
+      } : null,
       holidays: input.holidays
         .map(holiday => ({
           date: holiday.date,
@@ -206,8 +207,17 @@ export class PayrollCalculationService {
         errors.push('Salário base não pode ser inferior ao salário mínimo nacional (€870 - 2025)');
       }
       
-      if (!input.contract.hourly_rate_cents || input.contract.hourly_rate_cents <= 0) {
-        errors.push('Taxa horária deve ser maior que zero');
+      // Calcular taxa horária se não estiver definida
+      let hourlyRateCents = input.contract.hourly_rate_cents;
+      if (!hourlyRateCents || hourlyRateCents <= 0) {
+        // Calcular taxa horária baseada no salário base e horas semanais
+        const weeklyHours = input.contract.weekly_hours || 40; // Default 40 horas
+        const monthlyHours = (weeklyHours * 52) / 12; // Horas mensais médias
+        hourlyRateCents = Math.round(input.contract.base_salary_cents / monthlyHours);
+        
+        if (hourlyRateCents <= 0) {
+          errors.push('Taxa horária calculada deve ser maior que zero');
+        }
       }
       
       // Validação das horas semanais conforme Código do Trabalho
@@ -216,10 +226,8 @@ export class PayrollCalculationService {
       }
     }
 
-    // Validar política de horas extras
-    if (!input.otPolicy) {
-      errors.push('Política de horas extras é obrigatória');
-    } else {
+    // Validar política de horas extras (opcional)
+    if (input.otPolicy) {
       if (input.otPolicy.multiplier <= 1) {
         warnings.push('Multiplicador de horas extras é menor ou igual a 1');
       }
@@ -237,6 +245,8 @@ export class PayrollCalculationService {
       if (input.otPolicy.multiplier < 1.25) {
         warnings.push('Multiplicador de horas extras inferior ao mínimo legal (25%)');
       }
+    } else {
+      warnings.push('Política de horas extras não configurada - horas extras não serão calculadas');
     }
 
     // Validar entradas de tempo
@@ -429,6 +439,10 @@ export async function calculatePayroll(
   month: number,
   preCalculatedData?: PreCalculatedOvertimeData
 ): Promise<CalculationResult> {
+  // Validar se o contractId é um UUID válido
+  if (!isValidUUID(contractId)) {
+    throw new Error('ID do contrato deve ser um UUID válido');
+  }
   // Importar serviços necessários
   const { payrollService } = await import('./payrollService');
   
@@ -447,11 +461,19 @@ export async function calculatePayroll(
     ]);
 
     if (!contract) throw new Error('Contrato não encontrado');
-    if (!otPolicy) throw new Error('Política de horas extras não encontrada');
+    // Política de horas extras é opcional - se não existir, horas extras não serão calculadas
+
+    // Calcular taxa horária se necessário
+    let contractWithHourlyRate = { ...contract };
+    if (!contract.hourly_rate_cents || contract.hourly_rate_cents <= 0) {
+      const weeklyHours = contract.weekly_hours || 40;
+      const monthlyHours = (weeklyHours * 52) / 12;
+      contractWithHourlyRate.hourly_rate_cents = Math.round(contract.base_salary_cents / monthlyHours);
+    }
 
     // Preparar input para o cálculo
     const input: CalculationInput = {
-      contract,
+      contract: contractWithHourlyRate,
       timeEntries,
       otPolicy,
       holidays,

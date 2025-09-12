@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-Este documento descreve a configuração e uso das métricas de cobertura de testes no projeto Porta Linda Kit.
+Este documento descreve a configuração e uso das métricas de cobertura de testes no projeto Family Flow Finance.
 
 ## Scripts Disponíveis
 

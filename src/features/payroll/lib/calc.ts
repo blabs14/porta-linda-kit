@@ -103,7 +103,7 @@ export function buildPlannedSchedule(
  */
 export function segmentEntry(
   entry: PayrollTimeEntry,
-  otPolicy: PayrollOTPolicy,
+  otPolicy: PayrollOTPolicy | null | undefined,
   dailyThreshold: number = 8
 ): TimeSegment[] {
   const startTime = new Date(`${entry.date}T${entry.start_time}`);
@@ -119,8 +119,8 @@ export function segmentEntry(
   const totalHours = totalMinutes / 60;
 
   // Verificar se é trabalho noturno (22h-7h conforme legislação portuguesa)
-  const nightStart = otPolicy.night_start_time || '22:00';
-  const nightEnd = otPolicy.night_end_time || '07:00';
+  const nightStart = otPolicy?.night_start_time || '22:00';
+  const nightEnd = otPolicy?.night_end_time || '07:00';
   const isNightShift = isWorkDuringNightHours(startTime, endTime, nightStart, nightEnd);
 
   const segments: TimeSegment[] = [];
@@ -374,7 +374,7 @@ interface PreCalculatedOvertimeData {
 export function calcMonth(
   contract: PayrollContract,
   timeEntries: PayrollTimeEntry[],
-  otPolicy: PayrollOTPolicy,
+  otPolicy: PayrollOTPolicy | null | undefined,
   holidays: PayrollHoliday[],
   mileageTrips: PayrollMileageTrip[] = [],
   mileageRateCents: number = 40, // €0.40 por km padrão (2025)
@@ -388,7 +388,7 @@ export function calcMonth(
   // Validar limites semanais e anuais se fornecidos
   const validationErrors: string[] = [];
   
-  if (weeklyHours !== undefined && annualOvertimeHours !== undefined) {
+  if (weeklyHours !== undefined && annualOvertimeHours !== undefined && otPolicy) {
     const limitsValidation = validateOvertimeLimits(
       weeklyHours,
       annualOvertimeHours,
@@ -427,7 +427,7 @@ export function calcMonth(
       const entryValidation = validateTimeEntry(
         entry,
         contract.weekly_hours / 5, // Horas contratuais por dia (assumindo 5 dias úteis)
-        otPolicy.daily_limit_hours || 2 // Limite diário de horas extras da política
+        otPolicy?.daily_limit_hours || 2 // Limite diário de horas extras da política
       );
       
       if (!entryValidation.isValid) {

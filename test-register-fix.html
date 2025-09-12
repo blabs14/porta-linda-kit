@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Registo - Fix</title>
+    <script type="module" src="/src/main.tsx"></script>
+    <link rel="stylesheet" href="/src/index.css">
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module">
+        import React from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { AuthProvider } from '/src/contexts/AuthContext.tsx';
+        import RegisterForm from '/src/components/auth/RegisterForm.tsx';
+        import { Toaster } from '/src/components/ui/toaster.tsx';
+
+        function TestApp() {
+            return React.createElement(AuthProvider, null,
+                React.createElement('div', { className: 'min-h-screen bg-gray-50 flex items-center justify-center p-4' },
+                    React.createElement('div', { className: 'w-full max-w-md' },
+                        React.createElement('div', { className: 'bg-white rounded-lg shadow-md p-6' },
+                            React.createElement('h1', { className: 'text-2xl font-bold text-center mb-6' }, 'Teste Registo - Fix'),
+                            React.createElement('p', { className: 'text-sm text-gray-600 mb-4' }, 'Teste: testetotal@teste.com'),
+                            React.createElement(RegisterForm)
+                        )
+                    )
+                ),
+                React.createElement(Toaster)
+            );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(React.createElement(TestApp));
+    </script>
+</body>
+</html>

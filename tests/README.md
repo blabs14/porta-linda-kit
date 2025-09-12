@@ -1,4 +1,4 @@
-# Estrutura de Testes - Porta Linda Kit
+# Estrutura de Testes - Family Flow Finance
 
 Este diretório contém todos os testes organizados do projeto, categorizados por tipo e funcionalidade.
 

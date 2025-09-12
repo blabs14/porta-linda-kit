@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useGoalAllocations } from '../hooks/useGoalAllocations';
+import { useFamily } from '../features/family/FamilyContext';
 import { useAccountsWithBalances } from '../hooks/useAccountsQuery';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -40,6 +41,7 @@ const GoalAllocationModal = ({
   const { user } = useAuth();
   const { allocateToGoal, isAllocating } = useGoalAllocations();
   const { data: accounts = [] } = useAccountsWithBalances();
+  const { canEdit } = useFamily();
   
   // Debug: GoalAllocationModal props and accounts data
   
@@ -64,6 +66,11 @@ const GoalAllocationModal = ({
     e.preventDefault();
     // Debug: GoalAllocationModal handleSubmit called with form data
     setValidationError('');
+    
+    if (!canEdit('goal')) {
+      setValidationError('Não tem permissões para alocar fundos a objetivos');
+      return;
+    }
 
     if (!selectedAccountId) {
       setValidationError('Selecione uma conta');

@@ -291,7 +291,7 @@ const FamilyBudgets: React.FC = () => {
           </p>
         </div>
         {canEdit('budget') && (
-          <Button onClick={handleNew}>
+          <Button onClick={handleNew} aria-label="Criar novo orçamento familiar">
             <Plus className="h-4 w-4 mr-2" />
             Novo Orçamento
           </Button>
@@ -332,7 +332,7 @@ const FamilyBudgets: React.FC = () => {
             Clica em "Novo Orçamento" para começar
           </p>
           {canEdit('budget') && (
-            <Button onClick={handleNew}>
+            <Button onClick={handleNew} aria-label="Criar primeiro orçamento familiar">
               <Plus className="h-4 w-4 mr-2" />
               Criar Orçamento
             </Button>

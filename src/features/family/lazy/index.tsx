@@ -35,81 +35,81 @@ const createSafeLazyComponent = (
 
 // Componentes de Formulários Pesados - com tratamento de erros robusto
 export const LazyTransactionForm = createSafeLazyComponent(
-  '../../components/TransactionForm',
+  '../../../components/TransactionForm',
   'Formulário de Transação'
 );
 
 export const LazyGoalAllocationModal = createSafeLazyComponent(
-  '../../components/GoalAllocationModal',
+  '../../../components/GoalAllocationModal',
   'Modal de Alocação'
 );
 
 export const LazyGoalForm = createSafeLazyComponent(
-  '../../components/GoalForm',
+  '../../../components/GoalForm',
   'Formulário de Objetivo'
 );
 
 export const LazyAccountForm = createSafeLazyComponent(
-  '../../components/AccountForm',
+  '../../../components/AccountForm',
   'Formulário de Conta'
 );
 
 export const LazyRegularAccountForm = createSafeLazyComponent(
-  '../../components/RegularAccountForm',
+  '../../../components/RegularAccountForm',
   'Formulário de Conta Regular'
 );
 
 export const LazyBudgetForm = createSafeLazyComponent(
-  '../../components/BudgetForm',
+  '../../../components/BudgetForm',
   'Formulário de Orçamento'
 );
 
 // Componentes de Diálogos e Modais - com tratamento de erros robusto
 export const LazyConfirmationDialog = createSafeLazyComponent(
-  '../../components/ui/confirmation-dialog',
+  '../../../components/ui/confirmation-dialog',
   'Diálogo de Confirmação'
 );
 
 export const LazyTransferModal = createSafeLazyComponent(
-  '../../components/TransferModal',
+  '../../../components/TransferModal',
   'Modal de Transferência'
 );
 
 // Componentes de UI Pesados - com tratamento de erros robusto
 export const LazyTooltip = createSafeLazyComponent(
-  '../../components/ui/tooltip',
+  '../../../components/ui/tooltip',
   'Tooltip'
 );
 
 export const LazySelect = createSafeLazyComponent(
-  '../../components/ui/select',
+  '../../../components/ui/select',
   'Select'
 );
 
 export const LazyDialog = createSafeLazyComponent(
-  '../../components/ui/dialog',
+  '../../../components/ui/dialog',
   'Dialog'
 );
 
 export const LazySheet = createSafeLazyComponent(
-  '../../components/ui/sheet',
+  '../../../components/ui/sheet',
   'Sheet'
 );
 
 // Componentes de Gráficos e Visualizações - com tratamento de erros robusto
 export const LazyReportChart = createSafeLazyComponent(
-  '../../components/ReportChart',
+  '../../../components/ReportChart',
   'Gráfico de Relatório'
 );
 
 export const LazyChart = createSafeLazyComponent(
-  '../../components/ui/chart',
+  '../../../components/ui/chart',
   'Chart'
 );
 
 // Componentes de Notificações - com tratamento de erros robusto
 export const LazyRealTimeNotifications = createSafeLazyComponent(
-  '../../components/RealTimeNotifications',
+  '../../../components/RealTimeNotifications',
   'Notificações em Tempo Real'
 );
 

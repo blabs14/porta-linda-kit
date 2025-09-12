@@ -34,12 +34,44 @@ export const removeFamilyMember = async (familyId: string, userId: string) => {
 export const inviteFamilyMember = async (familyId: string, email: string, role: string) => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Utilizador não autenticado');
-  const { data, error } = await supabase.rpc('invite_family_member_by_email', {
+  
+  // Use the safer RPC function that returns structured responses
+  const { data, error } = await supabase.rpc('invite_family_member_by_email_safe', {
     p_family_id: familyId,
     p_email: email.toLowerCase(),
     p_role: role,
   });
-  if (error) throw error;
+  
+  if (error) {
+    console.error('RPC error:', error);
+    throw new Error('Erro de comunicação com o servidor');
+  }
+  
+  // Handle structured response from the safe function
+  if (data && typeof data === 'object' && 'success' in data) {
+    if (!data.success) {
+      // Handle specific error types
+      switch (data.error) {
+        case 'AUTHENTICATION_REQUIRED':
+          throw new Error('Sessão expirada. Por favor, faça login novamente.');
+        case 'INVALID_EMAIL':
+          throw new Error('Email inválido');
+        case 'INVALID_ROLE':
+          throw new Error('Role inválido');
+        case 'PERMISSION_DENIED':
+          throw new Error('Não tem permissão para convidar membros');
+        case 'USER_ALREADY_MEMBER':
+          throw new Error('Este utilizador já é membro da família');
+        case 'INVITE_ALREADY_EXISTS':
+          throw new Error('Já existe um convite pendente para este email');
+        case 'INTERNAL_ERROR':
+        default:
+          throw new Error(data.message || 'Erro interno do servidor');
+      }
+    }
+    return data;
+  }
+  
   return data;
 };
 

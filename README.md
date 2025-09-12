@@ -1,4 +1,4 @@
-# Porta Linda Kit
+# Family Flow Finance
 
 ## Descrição
 Aplicação de gestão financeira familiar colaborativa, com autenticação, partilha de contas, objetivos, orçamentos, notificações e histórico de alterações.
@@ -15,7 +15,7 @@ Aplicação de gestão financeira familiar colaborativa, com autenticação, par
 1. Clona o repositório:
    ```sh
    git clone <repo-url>
-   cd porta-linda-kit
+   cd family-flow-finance
    ```
 2. Instala as dependências:
    ```sh

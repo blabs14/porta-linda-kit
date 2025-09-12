@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePersonal } from './PersonalProvider';
+import { useFamily } from '../family/FamilyContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Progress } from '../../components/ui/progress';
 import { Badge } from '../../components/ui/badge';
@@ -44,6 +45,7 @@ const PersonalGoals: React.FC = () => {
   const { data: goalProgress = [] } = useGoalProgress();
   const { toast } = useToast();
   const confirmation = useConfirmation();
+  const { canEdit } = useFamily();
 
   const handleCreateGoal = () => {
     setShowCreateModal(true);
@@ -148,7 +150,7 @@ const PersonalGoals: React.FC = () => {
     return (
       <div className="text-center py-12">
         <p className="text-red-600">Erro ao carregar objetivos: {error.message}</p>
-        <Button onClick={() => refetch()} className="mt-4">
+        <Button onClick={() => refetch()} className="mt-4" aria-label="Tentar carregar objetivos novamente">
           Tentar novamente
         </Button>
       </div>
@@ -168,10 +170,12 @@ const PersonalGoals: React.FC = () => {
             Suas metas financeiras e objetivos de poupança
           </p>
         </div>
-        <Button onClick={handleCreateGoal}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Objetivo
-        </Button>
+        {canEdit('goal') && (
+          <Button onClick={handleCreateGoal} aria-label="Criar novo objetivo financeiro">
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Objetivo
+          </Button>
+        )}
       </div>
 
       {/* Filtros rápidos */}
@@ -387,10 +391,12 @@ const PersonalGoals: React.FC = () => {
           <p className="text-muted-foreground mb-4">
             Cria o teu primeiro objetivo para começar a poupar
           </p>
-          <Button onClick={handleCreateGoal}>
-            <Plus className="h-4 w-4 mr-2" />
-            Criar Objetivo
-          </Button>
+          {canEdit('goal') && (
+            <Button onClick={handleCreateGoal}>
+              <Plus className="h-4 w-4 mr-2" />
+              Criar Objetivo
+            </Button>
+          )}
         </div>
       )}
 

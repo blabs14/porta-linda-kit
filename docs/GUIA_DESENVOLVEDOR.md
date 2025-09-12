@@ -1,4 +1,4 @@
-# 🛠️ Guia do Desenvolvedor - Porta Linda Kit
+# 🛠️ Guia do Desenvolvedor - Family Flow Finance
 
 ## 📋 Índice
 - [Visão Geral](#visão-geral)
@@ -16,7 +16,7 @@
 
 ## 🎯 Visão Geral
 
-O **Porta Linda Kit** é uma aplicação web moderna de gestão financeira familiar construída com:
+O **Family Flow Finance** é uma aplicação web moderna de gestão financeira familiar construída com:
 
 - **Frontend**: React 18 + TypeScript + Vite
 - **Backend**: Supabase (PostgreSQL + Edge Functions)
@@ -95,8 +95,8 @@ graph TB
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/your-org/porta-linda-kit.git
-cd porta-linda-kit
+git clone https://github.com/your-org/family-flow-finance.git
+cd family-flow-finance
 
 # 2. Instale dependências
 npm install

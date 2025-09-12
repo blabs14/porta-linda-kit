@@ -239,7 +239,20 @@ export const validateAndSanitizeGoal = (data: GoalInput) => {
 // Função para validar UUID
 export const isValidUUID = (uuid: string): boolean => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(uuid);
+  const isValid = uuidRegex.test(uuid);
+  
+  // Debug temporário
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔧 isValidUUID - Validação:', {
+      uuid,
+      type: typeof uuid,
+      length: uuid?.length,
+      isValid,
+      regex: uuidRegex.toString()
+    });
+  }
+  
+  return isValid;
 };
 
 // Função para validar email

@@ -15,6 +15,7 @@ import { payrollService } from '../services/payrollService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/shared/lib/logger';
+import { isValidUUID } from '@/lib/validation';
 
 const MONTHS = [
   { value: 1, label: 'Janeiro' },
@@ -139,6 +140,17 @@ export function PayrollMealAllowanceForm({ contractId, config, onSave, onCancel 
       toast({
         title: 'Erro',
         description: 'ID do contrato não fornecido',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Validar se o contractId é um UUID válido
+    if (!isValidUUID(contractId)) {
+      logger.warn('PayrollMealAllowanceForm - Invalid contract ID format');
+      toast({
+        title: 'Erro',
+        description: 'ID do contrato deve ser um UUID válido. Por favor, selecione um contrato válido.',
         variant: 'destructive'
       });
       return;

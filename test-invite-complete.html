@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Completo - Convite Familiar</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .log { font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Teste Completo - Convite Familiar</h1>
+        
+        <div class="section">
+            <h3>1. Configuração e Estado</h3>
+            <div id="config-status">A verificar configuração...</div>
+            <button onclick="checkConfig()">Verificar Configuração</button>
+        </div>
+
+        <div class="section">
+            <h3>2. Autenticação</h3>
+            <div id="auth-status">Não autenticado</div>
+            <div>
+                <input type="email" id="email" placeholder="Email" value="test@example.com">
+                <input type="password" id="password" placeholder="Password" value="password123">
+                <button onclick="signUp()">Registar</button>
+                <button onclick="signIn()">Entrar</button>
+                <button onclick="signOut()">Sair</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>3. Teste de Convite</h3>
+            <div id="invite-status">Aguardando autenticação...</div>
+            <div>
+                <input type="email" id="invite-email" placeholder="Email do convidado" value="convidado@example.com">
+                <select id="invite-role">
+                    <option value="member">Membro</option>
+                    <option value="admin">Admin</option>
+                </select>
+                <button onclick="testInvite()" id="invite-btn" disabled>Enviar Convite</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>4. Logs Detalhados</h3>
+            <div id="logs"></div>
+            <button onclick="clearLogs()">Limpar Logs</button>
+        </div>
+    </div>
+
+    <script>
+        let supabase;
+        let currentUser = null;
+
+        // Inicialização
+        async function init() {
+            try {
+                // Usar as credenciais do .env.example
+                supabase = window.supabase.createClient(
+                    'https://your-project.supabase.co',
+                    'your-anon-key'
+                );
+                
+                log('✅ Supabase inicializado');
+                
+                // Verificar sessão atual
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    currentUser = session.user;
+                    updateAuthStatus();
+                }
+                
+                // Escutar mudanças de autenticação
+                supabase.auth.onAuthStateChange((event, session) => {
+                    log(`🔄 Auth event: ${event}`);
+                    currentUser = session?.user || null;
+                    updateAuthStatus();
+                });
+                
+            } catch (error) {
+                log(`❌ Erro na inicialização: ${error.message}`);
+            }
+        }
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logDiv = document.getElementById('logs');
+            logDiv.innerHTML += `<div class="log">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        async function checkConfig() {
+            const configDiv = document.getElementById('config-status');
+            try {
+                const { data, error } = await supabase.from('profiles').select('count').limit(1);
+                if (error) throw error;
+                configDiv.innerHTML = '<span class="success">✅ Configuração OK - Base de dados acessível</span>';
+                log('✅ Configuração verificada com sucesso');
+            } catch (error) {
+                configDiv.innerHTML = `<span class="error">❌ Erro de configuração: ${error.message}</span>`;
+                log(`❌ Erro de configuração: ${error.message}`);
+            }
+        }
+
+        function updateAuthStatus() {
+            const authDiv = document.getElementById('auth-status');
+            const inviteBtn = document.getElementById('invite-btn');
+            
+            if (currentUser) {
+                authDiv.innerHTML = `<span class="success">✅ Autenticado: ${currentUser.email}</span>`;
+                inviteBtn.disabled = false;
+                log(`✅ Utilizador autenticado: ${currentUser.email}`);
+            } else {
+                authDiv.innerHTML = '<span class="error">❌ Não autenticado</span>';
+                inviteBtn.disabled = true;
+                log('❌ Utilizador não autenticado');
+            }
+        }
+
+        async function signUp() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                log(`🔄 A registar utilizador: ${email}`);
+                const { data, error } = await supabase.auth.signUp({ email, password });
+                
+                if (error) throw error;
+                
+                if (data.user && !data.session) {
+                    log('📧 Verificação de email necessária');
+                } else {
+                    log('✅ Registo bem-sucedido');
+                }
+            } catch (error) {
+                log(`❌ Erro no registo: ${error.message}`);
+            }
+        }
+
+        async function signIn() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                log(`🔄 A autenticar utilizador: ${email}`);
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                
+                if (error) throw error;
+                
+                log('✅ Autenticação bem-sucedida');
+            } catch (error) {
+                log(`❌ Erro na autenticação: ${error.message}`);
+            }
+        }
+
+        async function signOut() {
+            try {
+                log('🔄 A terminar sessão...');
+                const { error } = await supabase.auth.signOut();
+                
+                if (error) throw error;
+                
+                log('✅ Sessão terminada');
+            } catch (error) {
+                log(`❌ Erro ao terminar sessão: ${error.message}`);
+            }
+        }
+
+        async function testInvite() {
+            if (!currentUser) {
+                log('❌ Não é possível enviar convite - utilizador não autenticado');
+                return;
+            }
+
+            const email = document.getElementById('invite-email').value;
+            const role = document.getElementById('invite-role').value;
+            const inviteDiv = document.getElementById('invite-status');
+            
+            try {
+                log(`🔄 A enviar convite para: ${email} com role: ${role}`);
+                
+                // Verificar sessão antes da chamada RPC
+                const { data: { session } } = await supabase.auth.getSession();
+                log(`🔍 Sessão actual: ${session ? 'Válida' : 'Inválida'}`);
+                
+                if (!session) {
+                    throw new Error('Sessão inválida');
+                }
+                
+                // Chamar a função RPC
+                const { data, error } = await supabase.rpc('invite_family_member_by_email_safe', {
+                    p_email: email,
+                    p_role: role
+                });
+                
+                if (error) {
+                    log(`❌ Erro RPC: ${JSON.stringify(error, null, 2)}`);
+                    throw error;
+                }
+                
+                log(`✅ Resposta RPC: ${JSON.stringify(data, null, 2)}`);
+                
+                if (data.success) {
+                    inviteDiv.innerHTML = `<span class="success">✅ Convite enviado com sucesso!</span>`;
+                    log('✅ Convite enviado com sucesso');
+                } else {
+                    inviteDiv.innerHTML = `<span class="error">❌ Erro: ${data.error}</span>`;
+                    log(`❌ Erro no convite: ${data.error}`);
+                }
+                
+            } catch (error) {
+                inviteDiv.innerHTML = `<span class="error">❌ Erro: ${error.message}</span>`;
+                log(`❌ Erro no teste de convite: ${error.message}`);
+                log(`🔍 Detalhes do erro: ${JSON.stringify(error, null, 2)}`);
+            }
+        }
+
+        // Inicializar quando a página carregar
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

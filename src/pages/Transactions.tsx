@@ -16,6 +16,7 @@ import { useTransactions } from '../hooks/useTransactionsQuery';
 import { useAccountsDomain } from '../hooks/useAccountsQuery';
 import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { useAuth } from '../contexts/AuthContext';
+import { useFamily } from '../features/family/FamilyContext';
 // exportReport será carregado dinamicamente no ponto de uso
 import { formatCurrency } from '../lib/utils';
 import { useToast } from '../hooks/use-toast';
@@ -41,6 +42,7 @@ const TransactionsPage = () => {
   const { data: accounts = [] } = useAccountsDomain();
   const { data: categories = [] } = useCategoriesDomain();
   const { user } = useAuth();
+  const { canEdit, canDelete } = useFamily();
   const { toast } = useToast();
 
   // Forçar atualização quando o modal fecha
@@ -164,10 +166,12 @@ const TransactionsPage = () => {
             <Download className="h-4 w-4 mr-2" />
             {isExporting ? 'A exportar...' : 'Exportar'}
           </Button>
-          <Button onClick={handleNew}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Transação
-          </Button>
+          {canEdit('transaction') && (
+            <Button onClick={handleNew} aria-label="Criar nova transação">
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Transação
+            </Button>
+          )}
         </div>
       </div>
 

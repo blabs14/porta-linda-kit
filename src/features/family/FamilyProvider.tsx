@@ -697,16 +697,39 @@ export const FamilyProvider: React.FC<FamilyProviderProps> = ({ children }) => {
   // Funções de permissão
   const canEdit = (resourceType: 'account' | 'goal' | 'budget' | 'transaction' | 'member') => {
     if (!myRole) return false;
-    if (myRole === 'owner' || myRole === 'admin') return true;
-    if (myRole === 'member' && ['account', 'goal', 'budget', 'transaction'].includes(resourceType)) return true;
-    return false;
+    
+    switch (myRole) {
+      case 'owner':
+      case 'admin':
+        return true;
+      case 'member':
+        // Membros podem editar contas, objetivos, orçamentos e transações, mas não outros membros
+        return ['account', 'goal', 'budget', 'transaction'].includes(resourceType);
+      case 'viewer':
+        // Viewers não podem editar nada
+        return false;
+      default:
+        return false;
+    }
   };
 
   const canDelete = (resourceType: 'account' | 'goal' | 'budget' | 'transaction' | 'member') => {
     if (!myRole) return false;
-    if (myRole === 'owner') return true;
-    if (myRole === 'admin' && resourceType !== 'member') return true;
-    return false;
+    
+    switch (myRole) {
+      case 'owner':
+        // Owners podem eliminar tudo
+        return true;
+      case 'admin':
+        // Admins podem eliminar tudo exceto outros membros
+        return resourceType !== 'member';
+      case 'member':
+      case 'viewer':
+        // Membros e viewers não podem eliminar nada
+        return false;
+      default:
+        return false;
+    }
   };
 
   // Função para refazer todas as queries

@@ -136,7 +136,7 @@ export default function AccountsPage() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <p className="text-destructive mb-4">Erro ao carregar contas</p>
-          <Button onClick={() => refetch()} variant="outline">
+          <Button onClick={() => refetch()} variant="outline" aria-label="Atualizar lista de contas">
             Tentar novamente
           </Button>
         </div>
@@ -172,7 +172,7 @@ export default function AccountsPage() {
           <p className="text-muted-foreground mb-4">
             Comece criando sua primeira conta para começar a gerir suas finanças.
           </p>
-          <Button onClick={handleNew}>
+          <Button onClick={handleNew} aria-label="Criar nova conta bancária">
             <Plus className="h-4 w-4 mr-2" />
             Criar Primeira Conta
           </Button>

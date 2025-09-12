@@ -3,6 +3,7 @@
 
 import { supabase } from '../../../lib/supabaseClient';
 import type { PayrollDeductionConditions, LegalTable } from '../types';
+import { isValidUUID } from '@/lib/validation';
 
 // Tipos para as estruturas de dados das tabelas legais
 interface IRSBracket {
@@ -43,6 +44,11 @@ export async function getDeductionConditions(
   userId: string,
   contractId: string
 ): Promise<PayrollDeductionConditions | null> {
+  // Validar se o contractId é um UUID válido
+  if (!isValidUUID(contractId)) {
+    throw new Error('ID do contrato deve ser um UUID válido');
+  }
+
   const { data, error } = await supabase
     .from('payroll_deduction_conditions')
     .select('*')
@@ -135,6 +141,10 @@ export async function inferDeductionRates(
   contractId: string,
   grossSalary: number // em euros
 ): Promise<DeductionInferenceResult> {
+  // Validar se o contractId é um UUID válido
+  if (!isValidUUID(contractId)) {
+    throw new Error('ID do contrato deve ser um UUID válido');
+  }
   const warnings: string[] = [];
   
   // 1. Obter condições configuradas

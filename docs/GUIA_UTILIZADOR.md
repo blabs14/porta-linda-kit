@@ -1,8 +1,8 @@
-# 📖 Guia do Utilizador - Porta Linda Kit
+# 📖 Guia do Utilizador - Family Flow Finance
 
 ## 🎯 Visão Geral
 
-O **Porta Linda Kit** é uma aplicação completa de gestão financeira familiar que permite controlar contas, transações, orçamentos, objetivos e folha de pagamento de forma integrada e segura.
+O **Family Flow Finance** é uma aplicação completa de gestão financeira familiar que permite controlar contas, transações, orçamentos, objetivos e folha de pagamento de forma integrada e segura.
 
 ---
 

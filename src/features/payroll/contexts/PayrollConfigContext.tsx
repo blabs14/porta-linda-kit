@@ -5,6 +5,7 @@ import { holidayAutoService } from '../services/holidayAutoService';
 import { toast } from '@/hooks/use-toast';
 import { useActiveContract } from '../hooks/useActiveContract';
 import { useAuth } from '@/contexts/AuthContext';
+import { isValidUUID } from '@/lib/validation';
 
 // Types
 export interface PayrollContract {
@@ -227,8 +228,36 @@ export function PayrollConfigProvider({ children }: { children: React.ReactNode 
     dispatch({ type: 'SET_LOADING', payload: true });
     dispatch({ type: 'CLEAR_ERROR', payload: 'contract' });
 
-    if (!contractId || typeof contractId !== 'string') {
-      throw new Error('ID do contrato inválido');
+    // Debug: log do contractId recebido
+    console.log('🔧 loadContractConfigurations - contractId recebido:', {
+      contractId,
+      type: typeof contractId,
+      length: contractId?.length,
+      trimmed: contractId?.trim(),
+      trimmedLength: contractId?.trim()?.length
+    });
+
+    // Validação do contractId
+    if (!contractId || typeof contractId !== 'string' || contractId.trim().length === 0) {
+      console.error('🔧 loadContractConfigurations - Validação falhou:', { contractId, type: typeof contractId });
+      const error = new Error('ID do contrato inválido');
+      dispatch({ type: 'SET_ERROR', payload: { type: 'contract', message: error.message } });
+      throw error;
+    }
+    
+    // Validação UUID rigorosa
+    const isUUIDValid = isValidUUID(contractId);
+    console.log('🔧 loadContractConfigurations - Validação UUID:', {
+      contractId,
+      isUUIDValid,
+      contractIdAfterTrim: contractId.trim()
+    });
+    
+    if (!isUUIDValid) {
+      console.error('🔧 loadContractConfigurations - UUID inválido:', { contractId, trimmed: contractId.trim() });
+      const error = new Error(`ID do contrato deve ser um UUID válido: ${contractId}`);
+      dispatch({ type: 'SET_ERROR', payload: { type: 'contract', message: error.message } });
+      throw error;
     }
 
     try {
@@ -252,7 +281,7 @@ export function PayrollConfigProvider({ children }: { children: React.ReactNode 
       const status: ConfigurationStatus = {
         contract: true,
         deductions: deductions.length > 0,
-        overtime: otPolicies.length > 0,
+        overtime: true, // Horas extras são agora opcionais - sempre válidas
         meal_allowance: mealAllowances.length > 0,
         bonuses: bonuses.length > 0,
         holidays: false, // Will be updated by holiday sync
@@ -266,10 +295,36 @@ export function PayrollConfigProvider({ children }: { children: React.ReactNode 
     }
   }, []);
 
-  // When active contract changes, load its configurations
+  // Load configurations when active contract changes
   useEffect(() => {
-    if (activeContract?.id) {
-      loadContractConfigurations(activeContract.id);
+    console.log('🔧 useEffect - activeContract mudou:', {
+      activeContract,
+      id: activeContract?.id,
+      idType: typeof activeContract?.id,
+      idLength: activeContract?.id?.length,
+      idTrimmed: activeContract?.id?.trim(),
+      idTrimmedLength: activeContract?.id?.trim()?.length
+    });
+    
+    if (activeContract?.id && typeof activeContract.id === 'string' && activeContract.id.trim().length > 0) {
+      // Validação adicional antes de carregar configurações
+      const contractId = activeContract.id.trim();
+      console.log('🔧 useEffect - Preparando para carregar configurações:', {
+        originalId: activeContract.id,
+        trimmedId: contractId,
+        isValid: contractId && contractId !== 'undefined' && contractId !== 'null'
+      });
+      
+      if (contractId && contractId !== 'undefined' && contractId !== 'null') {
+        loadContractConfigurations(contractId).catch((error) => {
+          console.error('Erro ao carregar configurações do contrato:', error);
+          dispatch({ type: 'SET_ERROR', payload: { type: 'contract', message: error.message } });
+        });
+      } else {
+        console.warn('🔧 useEffect - contractId inválido detectado:', { contractId: activeContract.id });
+      }
+    } else {
+      console.log('🔧 useEffect - activeContract não válido ou sem ID:', { activeContract });
     }
   }, [activeContract, loadContractConfigurations]);
 
@@ -279,10 +334,17 @@ export function PayrollConfigProvider({ children }: { children: React.ReactNode 
     dispatch({ type: 'CLEAR_VALIDATION_ERRORS', payload: 'contract' });
 
     try {
+      console.log('🔧 saveContract - Dados do contrato a guardar:', contractData);
       const savedContract = await payrollService.saveContract(contractData);
+      console.log('🔧 saveContract - Contrato guardado:', {
+        id: savedContract?.id,
+        type: typeof savedContract?.id,
+        fullContract: savedContract
+      });
       
       // Set as active contract (this will trigger contracts refresh in ActiveContractContext)
       setActiveContract(savedContract);
+      console.log('🔧 saveContract - setActiveContract chamado com:', savedContract?.id);
       
       toast({
         title: 'Sucesso',
@@ -357,8 +419,8 @@ export function PayrollConfigProvider({ children }: { children: React.ReactNode 
       
       dispatch({ type: 'SET_OT_POLICIES', payload: updatedPolicies });
       
-      // Update configuration status
-      const newStatus = { ...state.configurationStatus, overtime: updatedPolicies.length > 0 };
+      // Update configuration status - overtime sempre válido agora
+      const newStatus = { ...state.configurationStatus, overtime: true };
       dispatch({ type: 'SET_CONFIGURATION_STATUS', payload: newStatus });
       
       toast({

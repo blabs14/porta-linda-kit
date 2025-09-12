@@ -43,11 +43,11 @@ export interface FamilyNotification {
   id: string;
   user_id: string;
   family_id?: string;
-  title: string;
-  message: string;
-  type: string;
+  titulo: string;
+  mensagem: string;
+  tipo: string;
   category?: string;
-  read: boolean | null;
+  lida: boolean | null;
   created_at: string | null;
   updated_at?: string | null;
   metadata?: Record<string, unknown> | null;

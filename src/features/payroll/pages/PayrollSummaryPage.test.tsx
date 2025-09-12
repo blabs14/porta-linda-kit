@@ -321,17 +321,17 @@ describe('PayrollSummaryPage - Automatic Overtime Integration', () => {
       );
     });
 
-    it('should handle missing overtime policy gracefully', async () => {
+    it('should handle missing overtime policy gracefully (now optional)', async () => {
       mockPayrollService.getActiveOTPolicy.mockResolvedValue(null);
 
       renderComponent();
 
       await waitFor(() => {
-        // Should show message about missing policy
-        expect(screen.getByText(/política de horas extras não configurada/i)).toBeInTheDocument();
+        // Should NOT show error message since policy is now optional
+        expect(screen.queryByText(/política de horas extras não configurada/i)).not.toBeInTheDocument();
       });
 
-      // Should fallback to traditional calculation
+      // Should still calculate payroll normally without overtime
       expect(mockCalculatePayroll).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'user1',

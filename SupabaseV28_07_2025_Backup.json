@@ -4,7 +4,7 @@
     "project_id": "ebitcwrrcumsvqjgrapw",
     "project_name": "Meu_Dinheiro",
     "backup_date": "2025-07-28T02:30:00Z",
-    "description": "Backup completo do Supabase - Porta Linda Kit - Sistema de Gestão Financeira Familiar"
+    "description": "Backup completo do Supabase - Family Flow Finance - Sistema de Gestão Financeira Familiar"
   },
   "database_schema": {
     "tables": [
@@ -599,4 +599,4 @@
     "total_family_members": 4,
     "total_audit_logs": 59
   }
-} 
+}

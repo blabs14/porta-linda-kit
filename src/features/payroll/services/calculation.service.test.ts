@@ -320,15 +320,18 @@ describe('PayrollCalculationService', () => {
       await expect(service.calculate(input)).rejects.toThrow('Contrato é obrigatório');
     });
 
-    it('deve validar política de horas extras obrigatória', async () => {
+    it('deve aceitar política de horas extras opcional', async () => {
       const input = {
         contract: mockContract,
         timeEntries: mockTimeEntries,
-        otPolicy: null,
+        otPolicy: null, // Política agora é opcional
         holidays: mockHolidays
       };
 
-      await expect(service.calculate(input)).rejects.toThrow('Política de horas extras é obrigatória');
+      // Deve calcular sem erro, mas sem horas extras
+      const result = await service.calculate(input);
+      expect(result.calculation.overtimeHours).toBe(0);
+      expect(result.calculation.overtimePay).toBe(0);
     });
 
     it('deve validar viagens de quilometragem', async () => {

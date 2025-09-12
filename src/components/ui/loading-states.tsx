@@ -77,8 +77,8 @@ export const TableRowSkeleton: React.FC<{ columns?: number }> = ({
   return (
     <div className="flex items-center space-x-4 p-4">
       {Array.from({ length: columns }).map((_, index) => (
-        <Skeleton 
-          key={index} 
+          <div
+            key={`skeleton-column-${index}`} 
           className="h-4 flex-1" 
         />
       ))}
@@ -149,11 +149,11 @@ export const ListLoading: React.FC<{
     return (
       <div className="space-y-4">
         {Array.from({ length: itemCount }).map((_, index) => (
-          <CardSkeleton key={index} />
+        <CardSkeleton key={`card-skeleton-${index}`} />
         ))}
       </div>
     );
   }
   
   return <>{children}</>;
-}; 
+};

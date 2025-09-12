@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { withContext, maskId } from '@/shared/lib/logger';
+import { isValidUUID } from '@/lib/validation';
 
 interface PayrollLeavesManagerProps {
   contractId?: string;
@@ -88,6 +89,16 @@ export function PayrollLeavesManager({ contractId }: PayrollLeavesManagerProps) 
       toast({
         title: 'Erro',
         description: 'ID do contrato não fornecido.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Validar se o contractId é um UUID válido
+    if (!isValidUUID(contractId)) {
+      toast({
+        title: 'Erro',
+        description: 'ID do contrato deve ser um UUID válido. Por favor, selecione um contrato válido.',
         variant: 'destructive'
       });
       return;

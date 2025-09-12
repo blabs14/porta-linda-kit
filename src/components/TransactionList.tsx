@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useFamily } from '../features/family/FamilyContext';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from './ui/table';
 import { Button } from './ui/button';
 import { LoadingSpinner } from './ui/loading-states';
@@ -48,6 +49,7 @@ const TransactionList = ({
   const { accounts, categories } = useReferenceData();
   const deleteTransactionMutation = useDeleteTransaction();
   const confirmation = useConfirmation();
+  const { canEdit, canDelete } = useFamily();
   const { toast } = useToast();
   
   // Debug: Component rendered
@@ -622,7 +624,7 @@ const TransactionList = ({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end space-x-2">
-                        {onEdit && (
+                        {onEdit && canEdit('transaction') && (
                           <button
                             onClick={() => onEdit(transaction)}
                             className="text-gray-500 hover:text-gray-700 p-1"
@@ -632,15 +634,17 @@ const TransactionList = ({
                             <Edit className="h-4 w-4" />
                           </button>
                         )}
-                        <button
-                          onClick={() => handleDelete(transaction.id)}
-                          className="text-red-500 hover:text-red-700 p-1"
-                          disabled={deleteTransactionMutation.isPending}
-                          title="Eliminar"
-                          aria-label="Eliminar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {canDelete('transaction') && (
+                          <button
+                            onClick={() => handleDelete(transaction.id)}
+                            className="text-red-500 hover:text-red-700 p-1"
+                            disabled={deleteTransactionMutation.isPending}
+                            title="Eliminar"
+                            aria-label="Eliminar"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

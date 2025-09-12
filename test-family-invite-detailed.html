@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Detalhado - Convites Familiares</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { margin: 5px; padding: 10px 15px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .log-entry { margin: 5px 0; padding: 5px; border-left: 3px solid #007bff; }
+    </style>
+</head>
+<body>
+    <h1>Teste Detalhado - Sistema de Convites Familiares</h1>
+    
+    <div class="test-section info">
+        <h3>Configuração</h3>
+        <p>URL: <span id="supabase-url">Carregando...</span></p>
+        <p>Status: <span id="connection-status">Verificando...</span></p>
+        <p>Usuário: <span id="user-info">Não autenticado</span></p>
+    </div>
+
+    <div class="test-section">
+        <h3>Autenticação</h3>
+        <input type="email" id="email" placeholder="Email" value="test@example.com">
+        <input type="password" id="password" placeholder="Password" value="password123">
+        <button onclick="signIn()">Entrar</button>
+        <button onclick="signOut()">Sair</button>
+    </div>
+
+    <div class="test-section">
+        <h3>Dados da Família</h3>
+        <button onclick="loadFamilyData()">Carregar Dados da Família</button>
+        <div id="family-data"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Teste de Convite</h3>
+        <input type="email" id="invite-email" placeholder="Email para convidar" value="novo@example.com">
+        <select id="invite-role">
+            <option value="member">Membro</option>
+            <option value="admin">Administrador</option>
+        </select>
+        <button onclick="testInviteDirectRPC()">Teste RPC Direto</button>
+        <button onclick="testInviteService()">Teste via Service</button>
+        <button onclick="testInviteValidation()">Teste Validação</button>
+    </div>
+
+    <div class="test-section">
+        <h3>Logs de Teste</h3>
+        <button onclick="clearLogs()">Limpar Logs</button>
+        <div id="logs"></div>
+    </div>
+
+    <script>
+        let supabase;
+        let currentUser = null;
+        let currentFamily = null;
+
+        // Configuração do Supabase
+        const SUPABASE_URL = 'https://hnqkqjqjqjqjqjqjqjqj.supabase.co'; // Substitua pela sua URL
+        const SUPABASE_ANON_KEY = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...'; // Substitua pela sua chave
+
+        function initSupabase() {
+            try {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                document.getElementById('supabase-url').textContent = SUPABASE_URL;
+                document.getElementById('connection-status').textContent = 'Conectado';
+                log('✅ Supabase inicializado com sucesso', 'success');
+            } catch (error) {
+                log('❌ Erro ao inicializar Supabase: ' + error.message, 'error');
+                document.getElementById('connection-status').textContent = 'Erro de conexão';
+            }
+        }
+
+        async function signIn() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                log('🔄 Tentando autenticar...', 'info');
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                
+                if (error) {
+                    log('❌ Erro de autenticação: ' + error.message, 'error');
+                    return;
+                }
+                
+                currentUser = data.user;
+                document.getElementById('user-info').textContent = `${currentUser.email} (${currentUser.id})`;
+                log('✅ Autenticado com sucesso: ' + currentUser.email, 'success');
+                
+                // Carregar dados da família automaticamente
+                await loadFamilyData();
+                
+            } catch (error) {
+                log('❌ Erro inesperado na autenticação: ' + error.message, 'error');
+            }
+        }
+
+        async function signOut() {
+            try {
+                await supabase.auth.signOut();
+                currentUser = null;
+                currentFamily = null;
+                document.getElementById('user-info').textContent = 'Não autenticado';
+                document.getElementById('family-data').innerHTML = '';
+                log('✅ Logout realizado com sucesso', 'success');
+            } catch (error) {
+                log('❌ Erro no logout: ' + error.message, 'error');
+            }
+        }
+
+        async function loadFamilyData() {
+            if (!currentUser) {
+                log('❌ Usuário não autenticado', 'error');
+                return;
+            }
+
+            try {
+                log('🔄 Carregando dados da família...', 'info');
+                
+                // Buscar família do usuário
+                const { data: familyData, error: familyError } = await supabase
+                    .from('family_members')
+                    .select(`
+                        family_id,
+                        role,
+                        families!inner (
+                            id,
+                            name,
+                            description
+                        )
+                    `)
+                    .eq('user_id', currentUser.id)
+                    .single();
+
+                if (familyError) {
+                    log('❌ Erro ao carregar família: ' + familyError.message, 'error');
+                    return;
+                }
+
+                currentFamily = familyData.families;
+                currentFamily.userRole = familyData.role;
+                
+                // Buscar convites pendentes
+                const { data: invites, error: invitesError } = await supabase
+                    .from('family_invites')
+                    .select('*')
+                    .eq('family_id', currentFamily.id);
+
+                if (invitesError) {
+                    log('⚠️ Erro ao carregar convites: ' + invitesError.message, 'error');
+                }
+
+                const familyInfo = `
+                    <h4>Família: ${currentFamily.name}</h4>
+                    <p>ID: ${currentFamily.id}</p>
+                    <p>Seu papel: ${currentFamily.userRole}</p>
+                    <p>Convites pendentes: ${invites ? invites.length : 'N/A'}</p>
+                    <pre>${JSON.stringify({ family: currentFamily, invites }, null, 2)}</pre>
+                `;
+                
+                document.getElementById('family-data').innerHTML = familyInfo;
+                log('✅ Dados da família carregados com sucesso', 'success');
+                
+            } catch (error) {
+                log('❌ Erro inesperado ao carregar família: ' + error.message, 'error');
+            }
+        }
+
+        async function testInviteDirectRPC() {
+            if (!currentUser || !currentFamily) {
+                log('❌ Usuário ou família não carregados', 'error');
+                return;
+            }
+
+            const email = document.getElementById('invite-email').value;
+            const role = document.getElementById('invite-role').value;
+
+            if (!email) {
+                log('❌ Email é obrigatório', 'error');
+                return;
+            }
+
+            try {
+                log('🔄 Testando RPC direto: invite_family_member_by_email_safe', 'info');
+                log(`📧 Email: ${email}, Role: ${role}, Family: ${currentFamily.id}`, 'info');
+                
+                const { data, error } = await supabase.rpc('invite_family_member_by_email_safe', {
+                    p_family_id: currentFamily.id,
+                    p_email: email,
+                    p_role: role
+                });
+
+                if (error) {
+                    log('❌ Erro na RPC: ' + JSON.stringify(error, null, 2), 'error');
+                    return;
+                }
+
+                log('✅ RPC executada com sucesso: ' + JSON.stringify(data, null, 2), 'success');
+                
+                // Recarregar dados da família
+                await loadFamilyData();
+                
+            } catch (error) {
+                log('❌ Erro inesperado na RPC: ' + error.message, 'error');
+            }
+        }
+
+        async function testInviteService() {
+            if (!currentUser || !currentFamily) {
+                log('❌ Usuário ou família não carregados', 'error');
+                return;
+            }
+
+            const email = document.getElementById('invite-email').value;
+            const role = document.getElementById('invite-role').value;
+
+            if (!email) {
+                log('❌ Email é obrigatório', 'error');
+                return;
+            }
+
+            try {
+                log('🔄 Testando via service layer (simulação)', 'info');
+                
+                // Simular a função inviteFamilyMember
+                const response = await fetch('/api/family/invite', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+                    },
+                    body: JSON.stringify({
+                        familyId: currentFamily.id,
+                        email: email,
+                        role: role
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    log('❌ Erro no service: ' + JSON.stringify(errorData, null, 2), 'error');
+                    return;
+                }
+
+                const data = await response.json();
+                log('✅ Service executado com sucesso: ' + JSON.stringify(data, null, 2), 'success');
+                
+            } catch (error) {
+                log('❌ Erro inesperado no service: ' + error.message, 'error');
+            }
+        }
+
+        async function testInviteValidation() {
+            const email = document.getElementById('invite-email').value;
+            const role = document.getElementById('invite-role').value;
+
+            log('🔄 Testando validações...', 'info');
+
+            // Validação de email
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                log('❌ Email inválido: ' + email, 'error');
+                return;
+            }
+            log('✅ Email válido: ' + email, 'success');
+
+            // Validação de role
+            const validRoles = ['member', 'admin', 'owner'];
+            if (!validRoles.includes(role)) {
+                log('❌ Role inválido: ' + role, 'error');
+                return;
+            }
+            log('✅ Role válido: ' + role, 'success');
+
+            // Verificar se usuário tem permissão
+            if (!currentFamily || !['owner', 'admin'].includes(currentFamily.userRole)) {
+                log('❌ Usuário não tem permissão para convidar (role atual: ' + (currentFamily?.userRole || 'N/A') + ')', 'error');
+                return;
+            }
+            log('✅ Usuário tem permissão para convidar', 'success');
+
+            log('✅ Todas as validações passaram', 'success');
+        }
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            
+            const logsContainer = document.getElementById('logs');
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        // Inicializar quando a página carregar
+        window.onload = function() {
+            initSupabase();
+            
+            // Verificar se já está autenticado
+            supabase.auth.onAuthStateChange((event, session) => {
+                if (session?.user) {
+                    currentUser = session.user;
+                    document.getElementById('user-info').textContent = `${currentUser.email} (${currentUser.id})`;
+                    loadFamilyData();
+                } else {
+                    currentUser = null;
+                    currentFamily = null;
+                    document.getElementById('user-info').textContent = 'Não autenticado';
+                }
+            });
+        };
+    </script>
+</body>
+</html>

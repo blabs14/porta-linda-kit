@@ -1,4 +1,4 @@
-# Onboarding & Gestão de Roles — Porta Linda Kit
+# Onboarding & Gestão de Roles — Family Flow Finance
 
 ## 1. Onboarding de Novos Developers
 
@@ -96,4 +96,4 @@ VITE_SUPABASE_ANON_KEY=xxxxxx
 
 ---
 
-> **Mantém este ficheiro atualizado sempre que houver alterações nos fluxos de onboarding, roles ou permissões!** 
+> **Mantém este ficheiro atualizado sempre que houver alterações nos fluxos de onboarding, roles ou permissões!**

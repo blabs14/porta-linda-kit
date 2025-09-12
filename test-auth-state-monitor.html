@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Estado de Autenticação - Convites Familiares</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px;
+        }
+        .log-auth { color: #007bff; }
+        .log-rpc { color: #28a745; }
+        .log-error { color: #dc3545; }
+        .log-warning { color: #ffc107; }
+        input, select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Monitor de Estado de Autenticação - Convites Familiares</h1>
+        <p>Este teste monitora especificamente os eventos de auth state change durante convites familiares.</p>
+    </div>
+
+    <div class="container">
+        <h2>📊 Estado Atual</h2>
+        <div id="currentStatus" class="status info">Inicializando...</div>
+        <div id="userInfo"></div>
+        <div id="sessionInfo"></div>
+    </div>
+
+    <div class="container">
+        <h2>🔐 Autenticação</h2>
+        <div>
+            <input type="email" id="email" placeholder="Email" value="teste2@teste">
+            <input type="password" id="password" placeholder="Password" value="teste14">
+            <button onclick="login()">Login</button>
+            <button onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>👥 Teste de Convite Familiar</h2>
+        <div>
+            <input type="text" id="familyId" placeholder="Family ID" value="">
+            <input type="email" id="inviteEmail" placeholder="Email para convidar" value="teste3@teste.com">
+            <select id="inviteRole">
+                <option value="member">Membro</option>
+                <option value="admin">Admin</option>
+            </select>
+            <button onclick="sendInvite()" id="inviteBtn">Enviar Convite</button>
+        </div>
+        <div id="inviteResult"></div>
+    </div>
+
+    <div class="container">
+        <h2>📋 Log de Eventos de Autenticação</h2>
+        <button onclick="clearLog()">Limpar Log</button>
+        <div id="authLog" class="log"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://hnqkqjqjqjqjqjqjqjqj.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhucWtxanFqcWpxanFqcWpxanFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5NzI4MDAsImV4cCI6MjA1MDU0ODgwMH0.example';
+        
+        // Usar as credenciais reais do projeto
+        const supabase = window.supabase.createClient(
+            'https://hnqkqjqjqjqjqjqjqjqj.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhucWtxanFqcWpxanFqcWpxanFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ5NzI4MDAsImV4cCI6MjA1MDU0ODgwMH0.example'
+        );
+
+        let authStateChanges = [];
+        let currentUser = null;
+        let currentSession = null;
+
+        function logEvent(message, type = 'info', data = null) {
+            const timestamp = new Date().toISOString();
+            const logEntry = {
+                timestamp,
+                message,
+                type,
+                data
+            };
+            
+            console.log(`[${timestamp}] [${type.toUpperCase()}] ${message}`, data || '');
+            
+            const logDiv = document.getElementById('authLog');
+            const entryDiv = document.createElement('div');
+            entryDiv.className = `log-entry log-${type}`;
+            entryDiv.innerHTML = `<strong>[${timestamp}]</strong> [${type.toUpperCase()}] ${message}`;
+            if (data) {
+                entryDiv.innerHTML += `<br><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            }
+            logDiv.appendChild(entryDiv);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus() {
+            const statusDiv = document.getElementById('currentStatus');
+            const userDiv = document.getElementById('userInfo');
+            const sessionDiv = document.getElementById('sessionInfo');
+            
+            if (currentUser) {
+                statusDiv.className = 'status success';
+                statusDiv.textContent = '✅ Autenticado';
+                userDiv.innerHTML = `<strong>Utilizador:</strong> ${currentUser.email} (ID: ${currentUser.id})`;
+                sessionDiv.innerHTML = `<strong>Sessão:</strong> Ativa (Expira: ${currentSession?.expires_at ? new Date(currentSession.expires_at * 1000).toLocaleString() : 'N/A'})`;
+            } else {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Não autenticado';
+                userDiv.innerHTML = '';
+                sessionDiv.innerHTML = '';
+            }
+        }
+
+        // Monitor de mudanças de estado de autenticação
+        supabase.auth.onAuthStateChange((event, session) => {
+            const eventData = {
+                event,
+                hasSession: !!session,
+                userId: session?.user?.id || null,
+                userEmail: session?.user?.email || null,
+                expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
+                accessTokenLength: session?.access_token?.length || 0
+            };
+            
+            authStateChanges.push({
+                timestamp: new Date().toISOString(),
+                event,
+                session: session ? {
+                    userId: session.user?.id,
+                    email: session.user?.email,
+                    expiresAt: session.expires_at
+                } : null
+            });
+            
+            logEvent(`Auth State Change: ${event}`, 'auth', eventData);
+            
+            currentUser = session?.user || null;
+            currentSession = session;
+            updateStatus();
+        });
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            logEvent('Iniciando login...', 'info', { email });
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email,
+                    password
+                });
+                
+                if (error) {
+                    logEvent('Erro no login', 'error', error);
+                    document.getElementById('currentStatus').className = 'status error';
+                    document.getElementById('currentStatus').textContent = `❌ Erro: ${error.message}`;
+                } else {
+                    logEvent('Login bem-sucedido', 'success', {
+                        userId: data.user?.id,
+                        email: data.user?.email
+                    });
+                    
+                    // Carregar família do utilizador
+                    await loadUserFamily();
+                }
+            } catch (error) {
+                logEvent('Exceção durante login', 'error', error);
+            }
+        }
+
+        async function logout() {
+            logEvent('Iniciando logout...', 'info');
+            
+            try {
+                const { error } = await supabase.auth.signOut();
+                
+                if (error) {
+                    logEvent('Erro no logout', 'error', error);
+                } else {
+                    logEvent('Logout bem-sucedido', 'success');
+                }
+            } catch (error) {
+                logEvent('Exceção durante logout', 'error', error);
+            }
+        }
+
+        async function loadUserFamily() {
+            logEvent('Carregando família do utilizador...', 'info');
+            
+            try {
+                const { data, error } = await supabase.rpc('get_user_family');
+                
+                if (error) {
+                    logEvent('Erro ao carregar família', 'error', error);
+                } else if (data && data.length > 0) {
+                    const family = data[0];
+                    document.getElementById('familyId').value = family.id;
+                    logEvent('Família carregada', 'success', {
+                        familyId: family.id,
+                        familyName: family.name,
+                        userRole: family.role
+                    });
+                } else {
+                    logEvent('Nenhuma família encontrada', 'warning');
+                }
+            } catch (error) {
+                logEvent('Exceção ao carregar família', 'error', error);
+            }
+        }
+
+        async function sendInvite() {
+            const familyId = document.getElementById('familyId').value;
+            const email = document.getElementById('inviteEmail').value;
+            const role = document.getElementById('inviteRole').value;
+            
+            if (!familyId || !email) {
+                logEvent('Family ID e email são obrigatórios', 'error');
+                return;
+            }
+            
+            const inviteBtn = document.getElementById('inviteBtn');
+            inviteBtn.disabled = true;
+            inviteBtn.textContent = 'Enviando...';
+            
+            logEvent('=== INÍCIO DO TESTE DE CONVITE ===', 'info');
+            logEvent('Verificando estado antes do convite...', 'info', {
+                hasUser: !!currentUser,
+                hasSession: !!currentSession,
+                userId: currentUser?.id,
+                familyId,
+                email,
+                role
+            });
+            
+            try {
+                // Verificar utilizador antes da chamada RPC
+                const { data: userBefore } = await supabase.auth.getUser();
+                logEvent('Estado do utilizador ANTES da RPC', 'info', {
+                    hasUser: !!userBefore.user,
+                    userId: userBefore.user?.id,
+                    email: userBefore.user?.email
+                });
+                
+                // Fazer a chamada RPC
+                logEvent('Enviando convite via RPC...', 'rpc', {
+                    function: 'invite_family_member_by_email_safe',
+                    params: { p_family_id: familyId, p_email: email, p_role: role }
+                });
+                
+                const { data, error } = await supabase.rpc('invite_family_member_by_email_safe', {
+                    p_family_id: familyId,
+                    p_email: email,
+                    p_role: role
+                });
+                
+                // Verificar utilizador depois da chamada RPC
+                const { data: userAfter } = await supabase.auth.getUser();
+                logEvent('Estado do utilizador DEPOIS da RPC', 'info', {
+                    hasUser: !!userAfter.user,
+                    userId: userAfter.user?.id,
+                    email: userAfter.user?.email,
+                    sessionChanged: userBefore.user?.id !== userAfter.user?.id
+                });
+                
+                if (error) {
+                    logEvent('Erro na RPC de convite', 'error', error);
+                    document.getElementById('inviteResult').innerHTML = `<div class="status error">❌ Erro: ${error.message}</div>`;
+                } else {
+                    logEvent('RPC de convite executada', 'success', data);
+                    
+                    if (data && typeof data === 'object' && 'success' in data) {
+                        if (data.success) {
+                            document.getElementById('inviteResult').innerHTML = `<div class="status success">✅ ${data.message}</div>`;
+                        } else {
+                            document.getElementById('inviteResult').innerHTML = `<div class="status error">❌ ${data.message}</div>`;
+                        }
+                    } else {
+                        document.getElementById('inviteResult').innerHTML = `<div class="status success">✅ Convite enviado</div>`;
+                    }
+                }
+                
+            } catch (error) {
+                logEvent('Exceção durante envio de convite', 'error', error);
+                document.getElementById('inviteResult').innerHTML = `<div class="status error">❌ Exceção: ${error.message}</div>`;
+            } finally {
+                inviteBtn.disabled = false;
+                inviteBtn.textContent = 'Enviar Convite';
+                logEvent('=== FIM DO TESTE DE CONVITE ===', 'info');
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('authLog').innerHTML = '';
+            authStateChanges = [];
+        }
+
+        // Inicialização
+        window.addEventListener('load', async () => {
+            logEvent('Página carregada, verificando sessão inicial...', 'info');
+            
+            try {
+                const { data, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    logEvent('Erro ao obter sessão inicial', 'error', error);
+                } else {
+                    logEvent('Sessão inicial obtida', 'info', {
+                        hasSession: !!data.session,
+                        userId: data.session?.user?.id,
+                        email: data.session?.user?.email
+                    });
+                    
+                    currentUser = data.session?.user || null;
+                    currentSession = data.session;
+                    updateStatus();
+                    
+                    if (currentUser) {
+                        await loadUserFamily();
+                    }
+                }
+            } catch (error) {
+                logEvent('Exceção ao obter sessão inicial', 'error', error);
+            }
+        });
+    </script>
+</body>
+</html>

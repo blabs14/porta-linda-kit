@@ -92,6 +92,19 @@ export function SyncedContractSelector({
           <FileText className="h-4 w-4" />
           <span>Criar novo contrato</span>
         </button>
+        
+        {/* Dialog para criação de novo contrato */}
+        <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Criar Novo Contrato</DialogTitle>
+            </DialogHeader>
+            <QuickContractForm
+              onContractCreated={handleContractCreated}
+              onCancel={handleCancelCreate}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }

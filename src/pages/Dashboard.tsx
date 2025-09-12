@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import DashboardChart from '../components/DashboardChart';
 import { 
   Wallet, 
   TrendingUp, 
@@ -99,6 +100,16 @@ export default function Dashboard() {
     percentage: ((account.saldo_atual || 0) / (dashboardData?.totalBalance || 1)) * 100
   }));
 
+  // Análise de transações por tipo
+  const transactionsByType = (() => {
+    const receitas = transactions.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + (t.valor || 0), 0);
+    const despesas = transactions.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + (t.valor || 0), 0);
+    return [
+      { name: 'Receitas', value: receitas },
+      { name: 'Despesas', value: despesas }
+    ];
+  })();
+
   const goToReports = () => navigate('/app/reports');
   const goToBudgets = () => navigate('/budgets');
   const goToTransactions = () => navigate('/personal/transactions');
@@ -164,7 +175,7 @@ export default function Dashboard() {
               <span className={balanceChange.isPositive ? 'text-green-600' : 'text-red-600'}>
                 Poupança Mensal: {balanceChange.isPositive ? '+' : '-'}{formatCurrency(balanceChange.value)}
               </span>
-              <Button variant="link" className="ml-auto h-auto p-0 text-xs" onClick={goToReports}>Ver relatórios</Button>
+              <Button variant="link" className="ml-auto h-auto p-0 text-xs" onClick={goToReports} aria-label="Ver relatórios financeiros detalhados">Ver relatórios</Button>
             </div>
           </CardContent>
         </Card>
@@ -210,7 +221,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">{activeGoals}</div>
             <div className="flex items-center mt-1">
-              <Button variant="link" className="ml-auto h-auto p-0 text-xs" onClick={() => navigate('/Goals')}>Ver objetivos</Button>
+              <Button variant="link" className="ml-auto h-auto p-0 text-xs" onClick={() => navigate('/Goals')} aria-label="Ver todos os objetivos financeiros">Ver objetivos</Button>
             </div>
           </CardContent>
         </Card>
@@ -227,7 +238,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{dashboardData.goalsProgressPercentage.toFixed(1)}%</div>
-                <Button variant="link" className="h-auto p-0 text-xs mt-1" onClick={() => navigate('/Goals')}>
+                <Button variant="link" className="h-auto p-0 text-xs mt-1" onClick={() => navigate('/Goals')} aria-label="Gerir objetivos financeiros">
                   Ver objetivos
                 </Button>
               </CardContent>
@@ -242,7 +253,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{dashboardData.budgetSpentPercentage.toFixed(1)}%</div>
-                <Button variant="link" className="h-auto p-0 text-xs mt-1" onClick={goToBudgets}>
+                <Button variant="link" className="h-auto p-0 text-xs mt-1" onClick={goToBudgets} aria-label="Gerir orçamentos mensais">
                   Ver orçamentos
                 </Button>
               </CardContent>
@@ -253,53 +264,29 @@ export default function Dashboard() {
 
       {/* Seção de Gráficos e Análises */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Distribuição de Contas */}
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <PieChart className="h-5 w-5" />
-              Distribuição por Conta
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {accountDistribution.length > 0 ? (
-              <div className="space-y-3">
-                {accountDistribution
-                  .filter(account => account.balance > 0)
-                  .sort((a, b) => b.balance - a.balance)
-                  .slice(0, 5)
-                  .map((account, index) => (
-                    <div key={account.id || `account-${index}`} className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                        <span className="text-sm font-medium">{account.name}</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-semibold">{formatCurrency(account.balance)}</div>
-                        <div className="text-xs text-muted-foreground">{account.percentage.toFixed(1)}%</div>
-                      </div>
-                    </div>
-                  ))}
-                <div className="flex justify-end">
-                  <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/accounts')}>Gerir contas</Button>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Wallet className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhuma conta encontrada</p>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-2"
-                  onClick={() => navigate('/app/accounts')}
-                >
-                  Criar Conta
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Distribuição de Contas - Gráfico */}
+        <DashboardChart
+          data={accountDistribution
+            .filter(account => account.balance > 0)
+            .sort((a, b) => b.balance - a.balance)
+            .slice(0, 8)
+            .map(account => ({
+              name: account.name,
+              value: account.balance,
+              percentage: account.percentage
+            }))}
+          title="Distribuição por Conta"
+          type="pie"
+          height={350}
+        />
+
+        {/* Receitas vs Despesas - Gráfico */}
+        <DashboardChart
+          data={transactionsByType}
+          title="Receitas vs Despesas"
+          type="bar"
+          height={350}
+        />
 
         {/* Transações Recentes */}
         <Card className="hover:shadow-md transition-shadow">
@@ -333,7 +320,7 @@ export default function Dashboard() {
                   </div>
                 ))}
                 <div className="flex justify-end">
-                  <Button variant="link" className="h-auto p-0 text-xs" onClick={goToTransactions}>Ver todas</Button>
+                  <Button variant="link" className="h-auto p-0 text-xs" onClick={goToTransactions} aria-label="Ver todas as transações">Ver todas</Button>
                 </div>
               </div>
             ) : (

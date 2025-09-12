@@ -1,6 +1,8 @@
+import { supabase } from '../../../lib/supabaseClient';
 import { payrollService } from './payrollService';
 import { deductionInferenceService } from './deductionInferenceService';
 import { holidayAutoService } from './holidayAutoService';
+import { isValidUUID } from '@/lib/validation';
 import type {
   PayrollContract,
   PayrollDeduction,
@@ -118,6 +120,11 @@ class ConfigSyncService {
    * Synchronize all configuration components for a contract
    */
   async syncConfiguration(contractId: string, options: SyncOptions = {}): Promise<SyncResult> {
+    // Validar se o contractId é um UUID válido
+    if (!isValidUUID(contractId)) {
+      throw new Error('ID do contrato deve ser um UUID válido');
+    }
+
     if (this.syncInProgress && !options.force) {
       throw new Error('Sync already in progress. Use force option to override.');
     }
@@ -283,9 +290,14 @@ class ConfigSyncService {
    * Load current configuration state for a contract
    */
   private async loadCurrentState(contractId: string): Promise<PayrollConfigState> {
-    const [contract, deductions, otPolicies, mealAllowances, bonuses] = await Promise.all([
-      payrollService.getContract(contractId),
-      payrollService.getDeductionConfigs(userId),
+    const { data: contract } = await supabase
+      .from('payroll_contracts')
+      .select('*')
+      .eq('id', contractId)
+      .single();
+
+    const [deductions, otPolicies, mealAllowances, bonuses] = await Promise.all([
+      payrollService.getDeductionConfigs(contract?.user_id),
       payrollService.getOTPoliciesByContract(contractId),
       payrollService.getMealAllowancesByContract(contractId),
       payrollService.getBonusesByContract(contractId),
@@ -413,7 +425,11 @@ class ConfigSyncService {
    */
   async onContractUpdate(contractId: string, updatedContract: PayrollContract): Promise<void> {
     // Check if workplace location changed (affects holiday sync)
-    const currentContract = await payrollService.getContract(contractId);
+    const { data: currentContract } = await supabase
+      .from('payroll_contracts')
+      .select('*')
+      .eq('id', contractId)
+      .single();
     const locationChanged = currentContract?.workplace_location !== updatedContract.workplace_location;
     
     // Check if salary changed (affects deduction inference)

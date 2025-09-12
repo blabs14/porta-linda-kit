@@ -1,4 +1,4 @@
-# Análise de Performance - Porta Linda Kit
+# Análise de Performance - Family Flow Finance
 
 ## Resumo Executivo
 O projeto foi analisado para identificar possíveis problemas de performance. O build está funcional, mas existem oportunidades de otimização.

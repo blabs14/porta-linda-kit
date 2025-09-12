@@ -5,6 +5,7 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '.
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { useAuth } from '../contexts/AuthContext';
+import { useFamily } from '../features/family/FamilyContext';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Filter } from 'lucide-react';
@@ -28,6 +29,7 @@ const AccountList = ({ onEdit }: AccountListProps) => {
   const [allocations, setAllocations] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { canEdit } = useFamily();
 
   // Filtros simples
   const [searchTerm, setSearchTerm] = useState('');
@@ -163,9 +165,11 @@ const AccountList = ({ onEdit }: AccountListProps) => {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <Button size="sm" variant="outline" onClick={() => onEdit(acc)}>
-                      Editar
-                    </Button>
+                    {canEdit('account') && (
+                      <Button size="sm" variant="outline" onClick={() => onEdit(acc)}>
+                        Editar
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               );

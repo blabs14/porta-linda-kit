@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug: Contexto de Autenticação em Convites</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .log { background: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; margin: 10px 0; border-radius: 4px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        input, select { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug: Contexto de Autenticação em Convites</h1>
+        <p>Este teste verifica especificamente o contexto de autenticação durante chamadas RPC de convites familiares.</p>
+        
+        <div class="section">
+            <h3>📊 Estado Atual</h3>
+            <div id="authStatus">Verificando...</div>
+            <button onclick="checkAuthStatus()" class="btn-primary">Verificar Estado de Autenticação</button>
+        </div>
+        
+        <div class="section">
+            <h3>🔐 Login</h3>
+            <input type="email" id="email" placeholder="Email" value="teste2@teste">
+            <input type="password" id="password" placeholder="Password" value="123456">
+            <button onclick="login()" class="btn-success">Login</button>
+            <button onclick="logout()" class="btn-danger">Logout</button>
+        </div>
+        
+        <div class="section">
+            <h3>👥 Teste de Convite com Contexto de Auth</h3>
+            <input type="email" id="inviteEmail" placeholder="Email do convite" value="debug-test@example.com">
+            <select id="inviteRole">
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+            </select>
+            <button onclick="testInviteWithAuthContext()" class="btn-primary">Testar Convite com Contexto</button>
+        </div>
+        
+        <div class="section">
+            <h3>🧪 Teste de Contexto de Sessão</h3>
+            <button onclick="testSessionContext()" class="btn-primary">Verificar Contexto de Sessão</button>
+            <button onclick="testRPCWithManualAuth()" class="btn-primary">Testar RPC com Auth Manual</button>
+        </div>
+        
+        <div class="section">
+            <h3>📋 Logs</h3>
+            <div id="logs" class="log"></div>
+            <button onclick="clearLogs()" class="btn-danger">Limpar Logs</button>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2';
+        
+        const supabaseUrl = 'https://ztpkpjqmkqfqfqfqfqfq.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0cGtwanFta3FmcWZxZnFmcWZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjEyNDQ2NzQsImV4cCI6MjAzNjgyMDY3NH0.Hs_7dQZKn7TjmNQKWI7VQI7VQI7VQI7VQI7VQI7VQI7VQI';
+        
+        const supabase = createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true,
+                detectSessionInUrl: true,
+                flowType: 'pkce'
+            }
+        });
+        
+        let currentUser = null;
+        let currentSession = null;
+        let currentFamily = null;
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const logElement = document.getElementById('logs');
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            logElement.innerHTML += logEntry + '\n';
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(logEntry);
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        async function checkAuthStatus() {
+            try {
+                log('🔍 Verificando estado de autenticação completo...', 'info');
+                
+                // Verificar sessão
+                const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+                if (sessionError) {
+                    log(`❌ Erro ao obter sessão: ${sessionError.message}`, 'error');
+                    return;
+                }
+                
+                currentSession = sessionData.session;
+                log(`📋 Sessão: ${currentSession ? 'Ativa' : 'Inativa'}`, currentSession ? 'success' : 'warning');
+                
+                if (currentSession) {
+                    log(`🔑 Token: ${currentSession.access_token.substring(0, 20)}...`, 'info');
+                    log(`⏰ Expira em: ${new Date(currentSession.expires_at * 1000).toLocaleString()}`, 'info');
+                }
+                
+                // Verificar utilizador
+                const { data: userData, error: userError } = await supabase.auth.getUser();
+                if (userError) {
+                    log(`❌ Erro ao obter utilizador: ${userError.message}`, 'error');
+                    return;
+                }
+                
+                currentUser = userData.user;
+                log(`👤 Utilizador: ${currentUser ? currentUser.email : 'Nenhum'}`, currentUser ? 'success' : 'warning');
+                
+                if (currentUser) {
+                    // Verificar família
+                    await loadFamilyData();
+                }
+                
+                updateAuthStatus();
+                
+            } catch (error) {
+                log(`❌ Erro inesperado: ${error.message}`, 'error');
+            }
+        }
+        
+        async function loadFamilyData() {
+            try {
+                log('🏠 Carregando dados da família...', 'info');
+                
+                const { data: families, error } = await supabase
+                    .from('family_members')
+                    .select(`
+                        family_id,
+                        role,
+                        families!inner(id, nome)
+                    `)
+                    .eq('user_id', currentUser.id)
+                    .limit(1);
+                
+                if (error) {
+                    log(`❌ Erro ao carregar família: ${error.message}`, 'error');
+                    return;
+                }
+                
+                if (families && families.length > 0) {
+                    currentFamily = {
+                        id: families[0].family_id,
+                        name: families[0].families.nome,
+                        role: families[0].role
+                    };
+                    log(`✅ Família carregada: ${currentFamily.name} (${currentFamily.role})`, 'success');
+                } else {
+                    log('⚠️ Nenhuma família encontrada', 'warning');
+                }
+                
+            } catch (error) {
+                log(`❌ Erro inesperado ao carregar família: ${error.message}`, 'error');
+            }
+        }
+        
+        function updateAuthStatus() {
+            const statusDiv = document.getElementById('authStatus');
+            let status = '';
+            
+            if (currentUser && currentSession) {
+                status += `<div class="status success">✅ Autenticado: ${currentUser.email}</div>`;
+                if (currentFamily) {
+                    status += `<div class="status info">🏠 Família: ${currentFamily.name} (${currentFamily.role})</div>`;
+                } else {
+                    status += `<div class="status warning">⚠️ Nenhuma família carregada</div>`;
+                }
+            } else {
+                status += `<div class="status error">❌ Não autenticado</div>`;
+            }
+            
+            statusDiv.innerHTML = status;
+        }
+        
+        window.login = async function() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                log('❌ Email e password são obrigatórios', 'error');
+                return;
+            }
+            
+            try {
+                log(`🔐 Tentando login com ${email}...`, 'info');
+                
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+                
+                if (error) {
+                    log(`❌ Erro no login: ${error.message}`, 'error');
+                    return;
+                }
+                
+                log(`✅ Login bem-sucedido: ${data.user.email}`, 'success');
+                await checkAuthStatus();
+                
+            } catch (error) {
+                log(`❌ Erro inesperado no login: ${error.message}`, 'error');
+            }
+        };
+        
+        window.logout = async function() {
+            try {
+                log('🚪 Fazendo logout...', 'info');
+                
+                const { error } = await supabase.auth.signOut();
+                if (error) {
+                    log(`❌ Erro no logout: ${error.message}`, 'error');
+                    return;
+                }
+                
+                currentUser = null;
+                currentSession = null;
+                currentFamily = null;
+                
+                log('✅ Logout bem-sucedido', 'success');
+                updateAuthStatus();
+                
+            } catch (error) {
+                log(`❌ Erro inesperado no logout: ${error.message}`, 'error');
+            }
+        };
+        
+        window.testSessionContext = async function() {
+            try {
+                log('🧪 Testando contexto de sessão...', 'info');
+                
+                // Verificar múltiplas formas de obter contexto de auth
+                const session1 = await supabase.auth.getSession();
+                log(`📋 getSession(): ${session1.data.session ? 'Ativa' : 'Inativa'}`, 'info');
+                
+                const user1 = await supabase.auth.getUser();
+                log(`👤 getUser(): ${user1.data.user ? user1.data.user.email : 'Nenhum'}`, 'info');
+                
+                // Verificar se auth.uid() funciona em contexto de RPC
+                const { data: authTest, error: authError } = await supabase.rpc('auth_test_function');
+                if (authError) {
+                    log(`⚠️ Função de teste de auth não existe (normal): ${authError.message}`, 'warning');
+                } else {
+                    log(`🔑 auth.uid() retorna: ${authTest}`, 'info');
+                }
+                
+            } catch (error) {
+                log(`❌ Erro no teste de contexto: ${error.message}`, 'error');
+            }
+        };
+        
+        window.testRPCWithManualAuth = async function() {
+            if (!currentUser || !currentFamily) {
+                log('❌ Utilizador ou família não carregados', 'error');
+                return;
+            }
+            
+            try {
+                log('🧪 Testando RPC com verificação manual de auth...', 'info');
+                
+                // Primeiro, verificar se o utilizador tem permissões
+                const { data: memberCheck, error: memberError } = await supabase
+                    .from('family_members')
+                    .select('role')
+                    .eq('family_id', currentFamily.id)
+                    .eq('user_id', currentUser.id)
+                    .single();
+                
+                if (memberError) {
+                    log(`❌ Erro ao verificar membro: ${memberError.message}`, 'error');
+                    return;
+                }
+                
+                log(`✅ Verificação de membro: ${memberCheck.role}`, 'success');
+                
+                if (!['owner', 'admin'].includes(memberCheck.role)) {
+                    log(`❌ Sem permissões para convidar (role: ${memberCheck.role})`, 'error');
+                    return;
+                }
+                
+                // Agora testar a RPC
+                const testEmail = 'manual-auth-test@example.com';
+                log(`📧 Testando convite para: ${testEmail}`, 'info');
+                
+                const { data: rpcResult, error: rpcError } = await supabase.rpc('invite_family_member_by_email_safe', {
+                    p_family_id: currentFamily.id,
+                    p_email: testEmail,
+                    p_role: 'member'
+                });
+                
+                if (rpcError) {
+                    log(`❌ Erro RPC: ${JSON.stringify(rpcError, null, 2)}`, 'error');
+                } else {
+                    log(`✅ Resultado RPC: ${JSON.stringify(rpcResult, null, 2)}`, 'success');
+                }
+                
+            } catch (error) {
+                log(`❌ Erro inesperado: ${error.message}`, 'error');
+            }
+        };
+        
+        window.testInviteWithAuthContext = async function() {
+            if (!currentUser || !currentFamily) {
+                log('❌ Utilizador ou família não carregados', 'error');
+                return;
+            }
+            
+            const email = document.getElementById('inviteEmail').value;
+            const role = document.getElementById('inviteRole').value;
+            
+            if (!email) {
+                log('❌ Email é obrigatório', 'error');
+                return;
+            }
+            
+            try {
+                log('🧪 Testando convite com contexto de autenticação completo...', 'info');
+                log(`📧 Email: ${email}, Role: ${role}, Family: ${currentFamily.id}`, 'info');
+                
+                // Verificar contexto antes da chamada
+                const preSession = await supabase.auth.getSession();
+                const preUser = await supabase.auth.getUser();
+                
+                log(`🔍 PRÉ-RPC - Sessão: ${preSession.data.session ? 'Ativa' : 'Inativa'}`, 'info');
+                log(`🔍 PRÉ-RPC - Utilizador: ${preUser.data.user ? preUser.data.user.email : 'Nenhum'}`, 'info');
+                
+                // Fazer a chamada RPC
+                const { data, error } = await supabase.rpc('invite_family_member_by_email_safe', {
+                    p_family_id: currentFamily.id,
+                    p_email: email,
+                    p_role: role
+                });
+                
+                // Verificar contexto após a chamada
+                const postSession = await supabase.auth.getSession();
+                const postUser = await supabase.auth.getUser();
+                
+                log(`🔍 PÓS-RPC - Sessão: ${postSession.data.session ? 'Ativa' : 'Inativa'}`, 'info');
+                log(`🔍 PÓS-RPC - Utilizador: ${postUser.data.user ? postUser.data.user.email : 'Nenhum'}`, 'info');
+                
+                // Verificar se houve mudança de contexto
+                const sessionChanged = preSession.data.session?.access_token !== postSession.data.session?.access_token;
+                const userChanged = preUser.data.user?.id !== postUser.data.user?.id;
+                
+                if (sessionChanged) {
+                    log('🚨 ALERTA: Sessão mudou durante a RPC!', 'error');
+                }
+                
+                if (userChanged) {
+                    log('🚨 ALERTA: Utilizador mudou durante a RPC!', 'error');
+                }
+                
+                // Processar resultado
+                if (error) {
+                    log(`❌ Erro RPC: ${JSON.stringify(error, null, 2)}`, 'error');
+                } else {
+                    log(`✅ Resultado RPC: ${JSON.stringify(data, null, 2)}`, 'success');
+                    
+                    if (data && data.success) {
+                        log('🎉 Convite enviado com sucesso!', 'success');
+                    } else if (data && !data.success) {
+                        log(`⚠️ Convite falhou: ${data.error} - ${data.message}`, 'warning');
+                    }
+                }
+                
+            } catch (error) {
+                log(`❌ Erro inesperado: ${error.message}`, 'error');
+            }
+        };
+        
+        window.checkAuthStatus = checkAuthStatus;
+        window.clearLogs = clearLogs;
+        
+        // Inicializar
+        checkAuthStatus();
+    </script>
+</body>
+</html>

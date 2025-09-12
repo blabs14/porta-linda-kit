@@ -18,6 +18,7 @@ import { useToast } from '../hooks/use-toast';
 import { z } from 'zod';
 import { useConfirmation } from '../hooks/useConfirmation';
 import { ConfirmationDialog } from '../components/ui/confirmation-dialog';
+import { useFamily } from '../features/family/FamilyContext';
 import type { Budget, Transaction } from '../integrations/supabase/types';
 
 interface BudgetFormData {
@@ -43,6 +44,7 @@ const BudgetsPage = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const confirmation = useConfirmation();
+  const { canEdit, canDelete } = useFamily();
 
   const handleNew = () => {
     setEditBudget(null);
@@ -268,10 +270,12 @@ const BudgetsPage = () => {
       <div className="flex-shrink-0 bg-background border-b p-4 mb-6">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
           <h1 className="text-2xl sm:text-3xl font-bold">Orçamentos</h1>
-          <Button onClick={handleNew} className="w-full sm:w-auto">
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Orçamento
-          </Button>
+          {canEdit('budget') && (
+            <Button onClick={handleNew} className="w-full sm:w-auto" aria-label="Criar novo orçamento">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Orçamento
+            </Button>
+          )}
         </div>
       </div>
       
@@ -349,24 +353,28 @@ const BudgetsPage = () => {
                         </div>
                         
                         <div className="flex gap-2 pt-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEdit(budget)}
-                            className="flex-1"
-                          >
-                            <Edit className="h-3 w-3 mr-1" />
-                            Editar
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDelete(budget.id)}
-                            className="text-red-600 hover:text-red-700 flex-1"
-                          >
-                            <Trash2 className="h-3 w-3 mr-1" />
-                            Remover
-                          </Button>
+                          {canEdit('budget') && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEdit(budget)}
+                              className="flex-1"
+                            >
+                              <Edit className="h-3 w-3 mr-1" />
+                              Editar
+                            </Button>
+                          )}
+                          {canDelete('budget') && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDelete(budget.id)}
+                              className="text-red-600 hover:text-red-700 flex-1"
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              Remover
+                            </Button>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -449,7 +457,7 @@ const BudgetsPage = () => {
                   editBudget ? 'Guardar' : 'Criar'
                 )}
               </Button>
-              <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
+              <Button variant="outline" onClick={handleClose} disabled={isSubmitting} aria-label="Cancelar criação de orçamento">
                 Cancelar
               </Button>
             </div>

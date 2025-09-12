@@ -116,7 +116,7 @@ const PersonalReminders: React.FC = () => {
           </h2>
           <p className="text-sm text-muted-foreground">Gerir lembretes pessoais</p>
         </div>
-        <Button onClick={() => { setEditing(null); setModalOpen(true); }}>
+        <Button onClick={() => { setEditing(null); setModalOpen(true); }} aria-label="Criar novo lembrete">
           <Plus className="h-4 w-4 mr-2" />
           Novo Lembrete
         </Button>

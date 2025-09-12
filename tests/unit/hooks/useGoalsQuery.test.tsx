@@ -85,10 +85,13 @@ describe('useGoalsQuery', () => {
         wrapper: createWrapper(),
       });
 
+      // Aguardar que o loading termine
       await waitFor(() => {
-        expect(result.current.isError).toBe(true);
-      });
+        expect(result.current.isLoading).toBe(false);
+      }, { timeout: 3000 });
 
+      // Verificar se o erro foi capturado
+      expect(result.current.isError).toBe(true);
       expect(result.current.error).toBeTruthy();
     });
 

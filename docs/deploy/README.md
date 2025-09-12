@@ -1,4 +1,4 @@
-# Deploy — Porta Linda Kit
+# Deploy — Family Flow Finance
 
 Use os guias e workflows prontos para levar a app a produção com Supabase e GitHub Pages.
 
@@ -11,4 +11,4 @@ Use os guias e workflows prontos para levar a app a produção com Supabase e Gi
 Variáveis essenciais (Secrets GitHub):
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-- `VITE_BASE_PATH` — `/` (domínio próprio) ou `/<repo>/` (Pages) 
+- `VITE_BASE_PATH` — `/` (domínio próprio) ou `/<repo>/` (Pages)

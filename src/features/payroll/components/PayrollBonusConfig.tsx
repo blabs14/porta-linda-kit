@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { payrollService } from '../services/payrollService';
 import { useActiveContract } from '../hooks/useActiveContract';
+import { isValidUUID } from '@/lib/validation';
 import { logger } from '@/shared/lib/logger';
 
 type BonusType = 'mandatory' | 'performance' | 'custom';
@@ -172,7 +173,7 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
 
   // Função utilitária para validar contrato
   const validateContract = (contractId: string | undefined): boolean => {
-    if (!contractId) {
+    if (!contractId || typeof contractId !== 'string' || contractId.trim().length === 0) {
       toast({
         title: 'Erro',
         description: 'ID do contrato não encontrado.',
@@ -181,11 +182,11 @@ export function PayrollBonusConfig({ bonusType, specificSubsidy = 'both', contra
       return false;
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(contractId)) {
+    // Validação UUID rigorosa
+    if (!isValidUUID(contractId)) {
       toast({
         title: 'Erro',
-        description: 'ID do contrato inválido. Por favor, selecione um contrato válido.',
+        description: 'ID do contrato deve ser um UUID válido. Por favor, selecione um contrato válido.',
         variant: 'destructive'
       });
       return false;

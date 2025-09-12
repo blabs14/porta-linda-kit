@@ -1,4 +1,4 @@
-# Estado Atual do Projeto - Porta Linda Kit
+# Estado Atual do Projeto - Family Flow Finance
 
 > **Última atualização:** Janeiro 2025  
 > **Versão:** 1.0.0  
@@ -6,7 +6,7 @@
 
 ## 📋 Resumo Executivo
 
-O **Porta Linda Kit** é uma aplicação web moderna de gestão financeira familiar e pessoal, construída com React, TypeScript, Supabase e Tailwind CSS. A aplicação oferece uma experiência completa de gestão financeira com separação clara entre finanças pessoais e familiares, sistema robusto de autenticação e autorização, e interface adaptativa para desktop e mobile.
+O **Family Flow Finance** é uma aplicação web moderna de gestão financeira familiar e pessoal, construída com React, TypeScript, Supabase e Tailwind CSS. A aplicação oferece uma experiência completa de gestão financeira com separação clara entre finanças pessoais e familiares, sistema robusto de autenticação e autorização, e interface adaptativa para desktop e mobile.
 
 ### 🎯 Objetivos Principais
 - Gestão financeira pessoal e familiar integrada
@@ -564,4 +564,4 @@ formatCurrency: Baseado na moeda selecionada
 
 ---
 
-**O Porta Linda Kit está numa fase sólida de desenvolvimento, com as funcionalidades core implementadas e uma base técnica robusta. O foco agora está na expansão de funcionalidades, melhorias de UX e preparação para escala.**
+**O Family Flow Finance está numa fase sólida de desenvolvimento, com as funcionalidades core implementadas e uma base técnica robusta. O foco agora está na expansão de funcionalidades, melhorias de UX e preparação para escala.**

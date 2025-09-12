@@ -287,7 +287,7 @@ export function useConfigurationStatus(contractId?: string) {
     
     if (!status.contract) missing.push('Contrato');
     if (!status.deductions) missing.push('Deduções');
-    if (!status.overtime) missing.push('Horas extras');
+    // Horas extras são agora opcionais - removido da lista de obrigatórios
     if (!status.meal_allowance) missing.push('Subsídio de alimentação');
     if (!status.bonuses) missing.push('Bónus');
     if (!status.holidays) missing.push('Feriados');

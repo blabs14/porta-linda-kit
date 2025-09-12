@@ -1,4 +1,4 @@
-# 🔌 API Reference - Porta Linda Kit
+# 🔌 API Reference - Family Flow Finance
 
 ## 📋 Índice
 - [Visão Geral](#visão-geral)
@@ -15,7 +15,7 @@
 
 ## 🎯 Visão Geral
 
-A API do Porta Linda Kit é construída sobre o Supabase, fornecendo:
+A API do Family Flow Finance é construída sobre o Supabase, fornecendo:
 
 - **REST API**: Operações CRUD automáticas
 - **GraphQL**: Queries flexíveis (opcional)

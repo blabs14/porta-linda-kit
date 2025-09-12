@@ -310,7 +310,7 @@ export default function PayrollOvertimeDetailPage() {
             className="px-3 py-2 border rounded-md"
           >
             {monthNames.map((name, index) => (
-              <option key={index} value={index + 1}>{name}</option>
+              <option key={`month-${name.toLowerCase()}-${index + 1}`} value={index + 1}>{name}</option>
             ))}
           </select>
           <select
@@ -482,8 +482,8 @@ export default function PayrollOvertimeDetailPage() {
                 <strong>Avisos encontrados:</strong>
                 <ul className="mt-2 list-disc list-inside">
                   {overtimeData.breakdown.validationWarnings.map((warning, index) => (
-                    <li key={index} className="text-sm">{warning}</li>
-                  ))}
+                <li key={`overtime-warning-${warning.slice(0, 20).replace(/\s+/g, '-').toLowerCase()}-${index}`} className="text-sm">{warning}</li>
+              ))}
                 </ul>
               </AlertDescription>
             </Alert>
@@ -506,7 +506,7 @@ export default function PayrollOvertimeDetailPage() {
                   const isWeekend = new Date(entry.date).getDay() === 0 || new Date(entry.date).getDay() === 6;
                   
                   return (
-                    <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div key={`timesheet-entry-${entry.date}-${index}`} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center space-x-4">
                         <div className="text-sm font-medium">
                           {new Date(entry.date).toLocaleDateString('pt-PT', {

@@ -51,6 +51,18 @@ export function ActiveContractProvider({ children }: ActiveContractProviderProps
       const contractsData = await payrollService.getContracts(user.id);
       console.log('🔧 loadContracts - Contratos carregados:', contractsData);
       console.log('🔧 loadContracts - Número de contratos:', contractsData?.length || 0);
+      
+      // Log detalhado de cada contrato
+      contractsData?.forEach((contract, index) => {
+        console.log(`🔧 loadContracts - Contrato ${index}:`, {
+          id: contract.id,
+          idType: typeof contract.id,
+          idLength: contract.id?.length,
+          name: contract.name,
+          is_active: contract.is_active,
+          fullContract: contract
+        });
+      });
       setContracts(contractsData);
       return contractsData;
     } catch (error) {
@@ -135,7 +147,13 @@ export function ActiveContractProvider({ children }: ActiveContractProviderProps
     });
     
     if (firstActiveContract) {
-      console.log('🔧 resolveActiveContract - Usando primeiro contrato ativo:', firstActiveContract.name);
+      console.log('🔧 resolveActiveContract - Usando primeiro contrato ativo:', {
+        contract: firstActiveContract,
+        id: firstActiveContract.id,
+        idType: typeof firstActiveContract.id,
+        idLength: firstActiveContract.id?.length,
+        name: firstActiveContract.name
+      });
       setActiveContractState(firstActiveContract);
       localStorage.setItem('payroll_active_contract_id', firstActiveContract.id);
     } else {

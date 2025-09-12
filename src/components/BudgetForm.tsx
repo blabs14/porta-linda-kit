@@ -1,102 +1,93 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useAuth } from '../contexts/AuthContext';
 import { useCreateBudget, useUpdateBudget } from '../hooks/useBudgetsQuery';
 import { useCategoriesDomain } from '../hooks/useCategoriesQuery';
 import { budgetSchema } from '../validation/budgetSchema';
-import { Input } from './ui/input';
-import { Button } from './ui/button';
-import { FormSubmitButton } from './ui/loading-button';
-import { Label } from './ui/label';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FormSubmitButton } from '@/components/ui/form-submit-button';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { LoadingSpinner } from './ui/loading-states';
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from './ui/select';
 import { logger } from '@/shared/lib/logger';
 
-interface BudgetFormData {
-  id?: string;
-  categoria_id: string;
-  valor_limite: number;
-  periodo: string;
-  mes?: number;
-  ano?: number;
-}
+// Estender o schema base para incluir campos específicos do formulário
+const budgetFormSchema = budgetSchema.extend({
+  periodo: z.enum(['mensal', 'anual']).default('mensal'),
+  ano: z.number().min(2020).max(2030).default(new Date().getFullYear()),
+  valor_limite: z.number().min(0.01, 'Valor deve ser maior que 0')
+}).refine((data) => {
+  // Se for mensal, o campo mes é obrigatório no formato YYYY-MM
+  if (data.periodo === 'mensal') {
+    const mesMatch = data.mes?.match(/^\d{4}-\d{2}$/);
+    return !!mesMatch;
+  }
+  return true;
+}, {
+  message: 'Mês é obrigatório para orçamentos mensais',
+  path: ['mes']
+});
+
+type BudgetFormData = z.infer<typeof budgetFormSchema>;
 
 interface BudgetFormProps {
-  initialData?: BudgetFormData;
+  initialData?: Partial<BudgetFormData> & { id?: string };
   onSuccess?: () => void;
   onCancel?: () => void;
 }
 
 const BudgetForm = ({ initialData, onSuccess, onCancel }: BudgetFormProps) => {
   const { user } = useAuth();
-  const [form, setForm] = useState<BudgetFormData>({
-    categoria_id: '',
-    valor_limite: 0,
-    periodo: 'mensal',
-    mes: new Date().getMonth() + 1,
-    ano: new Date().getFullYear(),
-    ...initialData
+  
+  const form = useForm<BudgetFormData>({
+    resolver: zodResolver(budgetFormSchema),
+    defaultValues: {
+      categoria_id: initialData?.categoria_id || '',
+      valor: initialData?.valor_limite || 0,
+      valor_limite: initialData?.valor_limite || 0,
+      periodo: (initialData?.periodo as 'mensal' | 'anual') || 'mensal',
+      mes: initialData?.mes ? `${initialData.ano}-${String(initialData.mes).padStart(2, '0')}` : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
+      ano: initialData?.ano || new Date().getFullYear()
+    }
   });
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  
+  // Observar mudanças no formulário para validações condicionais
+  const watchedValues = form.watch();
   
   const createBudgetMutation = useCreateBudget();
   const updateBudgetMutation = useUpdateBudget();
   const { data: categories = [], isLoading: categoriesLoading } = useCategoriesDomain();
   
-  const isSubmitting = createBudgetMutation.isPending || updateBudgetMutation.isPending;
+  const isSubmitting = createBudgetMutation.isPending || updateBudgetMutation.isPending || form.formState.isSubmitting;
 
+  // Atualizar valores do formulário quando initialData mudar
   useEffect(() => {
     if (initialData) {
-      setForm({
+      form.reset({
         categoria_id: initialData.categoria_id || '',
+        valor: initialData.valor_limite || 0,
         valor_limite: initialData.valor_limite || 0,
-        periodo: initialData.periodo || 'mensal',
-        mes: initialData.mes || new Date().getMonth() + 1,
-        ano: initialData.ano || new Date().getFullYear(),
+        periodo: (initialData.periodo as 'mensal' | 'anual') || 'mensal',
+        mes: initialData.mes ? `${initialData.ano}-${String(initialData.mes).padStart(2, '0')}` : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
+        ano: initialData.ano || new Date().getFullYear()
       });
     }
-  }, [initialData]);
+  }, [initialData, form]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type } = e.target;
-    setForm(prev => ({
-      ...prev,
-      [name]: type === 'number' ? Number(value) : value
-    }));
-  };
-
-  const handleSelectChange = (field: string, value: string) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setValidationErrors({});
-    
-    // Validação client-side com Zod
-    const result = budgetSchema.safeParse(form);
-    if (!result.success) {
-      const fieldErrors: Record<string, string> = {};
-      result.error.errors.forEach(err => {
-        if (err.path[0]) fieldErrors[err.path[0]] = err.message;
-      });
-      setValidationErrors(fieldErrors);
-      return;
-    }
-    
+  const handleSubmit = form.handleSubmit(async (data: BudgetFormData) => {
     try {
+      // Preparar payload para a API
       const payload = {
-        categoria_id: form.categoria_id,
-        valor: Number(form.valor_limite),
-        mes: `${form.ano}-${String(form.mes).padStart(2, '0')}`,
+        categoria_id: data.categoria_id,
+        valor: data.valor_limite,
+        mes: data.mes
       };
       
-      if (initialData && initialData.id) {
+      if (initialData?.id) {
         await updateBudgetMutation.mutateAsync({ id: initialData.id, data: payload });
       } else {
         await createBudgetMutation.mutateAsync(payload);
@@ -107,7 +98,7 @@ const BudgetForm = ({ initialData, onSuccess, onCancel }: BudgetFormProps) => {
       logger.error('Erro ao guardar orçamento:', err);
       // O erro já é tratado pelo hook useCrudMutation
     }
-  };
+  });
 
   if (categoriesLoading) {
     return (
@@ -118,114 +109,146 @@ const BudgetForm = ({ initialData, onSuccess, onCancel }: BudgetFormProps) => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-2 sm:p-4">
-      <div className="space-y-2">
-        <Label htmlFor="categoria_id">Categoria</Label>
-        <Select value={form.categoria_id} onValueChange={(value) => handleSelectChange('categoria_id', value)}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Selecionar categoria" />
-          </SelectTrigger>
-          <SelectContent>
-            {categories.map((category) => (
-              <SelectItem key={category.id} value={category.id}>
-                {category.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {validationErrors.categoria_id && <div className="text-destructive text-sm">{validationErrors.categoria_id}</div>}
-      </div>
+    <Form {...form}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-2 sm:p-4">
+        <FormField
+          control={form.control}
+          name="categoria_id"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Categoria</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecionar categoria" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-      <div className="space-y-2">
-        <Label htmlFor="valor_limite">Valor Limite (€)</Label>
-        <Input
-          id="valor_limite"
+        <FormField
+          control={form.control}
           name="valor_limite"
-          type="number"
-          placeholder="0.00"
-          value={form.valor_limite}
-          onChange={handleChange}
-          required
-          min="0"
-          step="0.01"
-          aria-invalid={!!validationErrors.valor_limite}
-          aria-describedby={validationErrors.valor_limite ? 'valor_limite-error' : undefined}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Valor Limite (€)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                  {...field}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-        {validationErrors.valor_limite && <div id="valor_limite-error" className="text-destructive text-sm">{validationErrors.valor_limite}</div>}
-      </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="periodo">Período</Label>
-        <Select value={form.periodo} onValueChange={(value) => handleSelectChange('periodo', value)}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Selecionar período" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="mensal">Mensal</SelectItem>
-            <SelectItem value="anual">Anual</SelectItem>
-          </SelectContent>
-        </Select>
-        {validationErrors.periodo && <div className="text-destructive text-sm">{validationErrors.periodo}</div>}
-      </div>
-
-      {form.periodo === 'mensal' && (
-        <div className="space-y-2">
-          <Label htmlFor="mes">Mês</Label>
-          <Select value={form.mes?.toString()} onValueChange={(value) => handleSelectChange('mes', value)}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Selecionar mês" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">Janeiro</SelectItem>
-              <SelectItem value="2">Fevereiro</SelectItem>
-              <SelectItem value="3">Março</SelectItem>
-              <SelectItem value="4">Abril</SelectItem>
-              <SelectItem value="5">Maio</SelectItem>
-              <SelectItem value="6">Junho</SelectItem>
-              <SelectItem value="7">Julho</SelectItem>
-              <SelectItem value="8">Agosto</SelectItem>
-              <SelectItem value="9">Setembro</SelectItem>
-              <SelectItem value="10">Outubro</SelectItem>
-              <SelectItem value="11">Novembro</SelectItem>
-              <SelectItem value="12">Dezembro</SelectItem>
-            </SelectContent>
-          </Select>
-          {validationErrors.mes && <div className="text-destructive text-sm">{validationErrors.mes}</div>}
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <Label htmlFor="ano">Ano</Label>
-        <Input
-          id="ano"
-          name="ano"
-          type="number"
-          placeholder="2024"
-          value={form.ano}
-          onChange={handleChange}
-          required
-          min="2020"
-          max="2030"
-          aria-invalid={!!validationErrors.ano}
-          aria-describedby={validationErrors.ano ? 'ano-error' : undefined}
+        <FormField
+          control={form.control}
+          name="periodo"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Período</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecionar período" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="mensal">Mensal</SelectItem>
+                  <SelectItem value="anual">Anual</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-        {validationErrors.ano && <div id="ano-error" className="text-destructive text-sm">{validationErrors.ano}</div>}
-      </div>
 
-      <div className="flex flex-col sm:flex-row gap-2">
-        <FormSubmitButton 
-          isSubmitting={isSubmitting}
-          submitText={initialData?.id ? 'Atualizar' : 'Criar'}
-          submittingText={initialData?.id ? 'A atualizar...' : 'A criar...'}
-          className="w-full"
-        />
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} className="w-full">
-            Cancelar
-          </Button>
+        {watchedValues.periodo === 'mensal' && (
+          <FormField
+            control={form.control}
+            name="mes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Mês</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecionar mês" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value={`${new Date().getFullYear()}-01`}>Janeiro</SelectItem>
+                    <SelectItem value={`${new Date().getFullYear()}-02`}>Fevereiro</SelectItem>
+                    <SelectItem value={`${new Date().getFullYear()}-03`}>Março</SelectItem>
+                    <SelectItem value={`${new Date().getFullYear()}-04`}>Abril</SelectItem>
+                    <SelectItem value={`${new Date().getFullYear()}-05`}>Maio</SelectItem>
+                    <SelectItem value={`${new Date().getFullYear()}-06`}>Junho</SelectItem>
+                    <SelectItem value={`${new Date().getFullYear()}-07`}>Julho</SelectItem>
+                    <SelectItem value={`${new Date().getFullYear()}-08`}>Agosto</SelectItem>
+                    <SelectItem value={`${new Date().getFullYear()}-09`}>Setembro</SelectItem>
+                    <SelectItem value={`${new Date().getFullYear()}-10`}>Outubro</SelectItem>
+                    <SelectItem value={`${new Date().getFullYear()}-11`}>Novembro</SelectItem>
+                    <SelectItem value={`${new Date().getFullYear()}-12`}>Dezembro</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         )}
-      </div>
-    </form>
+
+        <FormField
+          control={form.control}
+          name="ano"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Ano</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  placeholder="2024"
+                  min="2020"
+                  max="2030"
+                  {...field}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <FormSubmitButton 
+            isSubmitting={isSubmitting}
+            submitText={initialData?.id ? 'Atualizar' : 'Criar'}
+            submittingText={initialData?.id ? 'A atualizar...' : 'A criar...'}
+            className="w-full"
+          />
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel} className="w-full">
+              Cancelar
+            </Button>
+          )}
+        </div>
+      </form>
+    </Form>
   );
 };
 

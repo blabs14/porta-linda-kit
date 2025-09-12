@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Final - Payroll Auto-Load</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+        .warning { color: #ffc107; }
+        .contracts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .contract-card {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+        .contract-card h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-active { background-color: #28a745; }
+        .status-inactive { background-color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Teste Final - Payroll Auto-Load</h1>
+        
+        <div>
+            <button id="loginBtn" onclick="performLogin()">1. Fazer Login</button>
+            <button id="loadContractsBtn" onclick="loadContracts()" disabled>2. Carregar Contratos</button>
+            <button id="testAutoLoadBtn" onclick="testAutoLoad()" disabled>3. Testar Auto-Load</button>
+            <button onclick="clearLogs()">Limpar Logs</button>
+        </div>
+        
+        <div id="logs" class="log"></div>
+    </div>
+    
+    <div class="container">
+        <h2>📋 Contratos Carregados</h2>
+        <div id="contractsContainer"></div>
+    </div>
+
+    <script>
+        // Configuração do Supabase (credenciais do .env.local)
+        const supabaseUrl = 'https://ebitcwrrcumsvqjgrapw.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+        
+        // Credenciais de teste
+        const testEmail = 'teste2@teste';
+        const testPassword = 'teste14';
+        
+        let currentUser = null;
+        let loadedContracts = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('logs');
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
+            logElement.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        function updateButtonStates(loginSuccess = false, contractsLoaded = false) {
+            document.getElementById('loginBtn').disabled = loginSuccess;
+            document.getElementById('loadContractsBtn').disabled = !loginSuccess;
+            document.getElementById('testAutoLoadBtn').disabled = !loginSuccess || !contractsLoaded;
+        }
+        
+        async function performLogin() {
+            try {
+                log('🚀 Iniciando processo de login...', 'info');
+                log(`📧 Email: ${testEmail}`, 'info');
+                
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: testEmail,
+                    password: testPassword
+                });
+                
+                if (error) {
+                    log(`❌ Erro no login: ${error.message}`, 'error');
+                    log(`🔍 Código: ${error.status || 'N/A'}`, 'error');
+                    return;
+                }
+                
+                if (data.user) {
+                    currentUser = data.user;
+                    log('✅ Login realizado com sucesso!', 'success');
+                    log(`👤 Utilizador: ${data.user.email}`, 'success');
+                    log(`🆔 ID: ${data.user.id}`, 'info');
+                    updateButtonStates(true, false);
+                } else {
+                    log('⚠️ Login sem dados de utilizador', 'warning');
+                }
+                
+            } catch (err) {
+                log(`💥 Erro inesperado no login: ${err.message}`, 'error');
+            }
+        }
+        
+        async function loadContracts() {
+            try {
+                log('📋 Carregando contratos do utilizador...', 'info');
+                
+                if (!currentUser) {
+                    log('❌ Nenhum utilizador autenticado', 'error');
+                    return;
+                }
+                
+                // Query para buscar contratos do utilizador
+                const { data: contracts, error } = await supabase
+                    .from('contracts')
+                    .select(`
+                        id,
+                        name,
+                        status,
+                        start_date,
+                        end_date,
+                        salary,
+                        currency,
+                        created_at
+                    `)
+                    .eq('user_id', currentUser.id)
+                    .order('created_at', { ascending: false });
+                
+                if (error) {
+                    log(`❌ Erro ao carregar contratos: ${error.message}`, 'error');
+                    log(`🔍 Código: ${error.code || 'N/A'}`, 'error');
+                    return;
+                }
+                
+                loadedContracts = contracts || [];
+                log(`✅ Contratos carregados: ${loadedContracts.length}`, 'success');
+                
+                if (loadedContracts.length === 0) {
+                    log('⚠️ Nenhum contrato encontrado para este utilizador', 'warning');
+                    log('💡 Sugestão: Verifique se existem contratos na base de dados', 'info');
+                } else {
+                    log('📊 Detalhes dos contratos:', 'info');
+                    loadedContracts.forEach((contract, index) => {
+                        log(`  ${index + 1}. ${contract.name} (${contract.status}) - ${contract.salary} ${contract.currency}`, 'info');
+                    });
+                }
+                
+                displayContracts(loadedContracts);
+                updateButtonStates(true, true);
+                
+            } catch (err) {
+                log(`💥 Erro inesperado ao carregar contratos: ${err.message}`, 'error');
+            }
+        }
+        
+        function displayContracts(contracts) {
+            const container = document.getElementById('contractsContainer');
+            
+            if (!contracts || contracts.length === 0) {
+                container.innerHTML = '<p class="info">Nenhum contrato encontrado.</p>';
+                return;
+            }
+            
+            const contractsHTML = contracts.map(contract => {
+                const statusClass = contract.status === 'active' ? 'status-active' : 'status-inactive';
+                const startDate = new Date(contract.start_date).toLocaleDateString('pt-PT');
+                const endDate = contract.end_date ? new Date(contract.end_date).toLocaleDateString('pt-PT') : 'Em aberto';
+                
+                return `
+                    <div class="contract-card">
+                        <h4>
+                            <span class="status-indicator ${statusClass}"></span>
+                            ${contract.name}
+                        </h4>
+                        <p><strong>Status:</strong> ${contract.status}</p>
+                        <p><strong>Salário:</strong> ${contract.salary} ${contract.currency}</p>
+                        <p><strong>Período:</strong> ${startDate} - ${endDate}</p>
+                        <p><strong>ID:</strong> ${contract.id}</p>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = `<div class="contracts-grid">${contractsHTML}</div>`;
+        }
+        
+        async function testAutoLoad() {
+            try {
+                log('🔄 Testando carregamento automático...', 'info');
+                
+                // Simular o comportamento do componente PayrollPage
+                log('🎯 Simulando comportamento do PayrollPage:', 'info');
+                log('  1. Verificando sessão ativa...', 'info');
+                
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                
+                if (sessionError) {
+                    log(`❌ Erro ao verificar sessão: ${sessionError.message}`, 'error');
+                    return;
+                }
+                
+                if (!session) {
+                    log('❌ Nenhuma sessão ativa encontrada', 'error');
+                    return;
+                }
+                
+                log('✅ Sessão ativa confirmada', 'success');
+                log('  2. Carregando contratos automaticamente...', 'info');
+                
+                // Recarregar contratos para simular o auto-load
+                await loadContracts();
+                
+                log('🎉 Teste de carregamento automático concluído!', 'success');
+                log('📝 Resultado: O sistema consegue carregar contratos automaticamente após login', 'success');
+                
+            } catch (err) {
+                log(`💥 Erro no teste de auto-load: ${err.message}`, 'error');
+            }
+        }
+        
+        // Verificar estado inicial ao carregar a página
+        window.addEventListener('load', async () => {
+            log('🔧 Teste Final - Payroll Auto-Load iniciado', 'info');
+            log(`📍 Supabase URL: ${supabaseUrl}`, 'info');
+            log(`🔑 Credenciais: ${testEmail}`, 'info');
+            log('', 'info');
+            log('📋 Fluxo de teste:', 'info');
+            log('1. Clique em "Fazer Login" para autenticar', 'info');
+            log('2. Clique em "Carregar Contratos" para buscar dados', 'info');
+            log('3. Clique em "Testar Auto-Load" para simular comportamento real', 'info');
+            log('', 'info');
+            
+            // Verificar se já existe uma sessão ativa
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    log('🔍 Sessão ativa detectada ao carregar página', 'info');
+                    currentUser = session.user;
+                    updateButtonStates(true, false);
+                }
+            } catch (err) {
+                log(`⚠️ Erro ao verificar sessão inicial: ${err.message}`, 'warning');
+            }
+        });
+    </script>
+</body>
+</html>

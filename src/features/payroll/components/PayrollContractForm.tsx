@@ -12,7 +12,7 @@ import {
   ContractFormData
 } from '../types';
 import { payrollService } from '../services/payrollService';
-import { holidayAutoService } from '../services/holidayAutoService';
+import { contractSyncService } from '../services/contractSyncService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocale } from '@/contexts/LocaleProvider';
@@ -230,27 +230,50 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
         component: 'contract'
       });
 
-      // Sincronizar feriados se localização estiver definida
-      if (formData.workplace_location && formData.workplace_location.trim() !== '') {
+      // Para novos contratos, sincronizar todos os parâmetros obrigatórios
+      if (!contract?.id) {
         try {
           setSyncingHolidays(true);
-          const currentYear = new Date().getFullYear();
-          await syncHolidays(savedContract.id, currentYear, formData.workplace_location);
+          await contractSyncService.syncAllContractParameters(savedContract.id, savedContract.user_id);
           
           addNotification({
             type: 'success',
-            message: 'Feriados sincronizados com sucesso',
-            component: 'holidays'
+            message: 'Configurações do contrato inicializadas com sucesso',
+            component: 'contract'
           });
-        } catch (holidayError) {
-          logger.warn('Erro na sincronização de feriados:', holidayError);
+        } catch (syncError) {
+          logger.warn('Erro na sincronização de parâmetros do contrato:', syncError);
           addNotification({
             type: 'warning',
-            message: 'Erro ao sincronizar feriados regionais',
-            component: 'holidays'
+            message: 'Erro ao inicializar configurações do contrato',
+            component: 'contract'
           });
         } finally {
           setSyncingHolidays(false);
+        }
+      } else {
+        // Para contratos existentes, apenas sincronizar feriados se localização estiver definida
+        if (formData.workplace_location && formData.workplace_location.trim() !== '') {
+          try {
+            setSyncingHolidays(true);
+            const currentYear = new Date().getFullYear();
+            await syncHolidays(savedContract.id, currentYear, formData.workplace_location);
+            
+            addNotification({
+              type: 'success',
+              message: 'Feriados sincronizados com sucesso',
+              component: 'holidays'
+            });
+          } catch (holidayError) {
+            logger.warn('Erro na sincronização de feriados:', holidayError);
+            addNotification({
+              type: 'warning',
+              message: 'Erro ao sincronizar feriados regionais',
+              component: 'holidays'
+            });
+          } finally {
+            setSyncingHolidays(false);
+          }
         }
       }
 
@@ -374,7 +397,7 @@ export function PayrollContractForm({ contract, onSave, onCancel }: PayrollContr
                 <div className="font-medium">Problemas de configuração:</div>
                 <ul className="list-disc list-inside space-y-1">
                   {validationErrors.map((error, index) => (
-                    <li key={index} className="text-sm">{error}</li>
+                    <li key={`validation-error-${error.slice(0, 20).replace(/\s+/g, '-').toLowerCase()}-${index}`} className="text-sm">{error}</li>
                   ))}
                 </ul>
               </div>

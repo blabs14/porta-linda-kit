@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Navegação Payroll</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .button:hover {
+            background: #0056b3;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+        .warning { color: #ffc107; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Teste de Navegação Payroll</h1>
+        <p>Este teste verifica se a navegação para a página de payroll carrega os contratos automaticamente.</p>
+        
+        <div>
+            <button class="button" onclick="testLogin()">1. Fazer Login</button>
+            <button class="button" onclick="navigateToPayroll()">2. Navegar para Payroll</button>
+            <button class="button" onclick="checkContracts()">3. Verificar Contratos</button>
+            <button class="button" onclick="clearLogs()">Limpar Logs</button>
+        </div>
+        
+        <div id="logs" class="log"></div>
+    </div>
+
+    <script>
+        // Configuração do Supabase
+        const supabaseUrl = 'https://ebitcwrrcumsvqjgrapw.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViaXRjd3JyY3Vtc3ZxamdyYXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI3NjcyMTYsImV4cCI6MjA2ODM0MzIxNn0.hLlTeSD2VzVCjvUSXLYQypXNYqthDx0q1N86aOftfEY';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+        
+        // Credenciais de teste
+        const testEmail = 'teste2@teste';
+        const testPassword = 'teste14';
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString('pt-PT');
+            const logElement = document.getElementById('logs');
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
+            logElement.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        async function testLogin() {
+            try {
+                log('🚀 Iniciando teste de login...', 'info');
+                log(`📧 Email: ${testEmail}`, 'info');
+                
+                // Verificar se já existe sessão
+                const { data: currentSession } = await supabase.auth.getSession();
+                if (currentSession?.session) {
+                    log('⚠️ Já existe uma sessão ativa, fazendo logout primeiro...', 'warning');
+                    await supabase.auth.signOut();
+                }
+                
+                // Fazer login
+                log('🔐 Fazendo login...', 'info');
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: testEmail,
+                    password: testPassword
+                });
+                
+                if (error) {
+                    log(`❌ Erro no login: ${error.message}`, 'error');
+                    return;
+                }
+                
+                if (data.user) {
+                    log('✅ Login bem-sucedido!', 'success');
+                    log(`👤 User ID: ${data.user.id}`, 'info');
+                    log(`📧 Email: ${data.user.email}`, 'info');
+                    log(`🔑 Sessão ativa: ${!!data.session}`, 'info');
+                    log('🎯 Agora pode navegar para o payroll!', 'success');
+                } else {
+                    log('❌ Login falhou - nenhum utilizador retornado', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Erro inesperado no login: ${error.message}`, 'error');
+            }
+        }
+        
+        async function navigateToPayroll() {
+            try {
+                log('🧭 Navegando para a página de payroll...', 'info');
+                
+                // Verificar se existe sessão ativa
+                const { data: session } = await supabase.auth.getSession();
+                if (!session?.session) {
+                    log('❌ Nenhuma sessão ativa encontrada. Faça login primeiro.', 'error');
+                    return;
+                }
+                
+                log(`👤 Sessão ativa para: ${session.session.user.email}`, 'info');
+                
+                // Simular navegação para payroll
+                const payrollUrl = 'http://localhost:8081/app/payroll';
+                log(`🔗 Abrindo: ${payrollUrl}`, 'info');
+                
+                // Abrir em nova aba
+                window.open(payrollUrl, '_blank');
+                
+                log('✅ Página de payroll aberta em nova aba', 'success');
+                log('🔍 Verifique se os contratos são carregados automaticamente na nova aba', 'info');
+                
+            } catch (error) {
+                log(`❌ Erro ao navegar para payroll: ${error.message}`, 'error');
+            }
+        }
+        
+        async function checkContracts() {
+            try {
+                log('📋 Verificando contratos diretamente...', 'info');
+                
+                // Verificar sessão
+                const { data: session } = await supabase.auth.getSession();
+                if (!session?.session) {
+                    log('❌ Nenhuma sessão ativa encontrada. Faça login primeiro.', 'error');
+                    return;
+                }
+                
+                const userId = session.session.user.id;
+                log(`👤 User ID da sessão: ${userId}`, 'info');
+                
+                // Buscar contratos
+                log('🔍 Buscando contratos na base de dados...', 'info');
+                const { data: contracts, error } = await supabase
+                    .from('payroll_contracts')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('created_at', { ascending: false });
+                
+                if (error) {
+                    log(`❌ Erro ao buscar contratos: ${error.message}`, 'error');
+                    return;
+                }
+                
+                log(`✅ Contratos encontrados: ${contracts?.length || 0}`, 'success');
+                
+                if (contracts && contracts.length > 0) {
+                    contracts.forEach((contract, index) => {
+                        log(`📋 Contrato ${index + 1}: ${contract.name} (ID: ${contract.id})`, 'info');
+                        log(`   - Ativo: ${contract.is_active}`, 'info');
+                        log(`   - Criado: ${new Date(contract.created_at).toLocaleString('pt-PT')}`, 'info');
+                    });
+                    
+                    const activeContracts = contracts.filter(c => c.is_active);
+                    log(`🎯 Contratos ativos: ${activeContracts.length}`, activeContracts.length > 0 ? 'success' : 'warning');
+                } else {
+                    log('⚠️ Nenhum contrato encontrado para este utilizador', 'warning');
+                }
+                
+            } catch (error) {
+                log(`❌ Erro ao verificar contratos: ${error.message}`, 'error');
+            }
+        }
+        
+        // Log inicial
+        log('🔧 Teste de navegação payroll carregado', 'info');
+        log(`📍 Supabase URL: ${supabaseUrl}`, 'info');
+        log(`🔑 Credenciais configuradas para: ${testEmail}`, 'info');
+        log('', 'info');
+        log('📋 Instruções:', 'info');
+        log('1. Clique em "Fazer Login" para autenticar', 'info');
+        log('2. Clique em "Navegar para Payroll" para abrir a página', 'info');
+        log('3. Clique em "Verificar Contratos" para confirmar os dados', 'info');
+    </script>
+</body>
+</html>

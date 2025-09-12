@@ -20,7 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LoadingSpinner } from '@/components/ui/loading-states';
 import { useAuth } from '@/contexts/AuthContext';
 import { payrollService } from '@/features/payroll/services/payrollService';
-import { Settings, Clock, Utensils, Calendar, FileText, Coffee, Car, Award, Percent, AlertCircle, Trash2 } from 'lucide-react';
+import { Settings, Clock, Utensils, Calendar, FileText, Coffee, Car, Award, Percent, AlertCircle, Trash2, Users } from 'lucide-react';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { useActiveContract } from '@/features/payroll/hooks/useActiveContract';
 import { PayrollContractForm } from '@/features/payroll/components/PayrollContractForm';
@@ -79,7 +79,7 @@ type VacationFormData = z.infer<typeof vacationSchema>;
 export default function PayrollConfigPage() {
   const { t } = useTranslation();
   const { user, loading: authLoading } = useAuth();
-  const { activeContract } = useActiveContract();
+  const { activeContract, refreshContracts } = useActiveContract();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [activeSection, setActiveSection] = useState('contract');
@@ -348,9 +348,10 @@ export default function PayrollConfigPage() {
         </div>
         
         <QuickContractForm
-          onContractCreated={(newContract) => {
+          onContractCreated={async (newContract) => {
               setContracts(prev => [...prev, newContract]);
-              // O ActiveContractContext será atualizado automaticamente
+              // Atualizar a lista de contratos no contexto
+              await refreshContracts();
               setShowQuickForm(false);
             }}
           onCancel={() => setShowQuickForm(false)}
@@ -405,11 +406,19 @@ export default function PayrollConfigPage() {
           ) : (
             <div className="text-center py-8">
               <Alert>
-                  <Users className="h-4 w-4" />
-                  <AlertDescription>
-                    <span>Não existem contratos criados. Use o seletor de contratos para criar um novo.</span>
-                  </AlertDescription>
-                </Alert>
+                <Users className="h-4 w-4" />
+                <AlertDescription className="flex items-center justify-between">
+                  <span>Não existem contratos criados. Por favor, crie o seu primeiro contrato para começar a usar a folha de pagamento.</span>
+                  <Button 
+                    size="sm" 
+                    onClick={() => setShowQuickForm(true)}
+                    className="ml-4"
+                  >
+                    <Settings className="mr-2 h-3 w-3" />
+                    Criar Primeiro Contrato
+                  </Button>
+                </AlertDescription>
+              </Alert>
             </div>
           )}
         </CardContent>
@@ -589,7 +598,17 @@ export default function PayrollConfigPage() {
                   <CompensatoryRestManager contractId={activeContract.id} />
 
                   {/* Quilometragem */}
-                  <PayrollMileagePolicyForm contractId={activeContract.id} />
+                  <PayrollMileagePolicyForm 
+                    contractId={activeContract.id}
+                    onSave={(policy) => {
+                      // Política salva com sucesso
+                      console.log('Política de quilometragem salva:', policy);
+                    }}
+                    onCancel={() => {
+                      // Cancelar edição
+                      console.log('Edição de política cancelada');
+                    }}
+                  />
 
                   {/* Feriados removidos - sincronização automática implementada */}
                   {/* Descontos movidos para tab dedicada */}
